@@ -28,6 +28,7 @@ export class AudioContentState {
     position_seconds = null,
     duration_seconds = null,
     speed = 1.0,
+    last_refusal = null,
   } = {}) {
     this.current_url = current_url;
     this.status = status;
@@ -35,6 +36,7 @@ export class AudioContentState {
     this.position_seconds = position_seconds;
     this.duration_seconds = duration_seconds;
     this.speed = speed;
+    this.last_refusal = last_refusal;
   }
 }
 

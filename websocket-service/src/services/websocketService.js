@@ -3,7 +3,7 @@
 const logger = require("../logger");
 const azureBlobService = require("./azureBlobService");
 const connectionManager = require("./connectionManager");
-const { PlaybackStatus } = require("../constants");
+const { PlaybackStatus, PlaybackRefusal } = require("../constants");
 
 const AUDIO_BYTES_PER_SECOND = 16000; // 320 bytes * 50 chunks per second
 const CHUNK_BYTES = 320;
@@ -77,20 +77,22 @@ async function playAudioContent(id, blobUrl) {
     logger.info(`playAudioContent called for ID: ${id}, Blob URL: ${blobUrl.substring(0,5)}`);
 
     // If no system audio content is playing, start playing audio content
-    if (!state.currentAudioType || state.currentAudioType === "audioContent") {
-      state.currentAudioType = "audioContent";
-      const { containerName, blobName } = parseBlobUrl(blobUrl);
-      const blobData = await azureBlobService.getBlobData(containerName, blobName);
-      logger.info(`Blob downloaded for ID: ${id}, size: ${blobData ? blobData.length : 'null'} bytes`);
-      state.audioContentState.blobData = blobData;
-      state.audioContentState.durationSeconds = blobData ? blobData.length / AUDIO_BYTES_PER_SECOND : 0;
+    const channelFree = !state.currentAudioType || state.currentAudioType === "audioContent";
+    const { containerName, blobName } = parseBlobUrl(blobUrl);
+    const blobData = await azureBlobService.getBlobData(containerName, blobName);
+    logger.info(`Blob downloaded for ID: ${id}, size: ${blobData.length} bytes`);
+    state.audioContentState.blobData = blobData;
+    state.audioContentState.durationSeconds = blobData.length / AUDIO_BYTES_PER_SECOND;
 
+    if (channelFree) {
+      state.currentAudioType = "audioContent";
       sendPlaybackStatus(id, PlaybackStatus.PLAYING);
       logger.info(`Starting audio content playback for ID: ${id}`);
       sendAudioContentChunks(ws, id, blobData, state, currentPlaybackId);
     } else {
-      // Keep audio content in paused state
-      sendPlaybackStatus(id, PlaybackStatus.PAUSED);
+      // Keep audio content loaded but paused so it can be resumed once system audio releases the channel
+      state.audioContentState.playing = false;
+      sendPlaybackStatus(id, PlaybackStatus.PAUSED, PlaybackRefusal.PLAY_DEFERRED_SYSTEM_AUDIO);
       logger.info(
         `Audio content playback paused for ID: ${id} due to system audio content in progress`
       );
@@ -156,6 +158,10 @@ async function playNextSystemAudioContent(ws, id, state) {
     // No more system audio content; do not resume audio content
     logger.info(`No more system audio content in queue for ID: ${id}`);
     state.currentAudioType = null; // Set currentAudioType to null indicating no audio is playing
+    if (state.lastRefusal) {
+      // Clear the refusal raised while system audio held the channel, keeping the real status
+      sendPlaybackStatus(id, state.lastPlaybackStatus);
+    }
     return;
   }
 
@@ -163,12 +169,25 @@ async function playNextSystemAudioContent(ws, id, state) {
   const { blobUrl } = nextSystemAudioContent;
   logger.info(`Starting system audio content playback for ID: ${id}, Blob URL: ${blobUrl}`);
 
-  const { containerName, blobName } = parseBlobUrl(blobUrl);
-  const blobData = await azureBlobService.getBlobData(containerName, blobName);
+  try {
+    const { containerName, blobName } = parseBlobUrl(blobUrl);
+    const blobData = await azureBlobService.getBlobData(containerName, blobName);
 
-  // Start playing system audio content
-  // Note: We do NOT send playback status updates for system audio content
-  sendSystemAudioContentChunks(ws, id, blobData, state);
+    // Start playing system audio content
+    // Note: We do NOT send playback status updates for system audio content
+    sendSystemAudioContentChunks(ws, id, blobData, state);
+  } catch (error) {
+    logger.error(
+      `Failed to play system audio content for ID: ${id}, Blob URL: ${blobUrl}: ${error}`,
+      error
+    );
+    clearSystemAudio(ws, id, state);
+  }
+}
+
+function clearSystemAudio(ws, id, state) {
+  state.systemAudioContentQueue.length = 0;
+  playNextSystemAudioContent(ws, id, state);
 }
 
 /**
@@ -268,7 +287,13 @@ function sendSystemAudioContentChunks(ws, id, blobData, state) {
 
   function sendNextChunk() {
     // Check if WebSocket is open and currentAudioType is 'systemAudioContent'
-    if (ws.readyState !== ws.OPEN || state.currentAudioType !== "systemAudioContent") {
+    if (ws.readyState !== ws.OPEN) {
+      logger.info(`Stopping system audio content streaming for ID: ${id}; WebSocket closed`);
+      clearSystemAudio(ws, id, state);
+      return;
+    }
+
+    if (state.currentAudioType !== "systemAudioContent") {
       // Stop sending if overridden or WebSocket closed
       logger.info(`Stopping system audio content streaming for ID: ${id}`);
       return;
@@ -342,6 +367,7 @@ function resumeAudioContent(id) {
   ) {
     // Ignore resume request; system audio content is playing or queued
     logger.info(`Resume request ignored for ID: ${id}; system audio content is playing or queued`);
+    sendPlaybackStatus(id, PlaybackStatus.PAUSED, PlaybackRefusal.RESUME_REFUSED_SYSTEM_AUDIO);
     return;
   }
 
@@ -397,6 +423,7 @@ async function seekAudioContent(id, seekPayload) {
     logger.info(
       `Seek for ID: ${id} applied while system audio playing; new buffered position: ${targetPosition}`
     );
+    sendPlaybackStatus(id, PlaybackStatus.PAUSED, PlaybackRefusal.SEEK_DEFERRED_SYSTEM_AUDIO);
     return;
   }
 
@@ -501,7 +528,7 @@ function parseBlobUrl(blobUrl) {
   return { containerName, blobName };
 }
 
-function sendPlaybackStatus(id, status) {
+function sendPlaybackStatus(id, status, refusal) {
   try {
     const confv2Conn = connectionManager.getConnection("confv2server");
     if (!confv2Conn || !confv2Conn.ws) {
@@ -511,6 +538,10 @@ function sendPlaybackStatus(id, status) {
     const { ws } = confv2Conn;
     const conn = connectionManager.getConnection(id);
     const audioState = conn?.state?.audioContentState;
+    if (conn?.state) {
+      conn.state.lastPlaybackStatus = status;
+      conn.state.lastRefusal = refusal || null;
+    }
 
     const positionSec = audioState
       ? parseFloat(((audioState.position || 0) / AUDIO_BYTES_PER_SECOND).toFixed(2))
@@ -527,6 +558,7 @@ function sendPlaybackStatus(id, status) {
       duration_seconds: durationSec,
       speed: audioState?.speed || 1.0,
     };
+    if (refusal) payload.refusal = refusal;
     logger.info(`sendPlaybackStatus [${id}]: status=${status}, position=${payload.position_seconds}, duration=${payload.duration_seconds}, speed=${payload.speed}, blobData=${audioState?.blobData ? audioState.blobData.length + ' bytes' : 'null'}`);
 
     ws.send(
