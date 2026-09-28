@@ -11,8 +11,8 @@ regexes = [
 ]
 
 [[allowlists]]
-description = "example env files"
-paths = [
-  '''platform/env\.example$''',
-  '''ContentWebApp/\.env\.example$''',
+description = "VONAGE_CONFERENCE_APPLICATION_PRIVATE_KEY64 .env.example placeholder, key has no assigned value, generic-api-key fires on the variable name's entropy (match spans into the next line's key name), not a secret"
+regexTarget = "match"
+regexes = [
+  '''\AVONAGE_CONFERENCE_APPLICATION_PRIVATE_KEY64=\nVONAGE_IVR_APPLICATION_ID=\z''',
 ]
