@@ -248,7 +248,7 @@ const ConferenceAudioPlayer = ({
           </Box>
           {refusal && (
             <Typography variant="caption" color="warning.main" sx={{ display: "block", mt: 0.25 }}>
-              {REFUSAL_MESSAGES[refusal]}
+              {REFUSAL_MESSAGES[refusal] ?? "Playback temporarily unavailable"}
             </Typography>
           )}
         </Box>
