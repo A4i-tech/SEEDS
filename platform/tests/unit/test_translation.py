@@ -3,13 +3,10 @@ from __future__ import annotations
 
 import pytest
 
-import app.services.translation_service as ts_module
 from app.platform.error_handling import NotFoundError
 from app.platform.settings import Settings
 from app.providers.translation_provider import (
     AzureTranslationProvider,
-    GroqTranslationProvider,
-    OpenAITranslationProvider,
     TransientTranslationError,
     TranslationProvider,
     get_translation_provider,
@@ -62,133 +59,22 @@ async def translation_service(mock_db, fake_provider):
 
 
 
-def test_translation_provider_setting_defaults_to_azure():
-    assert Settings().translation_provider == "azure"
-
-
-def test_get_translation_provider_defaults_to_azure_and_requires_its_credentials():
-    settings = Settings(translator_key="key", translator_region="centralindia")
+def test_get_translation_provider_returns_azure_with_credentials():
+    settings = Settings(azure_translation_key="key", tts_region="test-region")
     assert isinstance(get_translation_provider(settings), AzureTranslationProvider)
 
-    with pytest.raises(ValueError, match="TRANSLATOR_KEY"):
-        get_translation_provider(Settings(translator_key="", translator_region="centralindia"))
 
+def test_get_translation_provider_requires_azure_credentials():
+    with pytest.raises(ValueError, match="AZURE_TRANSLATION_KEY"):
+        get_translation_provider(Settings(azure_translation_key="", tts_region="test-region"))
 
-def test_get_translation_provider_still_selects_openai_when_configured():
-    settings = Settings(translation_provider="openai", openai_api_key="sk-test")
-    provider = get_translation_provider(settings)
-    assert isinstance(provider, OpenAITranslationProvider)
-
-
-def test_get_translation_provider_rejects_unknown_vendor():
-    settings = Settings(translation_provider="unknown-vendor", openai_api_key="sk-test")
-    with pytest.raises(ValueError, match="Unsupported translation_provider"):
-        get_translation_provider(settings)
-
-
-def test_openai_provider_requires_api_key():
-    with pytest.raises(ValueError):
-        OpenAITranslationProvider("")
-
-
-def test_get_translation_provider_selects_groq():
-    settings = Settings(translation_provider="groq", groq_api_key="gsk-test")
-    provider = get_translation_provider(settings)
-    assert isinstance(provider, GroqTranslationProvider)
-
-
-def test_groq_provider_requires_api_key():
-    with pytest.raises(ValueError):
-        GroqTranslationProvider("", "llama-3.3-70b-versatile")
+    with pytest.raises(ValueError, match="TTS_REGION"):
+        get_translation_provider(Settings(azure_translation_key="key", tts_region=""))
 
 
 
 
-class _FakeResponse:
-    def __init__(self, status: int, text: str = "", json_body: dict | None = None) -> None:
-        self.status = status
-        self._text = text
-        self._json_body = json_body or {}
 
-    async def text(self) -> str:
-        return self._text
-
-    async def json(self) -> dict:
-        return self._json_body
-
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, *args):
-        return False
-
-
-class _FakeSession:
-    def __init__(self, response: _FakeResponse) -> None:
-        self._response = response
-
-    def post(self, *args, **kwargs):
-        return self._response
-
-    async def __aenter__(self):
-        return self
-
-    async def __aexit__(self, *args):
-        return False
-
-
-@pytest.mark.asyncio
-async def test_groq_raises_transient_on_5xx(monkeypatch):
-    import aiohttp
-
-    import app.providers.translation_provider as tp
-
-    monkeypatch.setattr(tp, "_BASE_BACKOFF_SECONDS", 0)
-    provider = GroqTranslationProvider("gsk-test", "llama-3.3-70b-versatile")
-    response = _FakeResponse(status=503, text="service unavailable")
-    monkeypatch.setattr(aiohttp, "ClientSession", lambda: _FakeSession(response))
-
-    with pytest.raises(TransientTranslationError):
-        await provider.translate("Hello", "en", "hi")
-
-
-@pytest.mark.asyncio
-async def test_groq_raises_transient_on_429(monkeypatch):
-    import aiohttp
-
-    import app.providers.translation_provider as tp
-
-    monkeypatch.setattr(tp, "_BASE_BACKOFF_SECONDS", 0)
-    provider = GroqTranslationProvider("gsk-test", "llama-3.3-70b-versatile")
-    response = _FakeResponse(status=429, text="rate limited")
-    monkeypatch.setattr(aiohttp, "ClientSession", lambda: _FakeSession(response))
-
-    with pytest.raises(TransientTranslationError):
-        await provider.translate("Hello", "en", "hi")
-
-
-@pytest.mark.asyncio
-async def test_groq_surfaces_auth_error_instead_of_fallback(monkeypatch):
-    import aiohttp
-
-    provider = GroqTranslationProvider("gsk-bad", "llama-3.3-70b-versatile")
-    response = _FakeResponse(status=401, text="invalid api key")
-    monkeypatch.setattr(aiohttp, "ClientSession", lambda: _FakeSession(response))
-
-    with pytest.raises(RuntimeError, match="Groq translation error 401"):
-        await provider.translate("Hello", "en", "hi")
-
-
-@pytest.mark.asyncio
-async def test_groq_surfaces_config_error_instead_of_fallback(monkeypatch):
-    import aiohttp
-
-    provider = GroqTranslationProvider("gsk-test", "nonexistent-model")
-    response = _FakeResponse(status=422, text="unknown model")
-    monkeypatch.setattr(aiohttp, "ClientSession", lambda: _FakeSession(response))
-
-    with pytest.raises(RuntimeError, match="Groq translation error 422"):
-        await provider.translate("Hello", "en", "hi")
 
 
 
@@ -226,12 +112,12 @@ def test_mask_is_noop_for_plain_text():
 
 async def test_save_translation_then_find_by_keys(translation_repo):
     await translation_repo.upsert_source("site1", "/home", "t1", "en", "Hello")
-    await translation_repo.save_translation("site1", "/home", "t1", "hi", "Namaste", "OpenAITranslationProvider")
+    await translation_repo.save_translation("site1", "/home", "t1", "hi", "Namaste", "AzureTranslationProvider")
 
     docs = await translation_repo.find_by_keys("site1", ["t1"])
     assert len(docs) == 1
     assert docs[0]["translations"]["hi"]["text"] == "Namaste"
-    assert docs[0]["translations"]["hi"]["provider"] == "OpenAITranslationProvider"
+    assert docs[0]["translations"]["hi"]["provider"] == "AzureTranslationProvider"
 
 
 async def _seeded_translation_id(translation_repo, translation_service):
@@ -241,18 +127,6 @@ async def _seeded_translation_id(translation_repo, translation_service):
     )
     docs = await translation_repo.find_by_route("site1", "/home")
     return str(docs[0]["_id"])
-
-
-def _settings_first_party(ids: str) -> Settings:
-    return Settings(translation_provider="openai", openai_api_key="sk-test", first_party_site_ids=ids)
-
-
-async def test_empty_allowlist_gates_all_sites(
-    monkeypatch, translation_repo, translation_service
-):
-    monkeypatch.setattr(ts_module, "get_settings", lambda: _settings_first_party(""))
-    await _seeded_translation_id(translation_repo, translation_service)
-    assert await translation_service.get_or_translate("site1", "/home", "hi") == {"t1": "Hello"}
 
 
 async def test_get_or_translate_skips_item_on_transient_failure(
@@ -531,52 +405,6 @@ async def test_approve_reject_cycle_is_fully_reversible_and_repeatable(
 
     await translation_service.approve_translation(translation_id, TENANT, "hi", "rev@example.com")
     assert await status() == "approved"
-
-
-async def test_runtime_translate_does_not_serve_freshly_generated_unapproved_translation(
-    monkeypatch, translation_repo, translation_service
-):
-    monkeypatch.setattr(ts_module, "get_settings", lambda: _settings_first_party(""))
-    await translation_repo.upsert_source("site1", "/h", "t1", "en", "Hello")
-
-    result = await translation_service.runtime_translate("site1", "/h", "hi")
-
-    assert result == {"t1": "Hello"}
-    doc = (await translation_repo.find_by_route("site1", "/h"))[0]
-    assert doc["translations"]["hi"]["text"] == "[hi] Hello"
-    assert doc["translations"]["hi"]["status"] == "pending"
-
-
-async def test_runtime_translate_serves_fresh_translation_for_first_party_sites(
-    monkeypatch, translation_repo, translation_service
-):
-    monkeypatch.setattr(ts_module, "get_settings", lambda: _settings_first_party("site1"))
-    await translation_repo.upsert_source("site1", "/h", "t1", "en", "Hello")
-
-    assert await translation_service.runtime_translate("site1", "/h", "hi") == {"t1": "[hi] Hello"}
-
-
-async def test_runtime_translate_serves_approved_translation_on_the_next_request(
-    monkeypatch, translation_repo, translation_service
-):
-    monkeypatch.setattr(ts_module, "get_settings", lambda: _settings_first_party(""))
-    await translation_repo.upsert_source("site1", "/h", "t1", "en", "Hello")
-    await translation_service.runtime_translate("site1", "/h", "hi")
-    doc = (await translation_repo.find_by_route("site1", "/h"))[0]
-    await translation_service.approve_translation(str(doc["_id"]), TENANT, "hi", "reviewer@example.com")
-
-    assert await translation_service.runtime_translate("site1", "/h", "hi") == {"t1": "[hi] Hello"}
-
-
-async def test_generate_for_review_returns_fresh_translation_for_the_reviewer(
-    monkeypatch, translation_repo, translation_service
-):
-    monkeypatch.setattr(ts_module, "get_settings", lambda: _settings_first_party(""))
-    await translation_repo.upsert_source("site1", "/h", "t1", "en", "Hello")
-
-    assert await translation_service.generate_for_review("site1", TENANT, "/h", "hi") == {"t1": "[hi] Hello"}
-    doc = (await translation_repo.find_by_route("site1", "/h"))[0]
-    assert doc["translations"]["hi"]["status"] == "pending"
 
 
 async def test_runtime_translate_reuses_existing_no_regenerate(

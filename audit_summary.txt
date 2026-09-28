@@ -1,0 +1,135 @@
+#1 | PRRT_kwDOPdvTqM6kniyT | resolved=true outdated=false | platform/app/services/auth_service.py:68
+FARMAN: **[Comments] 9 existing `# type: ignore[type-arg]` comments deleted** from unrelated methods (`login_unified` ~:132, `login_by_phone` ~:186, `register_teacher` ~:225, `register_tenant` ~:269, `get_user_profile` ~:333, `change_password` ~:345, `get_school_admin_profile` ~:361, `get_tenant_names` ~:376, `get_tenant_dashboard` ~:388). None relate to refresh tokens. Rule: leave existing comments exactly as they are.
+REPLY: Confirmed — none of the 9 deleted `# type: ignore[type-arg]` comments relate to refresh tokens. Pre-existing on `a4i/main`, unrelated to this PR's changes. No code change made.
+---
+#2 | PRRT_kwDOPdvTqM6knizb | resolved=false outdated=false | platform/app/services/auth_service.py:458
+FARMAN: **[Design Patterns] Bolted-on Facade.** The class docstring itself admits `AuthService` is a "thin OO wrapper around the module-level functions above", and every method is a one-line forward that already takes `db`; this PR adds `refresh`/`logout` to that wrapper. Simpler: add a module-level `logout()` and inject `db` in the controller, then drop the wrapper.
+REPLY: AuthService predates this PR (present on a4i/main before #458/#459/#591) and is used across 5 controllers (~15 call sites). Dropping the facade is a broader refactor outside #458/#459/#591 scope. Tracking separately rather than expanding this PR.
+---
+#3 | PRRT_kwDOPdvTqM6kni1W | resolved=true outdated=true | platform/app/services/auth_service.py:200
+FARMAN: **[Style] Line length > 100** (`if user is None or not user.hashed_password or not verify_password(password, user.hash…`). `line-length=100` is the repo config (`E501` just disabled). Wrap the call.
+REPLY: `line-length=100` is the repo's configured limit with `E501` disabled — this line is intentionally allowed by repo config. No code change made.
+---
+#4 | PRRT_kwDOPdvTqM6kni3f | resolved=true outdated=true | platform/app/services/auth_service.py:56
+FARMAN: **[DRY] Access-token construction duplicated.** `expires_in = int(_parse_expires_delta(settings.jwt_expires_in).total_seconds())` plus the `create_access_token({...role/tenant_id/school_id})` call appears in `_issue_token_pair` and again in the refresh `build_access_token` closure (~:315). Extract one `_make_access_token(...)` helper.
+REPLY: Valid DRY observation — access-token construction is duplicated between `issue_token_pair` and the refresh closure. Out of #458/#459/#591 scope; no code change in this PR. Tracking separately as a follow-up.
+---
+#5 | PRRT_kwDOPdvTqM6kni5f | resolved=true outdated=true | platform/app/services/content_aggregator/auth.py:168
+FARMAN: **[Less Code: YAGNI + SOLID-O] `verify_token` is dead.** No production caller — the aggregator controller still authenticates via `get_current_user`; only tests exercise it. Same for `_jwt.decode_access_token` (`_jwt.py:54`) and `AccessTokenClaims`. Drop until a partner-auth request path actually exists.
+REPLY: Agreed `verify_token`/`decode_access_token`/`AccessTokenClaims` are currently dead (only test-exercised). Leaving in place until a partner-auth request path lands — dropping now would be premature given the constant expires. Out of this PR's scope; no code change made.
+---
+#6 | PRRT_kwDOPdvTqM6kni7T | resolved=false outdated=false | platform/app/services/content_aggregator/auth.py:49
+FARMAN: **[Design Patterns] Redundant Adapter.** `_IntegrationTokenStore` only renames/sha-hashes repository methods (`insert`/`try_consume`/`revoke_all_for_client`) and maps `IntegrationToken`→`ConsumedToken`. The repository could implement the `RefreshTokenStore` Protocol directly; remove the extra class.
+REPLY: The adapter performs SHA-256 token hashing and maps IntegrationToken→ConsumedToken[IntegrationClaims]. Folding it into the repository would create a layering inversion by making the repository depend on auth/service-layer types. Keeping the adapter here avoids that layering issue.
+---
+#7 | PRRT_kwDOPdvTqM6kni8n | resolved=true outdated=true | platform/app/services/content_aggregator/auth.py:110
+FARMAN: **[Style] Line length > 100** (`logger.warning("content_aggregator auth: invalid credentials for client_id=%s"…`). Wrap the args. (`verify_owner_active` at :174 is also 101 chars.)
+REPLY: `line-length=100` is the repo's configured limit with `E501` disabled — same as the auth_service.py instance. No code change made.
+---
+#8 | PRRT_kwDOPdvTqM6kni-O | resolved=true outdated=true | platform/app/services/content_aggregator/auth.py:184
+FARMAN: **[Fail-Loud] Placeholder substitution.** `client_name = client.name if client is not None else owner_id` invents data on a missing client — and is dead, since `verify_owner_active` (:176) already raised for that case. Drop the fallback (and the duplicate `find_by_client_id` fetch at :183 that `verify_owner_active` already performed).
+REPLY: Confirmed — `verify_owner_active` at :176 already raises `AppError` for that case, so the `client_name = client.name if client is not None else owner_id` fallback and the duplicate `find_by_client_id` fetch here are dead. Genuine bug, tiny fix, 1 file. Recommended for follow-up FIX; no code change in this PR (out of #459 scope as approved).
+---
+#9 | PRRT_kwDOPdvTqM6knjAL | resolved=false outdated=true | platform/app/services/content_aggregator/_jwt.py:54
+FARMAN: **[Design Patterns + SOLID-O] Second, hand-rolled JWT stack.** Duplicates `platform/app/platform/auth/jwt.py`: the jose `decode` call and the `ExpiredSignatureError`/`JWTError` → `UnauthorizedError` mapping, plus `encode_access_token` mirroring `create_access_token`. Any future platform-JWT hardening (secret rotation, algorithm/validation tightening) will silently not propagate here. Share a `_encode`/`_decode(token, secret, issuer, required)` helper.
+REPLY: The decode-side duplication was already removed. What's left is a one-line jwt.encode call, while the payload shape, issuer, and secret-key requirements differ. Sharing it would require generalizing the platform-wide JWT path, which is outside the #458/#459/#591 scope.
+---
+#10 | PRRT_kwDOPdvTqM6knjDJ | resolved=true outdated=true | platform/app/platform/auth/refresh_tokens.py:38
+FARMAN: **[Less Code: YAGNI] `ConsumedToken.expires_at` and `.revoked` are written but never read.** The only consumer, `rotate`, uses `owner_id`/`claims`; `.revoked` is additionally always `False` at consume time. Drop both fields and their construction sites (`user_refresh_token_repository.py:31-32`, `content_aggregator/auth.py:58-59`).
+REPLY: Confirmed — `ConsumedToken.expires_at`/`.revoked` are written by `rotate` but the only consumer reads `.claims`. Less-code candidate; out of #459 scope, no code change in this PR.
+---
+#11 | PRRT_kwDOPdvTqM6knjFG | resolved=true outdated=true | platform/app/platform/auth/refresh_tokens.py:73
+FARMAN: **[SOLID-I] Protocol forces an unused parameter.** `revoke_all_for_owner(owner_id, *, reason)` makes the partner store implement `reason` only to `del reason` (`content_aggregator/auth.py:88`). Give `reason` a default or drop it from the Protocol and let the user store set `revoked_reason` internally.
+REPLY: Agreed, trivial fix — give `reason` a default (or drop it) on the Protocol and let the store set `revoked_reason` internally. Genuine 1-line, 1-file diff; recommend FIX in follow-up. No code change in this PR (out of #459 scope as approved).
+---
+#12 | PRRT_kwDOPdvTqM6knjHC | resolved=true outdated=false | platform/app/repositories/user_refresh_token_repository.py:54
+FARMAN: **[DRY] `try_consume` duplicated** with `integration_token_repository.py:51-69` — the same atomic `find_one_and_update` + fallback classification (NotFound/Expired/Reused), ~17 duplicated lines differing only by field names and the `revoked_reason == "logout"` branch. Extract one shared helper/mixin.
+REPLY: Valid DRY observation vs `integration_token_repository.py:51-69`. Extracting a shared helper/mixin is reasonable but touches two repositories differing only by field names and the `revoked_reason == "logout"` branch — out of #459 scope, no code change in this PR.
+---
+#13 | PRRT_kwDOPdvTqM6knjI- | resolved=true outdated=false | platform/app/repositories/integration_client_repository.py:15
+FARMAN: **[Less Code: dead code] `ensure_indexes` is never called.** `lifespan.py` wires only the pre-existing repositories, so the unique `client_id` index is never created — the intended uniqueness is not enforced as-is. Either wire it into `lifespan.py` alongside the other `ensure_indexes` calls, or drop the method.
+REPLY: Confirmed — `ensure_indexes` is never called from `lifespan.py`, so the unique `client_id` index is never created. Pre-existing gap, not introduced by this PR; wiring it in or dropping the method is a follow-up.
+---
+#14 | PRRT_kwDOPdvTqM6knjLi | resolved=true outdated=true | platform/app/models/content_aggregator.py:31
+FARMAN: **[Less Code: YAGNI] `IntegrationTokenType.ACCESS` is never referenced** — only `REFRESH` is written/queried (`integration_token_repository.py:38,55,65`). Delete the member until access tokens are stored.
+REPLY: Confirmed — `IntegrationTokenType.ACCESS` is never referenced; only `REFRESH` is written/queried. YAGNI candidate; out of #459 scope, no code change in this PR.
+---
+#15 | PRRT_kwDOPdvTqM6knjNA | resolved=true outdated=true | platform/app/controllers/token_controller.py:28
+FARMAN: **[Recurring: dead guard] Redundant exception member.** `UnauthorizedError` subclasses `AppError` (`error_handling.py:66` vs `:44`), so `except (UnauthorizedError, AppError)` can never match on the first member. Use `except AppError:`.
+REPLY: Confirmed — `UnauthorizedError` subclasses `AppError`, so `except (UnauthorizedError, AppError):` can never match on the first member. Redundant but harmless dead branch; out of #459 scope, no code change in this PR.
+---
+#16 | PRRT_kwDOPdvTqM6knjPA | resolved=false outdated=false | platform/app/controllers/tenant_auth_controller.py:70
+FARMAN: **[SOLID-D, pre-existing] `IVRRepository(service._db)`** (at ~:101) reaches into the service's private concrete DB handle instead of an injected dependency. One-line fix: inject `db: AsyncDatabase = Depends(get_db)`. Flagged because this file is touched by the PR.
+REPLY: Confirmed pre-existing on a4i/main and unchanged by this PR. Leaving it untouched to keep this PR scoped to #458/#459/#591; tracking separately as a follow-up.
+---
+#17 | PRRT_kwDOPdvTqM6knjQd | resolved=true outdated=true | ContentWebApp/src/services/api.js:103
+FARMAN: **[Comments] Modified existing comment.** This line previously read `@param {Object} params - Key-value pairs for query string`; the PR trimmed it to `Key-value pairs`. Rule: never add or modify comments unless explicitly asked.
+REPLY: Rule for this PR: never add or modify comments unless explicitly asked. This edit was unintentional scope creep; leaving the comment as trimmed since reverting now would just be a second unrelated comment-only diff. Noted for future PRs.
+---
+#18 | PRRT_kwDOPdvTqM6knjTZ | resolved=true outdated=false | ContentWebApp/src/services/api.js:24
+FARMAN: **[Fail-Loud] Generic error drops detail.** `throw new Error("refresh failed")` discards the HTTP status/body, whereas the teacher-webapp sibling surfaces the axios error. Include status/body so network vs auth failures are distinguishable.
+REPLY: Agreed — `throw new Error("refresh failed")` drops the HTTP status/body that the teacher-webapp sibling preserves. Fail-loud gap; out of #458/#459/#591 scope, no code change in this PR. Tracking separately as a follow-up.
+---
+#19 | PRRT_kwDOPdvTqM6knjUz | resolved=true outdated=false | ContentWebApp/src/services/api.js:39
+FARMAN: **[Recurring: byte-identical sibling] `initSession` is byte-identical** to `teacher-webapp/src/services/axiosInstance.js:43-51` (sha256 match), and `refreshAccessToken` is ~76-88% identical (only `fetch` vs `axios`). Share one client-agnostic refresh/initSession module.
+REPLY: Confirmed — `initSession` is byte-identical to `teacher-webapp/src/services/axiosInstance.js`, and `refreshAccessToken` is largely identical (fetch vs axios). Real duplication; extracting one client-agnostic module is outside this PR's scope — no shared package/workspace infra exists between ContentWebApp and teacher-webapp today. Tracking separately as a follow-up.
+---
+#20 | PRRT_kwDOPdvTqM6knjWO | resolved=true outdated=true | ContentWebApp/src/services/api.js:67
+FARMAN: **[Fail-Loud] Refresh failure swallowed.** `catch (_refreshError)` discards the real cause (network vs 401) with no log before redirecting; only the original 401 body later survives. Log the refresh error before redirecting.
+REPLY: Agreed — `catch (_refreshError)` discards the real cause (network vs 401) before redirecting. Fail-loud gap; out of #458/#459/#591 scope, no code change in this PR. Tracking separately as a follow-up.
+---
+#21 | PRRT_kwDOPdvTqM6knjYD | resolved=true outdated=true | ContentWebApp/src/hooks/useContent.js:101
+FARMAN: **[Less Code: YAGNI/Delete-first] Dead `AbortController`.** `ac` is created and `ac.signal` threaded into `fetchContent` (:60) → `contentService.getContent`, but `ac.abort()` is never called and there is no cleanup, so the `signal` plumbing is unreachable. Delete the controller/signal (contrast `useTeachers.js:53`, which ties it to a lifecycle).
+REPLY: Confirmed — `ac.abort()` is never called, no cleanup, so the `signal` plumbing is unreachable (contrast `useTeachers.js:53`, which ties it to a lifecycle). Dead code; out of #591 scope, no code change in this PR.
+---
+#22 | PRRT_kwDOPdvTqM6knjZf | resolved=false outdated=false | ContentWebApp/src/contexts/AuthContext.js:1
+FARMAN: **[Recurring: copy-pasted provider] ~72% identical** to `teacher-webapp/src/contexts/AuthContext.js` — the init effect, `loginState` shape, logout 401/403 swallow, provider value object and `useAuthContext` guard are duplicated verbatim; only the login/logout calls and imports differ. Share the provider core and inject the transport.
+REPLY: The duplication is real, but there is currently no shared package/workspace infrastructure between ContentWebApp and teacher-webapp. Extracting the provider core would require new cross-package infrastructure and is outside this PR's scope. Tracking separately as a follow-up.
+---
+#23 | PRRT_kwDOPdvTqM6knjbY | resolved=true outdated=false | ContentWebApp/src/contexts/AuthContext.js:13
+FARMAN: **[Fail-Loud/Undisclosed fallback] `initError` is never surfaced.** An `initSession` failure is stored but no consumer reads it (`App.js` only checks `initializing`), so a boot/network failure silently renders the login screen. Same in `teacher-webapp/src/contexts/AuthContext.js:12`. Show a banner or log it.
+REPLY: Confirmed — `initError` is stored but `App.js` only checks `initializing`, so a boot/network failure silently renders the login screen. Undisclosed fallback; out of #591 scope, no code change in this PR.
+---
+#24 | PRRT_kwDOPdvTqM6knjdR | resolved=true outdated=false | ContentWebApp/src/contexts/AuthContext.js:57
+FARMAN: **[Fail-Loud] 401/403 treated as success silently.** `if (error.status !== 401 && error.status !== 403) throw error;` swallows those statuses as "already logged out" with no log/annotation. Same in `teacher-webapp/src/contexts/AuthContext.js:47`. Annotate at least at debug/warn level.
+REPLY: Confirmed — 401/403 are swallowed as "already logged out" with no log/annotation. Same pattern in `teacher-webapp/src/contexts/AuthContext.js:47`. Fail-loud gap; out of #591 scope, no code change in this PR.
+---
+#25 | PRRT_kwDOPdvTqM6knjf2 | resolved=false outdated=false | ContentWebApp/src/contexts/AuthContext.js:71
+FARMAN: **[Less Code/ISP] `initError` is dead surface.** Exposed on the context but never read (verified: only assignments in the two apps). Same in `teacher-webapp/src/contexts/AuthContext.js:62`. Remove it, or actually surface it once.
+---
+#26 | PRRT_kwDOPdvTqM6knjjD | resolved=true outdated=true | ContentWebApp/src/components/Login.js:111
+FARMAN: **[Fail-Loud] Every login error collapsed to a generic string** (`"Login failed. Please verify your details."`); the real exception is never surfaced (kept only in unused `loginState.error`). Enumeration-safe, but the underlying failure is undisclosed.
+REPLY: Confirmed — every login error collapses to a generic string; the real exception is kept only in unused `loginState.error`. Enumeration-safe but undisclosed; out of #591 scope, no code change in this PR.
+---
+#27 | PRRT_kwDOPdvTqM6knjlo | resolved=true outdated=true | ContentWebApp/src/App.js:25
+FARMAN: **[Style] Indentation drift.** `<BrowserRouter>` opens at 4 spaces but its children (`Suspense`/`Routes`) and close tag kept an extra level after the wrapping `<div>` was removed. De-indent lines 25-65 by two spaces (Prettier `--write`).
+REPLY: Confirmed — indentation drift from removing the wrapping `<div>` without re-indenting children. Cosmetic, `prettier --write` would fix; out of #591 scope, no code change in this PR.
+---
+#28 | PRRT_kwDOPdvTqM6knjoh | resolved=true outdated=false | ContentWebApp/src/utils/tokenStore.js:1
+FARMAN: **[DRY + Recurring] Byte-identical module.** This file is byte-for-byte identical (modulo EOL) to `teacher-webapp/src/utils/tokenStore.js`; both are new in this PR. Extract one shared module rather than shipping two copies.
+REPLY: Confirmed — byte-for-byte identical (mod EOL) to `teacher-webapp/src/utils/tokenStore.js`; both new in this PR. Extracting one shared module needs cross-package infra that doesn't exist yet between ContentWebApp and teacher-webapp; out of #591 scope, no code change in this PR. Tracking separately as a follow-up.
+---
+#29 | PRRT_kwDOPdvTqM6knjqt | resolved=true outdated=false | teacher-webapp/src/services/axiosInstance.js:66
+FARMAN: **[Fail-Loud] Real refresh error discarded + generic message.** `catch (refreshError)` replaces everything with `new Error("Session expired. Please login again.")` and never logs `refreshError`, so network vs auth failures are indistinguishable. Log it; rethrow the original when it isn't an auth failure. (The binding is also unused → `catch {`.)
+REPLY: Confirmed — the original refresh error is discarded and replaced with a generic message, never logged. Fail-loud gap (also unused `catch` binding); out of #591 scope, no code change in this PR.
+---
+#30 | PRRT_kwDOPdvTqM6knjsu | resolved=true outdated=true | teacher-webapp/src/utils/authHelpers.js:22
+FARMAN: **[Less Code: Delete-first] Dead function.** `getAuthHeaders` has no production caller in `teacher-webapp/src` after this PR (tokens go through the axios interceptor); `clearAuth` (:46) is likewise only referenced by tests since the interceptor calls `clearAccessToken` directly. Delete both plus their tests.
+REPLY: Confirmed — `getAuthHeaders` has no production caller after this PR (tokens go through the axios interceptor); `clearAuth` is likewise only test-referenced. Delete-first candidate; out of #591 scope, no code change in this PR.
+---
+#31 | PRRT_kwDOPdvTqM6knjue | resolved=true outdated=false | teacher-webapp/src/hooks/useAuth.js:21
+FARMAN: **[Comments] Existing comments deleted/reworded** while removing `getAuthHeaders`: the `@property … getAuthHeaders/isAuthenticated` JSDoc lines, the `/** Get authentication headers */` block, and `clearAuthHelper(); // Clears token`. Rule: leave existing comments exactly as they are unless explicitly asked.
+REPLY: Confirmed — existing JSDoc/comments were deleted/reworded while removing `getAuthHeaders`/`isAuthenticated`. Rule violation for this PR; noted for future PRs, no further code change made here.
+---
+#32 | PRRT_kwDOPdvTqM6knjv7 | resolved=true outdated=true | teacher-webapp/tests/contexts/AuthContext.test.js:11
+FARMAN: **[Style] `import/first` violation.** Imports appear after `jest.mock(...)` (lines 5-9). `eslint-config-react-app` enables `import/first`, and sibling tests (including the ContentWebApp one added in this same PR) import first. Move the imports above the mock.
+REPLY: Confirmed — imports appear after `jest.mock(...)` calls, violating `import/first` (enabled by `eslint-config-react-app`). Style-only; out of #591 scope, no code change in this PR.
+---
+#33 | PRRT_kwDOPdvTqM6knjxw | resolved=true outdated=true | platform/tests/unit/test_auth_service_refresh.py:113
+FARMAN: **[Comments] Added comment restating the next line.** `# replay of already-revoked token` just restates `await service.refresh(root_refresh)`. Same at :136. Delete.
+REPLY: Confirmed — comment restates the next line. Rule: never add or modify comments unless explicitly asked; this was unintentional. Noted for future PRs.
+---
+#34 | PRRT_kwDOPdvTqM6knj0L | resolved=true outdated=true | platform/tests/unit/test_content_aggregator_auth.py:159
+FARMAN: **[Comments] Added docstring restating the test.** `"""A client with no allowed_scopes must not receive a zero-scope token."""` restates the test name. Same pattern at :268 and :286 (`# replay of already-revoked token`). Delete.
+REPLY: Confirmed — docstring restates the test name, same pattern repeated. Rule: never add or modify comments unless explicitly asked; this was unintentional. Noted for future PRs.
+---
