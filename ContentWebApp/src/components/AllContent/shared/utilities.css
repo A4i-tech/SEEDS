@@ -10,6 +10,25 @@
   font-size: 13px;
 }
 
+.checkbox-list {
+  max-height: 220px;
+  overflow-y: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+}
+
+.checkbox-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #0f172a;
+  font-weight: 400;
+  padding: 4px 0;
+}
+
 /* Status messages  */
 .status-message {
   font-size: 13px;

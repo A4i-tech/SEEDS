@@ -1,16 +1,12 @@
 name: ContentWebApp E2E
 
 on:
-  push:
-    branches:
-      - a4i/staging
-    paths:
-      - "ContentWebApp/**"
-  pull_request:
-    branches:
-      - a4i/staging
-    paths:
-      - "ContentWebApp/**"
+  workflow_call:
+    inputs:
+      e2e_instance:
+        description: "E2E_INSTANCE to run against"
+        type: string
+        default: dev
   workflow_dispatch:
     inputs:
       e2e_instance:
@@ -22,7 +18,7 @@ on:
         default: dev
 
 concurrency:
-  group: contentwebapp-e2e-${{ github.event.pull_request.number || github.ref }}
+  group: contentwebapp-e2e-${{ github.ref }}-${{ github.event_name }}-${{ inputs.e2e_instance }}
   cancel-in-progress: true
 
 jobs:
@@ -48,12 +44,9 @@ jobs:
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
 
-      # localhost:3000 is not reachable from a GitHub-hosted runner, so push/PR
-      # triggers always run against the "dev" remote instance. Use
-      # workflow_dispatch with the e2e_instance input to run against "onrender" instead.
       - name: Run Playwright E2E tests
         env:
-          TARGET_INSTANCE: ${{ github.event_name == 'workflow_dispatch' && inputs.e2e_instance || 'dev' }}
+          TARGET_INSTANCE: ${{ inputs.e2e_instance }}
         run: npm run "test:e2e:$TARGET_INSTANCE"
 
       - name: Upload Playwright report
