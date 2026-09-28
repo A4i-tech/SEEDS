@@ -4,6 +4,7 @@ import Select from "../shared/Select";
 import { extractDomain } from "../../../utils/url";
 import { useCrudView } from "../../../hooks/useCrudView";
 import { onboardingService } from "../../../services/onboardingService";
+import { buildSdkSnippet } from "../../../dto/LocalizationDto";
 import { ManageTable } from "./ManageTable";
 import { SnippetBlock } from "./SnippetBlock";
 import SectionHeader from "../shared/SectionHeader";
@@ -92,7 +93,7 @@ export function SitesView({ loc, toast }) {
       />
       {snippetSite && (
         <Modal title={`SDK snippet — ${snippetSite.domain}`} onClose={() => setSnippetSite(null)} maxWidth={640}>
-          <SnippetBlock snippet={snippetSite.snippet} />
+          <SnippetBlock snippet={buildSdkSnippet(snippetSite)} />
         </Modal>
       )}
       {dlg && (

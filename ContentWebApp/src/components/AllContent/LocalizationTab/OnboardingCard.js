@@ -7,6 +7,7 @@ import { useToast } from "./Toast";
 import { SnippetBlock } from "./SnippetBlock";
 import { DevToolsSection } from "./DevToolsSection";
 import { extractDomain } from "../../../utils/url";
+import { buildSdkSnippet } from "../../../dto/LocalizationDto";
 
 export function OnboardingCard({ loc }) {
   const { toast } = useToast();
@@ -59,7 +60,7 @@ export function OnboardingCard({ loc }) {
           <p className="success-message">Ready to install SDK</p>
         </div>
 
-        <SnippetBlock snippet={result.snippet} />
+        <SnippetBlock snippet={buildSdkSnippet(result)} />
 
         <div>
           <span className="label">How to install</span>
