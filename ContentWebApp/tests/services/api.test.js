@@ -54,11 +54,11 @@ describe("apiFetch", () => {
     expect(window.location.href).toBe("");
   });
 
-  it("does not clear auth or redirect on 403 and lets the error reach the caller", async () => {
+  it("clears auth and redirects on 403 when no access token is present", async () => {
     global.fetch.mockResolvedValue(fakeResponse({ ok: false, status: 403, text: "Access denied" }));
     await expect(apiFetch("/x")).rejects.toMatchObject({ status: 403, message: "Access denied" });
-    expect(clearAuth).not.toHaveBeenCalled();
-    expect(window.location.href).toBe("");
+    expect(clearAuth).toHaveBeenCalled();
+    expect(window.location.href).toBe("/");
   });
 
   it("uses the backend message from a JSON error envelope", async () => {
@@ -101,7 +101,7 @@ describe("apiFetch", () => {
   it("passes no abort signal when timeoutMs is not set", async () => {
     global.fetch.mockResolvedValue(fakeResponse({ ok: true, contentType: "text/plain", text: "hi" }));
     await apiFetch("/x", { method: "GET" });
-    expect(global.fetch).toHaveBeenCalledWith("/x", { method: "GET" });
+    expect(global.fetch).toHaveBeenCalledWith("/x", { credentials: "include", method: "GET" });
   });
 
   it("does not clear auth on other error statuses", async () => {
