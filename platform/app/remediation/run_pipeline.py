@@ -79,6 +79,7 @@ async def run_pipeline(
         "PYTHONPATH": str(PLATFORM_ROOT),
         "PYTHONIOENCODING": "utf-8",
         "PYTHONUTF8": "1",
+        "METADATA_STORE": "null",
     }
 
     stop_tailing = asyncio.Event()
