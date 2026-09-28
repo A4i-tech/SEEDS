@@ -287,15 +287,15 @@ function sendSystemAudioContentChunks(ws, id, blobData, state) {
 
   function sendNextChunk() {
     // Check if WebSocket is open and currentAudioType is 'systemAudioContent'
-    if (ws.readyState !== ws.OPEN) {
-      logger.info(`Stopping system audio content streaming for ID: ${id}; WebSocket closed`);
-      clearSystemAudio(ws, id, state);
-      return;
-    }
-
     if (state.currentAudioType !== "systemAudioContent") {
       // Stop sending if overridden or WebSocket closed
       logger.info(`Stopping system audio content streaming for ID: ${id}`);
+      return;
+    }
+
+    if (ws.readyState !== ws.OPEN) {
+      logger.info(`Stopping system audio content streaming for ID: ${id}; WebSocket closed`);
+      clearSystemAudio(ws, id, state);
       return;
     }
 
