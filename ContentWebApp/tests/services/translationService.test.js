@@ -1,6 +1,7 @@
 import { translationService } from "../../src/services/translationService";
 import { onboardingService } from "../../src/services/onboardingService";
 import { apiFetch } from "../../src/services/api";
+import { setAccessToken } from "../../src/utils/tokenStore";
 
 jest.mock("../../src/services/api", () => ({
   apiFetch: jest.fn().mockResolvedValue([]),
@@ -9,7 +10,7 @@ jest.mock("../../src/services/api", () => ({
 
 beforeEach(() => {
   apiFetch.mockClear();
-  localStorage.setItem("authToken", "t");
+  setAccessToken("t");
 });
 
 test("generateForReview overrides the default timeout with 5 minutes", async () => {
