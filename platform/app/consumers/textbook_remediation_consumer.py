@@ -3,11 +3,15 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
 import re
 import tempfile
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 
+import pymupdf
+import yaml
+from omni_ingest.core.config import settings as omni_settings
 from pymongo.asynchronous.database import AsyncDatabase
 
 from app.consumers.base_consumer import BaseConsumer, PermanentError
@@ -17,6 +21,7 @@ from app.models.remediation_job import (
     IMAGE_CONTENT_TYPES,
     ArtifactName,
     JobMetrics,
+    JobModels,
     JobProgress,
     JobStage,
     JobStatus,
@@ -45,6 +50,39 @@ def _count_lines(path: Path) -> int:
     return len(path.read_text(encoding="utf-8").splitlines()) if path.exists() else 0
 
 
+_CONFIG_REF = re.compile(r"^\$\{\.config\.(\w+)\}$")
+
+
+def _resolve_model_ref(model: object, parameters: dict[str, object]) -> str:
+    if model is None:
+        return omni_settings.default_chat_completion_model
+    match = _CONFIG_REF.match(str(model))
+    if not match:
+        return str(model)
+    default = parameters.get("properties", {}).get(match.group(1), {}).get("default")
+    return default or omni_settings.default_chat_completion_model
+
+
+def _step_model(steps: list[dict[str, object]], path: str, parameters: dict[str, object]) -> str | None:
+    for step in steps:
+        if (step.get("config") or {}).get("path") == path:
+            return _resolve_model_ref(step["config"].get("model"), parameters)
+    return None
+
+
+def _resolve_models(job: RemediationJob) -> JobModels:
+    settings = get_settings()
+    ocr = os.environ.get("MISTRAL_OCR_MODEL") or settings.mistral_ocr_model or None
+    pipeline = yaml.safe_load(PIPELINE_PATH.read_text(encoding="utf-8"))
+    parameters = pipeline.get("parameters", {})
+    steps = pipeline.get("steps", [])
+    verify = _step_model(steps, ".metadata.verified", parameters)
+    alt_text = _step_model(steps, ".metadata.accessibility", parameters)
+    block_tree = _step_model(steps, ".metadata.remediation", parameters)
+    translation = omni_settings.default_translation_model if job.target_language else None
+    return JobModels(ocr=ocr, verify=verify, block_tree=block_tree, alt_text=alt_text, translation=translation)
+
+
 REQUIRED_ARTIFACTS: tuple[ArtifactName, ...] = (
     ArtifactName.RAW, ArtifactName.CORRECTED, ArtifactName.REMEDIATED, ArtifactName.DOCX,
 )
@@ -62,10 +100,34 @@ async def _upload(
             if name in REQUIRED_ARTIFACTS:
                 raise RuntimeError(f"Missing required artifact file: {filename}")
             continue
-        urls[name] = await blob_provider.upload_file(
-            container, f"textbook-remediation/{job_id}/{filename}", path.read_bytes(), content_type
-        )
+        with open(path, "rb") as fh:
+            urls[name] = await blob_provider.upload_file(
+                container, f"textbook-remediation/{job_id}/{filename}", fh, content_type
+            )
     return urls
+
+
+def _render_page_jpeg(doc: pymupdf.Document, page_index: int) -> bytes:
+    pix = doc[page_index].get_pixmap(dpi=100)
+    return pix.tobytes("jpeg")
+
+
+async def _upload_source_pages(blob_provider: BlobStorageProvider, job_id: str, pdf: Path) -> int:
+    container = get_settings().azure_storage_container
+    doc = pymupdf.open(pdf)
+    try:
+        page_count = doc.page_count
+        for page_index in range(page_count):
+            try:
+                data = await asyncio.to_thread(_render_page_jpeg, doc, page_index)
+                await blob_provider.upload_file(
+                    container, f"textbook-remediation/{job_id}/pages/{page_index + 1}.jpg", data, "image/jpeg"
+                )
+            except Exception as exc:
+                raise RuntimeError(f"Failed to render source page {page_index + 1}: {exc}") from exc
+        return page_count
+    finally:
+        doc.close()
 
 
 async def _upload_images(blob_provider: BlobStorageProvider, job_id: str, search_dir: Path, out: Path) -> int:
@@ -77,12 +139,13 @@ async def _upload_images(blob_provider: BlobStorageProvider, job_id: str, search
                 continue
             for attempt in range(1, 4):
                 try:
-                    await blob_provider.upload_file(
-                        container,
-                        f"textbook-remediation/{job_id}/images/{img_path.name}",
-                        img_path.read_bytes(),
-                        content_type,
-                    )
+                    with open(img_path, "rb") as fh:
+                        await blob_provider.upload_file(
+                            container,
+                            f"textbook-remediation/{job_id}/images/{img_path.name}",
+                            fh,
+                            content_type,
+                        )
                     count += 1
                     break
                 except Exception as exc:
@@ -169,13 +232,9 @@ async def _translate_if_requested(
     if not job.target_language:
         return None
     remediated_path = out / artifact_filename(ArtifactName.REMEDIATED)
-    if not remediated_path.exists():
-        message = "Remediation produced no text to translate."
-        await repo.set_translation_error(job.job_id, message)
-        return message
     try:
         translated_urls = await run_translation(
-            job.job_id, remediated_path.read_bytes(), job.target_language, job.language, blob_provider
+            job.job_id, remediated_path, job.target_language, job.language, blob_provider
         )
         if not translated_urls:
             raise RuntimeError("Translation produced no downloadable file.")
@@ -196,6 +255,12 @@ async def _process_job(
 ) -> None:
     def make_progress_handler(stage: JobStage) -> Callable[[dict[str, object]], Awaitable[None]]:
         async def _handler(evt: dict[str, object]) -> None:
+            evt_type = evt.get("type")
+            if evt_type in ("step_begin", "step_end"):
+                logger.info("remediation: job_id=%s step=%s %s", job.job_id, evt.get("step_name"), evt_type)
+            elif evt_type == "peak_rss":
+                logger.info("remediation: job_id=%s peak RSS=%sMB", job.job_id, evt.get("mb"))
+                return
             progress = JobProgress(
                 stage=stage,
                 step=evt.get("step_name"),
@@ -216,7 +281,9 @@ async def _process_job(
         out = work / "out"
         out.mkdir(parents=True, exist_ok=True)
         pdf = work / "book.pdf"
-        pdf.write_bytes(await blob_provider.download_from_url(job.source_url))
+        await blob_provider.download_from_url_to_file(job.source_url, pdf)
+        page_count = await _upload_source_pages(blob_provider, job.job_id, pdf)
+        await repo.update_source_page_count(job.job_id, page_count)
 
         is_auto = not job.language or job.language.lower() in AUTO_LANGUAGES
         pipeline_lang = "auto" if is_auto else job.language
@@ -227,6 +294,7 @@ async def _process_job(
         )
         progress_msg = f"Remediating in {pipeline_lang}..." if not is_auto else "Remediating textbook..."
         await repo.update_progress(job.job_id, JobProgress(stage=JobStage.OCR, message=progress_msg))
+        await repo.update_models(job.job_id, _resolve_models(job))
 
         context_json_path = work / "context.json"
         docx_path = out / artifact_filename(ArtifactName.DOCX)
@@ -241,8 +309,13 @@ async def _process_job(
 
         if not context_json_path.exists():
             raise RuntimeError(f"Pipeline {PIPELINE_PATH.name} produced no context output")
-        ctx_data = json.loads(context_json_path.read_text(encoding="utf-8"))
-        rendered_metrics = render_remediation(ctx_data, out).get("metrics")
+
+        def _load_and_render() -> tuple[dict[str, object], dict[str, object]]:
+            ctx = json.loads(context_json_path.read_text(encoding="utf-8"))
+            return ctx, render_remediation(ctx, out)
+
+        ctx_data, render_result = await asyncio.to_thread(_load_and_render)
+        rendered_metrics = render_result.get("metrics")
         metrics = JobMetrics.model_validate(rendered_metrics) if isinstance(rendered_metrics, dict) else None
 
         raw = out / artifact_filename(ArtifactName.RAW)
@@ -257,7 +330,7 @@ async def _process_job(
         if metrics is None:
             metrics = _fallback_metrics(raw, trail, unresolved)
 
-        await _upload_images(blob_provider, job.job_id, work, out)
+        await _upload_images(blob_provider, job.job_id, out / "images", out)
         await repo.record_artifacts(
             job.job_id,
             await _upload(

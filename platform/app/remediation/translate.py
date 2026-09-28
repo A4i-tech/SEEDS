@@ -3,12 +3,14 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 import tempfile
 from pathlib import Path
 
-from app.models.remediation_job import ARTIFACTS, ArtifactName, artifact_filename
+from app.models.remediation_job import ARTIFACTS, AUTO_LANGUAGES, ArtifactName, artifact_filename
 from app.platform.settings import get_settings
 from app.providers.blob_storage import BlobStorageProvider
+from app.remediation.detect_language import language_name_to_code
 from app.remediation.render import compile_docx_tex_pdf
 from app.remediation.run_pipeline import run_pipeline
 
@@ -17,24 +19,51 @@ logger = logging.getLogger(__name__)
 PIPELINE_PATH = Path(__file__).resolve().parent / "textbook_translation.yaml"
 TRANSLATION_TIMEOUT_SECONDS = 60 * 60
 
+_IMAGE_SRC_RE = re.compile(r"!\[[^\]]*\]\(([^)\s]+)")
+
+
+def _repair_image_markup(original_md: str, translated_md: str) -> str:
+    repaired = re.sub(r"\]\s+\(", "](", re.sub(r"!\s+\[", "![", translated_md))
+    original_srcs = _IMAGE_SRC_RE.findall(original_md)
+    translated_srcs = _IMAGE_SRC_RE.findall(repaired)
+    if len(original_srcs) != len(translated_srcs):
+        raise RuntimeError(
+            f"Translation changed the number of figures from {len(original_srcs)} to {len(translated_srcs)}. "
+            "Translate again. If it fails again, report the job id."
+        )
+    srcs = iter(original_srcs)
+    return _IMAGE_SRC_RE.sub(lambda m: m.group(0)[: m.start(1) - m.start(0)] + next(srcs), repaired)
+
 
 async def run_translation(
     job_id: str,
-    remediated_md: bytes,
+    remediated_path: Path,
     target_language: str,
     source_language: str,
     blob_provider: BlobStorageProvider,
 ) -> dict[str, str]:
+    if not remediated_path.exists() or not remediated_path.read_bytes().strip():
+        raise ValueError("Remediation produced no text to translate. Re-run remediation, then try translating again.")
+    source = (source_language or "").strip()
+    if source.lower() in (*AUTO_LANGUAGES, "", "unknown"):
+        source = "auto"
+    else:
+        code = language_name_to_code(source)
+        if code is None:
+            raise ValueError(
+                f"Source language {source_language!r} is not supported for translation. "
+                "Pick a language from GET /v1/languages."
+            )
+        source = code
+
     with tempfile.TemporaryDirectory() as workspace:
         work = Path(workspace)
-        md_path = work / "remediated.md"
-        md_path.write_bytes(remediated_md)
         context_path = work / "context.json"
 
         await run_pipeline(
-            PIPELINE_PATH, md_path, work,
+            PIPELINE_PATH, remediated_path, work,
             [
-                "--source-language", source_language or "auto",
+                "--source-language", source,
                 "--target-language", target_language,
                 "--output", str(context_path),
             ],
@@ -44,8 +73,12 @@ async def run_translation(
         ctx_data = json.loads(context_path.read_text(encoding="utf-8"))
         translated_text = str((ctx_data.get("metadata") or {}).get("translated_text") or "")
         if not translated_text:
-            raise RuntimeError("Translation pipeline produced no text")
+            raise RuntimeError(
+                "Translation produced no text. The source document had no extractable text. "
+                "Re-run remediation, then try translating again."
+            )
 
+        translated_text = _repair_image_markup(remediated_path.read_text(encoding="utf-8"), translated_text)
         out_dir = work / "out"
         out_dir.mkdir()
         out_md = out_dir / artifact_filename(ArtifactName.TRANSLATED_MD)
@@ -68,7 +101,8 @@ async def run_translation(
             ("translated_pdf", out_dir / artifact_filename(ArtifactName.TRANSLATED_PDF)),
         ):
             if path.exists():
-                urls[name] = await blob_provider.upload_file(
-                    container, f"textbook-remediation/{job_id}/{path.name}", path.read_bytes(), ARTIFACTS[name][1]
-                )
+                with open(path, "rb") as fh:
+                    urls[name] = await blob_provider.upload_file(
+                        container, f"textbook-remediation/{job_id}/{path.name}", fh, ARTIFACTS[name][1]
+                    )
         return urls

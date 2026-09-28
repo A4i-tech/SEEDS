@@ -1,7 +1,7 @@
 import { isRemediationDone, JOB_STATUS, JOB_STAGE } from "../../../utils/remediationStatus";
 import "./StageProgress.css";
 
-const STAGE_LABELS = { [JOB_STAGE.OCR]: "OCR", [JOB_STAGE.REVIEW]: "Review", [JOB_STAGE.DOCX]: "Remediate" };
+const STAGE_LABELS = { [JOB_STAGE.OCR]: "OCR", [JOB_STAGE.REVIEW]: "Review", [JOB_STAGE.DOCX]: "Build documents" };
 const STAGES = [JOB_STAGE.OCR, JOB_STAGE.REVIEW, JOB_STAGE.DOCX];
 
 export function StageProgress({ job }) {
@@ -24,6 +24,7 @@ export function StageProgress({ job }) {
             <span
               key={stage}
               className={`remediation-stage${reached ? " remediation-stage-done" : ""}${current ? " remediation-stage-current" : ""}`}
+              aria-current={current ? "step" : undefined}
             >
               {STAGE_LABELS[stage]}
             </span>

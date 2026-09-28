@@ -29,26 +29,16 @@ steps:
     config:
       mode: pdf
 
-  - agent: image_extraction
-    description: "Extract figures and mark their position in the page"
-    config:
-      mode: redact
-      include_vector: true
-      include_tables: false
-      deduplicate: true
-      replace: false
-      dpi: 240
-
-  - agent: fix_image_pages
-    description: "Restore each figure's real page number, and drop caption-label crops mistaken for diagrams"
-
   - agent: azure_mistral_ocr
     description: "Read page text with the configured OCR model"
     config:
       engine: ${.config.ocr_engine}
       src_lang: ${.config.language}
-      workers: 8
       foreach: '.items[] | select(.metadata.kind != "image")'
+      extract_images: true
+      image_min_size: 40
+      extract_header_footer: true
+      deduplicate: true
 
   - agent: safe_extract
     description: "Verify OCR text against the page image"
@@ -167,9 +157,9 @@ steps:
   - agent: safe_extract
     description: "Write alt text and a long description for every figure"
     config:
-      foreach: '(.metadata.book.language // "") as $lang | .items[] | select(.metadata.kind == "image") | . + {book_language: $lang}'
+      foreach: '(.metadata.book.language // "") as $lang | ([.items[] | select(.metadata.kind != "image") | {(.id): (.metadata.verified.markdown // "")}] | add // {}) as $pages | .items[] | select(.metadata.kind == "image") | . + {book_language: $lang, page_text: ($pages[(.metadata.parent_id // "" | tostring)] // "")}'
       input: "[.id]"
-      context: '"Book language: " + (if .book_language == "" then "unknown" else .book_language end)'
+      context: '"Book language: " + (if .book_language == "" then "unknown" else .book_language end) + (if (.page_text // "") == "" then "" else "\nPage text: " + ((.page_text | if length > 1500 then .[0:1500] + "…" else . end)) end)'
       path: ".metadata.accessibility"
       model: ${.config.verify_model}
       concurrency: ${.config.page_concurrency}
@@ -187,6 +177,8 @@ steps:
         4. Mark a figure decorative only when it carries no teaching content, such as a border, rule, QR code, barcode, government seal, state emblem, or publisher logo. Set kind to decorative with empty alt_text.
         5. When the crop holds only printed caption text and no drawing, set kind to decorative
            with empty alt_text and set review_needed, with review_reason "caption-only crop".
+        6. Use the page text given with this request only to identify labels and subject. Never
+           describe what is not visible in the image.
 
         Write alt_text and long_description in the book language given with this request. When it is
         unknown, use the language of the text printed in the figure.
@@ -219,6 +211,8 @@ steps:
       assertions:
         - expr: '.kind == "decorative" or (.alt_text | length) > 0'
           feedback: "alt_text is empty. Write one sentence, or set kind to decorative."
+        - expr: '[.alt_text, .long_description, .observed_result] + [.visible_labels[]? | .label, .gloss, .points_at] | join("") | test("[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]") | not'
+          feedback: "You wrote control characters instead of readable symbols. Write any math and symbols as Unicode, such as 90° or △ABC, never as control bytes."
 
   - agent: safe_extract
     description: "Rebuild the page as an accessible block tree"
@@ -227,6 +221,7 @@ steps:
       input: "[.id]"
       context: '.metadata.verified.markdown // ""'
       path: ".metadata.remediation"
+      model: ${.config.verify_model}
       concurrency: ${.config.page_concurrency}
       retries: 3
       prompt: |
@@ -267,7 +262,12 @@ steps:
         Fix these OCR faults:
         - Markdown syntax that leaked into running text. Never leave #, ##, **,
           _, ^, $, $$, or a backslash command inside a text field. Heading depth
-          belongs in the level field, not in a # character.
+          belongs in the level field, not in a # character. A short inline symbol
+          inside a sentence, such as a triangle, angle, or degree mark, stays in
+          the text field as a plain Unicode character, for example △ABC ≅ △PQR,
+          ∠ACP + ∠BCP = 180°, or x². Never write it as LaTeX, and never use _, ^,
+          or $ to build it. A display equation on its own line still goes in a
+          math block, not in text.
         - A digit read as a letter, and a letter read as a digit. 0 K is a
           temperature. OK is not.
         - A wrong or missing vowel sign, anusvara, nukta, or reph. Read the
@@ -284,6 +284,7 @@ steps:
         - Put MathML 3 in the mathml field and a plain reading in the spoken
           field. A screen reader gets the spoken field.
         - Never emit LaTeX, a raw underscore, or a raw caret in any text field.
+          A short inline symbol as plain Unicode, as described above, is not LaTeX.
         - Restore a subscript, superscript, charge, or group that the OCR dropped
           only when the image shows it, for example lead nitrate is Pb(NO3)2.
         - Write a unit as a proper unit. kg m/s is momentum. kg km/s is not.
@@ -378,6 +379,8 @@ steps:
           feedback: "A table came back with no rows and no review flag. Extract the cells, or flag the table as unreadable."
         - expr: '[.blocks[] | select(.type == "figure") | select((.image_id // "" | length) == 0)] | length == 0'
           feedback: "A figure block lost its image id. Copy the id from the <image id=\"...\"/> marker."
+        - expr: '[.blocks[].text] | join("") | test("[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]") | not'
+          feedback: "A text field holds control characters, not readable symbols. Remove them, and write any inline math as plain Unicode, such as △ABC or 180°, never as control bytes."
 
   - agent: transform
     description: "Build the VE review report"
@@ -435,3 +438,6 @@ steps:
 
   - agent: lineage
     description: "Record the run for audit"
+
+  - agent: detach_content
+    description: "Move image bytes to disk and clear the resource content before the context is dumped to JSON"
