@@ -32,17 +32,6 @@ def _validate_domain(domain: str) -> None:
         raise ValidationError(f"Invalid domain: {domain!r}")
 
 
-def build_snippet(base_url: str, site_id: str) -> str:
-    return (
-        "<script\n"
-        f'  src="{base_url}/sdk.js"\n'
-        f'  data-site-id="{site_id}"\n'
-        f'  data-api-base="{base_url}"\n'
-        "  defer>\n"
-        "</script>"
-    )
-
-
 class OnboardingService:
     def __init__(self, db: AsyncDatabase) -> None:
         self._projects = ProjectRepository(db)
@@ -98,13 +87,13 @@ class OnboardingService:
             website = await self._websites.create(tenant_id, project_id, domain, site_id, name, status, languages)
         except DuplicateKeyError as exc:
             raise ConflictError(f"Website with domain {domain!r}") from exc
-        return WebsiteResponse.from_doc(website, snippet=self._snippet_for(website))
+        return WebsiteResponse.from_doc(website, api_base=self._base_url())
 
     async def get_website(self, website_id: str, tenant_id: str) -> WebsiteResponse:
         website = await self._websites.find_by_id_and_tenant(website_id, tenant_id)
         if website is None:
             raise NotFoundError("Website", website_id)
-        return WebsiteResponse.from_doc(website, snippet=self._snippet_for(website))
+        return WebsiteResponse.from_doc(website, api_base=self._base_url())
 
     async def list_websites(self, tenant_id: str, project_id: str | None = None) -> list[WebsiteResponse]:
         if project_id:
@@ -124,7 +113,7 @@ class OnboardingService:
             _validate_domain(fields["domain"])
 
         updated = await self._websites.update(website_id, tenant_id, fields)
-        return WebsiteResponse.from_doc(updated, snippet=self._snippet_for(updated))
+        return WebsiteResponse.from_doc(updated, api_base=self._base_url())
 
     async def delete_website(self, website_id: str, tenant_id: str) -> None:
         deleted = await self._websites.delete(website_id, tenant_id)
@@ -136,9 +125,6 @@ class OnboardingService:
         if not base_url:
             raise ConfigurationError("BASE_URL must be set to generate an SDK snippet")
         return base_url
-
-    def _snippet_for(self, website: dict[str, Any]) -> str:
-        return build_snippet(self._base_url(), website["site_id"])
 
 
 def get_onboarding_service(

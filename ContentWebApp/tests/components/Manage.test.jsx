@@ -43,10 +43,17 @@ test("sites view lists existing sites and deletes one", async () => {
 });
 
 test("sites view opens a site's SDK snippet fetched fresh from the backend", async () => {
-  onboardingService.getSite.mockResolvedValue({ id: "s1", domain: "a.com", snippet: "<script src=x></script>" });
+  onboardingService.getSite.mockResolvedValue({
+    id: "s1",
+    domain: "a.com",
+    siteId: "site-1",
+    apiBase: "https://api.example.com",
+  });
   renderNav("sites", makeLoc());
   fireEvent.click(screen.getByRole("button", { name: /view snippet/i }));
-  await screen.findByText("<script src=x></script>");
+  await screen.findByText(
+    (_, node) => node.tagName === "CODE" && node.textContent.includes("data-site-id=\"site-1\"")
+  );
   expect(onboardingService.getSite).toHaveBeenCalledWith("s1");
 });
 

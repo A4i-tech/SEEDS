@@ -9,12 +9,23 @@ export const fromSiteResponse = (doc) => {
     ...doc,
     id: doc.id,
     siteId: doc.site_id,
+    apiBase: doc.api_base,
     createdAt: doc.created_at,
     updatedAt: doc.updated_at,
     created: formatCreated(doc.created_at),
     url: doc.domain ? `https://${doc.domain}` : "",
   };
 };
+
+export const buildSdkSnippet = (site) =>
+  [
+    "<script",
+    `  src="${window.location.origin}/sdk.js"`,
+    `  data-site-id="${site.siteId}"`,
+    `  data-api-base="${site.apiBase}"`,
+    "  defer>",
+    "</script>",
+  ].join("\n");
 
 export const fromTranslationResponse = (doc) => {
   return {
