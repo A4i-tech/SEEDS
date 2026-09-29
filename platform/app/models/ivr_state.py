@@ -126,6 +126,7 @@ class IVRCallStateMongoDoc(BaseModel):
     school_id: str | None = None
     version: int = 0
     pending_dtmf: PendingDTMF | None = None
+    last_dtmf_message_id: str | None = None
 
     @classmethod
     def from_mongo(cls, doc: dict) -> IVRCallStateMongoDoc:

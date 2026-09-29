@@ -144,8 +144,14 @@ async def ivr_dtmf_webhook(request: Request, background_tasks: BackgroundTasks) 
     message_id = f"dtmf:{conv_id}:{call_leg_id}:{digits}:{dtmf_input.timestamp}"
 
     service = IVRService(get_database()) if call_leg_id else None
+    bridge_armed = False
     if service:
-        await service.set_dtmf_waiting(call_leg_id, message_id)
+        bridge_armed = await service.set_dtmf_waiting(call_leg_id, message_id)
+        if not bridge_armed:
+            logger.warning(
+                "ivr /input: call doc not visible for call_leg=%s, skipping DTMF bridge wait",
+                call_leg_id,
+            )
 
     try:
         await service_bus_provider.send_dtmf_input(payload, message_id=message_id)
@@ -153,7 +159,7 @@ async def ivr_dtmf_webhook(request: Request, background_tasks: BackgroundTasks) 
         logger.error("Failed to enqueue dtmf_input for call=%s: %s", conv_id, exc)
         return ENQUEUE_FAILED_NCCO
 
-    if service:
+    if service and bridge_armed:
         marker = await service.wait_for_dtmf_result(
             call_leg_id,
             message_id,

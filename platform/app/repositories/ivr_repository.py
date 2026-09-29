@@ -122,6 +122,8 @@ class IVRRepository(BaseRepository):
         current_version = doc.get("version", 0)
         new_version = current_version + 1
         doc["version"] = new_version
+        doc.pop("pending_dtmf", None)
+        doc.pop("last_dtmf_message_id", None)
         try:
             result = await self._ongoing_col.update_one(
                 {"_id": doc["_id"], "version": current_version},
@@ -135,8 +137,8 @@ class IVRRepository(BaseRepository):
         state.version = new_version
         return True
 
-    async def set_dtmf_waiting(self, call_leg_id: str, message_id: str) -> None:
-        await self._ongoing_col.update_one(
+    async def set_dtmf_waiting(self, call_leg_id: str, message_id: str) -> bool:
+        result = await self._ongoing_col.update_one(
             {"_id": call_leg_id},
             {
                 "$set": {
@@ -149,6 +151,28 @@ class IVRRepository(BaseRepository):
                     }
                 }
             },
+        )
+        return result.matched_count > 0
+
+    async def is_dtmf_duplicate(self, call_leg_id: str, message_id: str) -> bool:
+        doc = await self._ongoing_col.find_one(
+            {"_id": call_leg_id}, {"pending_dtmf": 1, "last_dtmf_message_id": 1}
+        )
+        if not doc:
+            return False
+        if doc.get("last_dtmf_message_id") == message_id:
+            return True
+        marker = doc.get("pending_dtmf") or {}
+        return (
+            marker.get("message_id") == message_id
+            and not marker["waiting"]
+            and marker.get("ncco") is not None
+        )
+
+    async def record_dtmf_processed(self, call_leg_id: str, message_id: str) -> None:
+        await self._ongoing_col.update_one(
+            {"_id": call_leg_id},
+            {"$set": {"last_dtmf_message_id": message_id}},
         )
 
     async def peek_dtmf_result(self, call_leg_id: str, message_id: str) -> dict[str, Any] | None:

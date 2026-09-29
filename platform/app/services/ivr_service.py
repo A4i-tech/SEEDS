@@ -403,9 +403,18 @@ class IVRService:
         return ncco, is_terminal
 
 
-    async def resolve_call_leg_id(self, conversation_uuid: str) -> str | None:
-        ivr_state = await IVRRepository(self._db).find_by_conversation_uuid(conversation_uuid)
-        return ivr_state.id if ivr_state else None
+    async def resolve_call_leg_id(
+        self, conversation_uuid: str, attempts: int = 5, delay_seconds: float = 1.0
+    ) -> str | None:
+        for attempt in range(attempts):
+            ivr_state = await IVRRepository(self._db).find_by_conversation_uuid(
+                conversation_uuid
+            )
+            if ivr_state:
+                return ivr_state.id
+            if attempt < attempts - 1:
+                await asyncio.sleep(delay_seconds)
+        return None
 
     async def try_claim_dtmf_result(
         self,
@@ -418,8 +427,21 @@ class IVRService:
             call_leg_id, message_id, ncco, should_hangup
         )
 
-    async def set_dtmf_waiting(self, call_leg_id: str, message_id: str) -> None:
-        await IVRRepository(self._db).set_dtmf_waiting(call_leg_id, message_id)
+    async def set_dtmf_waiting(
+        self, call_leg_id: str, message_id: str, attempts: int = 5, delay_seconds: float = 1.0
+    ) -> bool:
+        for attempt in range(attempts):
+            if await IVRRepository(self._db).set_dtmf_waiting(call_leg_id, message_id):
+                return True
+            if attempt < attempts - 1:
+                await asyncio.sleep(delay_seconds)
+        return False
+
+    async def is_dtmf_duplicate(self, call_leg_id: str, message_id: str) -> bool:
+        return await IVRRepository(self._db).is_dtmf_duplicate(call_leg_id, message_id)
+
+    async def record_dtmf_processed(self, call_leg_id: str, message_id: str) -> None:
+        await IVRRepository(self._db).record_dtmf_processed(call_leg_id, message_id)
 
     async def wait_for_dtmf_result(
         self,
