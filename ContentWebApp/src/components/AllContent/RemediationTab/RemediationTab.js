@@ -140,8 +140,7 @@ const RemediationTab = () => {
                               <button
                                 key={entry.key}
                                 type="button"
-                                className="action-ghost-button"
-                                style={{ padding: "4px 10px", fontSize: "12px" }}
+                                className="remediation-link"
                                 onClick={() =>
                                   textbookRemediationService.downloadArtifact(
                                     job.job_id,
@@ -150,7 +149,7 @@ const RemediationTab = () => {
                                   )
                                 }
                               >
-                                ⬇ {ARTIFACT_LABELS[entry.key]}
+                                {ARTIFACT_LABELS[entry.key]}
                               </button>
                             )
                         )}

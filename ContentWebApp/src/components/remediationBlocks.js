@@ -1,5 +1,7 @@
 const LIST_ITEM_RE = /^(\s*)([-*+]|\d+[.)])(\s+)(.*)$/;
-const IMAGE_RE = /^!\[([^\]]*)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)$/;
+// Whole-block markdown image: ![alt](path "optional title"). Groups: 1 alt, 2 path (no spaces or ")"), 3 title.
+// Anchored ^...$ so a paragraph that merely contains an image is not classified as an image block.
+const IMAGE_RE =/^!\[([^\]]*)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)$/;
 
 export function classifyBlock(raw) {
   const trimmed = raw.trim();

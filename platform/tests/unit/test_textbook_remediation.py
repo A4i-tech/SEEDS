@@ -4,10 +4,26 @@ import json
 from types import SimpleNamespace
 
 import pytest
+from azure.core.exceptions import ResourceNotFoundError
 from bson import ObjectId
 
+from app.consumers.textbook_remediation_consumer import _resolve_models
+from app.controllers.textbook_remediation_controller import (
+    DraftUpdateRequest,
+    VerifyJobRequest,
+    create_remediation_job,
+    get_remediation_artifact,
+    get_remediation_image,
+    get_remediation_page,
+    get_review_summary,
+    require_remediation_access,
+    save_remediation_draft,
+    verify_remediation_job,
+)
 from app.models.remediation_job import STAGES, JobStage, JobStatus, RemediationJob
+from app.platform.error_handling import ForbiddenError, NotFoundError, ValidationError
 from app.repositories.textbook_remediation_repository import TextbookRemediationRepository
+from app.services.textbook_remediation import artifact_bytes as _artifact_bytes
 from app.services.textbook_remediation import serialize_job, subscribe
 from tests.support.mongomock_async import AsyncMongoMockClient
 
@@ -130,21 +146,6 @@ async def test_subscribe_stops_on_an_unknown_job(repo):
     assert [e async for e in subscribe(repo, "tenant-a", "000000000000000000000000", interval=0)] == []
 
 
-from app.controllers.textbook_remediation_controller import (  # noqa: E402
-    DraftUpdateRequest,
-    VerifyJobRequest,
-    create_remediation_job,
-    get_remediation_artifact,
-    get_remediation_image,
-    get_remediation_page,
-    get_review_summary,
-    require_remediation_access,
-    save_remediation_draft,
-    verify_remediation_job,
-)
-from app.platform.error_handling import ForbiddenError, NotFoundError, ValidationError  # noqa: E402
-from app.services.textbook_remediation import artifact_bytes as _artifact_bytes  # noqa: E402
-
 
 class _StubUpload:
     def __init__(self, data: bytes, content_type: str = "application/pdf", filename: str = "book.pdf"):
@@ -180,9 +181,13 @@ class _StubBlob:
         return self.uploaded[url.removeprefix("https://blob/")]
 
     async def download_file(self, container, blob_path):
+        if blob_path not in self._downloads:
+            raise ResourceNotFoundError(blob_path)
         return self._downloads[blob_path]
 
     async def download_chunks(self, container, blob_path):
+        if blob_path not in self._downloads:
+            raise ResourceNotFoundError(blob_path)
         return _chunked(self._downloads[blob_path])
 
     async def download_chunks_from_url(self, url):
@@ -530,7 +535,7 @@ async def test_upload_images_marks_an_image_corrupted_after_three_failed_attempt
 
     assert count == 0
     unresolved = (out / artifact_filename(ArtifactName.UNRESOLVED)).read_text(encoding="utf-8")
-    assert "Image fig1.png is corrupted" in unresolved
+    assert "Image upload failed after 3 attempts" in unresolved
 
 
 @pytest.mark.asyncio
@@ -586,8 +591,6 @@ async def test_verify_job_uploads_go_under_the_verified_path(repo, monkeypatch):
     assert f"textbook-remediation/{created.job_id}/verified/remediated.docx" in blob.uploaded
     assert f"textbook-remediation/{created.job_id}/verified/remediated.tex" in blob.uploaded
 
-
-from app.consumers.textbook_remediation_consumer import _resolve_models  # noqa: E402
 
 _YAML_STEPS = """
 - agent: safe_extract

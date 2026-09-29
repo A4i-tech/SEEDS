@@ -155,9 +155,8 @@ async def _upload_images(blob_provider: BlobStorageProvider, job_id: str, search
                             f.write(json.dumps({
                                 "id": f"image_{img_path.name}",
                                 "type": "image_upload_failed",
-                                "page": 1,
                                 "text": img_path.name,
-                                "reason": f"Image {img_path.name} is corrupted",
+                                "reason": f"Image upload failed after 3 attempts: {exc}",
                             }) + "\n")
                     else:
                         await asyncio.sleep(min(2 ** (attempt - 1), 8))
@@ -199,28 +198,14 @@ def _resolve_language(
             detected = _detect_body_language(raw_path)
         except Exception as exc:
             logger.warning("remediation: body language detection failed: %s", exc)
-    if not detected or detected.lower() in ("auto", "detecting", "unknown"):
-        logger.warning("remediation: no detected language for job_id=%s", job.job_id)
-        detected = "Unknown"
     requested = job.language if not is_auto and job.language else None
-    return normalize_language_name(requested or detected)
-
-
-def _fallback_metrics(raw_path: Path, trail: Path, unresolved: Path) -> JobMetrics:
-    total_pages = 1
-    diagrams_count = 0
-    if raw_path.exists():
-        content = raw_path.read_text(encoding="utf-8", errors="ignore")
-        pages = re.findall(r"<!--\s*page\s+(\d+)\s*-->", content)
-        total_pages = max([int(p) for p in pages] + [1])
-        diagrams_count = len(re.findall(r"!\[.*?\]\(.*?\)", content))
-    return JobMetrics(
-        total_pages=total_pages,
-        processed_pages=total_pages,
-        diagrams_described=diagrams_count,
-        tables_fixed=_count_lines(trail),
-        flagged_items_count=_count_lines(unresolved),
-    )
+    if requested:
+        return normalize_language_name(requested)
+    if not detected or detected.lower() in ("auto", "detecting", "unknown"):
+        raise RuntimeError(
+            f"Could not detect the language for job {job.job_id}. Select a language and retry."
+        )
+    return normalize_language_name(detected)
 
 
 async def _translate_if_requested(
@@ -316,7 +301,9 @@ async def _process_job(
 
         ctx_data, render_result = await asyncio.to_thread(_load_and_render)
         rendered_metrics = render_result.get("metrics")
-        metrics = JobMetrics.model_validate(rendered_metrics) if isinstance(rendered_metrics, dict) else None
+        if not isinstance(rendered_metrics, dict):
+            raise RuntimeError(f"Render metrics are missing for job {job.job_id}.")
+        metrics = JobMetrics.model_validate(rendered_metrics)
 
         raw = out / artifact_filename(ArtifactName.RAW)
         findings = out / artifact_filename(ArtifactName.FINDINGS)
@@ -326,9 +313,6 @@ async def _process_job(
         final_lang = _resolve_language(job, is_auto, ctx_data, raw)
         await repo.update_language(job.job_id, final_lang)
         logger.info("remediation: updated final language for job_id=%s to %s", job.job_id, final_lang)
-
-        if metrics is None:
-            metrics = _fallback_metrics(raw, trail, unresolved)
 
         await _upload_images(blob_provider, job.job_id, out / "images", out)
         await repo.record_artifacts(
@@ -368,9 +352,9 @@ class TextbookRemediationConsumer(BaseConsumer):
             try:
                 self._blob_provider = get_blob_storage_provider()
             except Exception as exc:  # noqa: BLE001
-                logger.warning(
-                    "%s: BlobStorageProvider unavailable — %s. Retrying in %ds.",
-                    self.name, exc, POLL_INTERVAL_SECONDS,
+                logger.exception(
+                    "%s: BlobStorageProvider unavailable. Retrying in %ds.",
+                    self.name, POLL_INTERVAL_SECONDS,
                 )
                 await asyncio.sleep(POLL_INTERVAL_SECONDS)
                 return
@@ -389,8 +373,6 @@ class TextbookRemediationConsumer(BaseConsumer):
             await asyncio.wait_for(
                 _process_job(job, self._repo, self._blob_provider), timeout=JOB_TIMEOUT_SECONDS
             )
-        except asyncio.CancelledError:
-            raise
         except TimeoutError as exc:
             raise PermanentError(f"Remediation timed out after {JOB_TIMEOUT_SECONDS // 3600} hours. Upload a smaller PDF or try again.") from exc
         except RuntimeError as exc:

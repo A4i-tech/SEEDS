@@ -80,6 +80,7 @@ async def run_pipeline(
         "PYTHONIOENCODING": "utf-8",
         "PYTHONUTF8": "1",
         "METADATA_STORE": "null",
+        "MALLOC_ARENA_MAX": "2",
     }
 
     stop_tailing = asyncio.Event()

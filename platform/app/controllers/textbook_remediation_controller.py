@@ -5,6 +5,7 @@ import logging
 from collections.abc import AsyncIterator
 from pathlib import Path
 
+from azure.core.exceptions import ResourceNotFoundError
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -193,8 +194,8 @@ async def get_remediation_image(
     blob_path = f"textbook-remediation/{job_id}/images/{safe_name}"
     try:
         chunks = await blob_provider.download_chunks(get_settings().azure_storage_container, blob_path)
-    except Exception:
-        raise NotFoundError("Image", safe_name)
+    except ResourceNotFoundError as exc:
+        raise NotFoundError("Image", safe_name) from exc
 
     return StreamingResponse(
         chunks,
@@ -219,8 +220,8 @@ async def get_remediation_page(
     blob_path = f"textbook-remediation/{job_id}/pages/{page_num}.jpg"
     try:
         chunks = await blob_provider.download_chunks(get_settings().azure_storage_container, blob_path)
-    except Exception:
-        raise NotFoundError("Page", str(page_num))
+    except ResourceNotFoundError as exc:
+        raise NotFoundError("Page", str(page_num)) from exc
 
     return StreamingResponse(
         chunks,

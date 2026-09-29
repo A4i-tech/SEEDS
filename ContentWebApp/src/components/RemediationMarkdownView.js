@@ -15,19 +15,20 @@ export function RemediationFigureImage({ src, jobId, alt }) {
     if (!remote) return undefined;
     const controller = new AbortController();
     let url;
-    textbookRemediationService
-      .getImage(jobId, imageName, { signal: controller.signal })
-      .then((blob) => {
+    const loadImage = async () => {
+      try {
+        const blob = await textbookRemediationService.getImage(jobId, imageName, { signal: controller.signal });
         url = URL.createObjectURL(blob);
         setObjectUrl(url);
-      })
-      .catch((imageError) => {
+      } catch (imageError) {
         if (!controller.signal.aborted) {
           console.error("Failed to load remediation figure image", imageError);
           setObjectUrl(null);
           setImgError(true);
         }
-      });
+      }
+    };
+    loadImage();
     return () => {
       controller.abort();
       if (url) URL.revokeObjectURL(url);
@@ -61,12 +62,12 @@ export function MarkdownViewer({ text, jobId }) {
           return (
             <div className="remediation-figure-preview">
               <RemediationFigureImage src={src} jobId={jobId} alt={alt} />
-              {description ? (
+              {description && (
                 <div className="remediation-figure-text">
                   <span className="remediation-figure-tag">Figure Description</span>
                   <span className="remediation-figure-desc">{description}</span>
                 </div>
-              ) : null}
+              )}
             </div>
           );
         },

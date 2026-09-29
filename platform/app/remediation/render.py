@@ -444,11 +444,7 @@ BLOCK_RENDERERS: dict[str, Callable[[_MarkdownBuilder, int, dict[str, object], s
 }
 
 
-def _build_remediated_body(
-    corpus: _Corpus,
-    remediation_records: list[dict[str, object]],
-    fallback: str,
-) -> str:
+def _build_remediated_body(corpus: _Corpus, remediation_records: list[dict[str, object]], fallback: str) -> str:
     builder = _MarkdownBuilder(corpus.figures, remediation_records, corpus.unresolved_records)
     raw_by_page = dict(corpus.raw_pages)
     for page_num, rem in corpus.pages:

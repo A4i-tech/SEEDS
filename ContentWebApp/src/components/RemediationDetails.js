@@ -69,6 +69,31 @@ const ARTIFACT_LABELS = {
   translated_tex: "Download translated LaTeX",
 };
 
+const OriginalScan = ({ hasPageImages, sourcePageUrl, sourcePdfUrl, bookPageNum }) => {
+  if (hasPageImages) {
+    if (!sourcePageUrl) return <p className="card-description">Loading scan…</p>;
+    return (
+      <img
+        src={sourcePageUrl}
+        alt={`Original scan, page ${bookPageNum}`}
+        style={{ display: "block", width: "100%", height: "auto" }}
+      />
+    );
+  }
+  if (!sourcePdfUrl) return <p className="card-description">Loading scan…</p>;
+  return (
+    <>
+      <p className="card-description">Page images are not available for this job. Showing the full PDF.</p>
+      <iframe
+        key={bookPageNum}
+        title="Original scan"
+        src={`${sourcePdfUrl}#page=${bookPageNum}&view=Fit`}
+        style={{ width: "100%", height: "100%", minHeight: "520px", border: "none" }}
+      />
+    </>
+  );
+};
+
 const RemediationDetails = () => {
   const { jobId } = useParams();
   const navigate = useNavigate();
@@ -159,16 +184,17 @@ const RemediationDetails = () => {
     if (!jobLoaded || job?.source_page_count) return undefined;
     const controller = new AbortController();
     let url;
-    textbookRemediationService
-      .getSourcePdf(jobId, { signal: controller.signal })
-      .then((blob) => {
+    const loadSourcePdf = async () => {
+      try {
+        const blob = await textbookRemediationService.getSourcePdf(jobId, { signal: controller.signal });
         if (controller.signal.aborted) return;
         url = URL.createObjectURL(blob);
         setSourcePdfUrl(url);
-      })
-      .catch((pdfError) => {
+      } catch (pdfError) {
         if (!controller.signal.aborted) setError(pdfError.message);
-      });
+      }
+    };
+    loadSourcePdf();
     return () => {
       controller.abort();
       if (url) URL.revokeObjectURL(url);
@@ -180,16 +206,17 @@ const RemediationDetails = () => {
     const controller = new AbortController();
     let url;
     setSourcePageUrl(null);
-    textbookRemediationService
-      .getSourcePage(jobId, bookPageNum, { signal: controller.signal })
-      .then((blob) => {
+    const loadSourcePage = async () => {
+      try {
+        const blob = await textbookRemediationService.getSourcePage(jobId, bookPageNum, { signal: controller.signal });
         if (controller.signal.aborted) return;
         url = URL.createObjectURL(blob);
         setSourcePageUrl(url);
-      })
-      .catch((pageError) => {
+      } catch (pageError) {
         if (!controller.signal.aborted) setError(pageError.message);
-      });
+      }
+    };
+    loadSourcePage();
     return () => {
       controller.abort();
       if (url) URL.revokeObjectURL(url);
@@ -312,7 +339,6 @@ const RemediationDetails = () => {
             title="Unsaved changes"
             description="You have unsaved changes. Leave without saving?"
             confirmLabel="Leave"
-            cancelLabel="Stay"
             onCancel={() => setPendingNav(null)}
             onConfirm={() => {
               const { onLeave } = pendingNav;
@@ -458,28 +484,13 @@ const RemediationDetails = () => {
                     ) : (
                       <MarkdownViewer text={currentRawPage} jobId={jobId} />
                     )
-                  ) : job.source_page_count ? (
-                    sourcePageUrl ? (
-                      <img
-                        src={sourcePageUrl}
-                        alt={`Original scan, page ${bookPageNum}`}
-                        style={{ display: "block", width: "100%", height: "auto" }}
-                      />
-                    ) : (
-                      <p className="card-description">Loading scan…</p>
-                    )
-                  ) : sourcePdfUrl ? (
-                    <>
-                      <p className="card-description">Page images are not available for this job. Showing the full PDF.</p>
-                      <iframe
-                        key={bookPageNum}
-                        title="Original scan"
-                        src={`${sourcePdfUrl}#page=${bookPageNum}&view=Fit`}
-                        style={{ width: "100%", height: "100%", minHeight: "520px", border: "none" }}
-                      />
-                    </>
                   ) : (
-                    <p className="card-description">Loading scan…</p>
+                    <OriginalScan
+                      hasPageImages={Boolean(job.source_page_count)}
+                      sourcePageUrl={sourcePageUrl}
+                      sourcePdfUrl={sourcePdfUrl}
+                      bookPageNum={bookPageNum}
+                    />
                   )}
                 </div>
                 <div className="remediation-pane-footer">

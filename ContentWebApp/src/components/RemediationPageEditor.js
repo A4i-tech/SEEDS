@@ -20,7 +20,6 @@ const BLOCK_LABELS = {
   image: "Edit figure",
   table: "Edit table",
   math: "Edit math",
-  marker: "",
 };
 
 function draftFromBlock(block) {
@@ -40,18 +39,16 @@ function buildRawFromDraft(block, draft) {
   return draft.text;
 }
 
-function AutoGrowTextarea({ value, onChange, autoFocus, className }) {
+function AutoGrowTextarea({ value, onChange, className }) {
   const ref = useRef(null);
   useEffect(() => {
-    if (ref.current) {
-      ref.current.style.height = "auto";
-      ref.current.style.height = `${ref.current.scrollHeight}px`;
-    }
+    ref.current.style.height = "auto";
+    ref.current.style.height = `${ref.current.scrollHeight}px`;
   }, [value]);
   return (
     <textarea
       ref={ref}
-      autoFocus={autoFocus}
+      autoFocus
       className={className}
       value={value}
       onChange={(e) => onChange(e.target.value)}
@@ -64,7 +61,7 @@ function BlockEditor({ block, onCommit, onCancel }) {
   const containerRef = useRef(null);
   const commit = () => onCommit(buildRawFromDraft(block, draft));
   const handleBlur = (e) => {
-    if (containerRef.current && containerRef.current.contains(e.relatedTarget)) return;
+    if (containerRef.current.contains(e.relatedTarget)) return;
     commit();
   };
   const handleKeyDown = (e) => {
@@ -90,7 +87,6 @@ function BlockEditor({ block, onCommit, onCancel }) {
         </>
       ) : (
         <AutoGrowTextarea
-          autoFocus
           value={draft.text}
           onChange={(text) => setDraft({ ...draft, text })}
           className={
@@ -114,7 +110,7 @@ function Block({ block, jobId, editingId, onEdit, onCommit, onCancel }) {
       role="button"
       tabIndex={0}
       className="remediation-block"
-      aria-label={BLOCK_LABELS[block.type] || "Edit block"}
+      aria-label={BLOCK_LABELS[block.type]}
       onClick={() => onEdit(block.id)}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
