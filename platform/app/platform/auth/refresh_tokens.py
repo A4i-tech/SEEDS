@@ -154,9 +154,7 @@ async def rotate[ClaimsT](
         await store.revoke_all_for_owner(exc.owner_id, reason="consumed")
         raise UnauthorizedError("Invalid refresh token") from None
 
-    now = datetime.now(tz=UTC)
     claims = await verify_owner_active(consumed.owner_id, consumed.claims)
-
     access_token, access_expires_in = await build_access_token(consumed.owner_id, claims)
 
     new_refresh_token = generate_refresh_token()

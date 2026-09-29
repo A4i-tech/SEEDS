@@ -37,6 +37,22 @@ class ContentAggregatorWebhookRepository:
         doc["_id"] = result.inserted_id
         return doc
 
+    async def create_if_under_limit(
+        self, client_id: str, url: str, secret_encrypted: str, events: list[str], max_webhooks: int
+    ) -> dict[str, Any] | None:
+        """Insert a webhook, then atomically verify the per-client cap held.
+
+        Concurrent registrations each insert (atomic per document), then
+        recheck the count; whichever request(s) pushed the client over
+        ``max_webhooks`` roll back their own insert. This enforces the cap
+        without a separate counter document or new collection.
+        """
+        doc = await self.create(client_id, url, secret_encrypted, events)
+        if await self.count_for_client(client_id) > max_webhooks:
+            await self._col.delete_one({"_id": doc["_id"]})
+            return None
+        return doc
+
     async def list_for_client(self, client_id: str) -> list[dict[str, Any]]:
         return await self._col.find({"client_id": client_id}).sort("created_at", 1).to_list(length=None)
 

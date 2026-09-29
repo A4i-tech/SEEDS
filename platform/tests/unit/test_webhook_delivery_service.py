@@ -1,9 +1,10 @@
 """Unit tests for outbound content-aggregator webhook delivery (ticket #464).
 
 Covers: HMAC-SHA256 signature verification, payload envelope shape, secret
-encrypt/decrypt round trip, retry/backoff schedule, max-attempts disable,
-disabled/deleted webhook short-circuiting, multi-webhook fan-out isolation,
-tenant isolation, and delivery-log credential hygiene.
+encrypt/decrypt round trip, single-attempt delivery semantics (retry
+scheduling / max-attempts disable / disabled-deleted webhook short-circuit
+live at the consumer layer — see test_webhook_delivery_consumer.py), and
+dispatch_terminal_event's durable pending-record fan-out + tenant isolation.
 
 Spec: NFR-11 / §5.6 define 1 initial attempt + up to 5 retries (6 total),
 with delay schedule 30s -> 5min -> 30min -> 2h -> 24h between attempts.
@@ -15,8 +16,9 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+from datetime import UTC, datetime
 from typing import Any
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
 import httpx
 import pytest
@@ -30,9 +32,8 @@ from app.repositories.content_aggregator_webhook_repository import (
 )
 from app.services.webhook_delivery_service import (
     WEBHOOK_MAX_ATTEMPTS,
-    WEBHOOK_RETRY_DELAYS_SECONDS,
+    attempt_delivery,
     build_payload,
-    deliver_webhook,
     dispatch_terminal_event,
     serialize_payload,
     sign_payload,
@@ -62,6 +63,20 @@ async def _make_webhook(webhook_repo, client_id=_TENANT_A, url="https://partner.
     return await webhook_repo.create(client_id, url, encrypt_secret(secret), events or ["job.completed", "job.failed"])
 
 
+async def _make_attempt(delivery_repo, wh, *, attempt_number=1, content_id="content-1", event="job.completed", data=None):
+    now = datetime.now(UTC).isoformat()
+    return await delivery_repo.create_pending(
+        webhook_id=wh["_id"],
+        content_id=content_id,
+        event=event,
+        tenant_id=_TENANT_A,
+        client_id=wh["client_id"],
+        payload_data=data or {"jobId": "j1"},
+        attempt_number=attempt_number,
+        next_attempt_at=now,
+    )
+
+
 class _FakeAsyncClient:
     """Stand-in for httpx.AsyncClient — used as `async with httpx.AsyncClient(...) as client`."""
 
@@ -86,10 +101,6 @@ class _FakeAsyncClient:
 def _patch_client(outcomes: list[Any]):
     fake = _FakeAsyncClient(outcomes)
     return patch("app.services.webhook_delivery_service.httpx.AsyncClient", lambda **kw: fake), fake
-
-
-def _patch_sleep():
-    return patch("app.services.webhook_delivery_service.asyncio.sleep", new_callable=AsyncMock)
 
 
 # ---------------------------------------------------------------------------
@@ -144,122 +155,98 @@ def test_encrypt_decrypt_secret_round_trip():
 
 
 # ---------------------------------------------------------------------------
-# deliver_webhook — single webhook delivery, retry, disable
+# attempt_delivery — single-attempt semantics (retry/disable live in the
+# consumer-level tests, since the durable schedule spans multiple claims)
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
-async def test_deliver_webhook_success_first_attempt_no_sleep(webhook_repo, delivery_repo):
+async def test_attempt_delivery_success_records_result(webhook_repo, delivery_repo):
     wh = await _make_webhook(webhook_repo)
-    payload = build_payload("job.completed", wh["_id"], _TENANT_A, {"jobId": "j1"})
+    attempt = await _make_attempt(delivery_repo, wh)
     patcher, fake = _patch_client([httpx.Response(200)])
-    with patcher, _patch_sleep() as sleep_mock:
-        await deliver_webhook(wh, "job.completed", payload, "content-1", webhook_repo, delivery_repo)
+    with patcher:
+        await attempt_delivery(attempt, webhook_repo, delivery_repo)
     assert len(fake.calls) == 1
-    sleep_mock.assert_not_called()
-    attempts = await delivery_repo._col.find({"webhookId": str(wh["_id"])}).to_list(length=None)
-    assert len(attempts) == 1
-    assert attempts[0]["succeeded"] is True
-    assert attempts[0]["responseCode"] == 200
+    doc = await delivery_repo._col.find_one({"_id": attempt["_id"]})
+    assert doc["succeeded"] is True
+    assert doc["responseCode"] == 200
+    assert doc["status"] == "succeeded"
     current = await webhook_repo.get_for_client(_TENANT_A, str(wh["_id"]))
     assert current["status"] == "active"
 
 
 @pytest.mark.asyncio
-async def test_deliver_webhook_signature_header_matches_recomputed_hmac(webhook_repo, delivery_repo):
+async def test_attempt_delivery_signature_header_matches_recomputed_hmac(webhook_repo, delivery_repo):
     wh = await _make_webhook(webhook_repo, secret="check-me")
-    payload = build_payload("job.completed", wh["_id"], _TENANT_A, {"jobId": "j1"})
+    attempt = await _make_attempt(delivery_repo, wh)
     patcher, fake = _patch_client([httpx.Response(200)])
-    with patcher, _patch_sleep():
-        await deliver_webhook(wh, "job.completed", payload, "content-1", webhook_repo, delivery_repo)
+    with patcher:
+        await attempt_delivery(attempt, webhook_repo, delivery_repo)
     call = fake.calls[0]
     raw_body = call["content"]
     signature = call["headers"]["X-SEEDS-Signature"]
     expected = "sha256=" + hmac.new(b"check-me", raw_body, hashlib.sha256).hexdigest()
     assert signature == expected
-    assert raw_body == serialize_payload(payload)
 
 
 @pytest.mark.asyncio
-async def test_deliver_webhook_retries_with_exponential_backoff_then_succeeds(webhook_repo, delivery_repo):
+async def test_attempt_delivery_failure_schedules_next_attempt(webhook_repo, delivery_repo):
     wh = await _make_webhook(webhook_repo)
-    payload = build_payload("job.completed", wh["_id"], _TENANT_A, {"jobId": "j1"})
-    outcomes = [httpx.Response(500), httpx.Response(502), httpx.Response(200)]
-    patcher, fake = _patch_client(outcomes)
-    with patcher, _patch_sleep() as sleep_mock:
-        await deliver_webhook(wh, "job.completed", payload, "content-1", webhook_repo, delivery_repo)
-    assert len(fake.calls) == 3
-    sleep_mock.assert_any_call(WEBHOOK_RETRY_DELAYS_SECONDS[0])
-    sleep_mock.assert_any_call(WEBHOOK_RETRY_DELAYS_SECONDS[1])
-    assert sleep_mock.await_count == 2
+    attempt = await _make_attempt(delivery_repo, wh, attempt_number=1)
+    patcher, fake = _patch_client([httpx.Response(500)])
+    with patcher:
+        await attempt_delivery(attempt, webhook_repo, delivery_repo)
+    doc = await delivery_repo._col.find_one({"_id": attempt["_id"]})
+    assert doc["succeeded"] is False
+    assert doc["status"] == "failed"
+    pending = await delivery_repo._col.find_one({"webhookId": str(wh["_id"]), "status": "pending"})
+    assert pending is not None
+    assert pending["attemptNumber"] == 2
+    assert pending["nextAttemptAt"] > datetime.now(UTC).isoformat()
     current = await webhook_repo.get_for_client(_TENANT_A, str(wh["_id"]))
     assert current["status"] == "active"
-    attempts = await delivery_repo._col.find({"webhookId": str(wh["_id"])}).to_list(length=None)
-    assert [a["succeeded"] for a in attempts] == [False, False, True]
 
 
 @pytest.mark.asyncio
-async def test_deliver_webhook_exhausts_max_attempts_then_disables(webhook_repo, delivery_repo):
+async def test_attempt_delivery_final_failure_disables_webhook_no_further_pending(webhook_repo, delivery_repo):
     wh = await _make_webhook(webhook_repo)
-    payload = build_payload("job.completed", wh["_id"], _TENANT_A, {"jobId": "j1"})
-    outcomes = [httpx.Response(500)] * WEBHOOK_MAX_ATTEMPTS
-    patcher, fake = _patch_client(outcomes)
-    with patcher, _patch_sleep() as sleep_mock:
-        await deliver_webhook(wh, "job.completed", payload, "content-1", webhook_repo, delivery_repo)
-    assert len(fake.calls) == WEBHOOK_MAX_ATTEMPTS
-    assert sleep_mock.await_count == len(WEBHOOK_RETRY_DELAYS_SECONDS)
-    for i, delay in enumerate(WEBHOOK_RETRY_DELAYS_SECONDS):
-        assert sleep_mock.await_args_list[i].args == (delay,)
+    attempt = await _make_attempt(delivery_repo, wh, attempt_number=WEBHOOK_MAX_ATTEMPTS)
+    patcher, fake = _patch_client([httpx.Response(500)])
+    with patcher:
+        await attempt_delivery(attempt, webhook_repo, delivery_repo)
     current = await webhook_repo.get_for_client(_TENANT_A, str(wh["_id"]))
     assert current["status"] == "disabled"
-    attempts = await delivery_repo._col.find({"webhookId": str(wh["_id"])}).to_list(length=None)
-    assert len(attempts) == WEBHOOK_MAX_ATTEMPTS
-    assert all(a["succeeded"] is False for a in attempts)
+    pending = await delivery_repo._col.find_one({"webhookId": str(wh["_id"]), "status": "pending"})
+    assert pending is None
 
 
 @pytest.mark.asyncio
-async def test_deliver_webhook_skips_when_already_disabled(webhook_repo, delivery_repo):
+async def test_attempt_delivery_skips_when_already_disabled(webhook_repo, delivery_repo):
     wh = await _make_webhook(webhook_repo)
     await webhook_repo.disable(wh["_id"])
-    disabled = await webhook_repo.get_for_client(_TENANT_A, str(wh["_id"]))
-    payload = build_payload("job.completed", wh["_id"], _TENANT_A, {"jobId": "j1"})
+    attempt = await _make_attempt(delivery_repo, wh)
     patcher, fake = _patch_client([])
-    with patcher, _patch_sleep() as sleep_mock:
-        await deliver_webhook(disabled, "job.completed", payload, "content-1", webhook_repo, delivery_repo)
+    with patcher:
+        await attempt_delivery(attempt, webhook_repo, delivery_repo)
     assert fake.calls == []
-    sleep_mock.assert_not_called()
-    attempts = await delivery_repo._col.find({"webhookId": str(wh["_id"])}).to_list(length=None)
-    assert attempts == []
+    doc = await delivery_repo._col.find_one({"_id": attempt["_id"]})
+    assert doc["status"] == "skipped"
+    pending = await delivery_repo._col.find_one({"webhookId": str(wh["_id"]), "status": "pending"})
+    assert pending is None
 
 
 @pytest.mark.asyncio
-async def test_deliver_webhook_skips_when_webhook_deleted_between_calls(webhook_repo, delivery_repo):
+async def test_attempt_delivery_skips_when_webhook_deleted(webhook_repo, delivery_repo):
     wh = await _make_webhook(webhook_repo)
+    attempt = await _make_attempt(delivery_repo, wh)
     await webhook_repo._col.delete_one({"_id": wh["_id"]})
-    payload = build_payload("job.completed", wh["_id"], _TENANT_A, {"jobId": "j1"})
     patcher, fake = _patch_client([])
-    with patcher, _patch_sleep():
-        await deliver_webhook(wh, "job.completed", payload, "content-1", webhook_repo, delivery_repo)
+    with patcher:
+        await attempt_delivery(attempt, webhook_repo, delivery_repo)
     assert fake.calls == []
-
-
-@pytest.mark.asyncio
-async def test_deliver_webhook_disabled_mid_retry_stops_further_attempts(webhook_repo, delivery_repo):
-    wh = await _make_webhook(webhook_repo)
-    payload = build_payload("job.completed", wh["_id"], _TENANT_A, {"jobId": "j1"})
-    outcomes = [httpx.Response(500)] * WEBHOOK_MAX_ATTEMPTS
-
-    real_sleep_target = "app.services.webhook_delivery_service.asyncio.sleep"
-
-    async def _disable_after_first_attempt(*_a, **_kw):
-        await webhook_repo.disable(wh["_id"])
-
-    patcher, fake = _patch_client(outcomes)
-    with patcher, patch(real_sleep_target, new=AsyncMock(side_effect=_disable_after_first_attempt)):
-        await deliver_webhook(wh, "job.completed", payload, "content-1", webhook_repo, delivery_repo)
-    assert len(fake.calls) == 1
-    attempts = await delivery_repo._col.find({"webhookId": str(wh["_id"])}).to_list(length=None)
-    assert len(attempts) == 1
+    doc = await delivery_repo._col.find_one({"_id": attempt["_id"]})
+    assert doc["status"] == "skipped"
 
 
 @pytest.mark.parametrize("outcome_factory,error_substr", [
@@ -269,36 +256,47 @@ async def test_deliver_webhook_disabled_mid_retry_stops_further_attempts(webhook
     (lambda: httpx.ConnectError("boom"), "http error"),
 ])
 @pytest.mark.asyncio
-async def test_deliver_webhook_records_error_type(webhook_repo, delivery_repo, outcome_factory, error_substr):
+async def test_attempt_delivery_records_error_type(webhook_repo, delivery_repo, outcome_factory, error_substr):
     wh = await _make_webhook(webhook_repo)
-    payload = build_payload("job.completed", wh["_id"], _TENANT_A, {"jobId": "j1"})
-    outcomes = [outcome_factory()] * WEBHOOK_MAX_ATTEMPTS
-    patcher, fake = _patch_client(outcomes)
-    with patcher, _patch_sleep():
-        await deliver_webhook(wh, "job.completed", payload, "content-1", webhook_repo, delivery_repo)
-    attempts = await delivery_repo._col.find({"webhookId": str(wh["_id"])}).to_list(length=None)
-    assert all(error_substr in a["error"] for a in attempts)
-    assert all(a["succeeded"] is False for a in attempts)
+    attempt = await _make_attempt(delivery_repo, wh)
+    patcher, fake = _patch_client([outcome_factory()])
+    with patcher:
+        await attempt_delivery(attempt, webhook_repo, delivery_repo)
+    doc = await delivery_repo._col.find_one({"_id": attempt["_id"]})
+    assert error_substr in doc["error"]
+    assert doc["succeeded"] is False
 
 
 @pytest.mark.asyncio
-async def test_deliver_webhook_delivery_log_has_no_credentials(webhook_repo, delivery_repo):
+async def test_attempt_delivery_secret_unreadable_does_not_crash(webhook_repo, delivery_repo):
+    wh = await _make_webhook(webhook_repo)
+    attempt = await _make_attempt(delivery_repo, wh)
+    patcher, fake = _patch_client([])
+    with patcher, patch("app.services.webhook_delivery_service.decrypt_secret", side_effect=ValueError("bad key")):
+        await attempt_delivery(attempt, webhook_repo, delivery_repo)
+    assert fake.calls == []
+    doc = await delivery_repo._col.find_one({"_id": attempt["_id"]})
+    assert doc["succeeded"] is False
+    assert doc["error"] == "secret unreadable"
+
+
+@pytest.mark.asyncio
+async def test_attempt_delivery_no_credentials_leaked(webhook_repo, delivery_repo):
     wh = await _make_webhook(webhook_repo, secret="never-log-me")
-    payload = build_payload("job.completed", wh["_id"], _TENANT_A, {"jobId": "j1"})
+    attempt = await _make_attempt(delivery_repo, wh)
     patcher, fake = _patch_client([httpx.Response(200)])
-    with patcher, _patch_sleep():
-        await deliver_webhook(wh, "job.completed", payload, "content-1", webhook_repo, delivery_repo)
-    attempts = await delivery_repo._col.find({"webhookId": str(wh["_id"])}).to_list(length=None)
-    assert len(attempts) == 1
-    doc = attempts[0]
-    assert set(doc.keys()) == {"_id", "webhookId", "contentId", "event", "attemptedAt", "attemptNumber", "responseCode", "succeeded", "error"}
+    with patcher:
+        await attempt_delivery(attempt, webhook_repo, delivery_repo)
+    doc = await delivery_repo._col.find_one({"_id": attempt["_id"]})
+    for field in ("webhookId", "contentId", "event", "attemptedAt", "attemptNumber", "responseCode", "succeeded", "error"):
+        assert field in doc
     serialized = json.dumps(doc, default=str)
     assert "never-log-me" not in serialized
     assert "sha256=" not in serialized
 
 
 # ---------------------------------------------------------------------------
-# dispatch_terminal_event — fan-out, tenant isolation
+# dispatch_terminal_event — durable fan-out, tenant isolation
 # ---------------------------------------------------------------------------
 
 
@@ -312,8 +310,12 @@ async def _seed_client(db, client_id, tenant_id):
     await db["integrationClients"].insert_one({"client_id": client_id, "tenant_ids": [tenant_id]})
 
 
+async def _pending_docs(db):
+    return await db["contentAggregatorWebhookDeliveries"].find({"status": "pending"}).to_list(length=None)
+
+
 @pytest.mark.asyncio
-async def test_dispatch_terminal_event_fanout_one_failure_does_not_block_others(db, webhook_repo, delivery_repo):
+async def test_dispatch_terminal_event_fanout_creates_one_pending_record_per_webhook(db, webhook_repo, delivery_repo):
     from bson import ObjectId
 
     content_id = str(ObjectId())
@@ -322,18 +324,11 @@ async def test_dispatch_terminal_event_fanout_one_failure_does_not_block_others(
     good = await _make_webhook(webhook_repo, url="https://good.example.com/hook")
     bad = await _make_webhook(webhook_repo, url="https://bad.example.com/hook")
 
-    delivered_ids = []
+    await dispatch_terminal_event(db, content_id, "job.completed", job_id="job-1")
 
-    async def fake_deliver(webhook_doc, *args, **kwargs):
-        delivered_ids.append(webhook_doc["_id"])
-        if webhook_doc["_id"] == bad["_id"]:
-            raise RuntimeError("simulated unhandled failure")
-        return None
-
-    with patch("app.services.webhook_delivery_service.deliver_webhook", new=AsyncMock(side_effect=fake_deliver)):
-        await dispatch_terminal_event(db, content_id, "job.completed", job_id="job-1")
-
-    assert set(delivered_ids) == {good["_id"], bad["_id"]}
+    pending = await _pending_docs(db)
+    assert {p["webhookId"] for p in pending} == {str(good["_id"]), str(bad["_id"])}
+    assert all(p["attemptNumber"] == 1 for p in pending)
 
 
 @pytest.mark.asyncio
@@ -347,16 +342,11 @@ async def test_dispatch_terminal_event_tenant_isolation(db, webhook_repo, delive
     wh_a = await _make_webhook(webhook_repo, client_id=_TENANT_A, url="https://a.example.com/hook")
     wh_b = await _make_webhook(webhook_repo, client_id=_TENANT_B, url="https://b.example.com/hook")
 
-    delivered_ids = []
+    await dispatch_terminal_event(db, content_id, "job.completed", job_id="job-1")
 
-    async def fake_deliver(webhook_doc, *args, **kwargs):
-        delivered_ids.append(webhook_doc["_id"])
-
-    with patch("app.services.webhook_delivery_service.deliver_webhook", new=AsyncMock(side_effect=fake_deliver)):
-        await dispatch_terminal_event(db, content_id, "job.completed", job_id="job-1")
-
-    assert delivered_ids == [wh_a["_id"]]
-    assert wh_b["_id"] not in delivered_ids
+    pending = await _pending_docs(db)
+    assert {p["webhookId"] for p in pending} == {str(wh_a["_id"])}
+    assert str(wh_b["_id"]) not in {p["webhookId"] for p in pending}
 
 
 @pytest.mark.asyncio
@@ -368,9 +358,9 @@ async def test_dispatch_terminal_event_no_webhooks_for_event_type_is_noop(db, we
     await _seed_client(db, _TENANT_A, _TENANT_A)
     await _make_webhook(webhook_repo, events=["content.updated"])
 
-    with patch("app.services.webhook_delivery_service.deliver_webhook", new=AsyncMock()) as deliver_mock:
-        await dispatch_terminal_event(db, content_id, "job.completed", job_id="job-1")
-    deliver_mock.assert_not_called()
+    await dispatch_terminal_event(db, content_id, "job.completed", job_id="job-1")
+
+    assert await _pending_docs(db) == []
 
 
 @pytest.mark.asyncio
@@ -382,15 +372,10 @@ async def test_dispatch_terminal_event_resolves_client_id_distinct_from_tenant_i
     await _seed_client(db, "client-xyz", _TENANT_A)
     wh = await _make_webhook(webhook_repo, client_id="client-xyz")
 
-    delivered_ids = []
+    await dispatch_terminal_event(db, content_id, "job.completed", job_id="job-1")
 
-    async def fake_deliver(webhook_doc, *args, **kwargs):
-        delivered_ids.append(webhook_doc["_id"])
-
-    with patch("app.services.webhook_delivery_service.deliver_webhook", new=AsyncMock(side_effect=fake_deliver)):
-        await dispatch_terminal_event(db, content_id, "job.completed", job_id="job-1")
-
-    assert delivered_ids == [wh["_id"]]
+    pending = await _pending_docs(db)
+    assert [p["webhookId"] for p in pending] == [str(wh["_id"])]
 
 
 @pytest.mark.asyncio
@@ -406,18 +391,13 @@ async def test_dispatch_terminal_event_payload_data_fields(db, webhook_repo, del
     await _seed_content(db, content_id, _TENANT_A)
     await _seed_client(db, _TENANT_A, _TENANT_A)
     await _make_webhook(webhook_repo)
-    captured: dict[str, Any] = {}
 
-    async def fake_deliver(webhook_doc, event, payload, *args, **kwargs):
-        captured["event"] = event
-        captured["payload"] = payload
+    await dispatch_terminal_event(db, content_id, "job.failed", job_id="job-9", error="ffmpeg exploded")
 
-    with patch("app.services.webhook_delivery_service.deliver_webhook", new=AsyncMock(side_effect=fake_deliver)):
-        await dispatch_terminal_event(db, content_id, "job.failed", job_id="job-9", error="ffmpeg exploded")
-
-    assert captured["event"] == "job.failed"
-    data = captured["payload"]["data"]
+    pending = await _pending_docs(db)
+    assert len(pending) == 1
+    data = pending[0]["payloadData"]
     assert data["jobId"] == "job-9"
     assert data["contentId"] == content_id
-    assert data["error"] == "ffmpeg exploded"
+    assert data["error"] == "processing_failed"
     assert "failedAt" in data

@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+from datetime import UTC, datetime
 
 import pytest
 from bson import ObjectId
@@ -12,6 +13,12 @@ import app.controllers.webhook_registration_controller as webhook_registration_c
 import app.services.webhook_delivery_service as webhook_delivery_service
 from app.main import app
 from app.platform.auth.dependencies import get_db
+from app.repositories.content_aggregator_webhook_delivery_repository import (
+    ContentAggregatorWebhookDeliveryRepository,
+)
+from app.repositories.content_aggregator_webhook_repository import (
+    ContentAggregatorWebhookRepository,
+)
 from tests.support.mongomock_async import AsyncMongoMockClient
 from tests.support.webhook_test_receiver import WebhookTestReceiver
 
@@ -54,6 +61,21 @@ async def client():
         yield c
 
 
+async def _drain(mock_db) -> None:
+    """Run the delivery consumer's claim+attempt loop until no due work remains.
+
+    Mirrors WebhookDeliveryConsumer._run_loop without the poll sleep, so tests
+    can assert end-to-end outcomes synchronously.
+    """
+    webhook_repo = ContentAggregatorWebhookRepository(mock_db)
+    delivery_repo = ContentAggregatorWebhookDeliveryRepository(mock_db)
+    while True:
+        attempt_doc = await delivery_repo.claim_due(datetime.now(UTC).isoformat())
+        if attempt_doc is None:
+            return
+        await webhook_delivery_service.attempt_delivery(attempt_doc, webhook_repo, delivery_repo)
+
+
 async def _register_client_and_webhook(client, receiver, *, events=("job.completed", "job.failed")):
     tenant_id = str(ObjectId())
     reg = await client.post(
@@ -94,6 +116,7 @@ async def test_completed_job_delivers_webhook_with_valid_signature(client, recei
     await webhook_delivery_service.dispatch_terminal_event(
         mock_db, content_id, "job.completed", job_id="job-1"
     )
+    await _drain(mock_db)
 
     assert receiver.request_count == 1
     req = receiver.requests[0]
@@ -124,10 +147,11 @@ async def test_failed_job_delivers_webhook_with_error(client, receiver, mock_db)
     await webhook_delivery_service.dispatch_terminal_event(
         mock_db, content_id, "job.failed", job_id="job-2", error="boom"
     )
+    await _drain(mock_db)
 
     payload = json.loads(receiver.requests[0].body)
     assert payload["event"] == "job.failed"
-    assert payload["data"]["error"] == "boom"
+    assert payload["data"]["error"] == "processing_failed"
     assert "failedAt" in payload["data"]
 
 
@@ -141,6 +165,7 @@ async def test_retry_then_success_records_all_attempts(client, receiver, mock_db
     await webhook_delivery_service.dispatch_terminal_event(
         mock_db, content_id, "job.completed", job_id="job-3"
     )
+    await _drain(mock_db)
 
     assert receiver.request_count == 3
     deliveries = await mock_db["contentAggregatorWebhookDeliveries"].find({}).sort("attemptNumber", 1).to_list(
@@ -164,6 +189,7 @@ async def test_exhausted_retries_dead_letters_and_disables_webhook(client, recei
     await webhook_delivery_service.dispatch_terminal_event(
         mock_db, content_id, "job.completed", job_id="job-4"
     )
+    await _drain(mock_db)
 
     assert receiver.request_count == webhook_delivery_service.WEBHOOK_MAX_ATTEMPTS
     deliveries = await mock_db["contentAggregatorWebhookDeliveries"].find({}).to_list(length=None)
@@ -185,6 +211,7 @@ async def test_deleted_webhook_receives_no_delivery(client, receiver, mock_db):
     await webhook_delivery_service.dispatch_terminal_event(
         mock_db, content_id, "job.completed", job_id="job-5"
     )
+    await _drain(mock_db)
 
     assert receiver.request_count == 0
 
@@ -212,6 +239,7 @@ async def test_multiple_webhooks_fan_out_and_one_failure_does_not_block_other(cl
         await webhook_delivery_service.dispatch_terminal_event(
             mock_db, content_id, "job.completed", job_id="job-6"
         )
+        await _drain(mock_db)
 
         assert good_receiver.request_count == 1
         assert bad_receiver.request_count == webhook_delivery_service.WEBHOOK_MAX_ATTEMPTS
