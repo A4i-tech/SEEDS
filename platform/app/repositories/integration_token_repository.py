@@ -68,5 +68,8 @@ class IntegrationTokenRepository(BaseRepository):
             raise RefreshTokenExpiredError
         raise RefreshTokenReusedError(existing.client_id)
 
-    async def revoke_all_for_client(self, client_id: str) -> None:
-        await self._col.update_many({"client_id": client_id}, {"$set": {"revoked": True}})
+    async def revoke_all_for_client(self, client_id: str, *, reason: str | None = None) -> None:
+        await self._col.update_many(
+            {"client_id": client_id},
+            {"$set": {"revoked": True, "revoked_reason": reason}},
+        )
