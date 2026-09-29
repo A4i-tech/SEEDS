@@ -34,6 +34,7 @@ describe("Constants", () => {
       const constants = require("../src/constants");
       expect(Object.keys(constants).sort()).toEqual([
         "MessageType",
+        "PlaybackRefusal",
         "PlaybackStatus",
       ]);
 
