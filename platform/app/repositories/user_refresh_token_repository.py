@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-import hashlib
 from datetime import UTC, datetime
 from typing import cast
 
 from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.refresh_token import UserClaims, UserRefreshToken
+from app.platform.auth.hashing import hash_refresh_token
 from app.platform.auth.refresh_tokens import (
     REPLAY_GRACE_WINDOW,
     ConsumedToken,
@@ -18,10 +18,6 @@ from app.platform.auth.refresh_tokens import (
     TokenPair,
 )
 from app.repositories.base_repository import BaseRepository
-
-
-def _hash_refresh_token(token: str) -> str:
-    return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
 def _as_utc(value: datetime) -> datetime:
@@ -68,7 +64,7 @@ class UserRefreshTokenRepository(BaseRepository):
     ) -> None:
         await self._col.insert_one(
             {
-                "token_id": _hash_refresh_token(token_id),
+                "token_id": hash_refresh_token(token_id),
                 "owner_id": owner_id,
                 "claims": claims,
                 "expires_at": expires_at,
@@ -82,7 +78,7 @@ class UserRefreshTokenRepository(BaseRepository):
         )
 
     async def try_consume(self, token_id: str) -> ConsumedToken[UserClaims]:
-        hashed = _hash_refresh_token(token_id)
+        hashed = hash_refresh_token(token_id)
         now = datetime.now(tz=UTC)
         doc = await self._col.find_one_and_update(
             {"token_id": hashed, "revoked": False, "expires_at": {"$gt": now}},
@@ -107,10 +103,10 @@ class UserRefreshTokenRepository(BaseRepository):
         raise RefreshTokenReusedError(existing["owner_id"])
 
     async def cache_replay(self, token_id: str, pair: TokenPair) -> None:
-        hashed = _hash_refresh_token(token_id)
+        hashed = hash_refresh_token(token_id)
         await self._col.update_one(
             {"token_id": hashed},
-            {"$set": {"replaced_by": _hash_refresh_token(pair["refresh_token"])}},
+            {"$set": {"replaced_by": hash_refresh_token(pair["refresh_token"])}},
         )
         await self._replay_col.update_one(
             {"_id": hashed},
