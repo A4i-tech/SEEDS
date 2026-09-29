@@ -27,8 +27,11 @@ class UserRefreshToken(BaseModel):
     owner_id: str
     claims: UserTokenClaims
     expires_at: datetime
+    family_expires_at: datetime
     revoked: bool = False
     revoked_reason: str | None = None
+    consumed_at: datetime | None = None
+    replaced_by: str | None = None
     created_at: datetime
 
     @classmethod

@@ -6,7 +6,7 @@ import logging
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 
 from app.models.requests.auth_requests import TenantChangePasswordRequest, TenantRegisterRequest
 from app.models.requests.tenant_requests import TenantAnalyticsRequest
@@ -15,8 +15,8 @@ from app.models.responses.dashboard import TenantDashboardResponse
 from app.models.responses.login import MessageResponse
 from app.models.responses.user import UserPublicResponse
 from app.platform.auth.dependencies import (
+    REFRESH_COOKIE_NAME,
     clear_refresh_cookie,
-    get_current_user,
     require_tenant,
 )
 from app.repositories.ivr_repository import IVRRepository
@@ -30,7 +30,7 @@ router = APIRouter(prefix="/tenant", tags=["Auth"])
 @router.get("/names", summary="Get all tenant names (public)", status_code=status.HTTP_200_OK)
 async def tenant_names(
     service: AuthService = Depends(get_auth_service),
-) -> list[dict[str, str]]:
+) -> list[str]:
     return await service.get_tenant_names()
 
 
@@ -60,11 +60,13 @@ async def tenant_register(
     status_code=status.HTTP_200_OK,
 )
 async def tenant_logout(
+    request: Request,
     response: Response,
-    current_user: dict[str, Any] = Depends(get_current_user),
     service: AuthService = Depends(get_auth_service),
 ) -> MessageResponse:
-    await service.logout(current_user["sub"])
+    refresh_token = request.cookies.get(REFRESH_COOKIE_NAME)
+    if refresh_token:
+        await service.logout_by_refresh_token(refresh_token)
     clear_refresh_cookie(response)
     return MessageResponse(message="Logout successful")
 
