@@ -16,7 +16,7 @@ export function StageProgress({ job }) {
 
   return (
     <div className="remediation-stages-wrapper">
-      <div className="remediation-stages" aria-label={stagesLabel}>
+      <div className="remediation-stages" role="status" aria-label={stagesLabel}>
         {STAGES.map((stage, index) => {
           const current = !done && running && index + 1 === job.stage_index;
           const reached = !current && (done || index < job.stage_index);
@@ -32,7 +32,14 @@ export function StageProgress({ job }) {
         })}
       </div>
       {progressPercent != null && (
-        <div className="remediation-stage-progress-track">
+        <div
+          className="remediation-stage-progress-track"
+          role="progressbar"
+          aria-label="Remediation progress"
+          aria-valuenow={progressPercent}
+          aria-valuemin={0}
+          aria-valuemax={100}
+        >
           <div className="remediation-stage-progress-fill" style={{ width: `${progressPercent}%` }} />
         </div>
       )}

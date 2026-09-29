@@ -37,7 +37,7 @@ from app.remediation.detect_language import (
 from app.remediation.render import render_remediation
 from app.remediation.run_pipeline import run_pipeline
 from app.remediation.translate import run_translation
-from app.repositories.textbook_remediation_repository import TextbookRemediationRepository
+from app.services.textbook_remediation import TextbookRemediationService
 
 logger = logging.getLogger(__name__)
 
@@ -210,7 +210,7 @@ def _resolve_language(
 
 async def _translate_if_requested(
     job: RemediationJob,
-    repo: TextbookRemediationRepository,
+    service: TextbookRemediationService,
     blob_provider: BlobStorageProvider,
     out: Path,
 ) -> str | None:
@@ -223,20 +223,20 @@ async def _translate_if_requested(
         )
         if not translated_urls:
             raise RuntimeError("Translation produced no downloadable file.")
-        await repo.record_artifacts(
+        await service.record_artifacts(
             job.job_id, {ArtifactName(name): url for name, url in translated_urls.items()}, {}
         )
-        await repo.set_translation_error(job.job_id, None)
+        await service.set_translation_error(job.job_id, None)
         return None
     except Exception as exc:
         logger.warning("remediation: translation failed for job_id=%s: %s", job.job_id, exc)
         message = str(exc)
-        await repo.set_translation_error(job.job_id, message)
+        await service.set_translation_error(job.job_id, message)
         return message
 
 
 async def _process_job(
-    job: RemediationJob, repo: TextbookRemediationRepository, blob_provider: BlobStorageProvider
+    job: RemediationJob, service: TextbookRemediationService, blob_provider: BlobStorageProvider
 ) -> None:
     def make_progress_handler(stage: JobStage) -> Callable[[dict[str, object]], Awaitable[None]]:
         async def _handler(evt: dict[str, object]) -> None:
@@ -258,7 +258,7 @@ async def _process_job(
                 progress.total = float(total) if isinstance(total, (int, float)) else None
             if progress.total:
                 progress.percent = int((progress.completed or 0) / progress.total * 100)
-            await repo.update_progress(job.job_id, progress)
+            await service.update_progress(job.job_id, progress)
         return _handler
 
     with tempfile.TemporaryDirectory() as workspace:
@@ -268,7 +268,7 @@ async def _process_job(
         pdf = work / "book.pdf"
         await blob_provider.download_from_url_to_file(job.source_url, pdf)
         page_count = await _upload_source_pages(blob_provider, job.job_id, pdf)
-        await repo.update_source_page_count(job.job_id, page_count)
+        await service.update_source_page_count(job.job_id, page_count)
 
         is_auto = not job.language or job.language.lower() in AUTO_LANGUAGES
         pipeline_lang = "auto" if is_auto else job.language
@@ -278,8 +278,8 @@ async def _process_job(
             job.job_id, job.source_name, pipeline_lang, is_auto,
         )
         progress_msg = f"Remediating in {pipeline_lang}..." if not is_auto else "Remediating textbook..."
-        await repo.update_progress(job.job_id, JobProgress(stage=JobStage.OCR, message=progress_msg))
-        await repo.update_models(job.job_id, _resolve_models(job))
+        await service.update_progress(job.job_id, JobProgress(stage=JobStage.OCR, message=progress_msg))
+        await service.update_models(job.job_id, _resolve_models(job))
 
         context_json_path = work / "context.json"
         docx_path = out / artifact_filename(ArtifactName.DOCX)
@@ -290,7 +290,7 @@ async def _process_job(
             on_progress=make_progress_handler(JobStage.OCR),
             timeout=JOB_TIMEOUT_SECONDS,
         )
-        await repo.set_stage(job.job_id, JobStage.REVIEW)
+        await service.set_stage(job.job_id, JobStage.REVIEW)
 
         if not context_json_path.exists():
             raise RuntimeError(f"Pipeline {PIPELINE_PATH.name} produced no context output")
@@ -311,11 +311,11 @@ async def _process_job(
         unresolved = out / artifact_filename(ArtifactName.UNRESOLVED)
 
         final_lang = _resolve_language(job, is_auto, ctx_data, raw)
-        await repo.update_language(job.job_id, final_lang)
+        await service.update_language(job.job_id, final_lang)
         logger.info("remediation: updated final language for job_id=%s to %s", job.job_id, final_lang)
 
         await _upload_images(blob_provider, job.job_id, out / "images", out)
-        await repo.record_artifacts(
+        await service.record_artifacts(
             job.job_id,
             await _upload(
                 blob_provider, job.job_id, out,
@@ -331,20 +331,20 @@ async def _process_job(
                 "docx_bytes": docx_path.stat().st_size if docx_path.exists() else 0,
             },
         )
-        await repo.update_metrics(job.job_id, metrics)
-        await repo.set_stage(job.job_id, JobStage.DOCX)
+        await service.update_metrics(job.job_id, metrics)
+        await service.set_stage(job.job_id, JobStage.DOCX)
 
-        translation_error = await _translate_if_requested(job, repo, blob_provider, out)
+        translation_error = await _translate_if_requested(job, service, blob_provider, out)
 
-    await repo.update_progress(job.job_id, JobProgress())
-    await repo.finish(job.job_id, JobStatus.READY_TO_REVIEW, error=translation_error)
+    await service.update_progress(job.job_id, JobProgress())
+    await service.finish(job.job_id, JobStatus.READY_TO_REVIEW, error=translation_error)
 
 
 class TextbookRemediationConsumer(BaseConsumer):
     name = "TextbookRemediationConsumer"
 
     def __init__(self, db: AsyncDatabase) -> None:
-        self._repo = TextbookRemediationRepository(db)
+        self._service = TextbookRemediationService(db)
         self._blob_provider: BlobStorageProvider | None = None
 
     async def _run_loop(self) -> None:
@@ -359,7 +359,7 @@ class TextbookRemediationConsumer(BaseConsumer):
                 await asyncio.sleep(POLL_INTERVAL_SECONDS)
                 return
 
-        job = await self._repo.claim_next_pending()
+        job = await self._service.claim_next_pending()
         if job is None:
             await asyncio.sleep(POLL_INTERVAL_SECONDS)
             return
@@ -371,7 +371,7 @@ class TextbookRemediationConsumer(BaseConsumer):
             raise PermanentError("BlobStorageProvider unavailable")
         try:
             await asyncio.wait_for(
-                _process_job(job, self._repo, self._blob_provider), timeout=JOB_TIMEOUT_SECONDS
+                _process_job(job, self._service, self._blob_provider), timeout=JOB_TIMEOUT_SECONDS
             )
         except TimeoutError as exc:
             raise PermanentError(f"Remediation timed out after {JOB_TIMEOUT_SECONDS // 3600} hours. Upload a smaller PDF or try again.") from exc
@@ -380,5 +380,5 @@ class TextbookRemediationConsumer(BaseConsumer):
             raise PermanentError(str(exc)) from exc
 
     async def _dead_letter(self, job: RemediationJob, reason: str) -> None:
-        await self._repo.finish(job.job_id, JobStatus.FAILED, error=reason)
-        await self._repo.update_progress(job.job_id, JobProgress())
+        await self._service.finish(job.job_id, JobStatus.FAILED, error=reason)
+        await self._service.update_progress(job.job_id, JobProgress())

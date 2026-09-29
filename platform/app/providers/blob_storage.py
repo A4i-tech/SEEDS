@@ -28,7 +28,7 @@ from azure.identity import DefaultAzureCredential
 from azure.identity.aio import DefaultAzureCredential as AsyncDefaultAzureCredential
 from azure.storage.blob import BlobSasPermissions, ContentSettings, generate_blob_sas
 from azure.storage.blob import BlobServiceClient as SyncBlobServiceClient
-from azure.storage.blob.aio import BlobServiceClient, ContainerClient
+from azure.storage.blob.aio import BlobServiceClient, ContainerClient, StorageStreamDownloader
 
 from app.platform.settings import get_settings
 
@@ -116,7 +116,22 @@ class BlobStorageProvider:
         container_client = self._client.get_container_client(container)
         blob_client = container_client.get_blob_client(blob_name)
         stream = await blob_client.download_blob()
-        return stream.chunks()
+        return self._release_after(stream)
+
+    @staticmethod
+    async def _release_after(stream: StorageStreamDownloader) -> AsyncIterator[bytes]:
+        chunks = stream.chunks()
+        try:
+            async for chunk in chunks:
+                yield chunk
+        finally:
+            aclose = getattr(chunks, "aclose", None)
+            if aclose is not None:
+                await aclose()
+
+    async def blob_size(self, container: str, blob_name: str) -> int:
+        blob_client = self._client.get_container_client(container).get_blob_client(blob_name)
+        return (await blob_client.get_blob_properties()).size
 
     async def download_chunks_from_url(self, blob_url: str) -> AsyncIterator[bytes]:
         container, blob_path = _parse_blob_url(blob_url)

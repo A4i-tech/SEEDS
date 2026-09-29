@@ -1,7 +1,7 @@
 const LIST_ITEM_RE = /^(\s*)([-*+]|\d+[.)])(\s+)(.*)$/;
 // Whole-block markdown image: ![alt](path "optional title"). Groups: 1 alt, 2 path (no spaces or ")"), 3 title.
 // Anchored ^...$ so a paragraph that merely contains an image is not classified as an image block.
-const IMAGE_RE =/^!\[([^\]]*)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)$/;
+const IMAGE_RE = /^!\[([^\]]*)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)$/;
 
 export function classifyBlock(raw) {
   const trimmed = raw.trim();
@@ -72,4 +72,41 @@ export function replacePageInDocument(fullText, pages, pageIdx, newContent) {
   const lead = original.slice(0, leadLen);
   const trail = trailLen ? original.slice(original.length - trailLen) : "";
   return fullText.slice(0, page.start) + lead + newContent + trail + fullText.slice(page.end);
+}
+
+export function splitIntoPages(markdown) {
+  if (!markdown) return [];
+  const pageRegex = /<!--\s*page\s+(\d+)\s*-->/gi;
+  const matches = [...markdown.matchAll(pageRegex)];
+
+  if (matches.length === 0) {
+    const chunks = [];
+    const paragraphs = markdown.split(/\n\n+/);
+    let currentChunk = "";
+    let pageNum = 1;
+    for (const p of paragraphs) {
+      if (currentChunk.length + p.length > 3500 && currentChunk.length > 0) {
+        chunks.push({ pageNum, content: currentChunk.trim() });
+        pageNum++;
+        currentChunk = p;
+      } else {
+        currentChunk = currentChunk ? `${currentChunk}\n\n${p}` : p;
+      }
+    }
+    if (currentChunk.trim()) {
+      chunks.push({ pageNum, content: currentChunk.trim() });
+    }
+    return chunks;
+  }
+
+  const pages = [];
+  for (let i = 0; i < matches.length; i++) {
+    const match = matches[i];
+    const pageNum = parseInt(match[1], 10);
+    const startIndex = match.index;
+    const endIndex = i + 1 < matches.length ? matches[i + 1].index : markdown.length;
+    const content = markdown.slice(startIndex, endIndex).trim();
+    pages.push({ pageNum, content, start: startIndex, end: endIndex });
+  }
+  return pages;
 }

@@ -85,6 +85,7 @@ async def run_pipeline(
 
     stop_tailing = asyncio.Event()
     last_step: dict[str, str | None] = {"name": None}
+    peak_rss: dict[str, object] = {"mb": None}
 
     async def _tail_progress() -> None:
         file_pos = 0
@@ -110,6 +111,8 @@ async def run_pipeline(
                 except Exception as exc:
                     logger.warning("remediation: failed parsing progress line: %s", exc)
                     continue
+                if evt.get("type") == "peak_rss":
+                    peak_rss["mb"] = evt.get("mb")
                 if evt.get("step_name"):
                     last_step["name"] = evt["step_name"]
                 if on_progress:
@@ -140,8 +143,9 @@ async def run_pipeline(
             await proc.wait()
             tail = _stderr_tail(stderr_path)
             logger.error(
-                "remediation: pipeline %s timed out after %ss, last step=%s: %s",
-                pipeline_path.name, timeout, last_step["name"], tail,
+                "remediation: pipeline %s timed out after %ss, last step=%s peak_rss_mb=%s: %s",
+                pipeline_path.name, timeout, last_step["name"],
+                peak_rss["mb"] if peak_rss["mb"] is not None else "unavailable (child reported none)", tail,
             )
             raise RuntimeError(
                 f"Pipeline {pipeline_path.name} timed out after {timeout}s during step "
@@ -158,7 +162,8 @@ async def run_pipeline(
     if proc.returncode != 0:
         tail = _stderr_tail(stderr_path)
         logger.error(
-            "remediation: pipeline %s failed rc=%s last step=%s: %s",
-            pipeline_path.name, proc.returncode, last_step["name"], tail,
+            "remediation: pipeline %s failed rc=%s last step=%s peak_rss_mb=%s: %s",
+            pipeline_path.name, proc.returncode, last_step["name"],
+            peak_rss["mb"] if peak_rss["mb"] is not None else "unavailable (child reported none)", tail,
         )
         raise RuntimeError(_failure_message(pipeline_path.name, proc.returncode, last_step["name"], tail))

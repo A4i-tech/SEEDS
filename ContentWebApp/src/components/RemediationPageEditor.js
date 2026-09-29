@@ -59,17 +59,21 @@ function AutoGrowTextarea({ value, onChange, className }) {
 function BlockEditor({ block, onCommit, onCancel }) {
   const [draft, setDraft] = useState(() => draftFromBlock(block));
   const containerRef = useRef(null);
-  const commit = () => onCommit(buildRawFromDraft(block, draft));
+  const commit = (refocus) => {
+    const raw = buildRawFromDraft(block, draft);
+    if (raw === block.raw) onCancel(refocus);
+    else onCommit(raw, refocus);
+  };
   const handleBlur = (e) => {
     if (containerRef.current.contains(e.relatedTarget)) return;
-    commit();
+    commit(false);
   };
   const handleKeyDown = (e) => {
     if (e.key === "Escape") {
       e.stopPropagation();
-      onCancel();
+      onCancel(true);
     }
-    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") commit();
+    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") commit(true);
   };
 
   return (
@@ -100,35 +104,52 @@ function BlockEditor({ block, onCommit, onCancel }) {
   );
 }
 
-function Block({ block, jobId, editingId, onEdit, onCommit, onCancel }) {
+function Block({ block, jobId, editingId, focusIdRef, onEdit, onCommit, onCancel }) {
+  const triggerRef = useRef(null);
+  const editing = editingId === block.id;
+  useEffect(() => {
+    if (!editing && focusIdRef.current === block.id) {
+      triggerRef.current?.focus();
+      focusIdRef.current = null;
+    }
+  }, [editing, block.id, focusIdRef]);
+
   if (block.type === "marker") return null;
-  if (editingId === block.id) {
-    return <BlockEditor block={block} onCommit={(raw) => onCommit(block.id, raw)} onCancel={onCancel} />;
+  if (editing) {
+    return (
+      <BlockEditor
+        block={block}
+        onCommit={(raw, refocus) => onCommit(block.id, raw, refocus)}
+        onCancel={(refocus) => onCancel(block.id, refocus)}
+      />
+    );
   }
   return (
-    <div
-      role="button"
-      tabIndex={0}
-      className="remediation-block"
-      aria-label={BLOCK_LABELS[block.type]}
-      onClick={() => onEdit(block.id)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onEdit(block.id);
-        }
-      }}
-    >
-      <MarkdownViewer text={block.raw} jobId={jobId} />
+    <div style={{ display: "flex", gap: "8px", alignItems: "flex-start" }}>
+      <div className="remediation-block" onClick={() => onEdit(block.id)}>
+        <MarkdownViewer text={block.raw} jobId={jobId} />
+      </div>
+      <button
+        ref={triggerRef}
+        type="button"
+        className="action-ghost-button"
+        style={{ padding: "4px 10px", fontSize: "12px" }}
+        aria-label={BLOCK_LABELS[block.type]}
+        onClick={() => onEdit(block.id)}
+      >
+        Edit
+      </button>
     </div>
   );
 }
 
 export function RemediationPageEditor({ jobId, pageMarkdown, onChange }) {
   const [editingId, setEditingId] = useState(null);
+  const focusIdRef = useRef(null);
   const blocks = splitBlocks(pageMarkdown);
 
-  const commitBlock = (id, raw) => {
+  const commitBlock = (id, raw, refocus) => {
+    if (refocus) focusIdRef.current = id;
     const nextBlocks = blocks.map((block) => (block.id === id ? { ...block, raw } : block));
     setEditingId(null);
     onChange(joinBlocks(nextBlocks));
@@ -142,9 +163,13 @@ export function RemediationPageEditor({ jobId, pageMarkdown, onChange }) {
           block={block}
           jobId={jobId}
           editingId={editingId}
+          focusIdRef={focusIdRef}
           onEdit={setEditingId}
           onCommit={commitBlock}
-          onCancel={() => setEditingId(null)}
+          onCancel={(id, refocus) => {
+            if (refocus) focusIdRef.current = id;
+            setEditingId(null);
+          }}
         />
       ))}
     </div>

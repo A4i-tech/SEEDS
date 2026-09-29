@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import "katex/dist/katex.min.css";
 
@@ -8,7 +8,7 @@ import { Pagination } from "./ContentAggregatorDetails/Pagination";
 import { textbookRemediationService } from "../services/textbookRemediationService";
 import { MarkdownViewer } from "./RemediationMarkdownView";
 import { RemediationPageEditor } from "./RemediationPageEditor";
-import { replacePageInDocument } from "./remediationBlocks";
+import { replacePageInDocument, splitIntoPages } from "./remediationBlocks";
 import { isRemediationDone, JOB_STATUS } from "../utils/remediationStatus";
 import { ARTIFACT_DOWNLOADS } from "./artifactDownloads";
 import { RemediationRunDetails } from "./RemediationRunDetails";
@@ -19,43 +19,6 @@ import "./AllContent/shared/buttons.css";
 import "./AllContent/shared/tables.css";
 import "./SyncHistoryPage.css";
 import "./RemediationDetails.css";
-
-function splitIntoPages(markdown) {
-  if (!markdown) return [];
-  const pageRegex = /<!--\s*page\s+(\d+)\s*-->/gi;
-  const matches = [...markdown.matchAll(pageRegex)];
-
-  if (matches.length === 0) {
-    const chunks = [];
-    const paragraphs = markdown.split(/\n\n+/);
-    let currentChunk = "";
-    let pageNum = 1;
-    for (const p of paragraphs) {
-      if (currentChunk.length + p.length > 3500 && currentChunk.length > 0) {
-        chunks.push({ pageNum, content: currentChunk.trim() });
-        pageNum++;
-        currentChunk = p;
-      } else {
-        currentChunk = currentChunk ? `${currentChunk}\n\n${p}` : p;
-      }
-    }
-    if (currentChunk.trim()) {
-      chunks.push({ pageNum, content: currentChunk.trim() });
-    }
-    return chunks;
-  }
-
-  const pages = [];
-  for (let i = 0; i < matches.length; i++) {
-    const match = matches[i];
-    const pageNum = parseInt(match[1], 10);
-    const startIndex = match.index;
-    const endIndex = i + 1 < matches.length ? matches[i + 1].index : markdown.length;
-    const content = markdown.slice(startIndex, endIndex).trim();
-    pages.push({ pageNum, content, start: startIndex, end: endIndex });
-  }
-  return pages;
-}
 
 const pageContent = (pages, index, fallback) =>
   pages.length ? pages[index]?.content ?? "" : fallback;
@@ -123,19 +86,22 @@ const RemediationDetails = () => {
   const draftPages = useMemo(() => splitIntoPages(draftText), [draftText]);
   const currentDraftPage = pageContent(draftPages, pageIdx, draftText || "");
 
-  const pageIndexForNum = (pageNum) => {
-    const idx = correctedPages.findIndex((p) => p.pageNum === pageNum);
-    if (idx !== -1) return idx;
-    const rawIdx = rawPages.findIndex((p) => p.pageNum === pageNum);
-    return rawIdx !== -1 ? rawIdx : 0;
-  };
+  const pageIndexForNum = useCallback(
+    (pageNum) => {
+      const idx = correctedPages.findIndex((p) => p.pageNum === pageNum);
+      if (idx !== -1) return idx;
+      const rawIdx = rawPages.findIndex((p) => p.pageNum === pageNum);
+      return rawIdx !== -1 ? rawIdx : 0;
+    },
+    [correctedPages, rawPages]
+  );
 
   const bookPageNum = correctedPages[pageIdx]?.pageNum ?? rawPages[pageIdx]?.pageNum ?? pageIdx + 1;
 
   const flaggedPages = useMemo(() => {
     const pages = reviewSummary.flagged_items.map((item) => pageIndexForNum(item.page || 1));
     return [...new Set(pages)].sort((a, b) => a - b);
-  }, [reviewSummary, correctedPages, rawPages]);
+  }, [reviewSummary, pageIndexForNum]);
   const currentPageFlags = reviewSummary.flagged_items.filter(
     (item) => pageIndexForNum(item.page || 1) === pageIdx
   );
@@ -273,6 +239,14 @@ const RemediationDetails = () => {
     return () => window.removeEventListener("beforeunload", handler);
   }, [isDirty]);
 
+  const unmountingRef = useRef(false);
+  useEffect(() => {
+    unmountingRef.current = false;
+    return () => {
+      unmountingRef.current = true;
+    };
+  }, []);
+
   useEffect(() => {
     if (!isDirty) return undefined;
     window.history.pushState(null, "", window.location.href);
@@ -285,7 +259,10 @@ const RemediationDetails = () => {
       }
     };
     window.addEventListener("popstate", handler);
-    return () => window.removeEventListener("popstate", handler);
+    return () => {
+      window.removeEventListener("popstate", handler);
+      if (!unmountingRef.current) window.history.back();
+    };
   }, [isDirty]);
 
   const guardNavigate = (onLeave) => {
@@ -458,11 +435,13 @@ const RemediationDetails = () => {
 
             <RemediationRunDetails models={job.models} metrics={job.metrics} />
 
-            {actionMessage && (
-              <div className="remediation-action-message">
-                {actionMessage}
-              </div>
-            )}
+            <div aria-live="polite">
+              {actionMessage && (
+                <div className="remediation-action-message">
+                  {actionMessage}
+                </div>
+              )}
+            </div>
 
             <div className="remediation-panes">
               <div className="remediation-pane">

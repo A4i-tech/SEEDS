@@ -9,6 +9,7 @@ import {
   parseImage,
   buildImage,
   replacePageInDocument,
+  splitIntoPages,
 } from "../../src/components/remediationBlocks";
 
 const PAGE = `<!-- page 1 -->
@@ -93,14 +94,7 @@ describe("split -> edit one block -> rebuild", () => {
 describe("replacePageInDocument", () => {
   test("replaces only the target page and leaves the rest of the document untouched", () => {
     const fullText = "<!-- page 1 -->\nfirst page\n\n<!-- page 2 -->\nsecond page\n\n<!-- page 3 -->\nthird page";
-    const pageRegex = /<!--\s*page\s+(\d+)\s*-->/gi;
-    const matches = [...fullText.matchAll(pageRegex)];
-    const pages = matches.map((match, i) => ({
-      pageNum: parseInt(match[1], 10),
-      content: fullText.slice(match.index, i + 1 < matches.length ? matches[i + 1].index : fullText.length).trim(),
-      start: match.index,
-      end: i + 1 < matches.length ? matches[i + 1].index : fullText.length,
-    }));
+    const pages = splitIntoPages(fullText);
 
     const updated = replacePageInDocument(fullText, pages, 1, "<!-- page 2 -->\nsecond page edited");
 

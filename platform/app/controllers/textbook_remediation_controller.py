@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from app.models.remediation_job import ARTIFACTS, IMAGE_CONTENT_TYPES, ArtifactName, RemediationJob
+from app.models.remediation_job import ARTIFACTS, IMAGE_CONTENT_TYPES, ArtifactName, JobStatus, RemediationJob
 from app.models.responses.remediation import (
     CreateRemediationJobResponse,
     FindingsPageResponse,
@@ -20,7 +20,7 @@ from app.models.responses.remediation import (
 )
 from app.models.user import UserRole
 from app.platform.auth.dependencies import require_role
-from app.platform.error_handling import NotFoundError, ValidationError
+from app.platform.error_handling import AppError, NotFoundError, ValidationError
 from app.platform.settings import get_settings
 from app.providers.blob_storage import BlobStorageProvider, get_blob_storage_provider
 from app.repositories.textbook_remediation_repository import (
@@ -70,6 +70,16 @@ class VerifyJobRequest(BaseModel):
 
 class TranslateJobRequest(BaseModel):
     target_language: str
+
+
+async def _closing(chunks: AsyncIterator[bytes]) -> AsyncIterator[bytes]:
+    try:
+        async for chunk in chunks:
+            yield chunk
+    finally:
+        aclose = getattr(chunks, "aclose", None)
+        if aclose is not None:
+            await aclose()
 
 
 async def _get_job(repo: TextbookRemediationRepository, tenant_id: str, job_id: str) -> RemediationJob:
@@ -170,7 +180,7 @@ async def get_remediation_artifact(
     job = await _get_job(repo, str(user["tenant_id"]), job_id)
     chunks, content_type = await _artifact_chunks(job, name, blob_provider)
     return StreamingResponse(
-        chunks,
+        _closing(chunks),
         media_type=content_type,
         headers={"Content-Disposition": f'attachment; filename="{ARTIFACTS[ArtifactName(name)][0]}"'},
     )
@@ -193,14 +203,20 @@ async def get_remediation_image(
 
     blob_path = f"textbook-remediation/{job_id}/images/{safe_name}"
     try:
-        chunks = await blob_provider.download_chunks(get_settings().azure_storage_container, blob_path)
+        container = get_settings().azure_storage_container
+        size = await blob_provider.blob_size(container, blob_path)
+        chunks = await blob_provider.download_chunks(container, blob_path)
     except ResourceNotFoundError as exc:
         raise NotFoundError("Image", safe_name) from exc
 
     return StreamingResponse(
-        chunks,
+        _closing(chunks),
         media_type=content_type,
-        headers={"Cache-Control": "private, max-age=86400", "X-Content-Type-Options": "nosniff"},
+        headers={
+            "Cache-Control": "private, max-age=86400",
+            "X-Content-Type-Options": "nosniff",
+            "Content-Length": str(size),
+        },
     )
 
 
@@ -214,19 +230,33 @@ async def get_remediation_page(
 ) -> StreamingResponse:
     job = await _get_job(repo, str(user["tenant_id"]), job_id)
 
-    if not job.source_page_count or page_num < 1 or page_num > job.source_page_count:
+    if not job.source_page_count:
+        if job.status in (JobStatus.PENDING, JobStatus.RUNNING):
+            raise AppError(
+                "PAGES_NOT_READY",
+                "The source pages are still being rendered. Try again in a few seconds.",
+                409,
+            )
+        raise NotFoundError("Page", str(page_num))
+    if page_num < 1 or page_num > job.source_page_count:
         raise NotFoundError("Page", str(page_num))
 
     blob_path = f"textbook-remediation/{job_id}/pages/{page_num}.jpg"
     try:
-        chunks = await blob_provider.download_chunks(get_settings().azure_storage_container, blob_path)
+        container = get_settings().azure_storage_container
+        size = await blob_provider.blob_size(container, blob_path)
+        chunks = await blob_provider.download_chunks(container, blob_path)
     except ResourceNotFoundError as exc:
         raise NotFoundError("Page", str(page_num)) from exc
 
     return StreamingResponse(
-        chunks,
+        _closing(chunks),
         media_type="image/jpeg",
-        headers={"Cache-Control": "private, max-age=86400", "X-Content-Type-Options": "nosniff"},
+        headers={
+            "Cache-Control": "private, max-age=86400",
+            "X-Content-Type-Options": "nosniff",
+            "Content-Length": str(size),
+        },
     )
 
 

@@ -193,6 +193,11 @@ class _StubBlob:
     async def download_chunks_from_url(self, url):
         return _chunked(self._downloads[url])
 
+    async def blob_size(self, container, blob_path):
+        if blob_path not in self._downloads:
+            raise ResourceNotFoundError(blob_path)
+        return len(self._downloads[blob_path])
+
 
 @pytest.mark.asyncio
 async def test_remediation_access_allows_the_content_roles_and_blocks_teachers():
