@@ -34,6 +34,7 @@ async def test_token_id_index_is_unique(mock_db):
         owner_id="user-1",
         claims={"role": "teacher", "tenant_id": "t1", "school_id": None},
         expires_at=now + timedelta(days=30),
+        family_expires_at=now + timedelta(days=30),
         created_at=now,
     )
 
@@ -43,6 +44,7 @@ async def test_token_id_index_is_unique(mock_db):
             owner_id="user-2",
             claims={"role": "teacher", "tenant_id": "t1", "school_id": None},
             expires_at=now + timedelta(days=30),
+            family_expires_at=now + timedelta(days=30),
             created_at=now,
         )
 

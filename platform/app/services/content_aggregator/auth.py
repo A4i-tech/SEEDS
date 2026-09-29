@@ -37,6 +37,10 @@ def _hash_refresh_token(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
+def _as_utc(value: datetime) -> datetime:
+    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+
+
 class IntegrationClaims(TypedDict):
     tenant_ids: list[str]
     scope: str
@@ -55,6 +59,7 @@ class _IntegrationTokenStore:
         return ConsumedToken(
             owner_id=doc.client_id,
             claims={"tenant_ids": doc.tenant_ids, "scope": doc.scope},
+            family_expires_at=_as_utc(doc.family_expires_at),
         )
 
     async def insert(
@@ -64,6 +69,7 @@ class _IntegrationTokenStore:
         owner_id: str,
         claims: IntegrationClaims,
         expires_at: datetime,
+        family_expires_at: datetime,
         created_at: datetime,
     ) -> None:
         token_id = _hash_refresh_token(token_id)
@@ -74,6 +80,7 @@ class _IntegrationTokenStore:
                 tenant_ids=claims["tenant_ids"],
                 scope=claims["scope"],
                 expires_at=expires_at,
+                family_expires_at=family_expires_at,
                 created_at=created_at,
             )
         )
@@ -81,6 +88,9 @@ class _IntegrationTokenStore:
     async def try_consume(self, token_id: str) -> ConsumedToken[IntegrationClaims]:
         doc = await self._repo.try_consume(_hash_refresh_token(token_id))
         return self._to_consumed(doc)
+
+    async def cache_replay(self, token_id: str, pair: TokenPair) -> None:
+        await self._repo.cache_replay(_hash_refresh_token(token_id), pair)
 
     async def revoke_all_for_owner(self, owner_id: str, *, reason: str) -> None:
         await self._repo.revoke_all_for_client(owner_id, reason=reason)

@@ -202,6 +202,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         if reconciled:
             logger.info("Reconciled %d interrupted textbook remediation jobs", reconciled)
 
+    from app.repositories.integration_token_repository import (  # noqa: PLC0415
+        IntegrationTokenRepository,
+    )
     from app.repositories.translation_audit_repository import (  # noqa: PLC0415
         TranslationAuditRepository,
     )
@@ -220,6 +223,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await TranslationAuditRepository.ensure_indexes(get_database())
     await IntegrationClientRepository.ensure_indexes(get_database())
     await UserRefreshTokenRepository.ensure_indexes(get_database())
+    await IntegrationTokenRepository.ensure_indexes(get_database())
 
     # Init conference manager (available in all modes)
     try:

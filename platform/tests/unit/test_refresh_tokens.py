@@ -6,10 +6,12 @@ from typing import Any
 
 import pytest
 
+from app.platform.auth import refresh_tokens as refresh_tokens_module
 from app.platform.auth.refresh_tokens import (
     ConsumedToken,
     RefreshTokenExpiredError,
     RefreshTokenNotFoundError,
+    RefreshTokenReplayedError,
     RefreshTokenReusedError,
     RefreshTokenRevokedError,
     issue_pair,
@@ -23,14 +25,19 @@ from app.platform.telemetry import configure_telemetry
 class FakeStore:
     def __init__(self) -> None:
         self._tokens: dict[str, dict[str, Any]] = {}
+        self._replays: dict[str, Any] = {}
 
-    async def insert(self, *, token_id, owner_id, claims, expires_at, created_at) -> None:
+    async def insert(
+        self, *, token_id, owner_id, claims, expires_at, family_expires_at, created_at
+    ) -> None:
         self._tokens[token_id] = {
             "owner_id": owner_id,
             "claims": claims,
             "expires_at": expires_at,
+            "family_expires_at": family_expires_at,
             "revoked": False,
             "revoked_reason": None,
+            "consumed_at": None,
         }
 
     async def try_consume(self, token_id: str) -> ConsumedToken:
@@ -40,15 +47,26 @@ class FakeStore:
         if doc["revoked"]:
             if doc["revoked_reason"] == "logout":
                 raise RefreshTokenRevokedError
+            if doc["revoked_reason"] == "consumed" and doc["consumed_at"] is not None:
+                elapsed = datetime.now(tz=UTC) - doc["consumed_at"]
+                if elapsed <= refresh_tokens_module.REPLAY_GRACE_WINDOW:
+                    cached = self._replays.get(token_id)
+                    if cached is not None:
+                        raise RefreshTokenReplayedError(cached)
             raise RefreshTokenReusedError(doc["owner_id"])
         if doc["expires_at"] <= datetime.now(tz=UTC):
             raise RefreshTokenExpiredError
         doc["revoked"] = True
         doc["revoked_reason"] = "consumed"
+        doc["consumed_at"] = datetime.now(tz=UTC)
         return ConsumedToken(
             owner_id=doc["owner_id"],
             claims=doc["claims"],
+            family_expires_at=doc["family_expires_at"],
         )
+
+    async def cache_replay(self, token_id: str, pair) -> None:
+        self._replays[token_id] = pair
 
     async def revoke_all_for_owner(self, owner_id: str, *, reason: str) -> None:
         for doc in self._tokens.values():
@@ -143,7 +161,7 @@ class TestRotate:
                 reuse_counter_name="auth.reuse_detected",
             )
 
-    async def test_replaying_consumed_token_revokes_all_tokens_for_owner(self):
+    async def test_replaying_consumed_token_revokes_all_tokens_for_owner(self, monkeypatch):
         store = FakeStore()
         issued = await _issue(store)
         root_refresh = issued["refresh_token"]
@@ -155,6 +173,7 @@ class TestRotate:
             refresh_ttl="30d",
             reuse_counter_name="auth.reuse_detected",
         )
+        monkeypatch.setattr(refresh_tokens_module, "REPLAY_GRACE_WINDOW", timedelta(seconds=-1))
 
         with pytest.raises(UnauthorizedError):
             await rotate(
@@ -179,7 +198,7 @@ class TestRotate:
         assert all(doc["revoked"] for doc in store._tokens.values())
         assert all(doc["revoked_reason"] == "consumed" for doc in store._tokens.values())
 
-    async def test_replay_revokes_other_tokens_for_same_owner(self):
+    async def test_replay_revokes_other_tokens_for_same_owner(self, monkeypatch):
         store = FakeStore()
         token_a = await _issue(store, owner_id="user-1")
         token_b = await _issue(store, owner_id="user-1")
@@ -192,6 +211,7 @@ class TestRotate:
             refresh_ttl="30d",
             reuse_counter_name="auth.reuse_detected",
         )
+        monkeypatch.setattr(refresh_tokens_module, "REPLAY_GRACE_WINDOW", timedelta(seconds=-1))
 
         with pytest.raises(UnauthorizedError):
             await rotate(
@@ -227,7 +247,7 @@ class TestRotate:
         assert store._tokens[token_a["refresh_token"]]["revoked_reason"] == "logout"
         assert store._tokens[token_b["refresh_token"]]["revoked_reason"] == "logout"
 
-    async def test_concurrent_refresh_only_one_winner(self):
+    async def test_concurrent_refresh_within_grace_window_both_get_winners_pair(self):
         store = FakeStore()
         issued = await _issue(store)
         root_refresh = issued["refresh_token"]
@@ -254,9 +274,34 @@ class TestRotate:
 
         successes = [r for r in results if not isinstance(r, BaseException)]
         failures = [r for r in results if isinstance(r, BaseException)]
-        assert len(successes) == 1
-        assert len(failures) == 1
-        assert isinstance(failures[0], UnauthorizedError)
+        assert len(successes) == 2
+        assert len(failures) == 0
+        assert successes[0] == successes[1]
+
+    async def test_replay_outside_grace_window_still_triggers_reuse_alarm(self, monkeypatch):
+        store = FakeStore()
+        issued = await _issue(store)
+        root_refresh = issued["refresh_token"]
+        await rotate(
+            store,
+            root_refresh,
+            verify_owner_active=_verify_owner_active,
+            build_access_token=_build_access_token,
+            refresh_ttl="30d",
+            reuse_counter_name="auth.reuse_detected",
+        )
+        monkeypatch.setattr(refresh_tokens_module, "REPLAY_GRACE_WINDOW", timedelta(seconds=-1))
+
+        with pytest.raises(UnauthorizedError):
+            await rotate(
+                store,
+                root_refresh,
+                verify_owner_active=_verify_owner_active,
+                build_access_token=_build_access_token,
+                refresh_ttl="30d",
+                reuse_counter_name="auth.reuse_detected",
+            )
+        assert store._tokens[root_refresh]["revoked_reason"] == "consumed"
 
     async def test_expired_token_raises_distinct_error_code(self):
         store = FakeStore()
