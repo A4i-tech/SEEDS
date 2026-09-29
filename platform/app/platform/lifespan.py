@@ -187,9 +187,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         ContentAggregatorSyncJobRepository,
     )
     from app.repositories.content_job_repository import ContentJobRepository  # noqa: PLC0415
-    from app.repositories.integration_client_repository import (  # noqa: PLC0415
-        IntegrationClientRepository,
-    )
     from app.repositories.textbook_remediation_repository import (  # noqa: PLC0415
         TextbookRemediationRepository,
     )
@@ -199,6 +196,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         if reconciled:
             logger.info("Reconciled %d interrupted textbook remediation jobs", reconciled)
 
+    from app.repositories.integration_client_repository import (  # noqa: PLC0415
+        IntegrationClientRepository,
+    )
     from app.repositories.integration_token_repository import (  # noqa: PLC0415
         IntegrationTokenRepository,
     )
