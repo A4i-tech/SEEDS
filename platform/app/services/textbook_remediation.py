@@ -34,6 +34,8 @@ from app.models.responses.remediation import (
 from app.platform.error_handling import NotFoundError, ValidationError
 from app.platform.settings import get_settings
 from app.providers.blob_storage import BlobStorageProvider
+from app.remediation.braille import build_braille
+from app.remediation.detect_language import language_name_to_code
 from app.remediation.render import compile_docx_tex_pdf
 from app.remediation.translate import run_translation
 from app.repositories.textbook_remediation_repository import TextbookRemediationRepository
@@ -340,6 +342,36 @@ async def translate_job(
         raise
     updated = await repo.record_artifacts(job.job_id, translated_urls, {})
     await repo.set_translation_error(job.job_id, None)
+    if updated is None:
+        raise NotFoundError("Remediation job", job.job_id)
+    return updated
+
+
+async def braille_job(
+    repo: TextbookRemediationRepository,
+    blob_provider: BlobStorageProvider,
+    job: RemediationJob,
+) -> RemediationJob:
+    if job.status != JobStatus.VERIFIED:
+        raise ValidationError("Braille needs a verified document. Verify the job, then generate Braille.")
+    if job.draft_remediated_md:
+        markdown = job.draft_remediated_md
+    else:
+        remediated_bytes, _ = await artifact_bytes(job, ArtifactName.REMEDIATED, blob_provider)
+        markdown = remediated_bytes.decode("utf-8")
+    language = job.detected_language or job.language
+    code = language_name_to_code(language) or language
+    brf, report = await asyncio.to_thread(build_braille, markdown, code)
+    container = get_settings().azure_storage_container
+    urls: dict[ArtifactName, str] = {}
+    for name, payload in (
+        (ArtifactName.BRF, brf.encode("utf-8")),
+        (ArtifactName.BRAILLE_REPORT, json.dumps(report, indent=2).encode("utf-8")),
+    ):
+        urls[name] = await blob_provider.upload_file(
+            container, f"textbook-remediation/{job.job_id}/braille/{ARTIFACTS[name][0]}", payload, ARTIFACTS[name][1]
+        )
+    updated = await repo.record_artifacts(job.job_id, urls, {})
     if updated is None:
         raise NotFoundError("Remediation job", job.job_id)
     return updated
