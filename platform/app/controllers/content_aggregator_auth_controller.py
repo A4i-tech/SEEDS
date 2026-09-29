@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Response
 from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.requests.content_aggregator_requests import (
@@ -27,8 +27,11 @@ def get_content_aggregator_auth(
 @router.post("/token", summary="Exchange client_id/client_secret for a JWT")
 async def issue_token(
     body: ContentAggregatorTokenRequest,
+    response: Response,
     auth: ContentAggregatorAuth = Depends(get_content_aggregator_auth),
 ) -> AggregatorTokenResponse:
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
     result = await auth.issue_token(
         client_id=body.client_id,
         client_secret=body.client_secret,
@@ -40,8 +43,11 @@ async def issue_token(
 @router.post("/token/refresh", summary="Exchange a refresh token for a new access token")
 async def refresh_token(
     body: ContentAggregatorRefreshRequest,
+    response: Response,
     auth: ContentAggregatorAuth = Depends(get_content_aggregator_auth),
 ) -> AggregatorTokenResponse:
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
     result = await auth.refresh_token(
         client_id=body.client_id,
         client_secret=body.client_secret,

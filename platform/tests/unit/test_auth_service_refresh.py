@@ -12,9 +12,16 @@ from app.platform.auth.hashing import hash_password
 from app.platform.error_handling import AppError, UnauthorizedError
 from app.platform.settings import Settings
 from app.platform.telemetry import configure_telemetry
+from app.repositories import user_refresh_token_repository
 from app.repositories.user_repository import UserRepository
 from app.services.auth_service import AuthService
 from tests.support.mongomock_async import AsyncMongoMockClient
+
+
+def _disable_replay_grace_window(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        user_refresh_token_repository, "REPLAY_GRACE_WINDOW", timedelta(seconds=-1)
+    )
 
 
 def _decode_access_token(token: str, settings: Settings) -> dict:
@@ -100,7 +107,8 @@ class TestRefreshSuccess:
         assert new_doc is not None
         assert new_doc["revoked"] is False
 
-    async def test_old_refresh_token_unusable_after_rotation(self, mock_db):
+    async def test_old_refresh_token_unusable_after_rotation(self, mock_db, monkeypatch):
+        _disable_replay_grace_window(monkeypatch)
         await _seed_tenant(mock_db)
         service = AuthService(mock_db)
         issued = await service.login_unified(
@@ -115,7 +123,7 @@ class TestRefreshSuccess:
 
 
 class TestRefreshReuseDetection:
-    async def test_replaying_revoked_token_revokes_all_tokens_for_owner(self, mock_db):
+    async def test_replaying_revoked_token_revokes_all_tokens_for_owner(self, mock_db, monkeypatch):
         await _seed_tenant(mock_db)
         service = AuthService(mock_db)
         issued = await service.login_unified(
@@ -123,6 +131,7 @@ class TestRefreshReuseDetection:
         )
         root_refresh = issued["refresh_token"]
         rotated = await service.refresh(root_refresh)
+        _disable_replay_grace_window(monkeypatch)
 
         with pytest.raises(UnauthorizedError):
             await service.refresh(root_refresh)
@@ -135,7 +144,7 @@ class TestRefreshReuseDetection:
         assert all(doc["revoked"] is True for doc in docs)
         assert all(doc["revoked_reason"] == "consumed" for doc in docs)
 
-    async def test_replay_revokes_other_families_for_same_owner(self, mock_db):
+    async def test_replay_revokes_other_families_for_same_owner(self, mock_db, monkeypatch):
         await _seed_tenant(mock_db)
         service = AuthService(mock_db)
         family_a = await service.login_unified(
@@ -146,6 +155,7 @@ class TestRefreshReuseDetection:
         )
 
         await service.refresh(family_a["refresh_token"])
+        _disable_replay_grace_window(monkeypatch)
 
         with pytest.raises(UnauthorizedError):
             await service.refresh(family_a["refresh_token"])
@@ -158,7 +168,7 @@ class TestRefreshReuseDetection:
 
 
 class TestRefreshConcurrency:
-    async def test_concurrent_refresh_with_same_token_only_one_winner(self, mock_db):
+    async def test_concurrent_refresh_within_grace_window_both_get_winners_pair(self, mock_db):
         await _seed_tenant(mock_db)
         service = AuthService(mock_db)
         issued = await service.login_unified(
@@ -174,9 +184,9 @@ class TestRefreshConcurrency:
 
         successes = [r for r in results if not isinstance(r, BaseException)]
         failures = [r for r in results if isinstance(r, BaseException)]
-        assert len(successes) == 1
-        assert len(failures) == 1
-        assert isinstance(failures[0], UnauthorizedError)
+        assert len(successes) == 2
+        assert len(failures) == 0
+        assert successes[0]["refresh_token"] == successes[1]["refresh_token"]
 
 
 class TestRefreshExpired:
@@ -346,13 +356,14 @@ class TestLogoutRevocation:
             getattr(record, "event", None) == "refresh_token_reuse_detected" for record in caplog.records
         )
 
-    async def test_consumed_token_replay_still_triggers_reuse_alarm(self, mock_db, caplog):
+    async def test_consumed_token_replay_still_triggers_reuse_alarm(self, mock_db, caplog, monkeypatch):
         await _seed_tenant(mock_db)
         service = AuthService(mock_db)
         issued = await service.login_unified(
             identifier="tenant@example.com", password="correct-horse", is_email=True
         )
         await service.refresh(issued["refresh_token"])
+        _disable_replay_grace_window(monkeypatch)
 
         with caplog.at_level("WARNING"):
             with pytest.raises(UnauthorizedError):

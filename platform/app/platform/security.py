@@ -131,7 +131,9 @@ def setup_security(app: FastAPI, settings: Settings) -> None:
     Call this from main.py before any routes are registered so that the
     ASGI middleware stack is in the correct order:
 
-        CORSMiddleware           (outermost – handles preflight before auth)
+        SdkCorsMiddleware        (outermost – opens registered SDK origins
+                                   on SDK-only paths, without credentials)
+        CORSMiddleware           (handles preflight for the admin allow-list)
         SecurityHeadersMiddleware
         (RequestIdMiddleware added by logging.py)
     """
@@ -142,14 +144,17 @@ def setup_security(app: FastAPI, settings: Settings) -> None:
     # 2. Security headers (inner – wraps the actual handlers)
     app.add_middleware(SecurityHeadersMiddleware, env=settings.env)
 
-    # 3. CORS (outermost – must be added *after* inner middleware in FastAPI's
+    # 3. CORS (must be added *after* inner middleware in FastAPI's
     #    reversed-order add_middleware semantics so it runs first on the wire)
-    origins = _cors_origins(settings)
-    cors_kwargs: dict = {"allow_credentials": True, "allow_methods": ["*"], "allow_headers": ["*"]}
-    if origins == ["*"]:
-        cors_kwargs["allow_origin_regex"] = ".*"
-    else:
-        cors_kwargs["allow_origins"] = origins
-    app.add_middleware(CORSMiddleware, **cors_kwargs)
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=_cors_origins(settings),
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
+    # 4. SDK CORS (outermost – added last so it intercepts SDK-path requests,
+    #    including preflight, before the admin-origin CORSMiddleware runs).
+    #    Registered SDK origins never receive credentialed CORS headers.
     app.add_middleware(SdkCorsMiddleware, is_allowed_origin=is_registered_site_origin)
