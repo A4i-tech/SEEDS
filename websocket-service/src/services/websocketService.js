@@ -46,7 +46,7 @@ async function loadVariant(audioState, speed, id) {
   const variantBlobName = getVariantBlobName(audioState.baseBlobName, speed);
   try {
     const data = await azureBlobService.getBlobData(audioState.containerName, variantBlobName);
-    if (!data) throw new Error("empty variant blob");
+    if (!data.length) throw new Error("empty variant blob");
     audioState.variantCache.set(speed, data);
     return { data, resolvedSpeed: speed };
   } catch (error) {

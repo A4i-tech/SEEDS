@@ -706,6 +706,23 @@ describe("WebSocketService", () => {
       expect(websocketService.getSessionSpeed("never-configured-id")).toBe(1.0);
     });
 
+    test("getSessionSpeed survives handleAccidentalDisconnection (transient close, not conference end)", async () => {
+      await websocketService.setPlaybackSpeed("test-client", 1.5);
+
+      websocketService.handleAccidentalDisconnection("test-client");
+
+      expect(websocketService.getSessionSpeed("test-client")).toBe(1.5);
+    });
+
+    test("closeConnection clears the session speed (conference-end cleanup point)", async () => {
+      await websocketService.setPlaybackSpeed("test-client", 1.5);
+      expect(websocketService.getSessionSpeed("test-client")).toBe(1.5);
+
+      websocketService.closeConnection("test-client");
+
+      expect(websocketService.getSessionSpeed("test-client")).toBe(1.0);
+    });
+
     test("preserves the teacher's requested session-level speed when the current item's variant is unavailable", async () => {
       mockState.audioContentState = {
         containerName: "container",
@@ -727,6 +744,26 @@ describe("WebSocketService", () => {
       // ...but the teacher's chosen speed is preserved for subsequent content items.
       expect(mockState.speed).toBe(1.5);
       expect(websocketService.getSessionSpeed("test-client")).toBe(1.5);
+    });
+
+    test("falls back to 1.0x when the fetched variant blob is empty, instead of playing a 0-byte buffer", async () => {
+      mockState.audioContentState = {
+        containerName: "container",
+        baseBlobName: "test.wav",
+        blobData: Buffer.alloc(32000),
+        position: 0,
+        playing: true,
+        speed: 1.0,
+        variantCache: new Map([[1.0, Buffer.alloc(32000)]]),
+        baseDurationSeconds: 2.0,
+      };
+      mockState.currentAudioType = "audioContent";
+      azureBlobService.getBlobData.mockResolvedValueOnce(Buffer.alloc(0));
+
+      await websocketService.setPlaybackSpeed("test-client", 1.5);
+
+      expect(mockState.audioContentState.speed).toBe(1.0);
+      expect(mockState.audioContentState.blobData.length).toBe(32000);
     });
 
     test("ignores a stale setPlaybackSpeed result when a newer speed change resolves first (out-of-order async)", async () => {
@@ -840,6 +877,58 @@ describe("WebSocketService", () => {
         expect(chunk.equals(baseData.subarray(0, 320))).toBe(false);
       });
       const sentRanges = postSwitchChunks.map((c) => c.toString("hex"));
+      expect(new Set(sentRanges).size).toBe(sentRanges.length);
+    });
+
+    it("reads the position after the variant download resolves, so no chunk streamed during the wait is replayed", async () => {
+      const baseData = Buffer.alloc(320 * 10, 0xaa);
+      const variantData = Buffer.from(
+        Array.from({ length: 320 * 10 }, (_, i) => i % 256)
+      );
+
+      let resolveVariant;
+      const variantPromise = new Promise((resolve) => {
+        resolveVariant = resolve;
+      });
+      azureBlobService.getBlobData
+        .mockResolvedValueOnce(baseData) // base blob loaded by playAudioContent
+        .mockReturnValueOnce(variantPromise); // 1.5x variant — not yet cached, resolves late
+
+      const sentChunks = [];
+      mockWebSocket.send.mockImplementation((data, options, callback) => {
+        sentChunks.push(Buffer.from(data));
+        setTimeout(() => callback && callback(), 0);
+      });
+
+      await websocketService.playAudioContent(
+        "test-client",
+        "https://storage.example.com/container/lesson.wav"
+      );
+      jest.advanceTimersByTime(45); // 3 chunks streamed at 1.0x
+      expect(sentChunks).toHaveLength(3);
+      expect(mockState.audioContentState.position).toBe(960);
+
+      const setSpeedPromise = websocketService.setPlaybackSpeed("test-client", 1.5);
+
+      // While the variant download is still pending, the old 1.0x loop keeps
+      // streaming — the position moves further before the switch takes effect.
+      jest.advanceTimersByTime(40); // 2 more chunks
+      expect(sentChunks).toHaveLength(5);
+      expect(mockState.audioContentState.position).toBe(1600);
+
+      resolveVariant(variantData);
+      await setSpeedPromise;
+
+      // The switch position must reflect where playback actually was when the
+      // download resolved (1600), not where it was when the switch was requested (960).
+      const switchPosition = Math.trunc((1600 / 3200) * variantData.length);
+      expect(mockState.audioContentState.position).toBe(switchPosition + 320);
+      expect(sentChunks).toHaveLength(6);
+      expect(
+        sentChunks[5].equals(variantData.subarray(switchPosition, switchPosition + 320))
+      ).toBe(true);
+
+      const sentRanges = sentChunks.slice(5).map((c) => c.toString("hex"));
       expect(new Set(sentRanges).size).toBe(sentRanges.length);
     });
   });

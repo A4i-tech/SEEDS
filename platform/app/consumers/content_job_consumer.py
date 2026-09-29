@@ -369,9 +369,8 @@ async def _process_tts_for_content(content_doc: dict, blob_provider) -> None:
         tts_text = tts_service.add_for_in_option_audio(language, title_text)
         logger.info("content_job: synthesising title TTS content_id=%s", content_id)
         audio_bytes = await tts_service.synthesize(tts_text, language)
-        title_blob_name = f"{content_id}/1.0.mp3"
         url = await blob_provider.upload_file(
-            "experience-titles", title_blob_name, audio_bytes, "audio/mpeg"
+            "experience-titles", f"{content_id}/1.0.mp3", audio_bytes, "audio/mpeg"
         )
         content_doc["title"] = {**title, "audio_url": url}
 
