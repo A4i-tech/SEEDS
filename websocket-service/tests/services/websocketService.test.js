@@ -449,7 +449,11 @@ describe("WebSocketService", () => {
       websocketService.pauseAudioContent("test-client");
 
       const sentPayload = JSON.parse(mockControlWebSocket.send.mock.calls[0][0]);
-      expect(sentPayload.position_seconds).toBeCloseTo(1.5, 2); // 1.0s local * 1.5 speed
+      // Scaled by actual buffer length (24000 bytes), not by speed multiplication,
+      // since atempo output length can differ from baseDuration / speed:
+      // 16000 / 24000 of the variant maps to 16000 / 24000 * (3.0s * 16000) = 32000
+      // logical bytes = 2.0s on the base timeline.
+      expect(sentPayload.position_seconds).toBeCloseTo(2.0, 2);
       expect(sentPayload.duration_seconds).toBe(3.0);
       expect(sentPayload.speed).toBe(1.5);
     });
@@ -620,7 +624,7 @@ describe("WebSocketService", () => {
       expect(mockState.audioContentState.blobData.length).toBe(24000);
     });
 
-    test("snaps an unsupported requested speed to the nearest supported one", async () => {
+    test("ignores an unsupported requested speed instead of snapping it", async () => {
       mockState.audioContentState = {
         containerName: "container",
         baseBlobName: "test.wav",
@@ -632,12 +636,12 @@ describe("WebSocketService", () => {
         baseDurationSeconds: 2.0,
       };
       mockState.currentAudioType = "audioContent";
-      azureBlobService.getBlobData.mockResolvedValueOnce(Buffer.alloc(20000));
 
       await websocketService.setPlaybackSpeed("test-client", 1.9);
 
-      expect(azureBlobService.getBlobData).toHaveBeenCalledWith("container", "test__speed_2.0.wav");
-      expect(mockState.audioContentState.speed).toBe(2.0);
+      expect(azureBlobService.getBlobData).not.toHaveBeenCalled();
+      expect(mockState.audioContentState.speed).toBe(1.0);
+      expect(mockState.speed).not.toBe(1.9);
     });
 
     test("persists speed even with no active content", async () => {
@@ -702,7 +706,7 @@ describe("WebSocketService", () => {
       expect(websocketService.getSessionSpeed("never-configured-id")).toBe(1.0);
     });
 
-    test("corrects the session-level speed to the resolved fallback when the requested variant is unavailable", async () => {
+    test("preserves the teacher's requested session-level speed when the current item's variant is unavailable", async () => {
       mockState.audioContentState = {
         containerName: "container",
         baseBlobName: "test.wav",
@@ -718,9 +722,11 @@ describe("WebSocketService", () => {
 
       await websocketService.setPlaybackSpeed("test-client", 1.5);
 
+      // The current item falls back to 1.0x since it has no 1.5x variant...
       expect(mockState.audioContentState.speed).toBe(1.0);
-      expect(mockState.speed).toBe(1.0);
-      expect(websocketService.getSessionSpeed("test-client")).toBe(1.0);
+      // ...but the teacher's chosen speed is preserved for subsequent content items.
+      expect(mockState.speed).toBe(1.5);
+      expect(websocketService.getSessionSpeed("test-client")).toBe(1.5);
     });
 
     test("ignores a stale setPlaybackSpeed result when a newer speed change resolves first (out-of-order async)", async () => {

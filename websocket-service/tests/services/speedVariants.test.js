@@ -1,4 +1,4 @@
-const { getVariantBlobName, snapToSupportedSpeed, formatSpeedLabel } = require("../../src/services/speedVariants");
+const { getVariantBlobName, formatSpeedLabel } = require("../../src/services/speedVariants");
 
 describe("formatSpeedLabel", () => {
   test("renders whole numbers with one decimal", () => {
@@ -34,22 +34,5 @@ describe("getVariantBlobName", () => {
 
   test("handles no extension", () => {
     expect(getVariantBlobName("content123/noext", 1.25)).toBe("content123/noext__speed_1.25");
-  });
-});
-
-describe("snapToSupportedSpeed", () => {
-  test("returns exact match unchanged", () => {
-    expect(snapToSupportedSpeed(1.5)).toBe(1.5);
-  });
-
-  test("snaps to nearest supported speed", () => {
-    expect(snapToSupportedSpeed(0.6)).toBe(0.75);
-    expect(snapToSupportedSpeed(1.9)).toBe(2.0);
-    expect(snapToSupportedSpeed(1.1)).toBe(1.0);
-  });
-
-  test("clamps out-of-range values to nearest bound", () => {
-    expect(snapToSupportedSpeed(0.1)).toBe(0.75);
-    expect(snapToSupportedSpeed(5)).toBe(2.0);
   });
 });

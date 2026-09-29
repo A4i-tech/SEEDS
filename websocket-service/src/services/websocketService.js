@@ -3,8 +3,8 @@
 const logger = require("../logger");
 const azureBlobService = require("./azureBlobService");
 const connectionManager = require("./connectionManager");
-const { PlaybackStatus, PlaybackRefusal } = require("../constants");
-const { getVariantBlobName, snapToSupportedSpeed } = require("./speedVariants");
+const { PlaybackStatus, PlaybackRefusal, SUPPORTED_SPEEDS } = require("../constants");
+const { getVariantBlobName } = require("./speedVariants");
 
 const AUDIO_BYTES_PER_SECOND = 16000; // 320 bytes * 50 chunks per second
 const CHUNK_BYTES = 320;
@@ -97,12 +97,23 @@ async function playAudioContent(id, blobUrl) {
 
     logger.info(`playAudioContent called for ID: ${id}, Blob URL: ${blobUrl.substring(0,5)}, speed: ${requestedSpeed}`);
 
-    const baseBlobData = await azureBlobService.getBlobData(containerName, blobName);
+    const variantBlobName = requestedSpeed !== 1.0 ? getVariantBlobName(blobName, requestedSpeed) : null;
+    const [baseBlobData, variantBlobData] = await Promise.all([
+      azureBlobService.getBlobData(containerName, blobName),
+      variantBlobName
+        ? azureBlobService.getBlobData(containerName, variantBlobName).catch((error) => {
+            logger.warn(`No ${requestedSpeed}x variant for ID: ${id} (${variantBlobName}); falling back to 1.0x`, error);
+            return null;
+          })
+        : null,
+    ]);
     logger.info(`Blob downloaded for ID: ${id}, size: ${baseBlobData ? baseBlobData.length : 'null'} bytes`);
     state.audioContentState.baseDurationSeconds = baseBlobData ? baseBlobData.length / AUDIO_BYTES_PER_SECOND : 0;
     state.audioContentState.variantCache.set(1.0, baseBlobData);
 
-    const { data: blobData, resolvedSpeed } = await loadVariant(state.audioContentState, requestedSpeed, id);
+    const blobData = variantBlobData || baseBlobData;
+    const resolvedSpeed = variantBlobData ? requestedSpeed : 1.0;
+    if (variantBlobData) state.audioContentState.variantCache.set(requestedSpeed, variantBlobData);
     state.audioContentState.blobData = blobData;
     state.audioContentState.speed = resolvedSpeed;
 
@@ -458,19 +469,18 @@ async function setPlaybackSpeed(id, speed) {
   const connection = connectionManager.getConnection(id);
   if (!connection) throw new Error("WebSocket connection not found");
 
-  if (!Number.isFinite(speed) || speed <= 0) {
-    logger.warn(`Ignoring invalid playback speed for ID: ${id}: ${speed}`);
+  if (!SUPPORTED_SPEEDS.includes(speed)) {
+    logger.warn(`Ignoring unsupported playback speed for ID: ${id}: ${speed}`);
     return;
   }
 
   const { ws, state } = connection;
-  const clampedSpeed = snapToSupportedSpeed(speed);
-  state.speed = clampedSpeed;
-  sessionSpeeds.set(id, clampedSpeed);
+  state.speed = speed;
+  sessionSpeeds.set(id, speed);
 
   const audioState = state.audioContentState;
   if (!audioState || !audioState.blobData) {
-    logger.info(`Playback speed set to ${clampedSpeed}x for ID: ${id} (no active content)`);
+    logger.info(`Playback speed set to ${speed}x for ID: ${id} (no active content)`);
     return;
   }
 
@@ -479,9 +489,8 @@ async function setPlaybackSpeed(id, speed) {
   state.speedChangeSeq = (state.speedChangeSeq || 0) + 1;
   const speedChangeSeq = state.speedChangeSeq;
 
-  const totalLogicalLength = (audioState.baseDurationSeconds || 0) * AUDIO_BYTES_PER_SECOND;
-  const currentLogicalPosition = scalePosition(audioState.position || 0, audioState.blobData.length, totalLogicalLength);
-  const { data: variantData, resolvedSpeed } = await loadVariant(audioState, clampedSpeed, id);
+  const oldBufferLength = audioState.blobData.length;
+  const { data: variantData, resolvedSpeed } = await loadVariant(audioState, speed, id);
 
   if (state.speedChangeSeq !== speedChangeSeq || state.audioContentState !== audioState) {
     logger.info(`Ignoring stale setPlaybackSpeed result for ID: ${id} (superseded)`);
@@ -490,15 +499,7 @@ async function setPlaybackSpeed(id, speed) {
 
   audioState.blobData = variantData;
   audioState.speed = resolvedSpeed;
-  audioState.position = clampPosition(scalePosition(currentLogicalPosition, totalLogicalLength, variantData.length), variantData.length);
-
-  if (resolvedSpeed !== clampedSpeed) {
-    // Requested variant was unavailable and loadVariant fell back to 1.0x —
-    // correct the session-level speed so later content items (and status
-    // reports) reflect what is actually playing, not what was requested.
-    state.speed = resolvedSpeed;
-    sessionSpeeds.set(id, resolvedSpeed);
-  }
+  audioState.position = clampPosition(scalePosition(audioState.position || 0, oldBufferLength, variantData.length), variantData.length);
 
   logger.info(`Playback speed set to ${resolvedSpeed}x for ID: ${id}`);
 
@@ -588,8 +589,9 @@ function sendPlaybackStatus(id, status, refusal) {
     }
 
     const speed = audioState?.speed || 1.0;
-    const positionSec = audioState
-      ? parseFloat((((audioState.position || 0) / AUDIO_BYTES_PER_SECOND) * speed).toFixed(2))
+    const totalLogicalLength = (audioState?.baseDurationSeconds || 0) * AUDIO_BYTES_PER_SECOND;
+    const positionSec = audioState?.blobData
+      ? parseFloat((scalePosition(audioState.position || 0, audioState.blobData.length, totalLogicalLength) / AUDIO_BYTES_PER_SECOND).toFixed(2))
       : 0;
     const durationSec = parseFloat((audioState?.baseDurationSeconds || 0).toFixed(2));
 

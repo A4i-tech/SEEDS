@@ -306,7 +306,10 @@ async def _process_audio_item(
         variants = await _generate_speed_variants(transcoded, content_id, ".wav")
         for speed, variant_bytes in variants.items():
             variant_blob_name = _variant_blob_name(wav_blob_name, speed)
-            await blob_provider.upload_file("output-container", variant_blob_name, variant_bytes, "audio/wav")
+            try:
+                await blob_provider.upload_file("output-container", variant_blob_name, variant_bytes, "audio/wav")
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("content_job: %sx variant upload failed content_id=%s — %s", speed, content_id, exc)
 
         return new_url, duration
 
