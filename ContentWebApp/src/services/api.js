@@ -83,7 +83,7 @@ export const apiFetch = async (url, { timeoutMs, ...options } = {}, _isRetry = f
           );
         } catch (refreshError) {
           console.error("apiFetch: token refresh failed", refreshError);
-          if (refreshError.status && refreshError.status !== 401) {
+          if (refreshError.status !== 401) {
             throw refreshError;
           }
           clearAuth();

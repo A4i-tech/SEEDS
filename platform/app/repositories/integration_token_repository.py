@@ -43,6 +43,10 @@ class IntegrationTokenRepository(BaseRepository):
 
     @classmethod
     async def ensure_indexes(cls, db: AsyncDatabase) -> None:
+        col = db[cls.COLLECTION]
+        await col.create_index("token_id", unique=True)
+        await col.create_index("client_id")
+        await col.create_index("expires_at", expireAfterSeconds=0)
         replay_col = db[cls.REPLAY_CACHE_COLLECTION]
         await replay_col.create_index(
             "created_at", expireAfterSeconds=int(REPLAY_GRACE_WINDOW.total_seconds()) + 30

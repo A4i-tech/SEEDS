@@ -8,7 +8,7 @@ from app.platform.auth.dependencies import (
     clear_refresh_cookie,
     set_refresh_cookie,
 )
-from app.platform.error_handling import AppError, UnauthorizedError
+from app.platform.error_handling import AppError, UnauthorizedError, build_error_response
 from app.services.auth_service import AuthService, get_auth_service
 
 router = APIRouter(prefix="/auth", tags=["Auth"])
@@ -25,9 +25,10 @@ async def refresh_token(
         raise UnauthorizedError("Missing refresh token")
     try:
         result = await service.refresh(token)
-    except AppError:
-        clear_refresh_cookie(response)
-        raise
+    except AppError as exc:
+        error_response = build_error_response(exc)
+        clear_refresh_cookie(error_response)
+        return error_response
     set_refresh_cookie(response, result["refresh_token"])
     return TokenResponse(
         access_token=result["access_token"],

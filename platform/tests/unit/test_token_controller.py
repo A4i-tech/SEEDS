@@ -72,3 +72,25 @@ async def test_refresh_without_cookie_is_unauthorized() -> None:
             Response(),
             FakeService(),  # type: ignore[arg-type]
         )
+
+
+class FakeFailingService:
+    async def refresh(self, token: str) -> dict[str, Any]:
+        raise UnauthorizedError("Invalid refresh token")
+
+
+async def test_refresh_failure_clears_refresh_cookie() -> None:
+    result = await refresh_token(
+        FakeRequest({REFRESH_COOKIE_NAME: "bad-refresh"}),  # type: ignore[arg-type]
+        Response(),
+        FakeFailingService(),  # type: ignore[arg-type]
+    )
+
+    assert result.status_code == 401
+    cookie_headers = [
+        value for key, value in result.raw_headers if key == b"set-cookie"
+    ]
+    assert any(
+        f"{REFRESH_COOKIE_NAME}=".encode() in header and b"Max-Age=0" in header
+        for header in cookie_headers
+    )

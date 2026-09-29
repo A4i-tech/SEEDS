@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import logging
 import secrets
 import uuid
@@ -16,7 +15,7 @@ from app.models.content_aggregator import (
     IntegrationToken,
 )
 from app.platform.auth import refresh_tokens
-from app.platform.auth.hashing import verify_password
+from app.platform.auth.hashing import hash_refresh_token, verify_password
 from app.platform.auth.refresh_tokens import (
     ConsumedToken,
     TokenPair,
@@ -31,10 +30,6 @@ from app.repositories.integration_token_repository import (
 from app.services.content_aggregator import _jwt
 
 logger = logging.getLogger(__name__)
-
-
-def _hash_refresh_token(token: str) -> str:
-    return hashlib.sha256(token.encode("utf-8")).hexdigest()
 
 
 def _as_utc(value: datetime) -> datetime:
@@ -72,7 +67,7 @@ class _IntegrationTokenStore:
         family_expires_at: datetime,
         created_at: datetime,
     ) -> None:
-        token_id = _hash_refresh_token(token_id)
+        token_id = hash_refresh_token(token_id)
         await self._repo.insert_refresh_token(
             NewRefreshToken(
                 token_id=token_id,
@@ -86,11 +81,11 @@ class _IntegrationTokenStore:
         )
 
     async def try_consume(self, token_id: str) -> ConsumedToken[IntegrationClaims]:
-        doc = await self._repo.try_consume(_hash_refresh_token(token_id))
+        doc = await self._repo.try_consume(hash_refresh_token(token_id))
         return self._to_consumed(doc)
 
     async def cache_replay(self, token_id: str, pair: TokenPair) -> None:
-        await self._repo.cache_replay(_hash_refresh_token(token_id), pair)
+        await self._repo.cache_replay(hash_refresh_token(token_id), pair)
 
     async def revoke_all_for_owner(self, owner_id: str, *, reason: str) -> None:
         await self._repo.revoke_all_for_client(owner_id, reason=reason)

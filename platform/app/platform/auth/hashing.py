@@ -9,6 +9,8 @@ SECURITY: plain-text passwords are never logged anywhere in this module.
 
 from __future__ import annotations
 
+import hashlib
+
 import bcrypt
 
 from app.platform.settings import get_settings
@@ -33,3 +35,8 @@ def verify_password(plain: str, hashed: str) -> bool:
         return bcrypt.checkpw(plain.encode("utf-8"), hashed.encode("utf-8"))
     except Exception:
         return False
+
+
+def hash_refresh_token(token: str) -> str:
+    """Hash *token* with SHA-256 for at-rest storage/lookup."""
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
