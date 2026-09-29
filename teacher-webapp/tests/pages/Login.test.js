@@ -126,4 +126,55 @@ describe("Login", () => {
       expect(axiosInstance.post).not.toHaveBeenCalled();
     });
   });
+
+  describe("login failure error messages", () => {
+    test("401 shows invalid-credentials message", async () => {
+      useAuthContext.mockReturnValue({
+        login: jest.fn(),
+        loginState: { data: null, error: { response: { status: 401, data: { message: "Invalid phone or password" } } }, isLoading: false },
+      });
+
+      render(<Login />);
+
+      const errorAlert = await screen.findByRole("alert");
+      expect(errorAlert).toHaveTextContent(/username or password incorrect/i);
+    });
+
+    test("500 shows a server-error message, not invalid credentials", async () => {
+      useAuthContext.mockReturnValue({
+        login: jest.fn(),
+        loginState: { data: null, error: { response: { status: 500, data: { message: "Internal server error" } } }, isLoading: false },
+      });
+
+      render(<Login />);
+
+      const errorAlert = await screen.findByRole("alert");
+      expect(errorAlert).toHaveTextContent(/internal server error/i);
+      expect(errorAlert).not.toHaveTextContent(/username or password incorrect/i);
+    });
+
+    test("network/unknown error shows a connectivity message, not invalid credentials", async () => {
+      useAuthContext.mockReturnValue({
+        login: jest.fn(),
+        loginState: { data: null, error: { message: "Network Error" }, isLoading: false },
+      });
+
+      render(<Login />);
+
+      const errorAlert = await screen.findByRole("alert");
+      expect(errorAlert).toHaveTextContent(/unable to reach the server/i);
+      expect(errorAlert).not.toHaveTextContent(/username or password incorrect/i);
+    });
+
+    test("successful login shows no error alert", async () => {
+      useAuthContext.mockReturnValue({
+        login: jest.fn(),
+        loginState: { data: { token: "tok" }, error: null, isLoading: false },
+      });
+
+      render(<Login />);
+
+      expect(screen.queryByRole("alert")).toBeNull();
+    });
+  });
 });
