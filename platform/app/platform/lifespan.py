@@ -148,6 +148,12 @@ def _make_consumer_tasks(conference_manager: Any) -> list[asyncio.Task]:  # type
         logger.error("Failed to initialise ContentJobConsumer: %s", exc)
 
     try:
+        from app.consumers.webhook_delivery_consumer import WebhookDeliveryConsumer  # noqa: PLC0415
+        consumer_specs.append(("WebhookDeliveryConsumer", WebhookDeliveryConsumer(db)))
+    except Exception as exc:  # noqa: BLE001
+        logger.error("Failed to initialise WebhookDeliveryConsumer: %s", exc)
+
+    try:
         from app.consumers.textbook_remediation_consumer import (
             TextbookRemediationConsumer,  # noqa: PLC0415
         )

@@ -63,10 +63,14 @@ async def _require_aggregator_client(
     return claims
 
 
-def _validate_events(events: list[str]) -> None:
-    unsupported = [e for e in events if e not in _VALID_EVENT_TYPES]
+def _validate_events(events: list[str]) -> list[str]:
+    deduped = list(dict.fromkeys(events))
+    if not deduped:
+        raise AppError("INVALID_EVENT_TYPE", "events must not be empty", 400)
+    unsupported = [e for e in deduped if e not in _VALID_EVENT_TYPES]
     if unsupported:
         raise AppError("INVALID_EVENT_TYPE", f"unsupported event type(s): {unsupported}", 400)
+    return deduped
 
 
 def _granted_scopes(claims: _jwt.AccessTokenClaims) -> list[str]:
@@ -113,12 +117,14 @@ async def register_webhook(
 ) -> dict[str, Any]:
     client_id = claims["sub"]
     _validate_url(body.url)
-    _validate_events(body.events)
+    body.events = _validate_events(body.events)
     _validate_scope(body.events, _granted_scopes(claims))
-    if await repo.count_for_client(client_id) >= MAX_WEBHOOKS_PER_CLIENT:
-        raise AppError("WEBHOOK_LIMIT_REACHED", "maximum webhooks per client reached", 409)
     secret = secrets.token_hex(32)
-    doc = await repo.create(client_id, str(body.url), encrypt_secret(secret), body.events)
+    doc = await repo.create_if_under_limit(
+        client_id, str(body.url), encrypt_secret(secret), body.events, MAX_WEBHOOKS_PER_CLIENT
+    )
+    if doc is None:
+        raise AppError("WEBHOOK_LIMIT_REACHED", "maximum webhooks per client reached", 409)
     logger.info("register_webhook: webhook registered webhookId=%s clientId=%s", doc["_id"], client_id)
     result = _serialize(doc)
     result["secret"] = secret
@@ -149,7 +155,7 @@ async def update_webhook(
     if body.url is not None:
         _validate_url(body.url)
     if body.events is not None:
-        _validate_events(body.events)
+        body.events = _validate_events(body.events)
         _validate_scope(body.events, _granted_scopes(claims))
     if body.status is not None:
         _validate_status(body.status)

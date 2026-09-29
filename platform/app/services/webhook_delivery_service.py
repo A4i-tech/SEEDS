@@ -4,6 +4,12 @@ Dispatches job.completed / job.failed events to tenant-registered webhooks
 when a content_jobs document reaches a terminal state (hooked directly into
 content_job_consumer.py — no parallel pipeline).
 
+``dispatch_terminal_event`` only persists durable pending-delivery work
+(contentAggregatorWebhookDeliveries) and returns; it does not perform any
+HTTP delivery itself. Delivery is performed by WebhookDeliveryConsumer,
+which polls for due attempts and executes exactly one HTTP attempt per
+claimed record. This means retry state survives a process restart.
+
 Retry / dead-letter policy (spec §5.6, NFR-11):
   1 initial attempt + up to 5 retries = 6 total delivery attempts, with
   delays 30s -> 5min -> 30min -> 2h -> 24h between attempts. After the 6th
@@ -16,12 +22,11 @@ Signature: X-SEEDS-Signature: sha256=<HMAC-SHA256(secret, raw_body)-hex>
 """
 from __future__ import annotations
 
-import asyncio
 import hashlib
 import hmac
 import json
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
@@ -64,70 +69,97 @@ def sign_payload(secret: str, raw_body: bytes) -> str:
     return f"sha256={digest}"
 
 
-async def deliver_webhook(
-    webhook_doc: dict[str, Any],
-    event: str,
-    payload: dict[str, Any],
-    content_id: str,
+async def attempt_delivery(
+    attempt_doc: dict[str, Any],
     webhook_repo: ContentAggregatorWebhookRepository,
     delivery_repo: ContentAggregatorWebhookDeliveryRepository,
 ) -> None:
-    webhook_id = webhook_doc["_id"]
-    client_id = webhook_doc["client_id"]
+    """Perform exactly one HTTP delivery attempt for a claimed pending record.
+
+    Schedules the next attempt (new pending record) on transient failure, or
+    disables the webhook once WEBHOOK_MAX_ATTEMPTS is exhausted.
+    """
+    attempt_id = attempt_doc["_id"]
+    webhook_id = attempt_doc["webhookId"]
+    client_id = attempt_doc["clientId"]
+    attempt_number = attempt_doc["attemptNumber"]
+
+    current = await webhook_repo.get_for_client(client_id, webhook_id)
+    if current is None or current.get("status") != "active":
+        logger.info(
+            "webhook_delivery: webhookId=%s no longer active — skipping attempt %d",
+            webhook_id, attempt_number,
+        )
+        await delivery_repo.record_attempt_result(
+            attempt_id, status="skipped", response_code=None, succeeded=None, error=None,
+        )
+        return
+
+    payload = build_payload(attempt_doc["event"], webhook_id, attempt_doc["tenantId"], attempt_doc["payloadData"])
     raw_body = serialize_payload(payload)
 
-    async with httpx.AsyncClient(timeout=WEBHOOK_HTTP_TIMEOUT_SECONDS) as client:
-        for attempt in range(1, WEBHOOK_MAX_ATTEMPTS + 1):
-            current = await webhook_repo.get_for_client(client_id, str(webhook_id))
-            if current is None or current.get("status") != "active":
-                logger.info(
-                    "webhook_delivery: webhookId=%s no longer active — skipping attempt %d",
-                    webhook_id, attempt,
-                )
-                return
-
-            response_code: int | None = None
-            error: str | None = None
-            succeeded = False
-            try:
-                secret = decrypt_secret(current["secret_encrypted"])
-                signature = sign_payload(secret, raw_body)
-                response = await client.post(
-                    current["url"],
-                    content=raw_body,
-                    headers={
-                        "Content-Type": "application/json",
-                        "X-SEEDS-Signature": signature,
-                    },
-                )
-                response_code = response.status_code
-                succeeded = 200 <= response.status_code < 300
-                if not succeeded:
-                    error = f"non-2xx response: {response.status_code}"
-            except httpx.TimeoutException as exc:
-                error = f"timeout: {exc}"
-            except httpx.HTTPError as exc:
-                error = f"http error: {exc}"
-
-            await delivery_repo.log_attempt(
-                webhook_id, content_id, event, attempt, response_code, succeeded, error,
+    response_code: int | None = None
+    error: str | None = None
+    succeeded = False
+    try:
+        secret = decrypt_secret(current["secret_encrypted"])
+        signature = sign_payload(secret, raw_body)
+        async with httpx.AsyncClient(timeout=WEBHOOK_HTTP_TIMEOUT_SECONDS) as client:
+            response = await client.post(
+                current["url"],
+                content=raw_body,
+                headers={
+                    "Content-Type": "application/json",
+                    "X-SEEDS-Signature": signature,
+                },
             )
+        response_code = response.status_code
+        succeeded = 200 <= response.status_code < 300
+        if not succeeded:
+            error = f"non-2xx response: {response.status_code}"
+    except httpx.TimeoutException as exc:
+        error = f"timeout: {exc}"
+    except httpx.HTTPError as exc:
+        error = f"http error: {exc}"
+    except Exception:  # noqa: BLE001 — secret unreadable must not crash delivery
+        logger.exception(
+            "webhook_delivery: webhookId=%s failed to decrypt secret or sign payload", webhook_id,
+        )
+        error = "secret unreadable"
 
-            if succeeded:
-                return
+    await delivery_repo.record_attempt_result(
+        attempt_id, status="succeeded" if succeeded else "failed",
+        response_code=response_code, succeeded=succeeded, error=error,
+    )
 
-            logger.warning(
-                "webhook_delivery: webhookId=%s attempt=%d/%d failed — %s",
-                webhook_id, attempt, WEBHOOK_MAX_ATTEMPTS, error,
-            )
-            if attempt < WEBHOOK_MAX_ATTEMPTS:
-                await asyncio.sleep(WEBHOOK_RETRY_DELAYS_SECONDS[attempt - 1])
+    if succeeded:
+        return
+
+    logger.warning(
+        "webhook_delivery: webhookId=%s attempt=%d/%d failed — %s",
+        webhook_id, attempt_number, WEBHOOK_MAX_ATTEMPTS, error,
+    )
+
+    if attempt_number < WEBHOOK_MAX_ATTEMPTS:
+        delay = WEBHOOK_RETRY_DELAYS_SECONDS[attempt_number - 1]
+        next_attempt_at = datetime.now(UTC) + timedelta(seconds=delay)
+        await delivery_repo.create_pending(
+            webhook_id=webhook_id,
+            content_id=attempt_doc["contentId"],
+            event=attempt_doc["event"],
+            tenant_id=attempt_doc["tenantId"],
+            client_id=client_id,
+            payload_data=attempt_doc["payloadData"],
+            attempt_number=attempt_number + 1,
+            next_attempt_at=next_attempt_at.isoformat(),
+        )
+        return
 
     logger.error(
         "webhook_delivery: webhookId=%s exhausted %d attempts — disabling",
         webhook_id, WEBHOOK_MAX_ATTEMPTS,
     )
-    await webhook_repo.disable(webhook_id)
+    await webhook_repo.disable(current["_id"])
 
 
 async def dispatch_terminal_event(
@@ -140,8 +172,10 @@ async def dispatch_terminal_event(
 ) -> None:
     """Best-effort webhook fan-out for a content_jobs terminal state.
 
-    Never raises — a webhook delivery failure must not affect the job
-    pipeline's own state, which has already been persisted by the caller.
+    Persists one durable pending delivery record per active, subscribed
+    webhook and returns immediately. Never raises — a failure here must not
+    affect the job pipeline's own state, which has already been persisted
+    by the caller.
     """
     try:
         content_repo = ContentRepository(db)
@@ -167,23 +201,19 @@ async def dispatch_terminal_event(
             data["completedAt"] = now
         elif event == "job.failed":
             data["failedAt"] = now
-            data["error"] = error
+            data["error"] = "processing_failed" if error else None
 
         delivery_repo = ContentAggregatorWebhookDeliveryRepository(db)
-        results = await asyncio.gather(
-            *(
-                deliver_webhook(
-                    wh, event, build_payload(event, wh["_id"], tenant_id, data),
-                    content_id, webhook_repo, delivery_repo,
-                )
-                for wh in webhooks
-            ),
-            return_exceptions=True,
-        )
-        for wh, result in zip(webhooks, results, strict=True):
-            if isinstance(result, Exception):
-                logger.exception(
-                    "webhook_delivery: unhandled error delivering to webhookId=%s", wh["_id"], exc_info=result,
-                )
+        for wh in webhooks:
+            await delivery_repo.create_pending(
+                webhook_id=wh["_id"],
+                content_id=content_id,
+                event=event,
+                tenant_id=tenant_id,
+                client_id=wh["client_id"],
+                payload_data=data,
+                attempt_number=1,
+                next_attempt_at=now,
+            )
     except Exception:  # noqa: BLE001 — dispatch must never break the job pipeline
         logger.exception("webhook_delivery: dispatch_terminal_event failed for content_id=%s", content_id)

@@ -1,9 +1,14 @@
 """Content aggregator webhook delivery-attempt log — PyMongo async data
 access for the contentAggregatorWebhookDeliveries collection.
 
-Records one document per HTTP delivery attempt (ticket #464). Never stores
-the webhook secret, signature, or any auth credential — only metadata needed
-to audit/debug delivery outcomes.
+Each document represents one delivery attempt slot for a webhook event
+(ticket #464). It is created in "pending" status (durable retry work, safe
+to resume after a process restart) and updated in place once the attempt
+executes. A failed-but-not-exhausted attempt schedules a *new* pending
+document for the next attempt number, so the collection preserves one
+immutable record per historical attempt. Never stores the webhook secret,
+signature, or any auth credential — only metadata needed to audit/debug
+delivery outcomes.
 """
 from __future__ import annotations
 
@@ -22,27 +27,67 @@ class ContentAggregatorWebhookDeliveryRepository:
     def __init__(self, db: AsyncDatabase) -> None:
         self._col = db[self.COLLECTION_NAME]
 
-    async def log_attempt(
+    async def create_pending(
         self,
+        *,
         webhook_id: Any,
         content_id: str,
         event: str,
+        tenant_id: str,
+        client_id: str,
+        payload_data: dict[str, Any],
         attempt_number: int,
+        next_attempt_at: str,
+    ) -> dict[str, Any]:
+        doc = {
+            "webhookId": str(webhook_id),
+            "contentId": content_id,
+            "event": event,
+            "tenantId": tenant_id,
+            "clientId": client_id,
+            "payloadData": payload_data,
+            "attemptNumber": attempt_number,
+            "status": "pending",
+            "nextAttemptAt": next_attempt_at,
+            "attemptedAt": None,
+            "responseCode": None,
+            "succeeded": None,
+            "error": None,
+        }
+        result = await self._col.insert_one(doc)
+        doc["_id"] = result.inserted_id
+        return doc
+
+    async def claim_due(self, now_iso: str) -> dict[str, Any] | None:
+        """Atomically claim the earliest due pending delivery attempt."""
+        return await self._col.find_one_and_update(
+            {"status": "pending", "nextAttemptAt": {"$lte": now_iso}},
+            {"$set": {"status": "claimed"}},
+            sort=[("nextAttemptAt", 1)],
+            return_document=True,
+        )
+
+    async def record_attempt_result(
+        self,
+        attempt_id: Any,
+        *,
+        status: str,
         response_code: int | None,
-        succeeded: bool,
+        succeeded: bool | None,
         error: str | None,
     ) -> None:
-        await self._col.insert_one(
+        await self._col.update_one(
+            {"_id": attempt_id},
             {
-                "webhookId": str(webhook_id),
-                "contentId": content_id,
-                "event": event,
-                "attemptedAt": datetime.now(UTC).isoformat(),
-                "attemptNumber": attempt_number,
-                "responseCode": response_code,
-                "succeeded": succeeded,
-                "error": error,
-            }
+                "$set": {
+                    "status": status,
+                    "attemptedAt": datetime.now(UTC).isoformat(),
+                    "responseCode": response_code,
+                    "succeeded": succeeded,
+                    "error": error,
+                    "nextAttemptAt": None,
+                }
+            },
         )
 
 
