@@ -106,7 +106,7 @@ def _error_envelope(
     return payload
 
 
-async def _app_error_handler(request: Request, exc: AppError) -> JSONResponse:
+def build_error_response(exc: AppError) -> JSONResponse:
     request_id = _get_request_id()
     logger.warning(
         "AppError %s: %s (request_id=%s)",
@@ -118,6 +118,10 @@ async def _app_error_handler(request: Request, exc: AppError) -> JSONResponse:
         status_code=exc.status_code,
         content=_error_envelope(exc.code, exc.message, request_id, exc.details),
     )
+
+
+async def _app_error_handler(request: Request, exc: AppError) -> JSONResponse:
+    return build_error_response(exc)
 
 
 async def _validation_error_handler(
