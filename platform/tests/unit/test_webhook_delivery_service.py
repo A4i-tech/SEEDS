@@ -22,6 +22,7 @@ from unittest.mock import patch
 
 import httpx
 import pytest
+from cryptography.fernet import InvalidToken
 
 from app.platform.auth.webhook_secret import decrypt_secret, encrypt_secret
 from app.repositories.content_aggregator_webhook_delivery_repository import (
@@ -278,6 +279,38 @@ async def test_attempt_delivery_secret_unreadable_does_not_crash(webhook_repo, d
     doc = await delivery_repo._col.find_one({"_id": attempt["_id"]})
     assert doc["succeeded"] is False
     assert doc["error"] == "secret unreadable"
+
+
+@pytest.mark.asyncio
+async def test_attempt_delivery_invalid_token_recorded_as_secret_unreadable(webhook_repo, delivery_repo):
+    wh = await _make_webhook(webhook_repo)
+    attempt = await _make_attempt(delivery_repo, wh)
+    patcher, fake = _patch_client([])
+    with patcher, patch(
+        "app.services.webhook_delivery_service.decrypt_secret",
+        side_effect=InvalidToken("bad token"),
+    ):
+        await attempt_delivery(attempt, webhook_repo, delivery_repo)
+    assert fake.calls == []
+    doc = await delivery_repo._col.find_one({"_id": attempt["_id"]})
+    assert doc["succeeded"] is False
+    assert doc["error"] == "secret unreadable"
+
+
+@pytest.mark.asyncio
+async def test_attempt_delivery_unrelated_exception_propagates(webhook_repo, delivery_repo):
+    wh = await _make_webhook(webhook_repo)
+    attempt = await _make_attempt(delivery_repo, wh)
+    patcher, fake = _patch_client([])
+    with patcher, patch(
+        "app.services.webhook_delivery_service.decrypt_secret",
+        side_effect=RuntimeError("boom"),
+    ):
+        with pytest.raises(RuntimeError):
+            await attempt_delivery(attempt, webhook_repo, delivery_repo)
+    assert fake.calls == []
+    doc = await delivery_repo._col.find_one({"_id": attempt["_id"]})
+    assert doc["status"] == "pending"
 
 
 @pytest.mark.asyncio

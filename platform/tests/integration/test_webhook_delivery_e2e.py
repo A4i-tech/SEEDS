@@ -70,7 +70,8 @@ async def _drain(mock_db) -> None:
     webhook_repo = ContentAggregatorWebhookRepository(mock_db)
     delivery_repo = ContentAggregatorWebhookDeliveryRepository(mock_db)
     while True:
-        attempt_doc = await delivery_repo.claim_due(datetime.now(UTC).isoformat())
+        now_iso = datetime.now(UTC).isoformat()
+        attempt_doc = await delivery_repo.claim_due(now_iso, now_iso)
         if attempt_doc is None:
             return
         await webhook_delivery_service.attempt_delivery(attempt_doc, webhook_repo, delivery_repo)

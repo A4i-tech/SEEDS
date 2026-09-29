@@ -13,7 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from pymongo.asynchronous.database import AsyncDatabase
 
@@ -23,11 +23,12 @@ from app.repositories.content_aggregator_webhook_delivery_repository import (
 from app.repositories.content_aggregator_webhook_repository import (
     ContentAggregatorWebhookRepository,
 )
-from app.services.webhook_delivery_service import attempt_delivery
+from app.services.webhook_delivery_service import WEBHOOK_HTTP_TIMEOUT_SECONDS, attempt_delivery
 
 logger = logging.getLogger(__name__)
 
 POLL_INTERVAL_SECONDS = 10
+STALE_CLAIM_SECONDS = WEBHOOK_HTTP_TIMEOUT_SECONDS * 18
 
 
 class WebhookDeliveryConsumer:
@@ -60,7 +61,11 @@ class WebhookDeliveryConsumer:
 
         while self._running:
             try:
-                attempt_doc = await delivery_repo.claim_due(datetime.now(UTC).isoformat())
+                now = datetime.now(UTC)
+                stale_before = now - timedelta(seconds=STALE_CLAIM_SECONDS)
+                attempt_doc = await delivery_repo.claim_due(
+                    now.isoformat(), stale_before.isoformat()
+                )
                 if attempt_doc is None:
                     await asyncio.sleep(POLL_INTERVAL_SECONDS)
                     continue

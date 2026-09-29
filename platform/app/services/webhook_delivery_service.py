@@ -30,6 +30,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import httpx
+from cryptography.fernet import InvalidToken
 
 from app.platform.auth.webhook_secret import decrypt_secret
 from app.repositories.content_aggregator_webhook_delivery_repository import (
@@ -121,7 +122,7 @@ async def attempt_delivery(
         error = f"timeout: {exc}"
     except httpx.HTTPError as exc:
         error = f"http error: {exc}"
-    except Exception:  # noqa: BLE001 — secret unreadable must not crash delivery
+    except (InvalidToken, ValueError):
         logger.exception(
             "webhook_delivery: webhookId=%s failed to decrypt secret or sign payload", webhook_id,
         )

@@ -8,7 +8,7 @@ import pytest
 from bson import ObjectId
 
 import app.services.webhook_delivery_service as webhook_delivery_service
-from app.consumers.webhook_delivery_consumer import WebhookDeliveryConsumer
+from app.consumers.webhook_delivery_consumer import STALE_CLAIM_SECONDS, WebhookDeliveryConsumer
 from app.repositories.content_aggregator_webhook_delivery_repository import (
     ContentAggregatorWebhookDeliveryRepository,
 )
@@ -163,7 +163,8 @@ async def test_pending_work_survives_across_consumer_restart(db):
 
     second_consumer = WebhookDeliveryConsumer(db)
     second_consumer_repo = ContentAggregatorWebhookDeliveryRepository(second_consumer._db)
-    claimed = await second_consumer_repo.claim_due(datetime.now(UTC).isoformat())
+    now_iso = datetime.now(UTC).isoformat()
+    claimed = await second_consumer_repo.claim_due(now_iso, now_iso)
     assert claimed is not None
     assert claimed["webhookId"] == str(webhook_id)
 
@@ -174,4 +175,120 @@ async def test_claim_due_ignores_future_scheduled_work(db):
     await _seed_pending(db, webhook_id, next_attempt_at=future)
 
     delivery_repo = ContentAggregatorWebhookDeliveryRepository(db)
-    assert await delivery_repo.claim_due(datetime.now(UTC).isoformat()) is None
+    now_iso = datetime.now(UTC).isoformat()
+    assert await delivery_repo.claim_due(now_iso, now_iso) is None
+
+
+def test_stale_claim_seconds_is_180():
+    """STALE_CLAIM_SECONDS must stay derived from the existing HTTP timeout
+    (no new config) and resolve to a 3-minute grace period, not the raw
+    10s HTTP timeout (too aggressive — can reclaim a still-running attempt)."""
+    assert STALE_CLAIM_SECONDS == webhook_delivery_service.WEBHOOK_HTTP_TIMEOUT_SECONDS * 18
+    assert STALE_CLAIM_SECONDS == 180.0
+
+
+async def test_claim_due_does_not_reclaim_fresh_claimed_record(db):
+    webhook_id = await _seed_webhook(db)
+    await _seed_pending(db, webhook_id)
+    delivery_repo = ContentAggregatorWebhookDeliveryRepository(db)
+
+    now_iso = datetime.now(UTC).isoformat()
+    first = await delivery_repo.claim_due(now_iso, now_iso)
+    assert first is not None
+    assert first["status"] == "claimed"
+    assert first["claimedAt"] == now_iso
+    assert first["attemptNumber"] == 1
+
+    stale_before = (datetime.now(UTC) - timedelta(seconds=STALE_CLAIM_SECONDS)).isoformat()
+    second = await delivery_repo.claim_due(datetime.now(UTC).isoformat(), stale_before)
+    assert second is None
+
+
+async def test_claim_due_does_not_reclaim_claim_younger_than_threshold(db):
+    """A claim just under the 180s threshold (e.g. a still-running HTTP
+    attempt within the 10s timeout) must NOT be reclaimed."""
+    webhook_id = await _seed_webhook(db)
+    await _seed_pending(db, webhook_id)
+    delivery_repo = ContentAggregatorWebhookDeliveryRepository(db)
+
+    await _claim_then_backdate(
+        db, delivery_repo, age=timedelta(seconds=STALE_CLAIM_SECONDS - 5)
+    )
+
+    now_iso = datetime.now(UTC).isoformat()
+    stale_before = (datetime.now(UTC) - timedelta(seconds=STALE_CLAIM_SECONDS)).isoformat()
+    reclaimed = await delivery_repo.claim_due(now_iso, stale_before)
+    assert reclaimed is None
+
+
+async def _claim_then_backdate(db, delivery_repo, *, age=timedelta(hours=1)):
+    """Claim the due record normally, then rewrite claimedAt to simulate a
+    consumer that claimed it and then crashed before recording a result."""
+    now_iso = datetime.now(UTC).isoformat()
+    claimed = await delivery_repo.claim_due(now_iso, now_iso)
+    stale_claim_time = (datetime.now(UTC) - age).isoformat()
+    await db["contentAggregatorWebhookDeliveries"].update_one(
+        {"_id": claimed["_id"]}, {"$set": {"claimedAt": stale_claim_time}}
+    )
+    claimed["claimedAt"] = stale_claim_time
+    return claimed
+
+
+async def test_claim_due_reclaims_stale_claimed_record(db):
+    """A claim older than the 180s threshold must be reclaimed."""
+    webhook_id = await _seed_webhook(db)
+    await _seed_pending(db, webhook_id)
+    delivery_repo = ContentAggregatorWebhookDeliveryRepository(db)
+
+    first = await _claim_then_backdate(
+        db, delivery_repo, age=timedelta(seconds=STALE_CLAIM_SECONDS + 5)
+    )
+
+    now_iso = datetime.now(UTC).isoformat()
+    stale_before = (datetime.now(UTC) - timedelta(seconds=STALE_CLAIM_SECONDS)).isoformat()
+    reclaimed = await delivery_repo.claim_due(now_iso, stale_before)
+    assert reclaimed is not None
+    assert reclaimed["_id"] == first["_id"]
+    assert reclaimed["claimedAt"] == now_iso
+    assert reclaimed["attemptNumber"] == first["attemptNumber"]
+
+
+async def test_two_claims_cannot_claim_the_same_stale_record(db):
+    webhook_id = await _seed_webhook(db)
+    await _seed_pending(db, webhook_id)
+    delivery_repo = ContentAggregatorWebhookDeliveryRepository(db)
+
+    await _claim_then_backdate(
+        db, delivery_repo, age=timedelta(seconds=STALE_CLAIM_SECONDS + 5)
+    )
+
+    now_iso = datetime.now(UTC).isoformat()
+    stale_before = (datetime.now(UTC) - timedelta(seconds=STALE_CLAIM_SECONDS)).isoformat()
+    reclaimed = await delivery_repo.claim_due(now_iso, stale_before)
+    second_reclaim = await delivery_repo.claim_due(now_iso, stale_before)
+    assert reclaimed is not None
+    assert second_reclaim is None
+
+
+async def test_stale_claim_recovery_end_to_end_via_run_loop(monkeypatch, db):
+    """A consumer that claims a record then crashes leaves it "claimed"; a
+    later poll must reclaim and deliver it without bumping attemptNumber."""
+    webhook_id = await _seed_webhook(db)
+    await _seed_pending(db, webhook_id)
+    delivery_repo = ContentAggregatorWebhookDeliveryRepository(db)
+
+    crashed_attempt = await _claim_then_backdate(db, delivery_repo)
+    assert crashed_attempt["claimedAt"] < datetime.now(UTC).isoformat()
+
+    consumer = WebhookDeliveryConsumer(db)
+    consumer._running = True
+    monkeypatch.setattr(
+        "app.consumers.webhook_delivery_consumer.asyncio.sleep",
+        AsyncMock(side_effect=asyncio.CancelledError),
+    )
+    with pytest.raises(asyncio.CancelledError):
+        await consumer._run_loop()
+
+    doc = await db["contentAggregatorWebhookDeliveries"].find_one({"_id": crashed_attempt["_id"]})
+    assert doc["attemptNumber"] == 1
+    assert doc["status"] != "claimed"
