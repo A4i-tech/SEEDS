@@ -87,6 +87,17 @@ describe("apiFetch", () => {
     expect(global.fetch.mock.calls[2][1].headers.Authorization).toBe("Bearer new-token");
   });
 
+  it("does not log out when the refresh request itself fails with a network error", async () => {
+    setAccessToken("expired-token");
+    global.fetch
+      .mockResolvedValueOnce(fakeResponse({ ok: false, status: 401, text: "expired" }))
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"));
+
+    await expect(apiFetch("/x")).rejects.toMatchObject({ message: "Failed to fetch" });
+    expect(clearAuth).not.toHaveBeenCalled();
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+  });
+
   it("uses the backend message from a JSON error envelope", async () => {
     const body = JSON.stringify({ error: "Short", message: "Domain already registered", code: "CONFLICT", request_id: "r1" });
     global.fetch.mockResolvedValue(fakeResponse({ ok: false, status: 409, text: body }));
