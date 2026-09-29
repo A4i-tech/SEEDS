@@ -35,12 +35,15 @@ REFRESH_COOKIE_NAME = "refresh_token"
 def set_refresh_cookie(response: Response, refresh_token: str) -> None:
     settings = get_settings()
     max_age = int(parse_expires_delta(settings.refresh_token_expires_in).total_seconds())
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
     response.set_cookie(
         key=REFRESH_COOKIE_NAME,
         value=refresh_token,
         httponly=True,
-        secure=True,
-        samesite="lax",
+        secure=settings.refresh_cookie_secure,
+        samesite=settings.refresh_cookie_samesite,
+        domain=settings.refresh_cookie_domain or None,
         path="/auth",
         max_age=max_age,
     )
