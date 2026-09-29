@@ -10,7 +10,13 @@ from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from app.models.remediation_job import ARTIFACTS, IMAGE_CONTENT_TYPES, ArtifactName, JobStatus, RemediationJob
+from app.models.remediation_job import (
+    ARTIFACTS,
+    IMAGE_CONTENT_TYPES,
+    ArtifactName,
+    JobStatus,
+    RemediationJob,
+)
 from app.models.responses.remediation import (
     CreateRemediationJobResponse,
     FindingsPageResponse,

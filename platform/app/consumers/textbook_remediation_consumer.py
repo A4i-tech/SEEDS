@@ -351,7 +351,7 @@ class TextbookRemediationConsumer(BaseConsumer):
         if self._blob_provider is None:
             try:
                 self._blob_provider = get_blob_storage_provider()
-            except Exception as exc:  # noqa: BLE001
+            except Exception:  # noqa: BLE001
                 logger.exception(
                     "%s: BlobStorageProvider unavailable. Retrying in %ds.",
                     self.name, POLL_INTERVAL_SECONDS,
