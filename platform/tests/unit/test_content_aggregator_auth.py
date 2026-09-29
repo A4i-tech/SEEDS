@@ -213,7 +213,7 @@ class TestRefreshTokenSuccess:
         issued = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
         old_refresh = issued["refresh_token"]
 
-        result = await auth.refresh_token(old_refresh)
+        result = await auth.refresh_token("partner-1", "super-secret", old_refresh)
 
         assert set(result.keys()) == {"access_token", "refresh_token", "expires_in", "token_type", "scope"}
         assert result["refresh_token"] != old_refresh
@@ -233,7 +233,7 @@ class TestRefreshTokenSuccess:
         await _seed_client(mock_db, allowed_scopes=["content:read", "content:write"])
         issued = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
 
-        result = await auth.refresh_token(issued["refresh_token"])
+        result = await auth.refresh_token("partner-1", "super-secret", issued["refresh_token"])
         payload = _decode_access_token(result["access_token"], settings)
 
         assert payload["scope"] == "content:read"
@@ -242,7 +242,7 @@ class TestRefreshTokenSuccess:
         await _seed_client(mock_db, tenant_ids=["tenant-a", "tenant-b"])
         issued = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
 
-        result = await auth.refresh_token(issued["refresh_token"])
+        result = await auth.refresh_token("partner-1", "super-secret", issued["refresh_token"])
         payload = _decode_access_token(result["access_token"], settings)
 
         assert payload["tenant_ids"] == ["tenant-a", "tenant-b"]
@@ -253,10 +253,10 @@ class TestRefreshTokenSuccess:
         issued = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
         old_refresh = issued["refresh_token"]
 
-        await auth.refresh_token(old_refresh)
+        await auth.refresh_token("partner-1", "super-secret", old_refresh)
 
         with pytest.raises(UnauthorizedError):
-            await auth.refresh_token(old_refresh)
+            await auth.refresh_token("partner-1", "super-secret", old_refresh)
 
 
 class TestRefreshTokenReuseDetection:
@@ -265,13 +265,13 @@ class TestRefreshTokenReuseDetection:
         await _seed_client(mock_db)
         issued = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
         root_refresh = issued["refresh_token"]
-        rotated = await auth.refresh_token(root_refresh)
+        rotated = await auth.refresh_token("partner-1", "super-secret", root_refresh)
 
         with pytest.raises(UnauthorizedError):
-            await auth.refresh_token(root_refresh)
+            await auth.refresh_token("partner-1", "super-secret", root_refresh)
 
         with pytest.raises(UnauthorizedError):
-            await auth.refresh_token(rotated["refresh_token"])
+            await auth.refresh_token("partner-1", "super-secret", rotated["refresh_token"])
 
         docs = [doc async for doc in mock_db["integrationTokens"].find({"client_id": "partner-1"})]
         assert len(docs) == 2
@@ -283,15 +283,28 @@ class TestRefreshTokenReuseDetection:
         family_a = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
         family_b = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
 
-        await auth.refresh_token(family_a["refresh_token"])
+        await auth.refresh_token("partner-1", "super-secret", family_a["refresh_token"])
 
         with pytest.raises(UnauthorizedError):
-            await auth.refresh_token(family_a["refresh_token"])
+            await auth.refresh_token("partner-1", "super-secret", family_a["refresh_token"])
 
         other_family_doc = await mock_db["integrationTokens"].find_one(
             {"token_id": _stored_token_id(family_b["refresh_token"])}
         )
         assert other_family_doc["revoked"] is True
+
+    async def test_replay_persists_revocation_reason(self, mock_db, auth, settings):
+        configure_telemetry(settings)
+        await _seed_client(mock_db)
+        issued = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
+        root_refresh = issued["refresh_token"]
+        await auth.refresh_token("partner-1", "super-secret", root_refresh)
+
+        with pytest.raises(UnauthorizedError):
+            await auth.refresh_token("partner-1", "super-secret", root_refresh)
+
+        docs = [doc async for doc in mock_db["integrationTokens"].find({"client_id": "partner-1"})]
+        assert all(doc["revoked_reason"] == "consumed" for doc in docs)
 
 
 class TestRefreshTokenConcurrency:
@@ -304,8 +317,8 @@ class TestRefreshTokenConcurrency:
         root_refresh = issued["refresh_token"]
 
         results = await asyncio.gather(
-            auth.refresh_token(root_refresh),
-            auth.refresh_token(root_refresh),
+            auth.refresh_token("partner-1", "super-secret", root_refresh),
+            auth.refresh_token("partner-1", "super-secret", root_refresh),
             return_exceptions=True,
         )
 
@@ -347,7 +360,7 @@ class TestRefreshTokenExpired:
         await _seed_expired_refresh_token(mock_db, token_id="expired-refresh-token")
 
         with pytest.raises(AppError) as exc_info:
-            await auth.refresh_token("expired-refresh-token")
+            await auth.refresh_token("partner-1", "super-secret", "expired-refresh-token")
         assert exc_info.value.code == "REFRESH_TOKEN_EXPIRED"
         assert exc_info.value.status_code == 401
 
@@ -357,7 +370,7 @@ class TestRefreshTokenExpired:
         sibling = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
 
         with pytest.raises(AppError):
-            await auth.refresh_token("expired-refresh-token")
+            await auth.refresh_token("partner-1", "super-secret", "expired-refresh-token")
 
         expired_doc = await mock_db["integrationTokens"].find_one(
             {"token_id": _stored_token_id("expired-refresh-token")}
@@ -371,9 +384,15 @@ class TestRefreshTokenExpired:
 
 
 class TestRefreshTokenUnknownOrDisabledClient:
-    async def test_unknown_token_raises_generic_unauthorized(self, auth):
+    async def test_unknown_client_raises_generic_unauthorized(self, auth):
         with pytest.raises(UnauthorizedError):
-            await auth.refresh_token("does-not-exist")
+            await auth.refresh_token("does-not-exist", "whatever", "does-not-exist")
+
+    async def test_unknown_token_raises_generic_unauthorized(self, mock_db, auth):
+        await _seed_client(mock_db)
+
+        with pytest.raises(UnauthorizedError):
+            await auth.refresh_token("partner-1", "super-secret", "does-not-exist")
 
     async def test_disabled_client_rejected_at_refresh(self, mock_db, auth):
         await _seed_client(mock_db)
@@ -384,9 +403,24 @@ class TestRefreshTokenUnknownOrDisabledClient:
         )
 
         with pytest.raises(AppError) as exc_info:
-            await auth.refresh_token(issued["refresh_token"])
+            await auth.refresh_token("partner-1", "super-secret", issued["refresh_token"])
         assert exc_info.value.code == "TENANT_NOT_ALLOWED"
         assert exc_info.value.status_code == 403
+
+    async def test_wrong_client_credentials_rejected(self, mock_db, auth):
+        await _seed_client(mock_db)
+        issued = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
+
+        with pytest.raises(UnauthorizedError):
+            await auth.refresh_token("partner-1", "wrong-secret", issued["refresh_token"])
+
+    async def test_other_clients_refresh_token_rejected(self, mock_db, auth):
+        await _seed_client(mock_db)
+        await _seed_client(mock_db, client_id="partner-2", secret="other-secret")
+        issued = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
+
+        with pytest.raises(UnauthorizedError):
+            await auth.refresh_token("partner-2", "other-secret", issued["refresh_token"])
 
 
 def _iter_py_files(root: Path):
@@ -457,11 +491,17 @@ class TestAggregatorTokenControllerResponse:
 
     async def test_refresh_token_response_serializes_refresh_token(self, mock_db, auth):
         from app.controllers.content_aggregator_auth_controller import refresh_token
+        from app.models.requests.content_aggregator_requests import ContentAggregatorRefreshRequest
 
         await _seed_client(mock_db)
         issued = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
 
-        response = await refresh_token(issued["refresh_token"], auth=auth)
+        response = await refresh_token(
+            ContentAggregatorRefreshRequest(
+                client_id="partner-1", client_secret="super-secret", refresh_token=issued["refresh_token"]
+            ),
+            auth=auth,
+        )
 
         body = response.model_dump()
         assert body["refresh_token"]

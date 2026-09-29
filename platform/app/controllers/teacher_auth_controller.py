@@ -5,12 +5,13 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, Request, Response, status
 
 from app.models.requests.auth_requests import TeacherLoginRequest, TeacherRegisterRequest
 from app.models.responses.login import LoginResponse, MessageResponse
 from app.models.responses.user import UserPublicResponse
 from app.platform.auth.dependencies import (
+    REFRESH_COOKIE_NAME,
     clear_refresh_cookie,
     get_current_user,
     require_role,
@@ -72,11 +73,13 @@ async def teacher_register(
     status_code=status.HTTP_200_OK,
 )
 async def teacher_logout(
+    request: Request,
     response: Response,
-    current_user: dict[str, Any] = Depends(require_role("teacher", "content_creator")),
     service: AuthService = Depends(get_auth_service),
 ) -> MessageResponse:
-    await service.logout(current_user["sub"])
+    refresh_token = request.cookies.get(REFRESH_COOKIE_NAME)
+    if refresh_token:
+        await service.logout_by_refresh_token(refresh_token)
     clear_refresh_cookie(response)
     return MessageResponse(message="Logout successful")
 
