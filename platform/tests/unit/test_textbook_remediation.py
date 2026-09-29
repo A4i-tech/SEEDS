@@ -21,7 +21,7 @@ from app.controllers.textbook_remediation_controller import (
     verify_remediation_job,
 )
 from app.models.remediation_job import STAGES, JobStage, JobStatus, RemediationJob
-from app.platform.error_handling import ForbiddenError, NotFoundError, ValidationError
+from app.platform.error_handling import AppError, ForbiddenError, NotFoundError, ValidationError
 from app.repositories.textbook_remediation_repository import TextbookRemediationRepository
 from app.services.textbook_remediation import artifact_bytes as _artifact_bytes
 from app.services.textbook_remediation import serialize_job, subscribe
@@ -365,8 +365,20 @@ async def test_get_remediation_page_404s_out_of_range(repo):
 
 
 @pytest.mark.asyncio
-async def test_get_remediation_page_404s_when_job_has_no_page_images(repo):
+async def test_get_remediation_page_409s_while_pages_are_still_rendering(repo):
     created = await _create(repo)
+    with pytest.raises(AppError) as exc_info:
+        await get_remediation_page(
+            created.job_id, 1,
+            user={"tenant_id": "tenant-a"}, repo=repo, blob_provider=_StubBlob(),
+        )
+    assert exc_info.value.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_get_remediation_page_404s_when_finished_job_has_no_page_images(repo):
+    created = await _create(repo)
+    await repo.finish(created.job_id, JobStatus.READY_TO_REVIEW)
     with pytest.raises(NotFoundError):
         await get_remediation_page(
             created.job_id, 1,
