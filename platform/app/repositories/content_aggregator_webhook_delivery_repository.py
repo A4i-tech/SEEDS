@@ -53,16 +53,27 @@ class ContentAggregatorWebhookDeliveryRepository:
             "responseCode": None,
             "succeeded": None,
             "error": None,
+            "claimedAt": None,
         }
         result = await self._col.insert_one(doc)
         doc["_id"] = result.inserted_id
         return doc
 
-    async def claim_due(self, now_iso: str) -> dict[str, Any] | None:
-        """Atomically claim the earliest due pending delivery attempt."""
+    async def claim_due(self, now_iso: str, stale_before_iso: str) -> dict[str, Any] | None:
+        """Atomically claim the earliest due pending delivery attempt.
+
+        Also reclaims a "claimed" record whose ``claimedAt`` predates
+        ``stale_before_iso`` — recovery for a consumer that claimed the
+        record but crashed before recording the attempt result.
+        """
         return await self._col.find_one_and_update(
-            {"status": "pending", "nextAttemptAt": {"$lte": now_iso}},
-            {"$set": {"status": "claimed"}},
+            {
+                "$or": [
+                    {"status": "pending", "nextAttemptAt": {"$lte": now_iso}},
+                    {"status": "claimed", "claimedAt": {"$lte": stale_before_iso}},
+                ]
+            },
+            {"$set": {"status": "claimed", "claimedAt": now_iso}},
             sort=[("nextAttemptAt", 1)],
             return_document=True,
         )

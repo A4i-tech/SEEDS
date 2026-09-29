@@ -22,6 +22,10 @@ from app.repositories.content_aggregator_webhook_repository import (
     ContentAggregatorWebhookRepository,
     get_content_aggregator_webhook_repo,
 )
+from app.repositories.integration_client_repository import (
+    IntegrationClientRepository,
+    get_integration_client_repo,
+)
 from app.services.content_aggregator import _jwt
 from app.services.content_aggregator.auth import ContentAggregatorAuth
 
@@ -114,17 +118,20 @@ async def register_webhook(
     body: WebhookRegisterRequest,
     claims: _jwt.AccessTokenClaims = Depends(_require_aggregator_client),
     repo: ContentAggregatorWebhookRepository = Depends(get_content_aggregator_webhook_repo),
+    client_repo: IntegrationClientRepository = Depends(get_integration_client_repo),
 ) -> dict[str, Any]:
     client_id = claims["sub"]
     _validate_url(body.url)
     body.events = _validate_events(body.events)
     _validate_scope(body.events, _granted_scopes(claims))
-    secret = secrets.token_hex(32)
-    doc = await repo.create_if_under_limit(
-        client_id, str(body.url), encrypt_secret(secret), body.events, MAX_WEBHOOKS_PER_CLIENT
-    )
-    if doc is None:
+    if not await client_repo.reserve_webhook_slot(client_id, MAX_WEBHOOKS_PER_CLIENT):
         raise AppError("WEBHOOK_LIMIT_REACHED", "maximum webhooks per client reached", 409)
+    secret = secrets.token_hex(32)
+    try:
+        doc = await repo.create(client_id, str(body.url), encrypt_secret(secret), body.events)
+    except Exception:
+        await client_repo.release_webhook_slot(client_id)
+        raise
     logger.info("register_webhook: webhook registered webhookId=%s clientId=%s", doc["_id"], client_id)
     result = _serialize(doc)
     result["secret"] = secret
@@ -189,8 +196,10 @@ async def delete_webhook(
     webhook_id: str,
     claims: _jwt.AccessTokenClaims = Depends(_require_aggregator_client),
     repo: ContentAggregatorWebhookRepository = Depends(get_content_aggregator_webhook_repo),
+    client_repo: IntegrationClientRepository = Depends(get_integration_client_repo),
 ) -> None:
     deleted = await repo.delete_for_client(claims["sub"], webhook_id)
     if not deleted:
         raise NotFoundError("Webhook", webhook_id)
+    await client_repo.release_webhook_slot(claims["sub"])
     logger.info("delete_webhook: webhook deleted webhookId=%s clientId=%s", webhook_id, claims["sub"])
