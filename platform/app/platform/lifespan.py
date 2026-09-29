@@ -189,7 +189,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     from app.repositories.integration_client_repository import (  # noqa: PLC0415
         IntegrationClientRepository,
     )
-    from app.repositories.language_repository import LanguageRepository  # noqa: PLC0415
     from app.repositories.textbook_remediation_repository import (  # noqa: PLC0415
         TextbookRemediationRepository,
     )
@@ -210,14 +209,17 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     from app.repositories.translation_version_repository import (  # noqa: PLC0415
         TranslationVersionRepository,
     )
+    from app.repositories.user_refresh_token_repository import (  # noqa: PLC0415
+        UserRefreshTokenRepository,
+    )
     from app.repositories.website_repository import WebsiteRepository  # noqa: PLC0415
 
     await WebsiteRepository.ensure_indexes(get_database())
-    await LanguageRepository.ensure_indexes(get_database())
     await TranslationRepository.ensure_indexes(get_database())
     await TranslationVersionRepository.ensure_indexes(get_database())
     await TranslationAuditRepository.ensure_indexes(get_database())
     await IntegrationClientRepository.ensure_indexes(get_database())
+    await UserRefreshTokenRepository.ensure_indexes(get_database())
 
     # Init conference manager (available in all modes)
     try:

@@ -41,6 +41,7 @@ class IntegrationToken(BaseModel):
     scope: str
     expires_at: datetime
     revoked: bool = False
+    revoked_reason: str | None = None
     created_at: datetime
 
     @classmethod

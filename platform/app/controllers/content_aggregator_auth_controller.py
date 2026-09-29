@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-from typing import Annotated
-
-from fastapi import APIRouter, Body, Depends
+from fastapi import APIRouter, Depends
 from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.requests.content_aggregator_requests import (
+    ContentAggregatorRefreshRequest,
     ContentAggregatorRegisterRequest,
     ContentAggregatorRegisterResponse,
     ContentAggregatorTokenRequest,
@@ -40,10 +39,14 @@ async def issue_token(
 
 @router.post("/token/refresh", summary="Exchange a refresh token for a new access token")
 async def refresh_token(
-    refresh_token: Annotated[str, Body(embed=True)],
+    body: ContentAggregatorRefreshRequest,
     auth: ContentAggregatorAuth = Depends(get_content_aggregator_auth),
 ) -> AggregatorTokenResponse:
-    result = await auth.refresh_token(refresh_token)
+    result = await auth.refresh_token(
+        client_id=body.client_id,
+        client_secret=body.client_secret,
+        refresh_token=body.refresh_token,
+    )
     return AggregatorTokenResponse.model_validate(result)
 
 

@@ -83,4 +83,22 @@ describe("AuthContext logout", () => {
     expect(getAccessToken()).toBeNull();
     expect(screen.getByTestId("authed")).toHaveTextContent("false");
   });
+
+  it("resolves and clears local state when logout is called with no access token", async () => {
+    initSession.mockResolvedValue({ data: null, error: { message: "no session" } });
+    clearAccessToken();
+    render(
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>
+    );
+    await waitFor(() => expect(screen.getByTestId("authed")).toHaveTextContent("false"));
+
+    await userEvent.click(screen.getByText("logout"));
+
+    await waitFor(() => expect(screen.getByTestId("outcome")).toHaveTextContent("resolved"));
+    expect(getAccessToken()).toBeNull();
+    expect(screen.getByTestId("authed")).toHaveTextContent("false");
+    expect(axiosInstance.post).not.toHaveBeenCalled();
+  });
 });

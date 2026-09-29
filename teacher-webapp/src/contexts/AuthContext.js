@@ -12,6 +12,9 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const init = async () => {
       const { data, error } = await initSession();
+      if (error) {
+        console.error("AuthContext: session init failed", error);
+      }
       setIsAuthenticated(!!data);
       setInitState({ data, error, isLoading: false });
     };
@@ -38,15 +41,13 @@ export const AuthProvider = ({ children }) => {
 
   const logout = useCallback(async () => {
     const token = getAccessToken();
-    if (!token) {
-      throw new Error("logout called with no access token in memory");
-    }
-
-    try {
-      await axiosInstance.post(API_ENDPOINTS.LOGOUT, {}, { withCredentials: true });
-    } catch (error) {
-      if (error.response?.status !== 401 && error.response?.status !== 403) {
-        throw error;
+    if (token) {
+      try {
+        await axiosInstance.post(API_ENDPOINTS.LOGOUT, {}, { withCredentials: true });
+      } catch (error) {
+        if (error.response?.status !== 401 && error.response?.status !== 403) {
+          throw error;
+        }
       }
     }
 

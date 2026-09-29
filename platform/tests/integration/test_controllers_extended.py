@@ -8,6 +8,7 @@ Covers: auth_controller (tenant), school/classroom endpoints,
 from __future__ import annotations
 
 import os
+from datetime import timedelta
 
 os.environ.setdefault("SECRET_KEY", "test-secret-key-for-integration-tests-32ch")
 os.environ.setdefault("APP_MODE", "api")
@@ -194,6 +195,38 @@ class TestTenantAuth:
         token = _teacher_token(teacher["_id"])
         resp = await client.post("/teacher/logout", headers={"Authorization": f"Bearer {token}"})
         assert resp.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_teacher_logout_with_expired_access_token_still_revokes_session(self, client, mock_db):
+        teacher = await _seed_teacher(mock_db, email="expired@ext.com")
+        await mock_db["users"].update_one(
+            {"_id": ObjectId(teacher["_id"])}, {"$set": {"phone": "expired@ext.com"}}
+        )
+        login_resp = await client.post("/teacher/login", json={
+            "phone_number": "expired@ext.com",
+            "password": "pass1234",
+        })
+        assert login_resp.status_code == 200
+
+        expired_token = create_access_token(
+            {"sub": login_resp.json()["user"]["id"], "role": "teacher", "tenant_id": _TENANT_ID},
+            expires_delta=timedelta(seconds=-60),
+        )
+        resp = await client.post(
+            "/teacher/logout", headers={"Authorization": f"Bearer {expired_token}"}
+        )
+        assert resp.status_code == 200
+
+        refresh_resp = await client.post("/auth/token/refresh")
+        assert refresh_resp.status_code == 401
+
+    @pytest.mark.asyncio
+    async def test_teacher_logout_without_refresh_cookie_is_safe(self, client, mock_db):
+        teacher = await _seed_teacher(mock_db, email="nocookie@ext.com")
+        token = _teacher_token(teacher["_id"])
+        resp = await client.post("/teacher/logout", headers={"Authorization": f"Bearer {token}"})
+        assert resp.status_code == 200
+        assert "refresh_token=" in resp.headers.get("set-cookie", "")
 
     @pytest.mark.asyncio
     async def test_school_admin_login(self, client, mock_db):

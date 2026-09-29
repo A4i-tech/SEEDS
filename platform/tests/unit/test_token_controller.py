@@ -61,6 +61,7 @@ async def test_refresh_sets_rotated_cookie_and_never_bodies_it() -> None:
     ]
     assert any(b"refresh_token=new-refresh" in header for header in cookie_headers)
     assert any(b"HttpOnly" in header for header in cookie_headers)
+    assert any(b"Max-Age=2592000" in header for header in cookie_headers)
     assert "new-refresh" not in result.model_dump_json()
 
 

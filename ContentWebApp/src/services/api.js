@@ -73,7 +73,7 @@ export const apiFetch = async (url, { timeoutMs, ...options } = {}, _isRetry = f
     });
 
     if (!response.ok) {
-      if ((response.status === 401 || response.status === 403) && getAccessToken() && !_isRetry) {
+      if (response.status === 401 && getAccessToken() && !_isRetry) {
         try {
           const newToken = await refreshAccessToken();
           return await apiFetch(
@@ -91,7 +91,7 @@ export const apiFetch = async (url, { timeoutMs, ...options } = {}, _isRetry = f
             window.location.href = "/";
           }
         }
-      } else if (response.status === 401 || response.status === 403) {
+      } else if (response.status === 401) {
         clearAuth();
         if (typeof window !== "undefined" && window.location.pathname !== "/") {
           window.location.href = "/";

@@ -29,8 +29,14 @@ from app.models.user import User, UserCreate, UserRole
 from app.platform.auth import refresh_tokens
 from app.platform.auth.dependencies import get_db
 from app.platform.auth.hashing import hash_password, verify_password
-from app.platform.auth.jwt import _parse_expires_delta, create_access_token
-from app.platform.auth.refresh_tokens import TokenPair
+from app.platform.auth.jwt import create_access_token, parse_expires_delta
+from app.platform.auth.refresh_tokens import (
+    RefreshTokenExpiredError,
+    RefreshTokenNotFoundError,
+    RefreshTokenReusedError,
+    RefreshTokenRevokedError,
+    TokenPair,
+)
 from app.platform.error_handling import AppError, ConflictError, NotFoundError, UnauthorizedError
 from app.platform.settings import Settings, get_settings
 from app.platform.telemetry import get_counter
@@ -43,7 +49,7 @@ logger = logging.getLogger(__name__)
 
 def _make_access_token(sub: str, claims: UserClaims, settings: Settings) -> tuple[str, int]:
     token = create_access_token({"sub": sub, **claims})
-    expires_in = int(_parse_expires_delta(settings.jwt_expires_in).total_seconds())
+    expires_in = int(parse_expires_delta(settings.jwt_expires_in).total_seconds())
     return token, expires_in
 
 
@@ -315,7 +321,11 @@ async def refresh(
         user = await repo.find_by_id(owner_id)
         if user is None or not user.is_active:
             raise AppError("TENANT_NOT_ALLOWED", "Account is inactive or no longer exists", 403)
-        return claims
+        return {
+            "role": user.role.value,
+            "tenant_id": user.tenant_id or str(user.id),
+            "school_id": user.school_id,
+        }
 
     async def build_access_token(owner_id: str, claims: UserClaims) -> tuple[str, int]:
         return _make_access_token(owner_id, claims, settings)
@@ -464,6 +474,19 @@ class AuthService:
     async def logout(self, owner_id: str) -> None:
         repo = UserRefreshTokenRepository(self._db)
         await repo.revoke_all_for_owner(owner_id, reason="logout")
+
+    async def logout_by_refresh_token(self, refresh_token: str) -> None:
+        repo = UserRefreshTokenRepository(self._db)
+        try:
+            consumed = await repo.try_consume(refresh_token)
+        except (
+            RefreshTokenNotFoundError,
+            RefreshTokenExpiredError,
+            RefreshTokenRevokedError,
+            RefreshTokenReusedError,
+        ):
+            return
+        await repo.revoke_all_for_owner(consumed.owner_id, reason="logout")
 
     async def get_user_profile(self, user_id: str, entity_label: str) -> User:
         return await get_user_profile(user_id, entity_label, self._db)

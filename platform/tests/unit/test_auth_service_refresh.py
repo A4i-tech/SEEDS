@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from jose import jwt as jose_jwt
 
 from app.models.user import UserCreate, UserRole
 from app.platform.auth.hashing import hash_password
@@ -13,6 +15,19 @@ from app.platform.telemetry import configure_telemetry
 from app.repositories.user_repository import UserRepository
 from app.services.auth_service import AuthService
 from tests.support.mongomock_async import AsyncMongoMockClient
+
+
+def _decode_access_token(token: str, settings: Settings) -> dict:
+    return jose_jwt.decode(
+        token,
+        settings.secret_key,
+        algorithms=["HS256"],
+        issuer="platform",
+    )
+
+
+def _stored_token_id(raw_token: str) -> str:
+    return hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
 
 
 @pytest.fixture
@@ -58,7 +73,7 @@ class TestLoginIssuesRefreshToken:
             identifier="tenant@example.com", password="correct-horse", is_email=True
         )
 
-        stored = await mock_db["userRefreshTokens"].find_one({"token_id": result["refresh_token"]})
+        stored = await mock_db["userRefreshTokens"].find_one({"token_id": _stored_token_id(result["refresh_token"])})
         assert stored is not None
         assert stored["revoked"] is False
         assert stored["claims"]["role"] == "tenant"
@@ -78,10 +93,10 @@ class TestRefreshSuccess:
         assert set(result.keys()) == {"access_token", "refresh_token", "expires_in", "token_type"}
         assert result["refresh_token"] != old_refresh
 
-        old_doc = await mock_db["userRefreshTokens"].find_one({"token_id": old_refresh})
+        old_doc = await mock_db["userRefreshTokens"].find_one({"token_id": _stored_token_id(old_refresh)})
         assert old_doc["revoked"] is True
 
-        new_doc = await mock_db["userRefreshTokens"].find_one({"token_id": result["refresh_token"]})
+        new_doc = await mock_db["userRefreshTokens"].find_one({"token_id": _stored_token_id(result["refresh_token"])})
         assert new_doc is not None
         assert new_doc["revoked"] is False
 
@@ -136,7 +151,7 @@ class TestRefreshReuseDetection:
             await service.refresh(family_a["refresh_token"])
 
         other_family_doc = await mock_db["userRefreshTokens"].find_one(
-            {"token_id": family_b["refresh_token"]}
+            {"token_id": _stored_token_id(family_b["refresh_token"])}
         )
         assert other_family_doc["revoked"] is True
         assert other_family_doc["revoked_reason"] == "consumed"
@@ -173,7 +188,7 @@ class TestRefreshExpired:
         )
 
         await mock_db["userRefreshTokens"].update_one(
-            {"token_id": issued["refresh_token"]},
+            {"token_id": _stored_token_id(issued["refresh_token"])},
             {"$set": {"expires_at": datetime.now(tz=UTC) - timedelta(days=1)}},
         )
 
@@ -193,17 +208,17 @@ class TestRefreshExpired:
         )
 
         await mock_db["userRefreshTokens"].update_one(
-            {"token_id": expired["refresh_token"]},
+            {"token_id": _stored_token_id(expired["refresh_token"])},
             {"$set": {"expires_at": datetime.now(tz=UTC) - timedelta(days=1)}},
         )
 
         with pytest.raises(AppError):
             await service.refresh(expired["refresh_token"])
 
-        expired_doc = await mock_db["userRefreshTokens"].find_one({"token_id": expired["refresh_token"]})
+        expired_doc = await mock_db["userRefreshTokens"].find_one({"token_id": _stored_token_id(expired["refresh_token"])})
         assert expired_doc["revoked"] is False
 
-        sibling_doc = await mock_db["userRefreshTokens"].find_one({"token_id": sibling["refresh_token"]})
+        sibling_doc = await mock_db["userRefreshTokens"].find_one({"token_id": _stored_token_id(sibling["refresh_token"])})
         assert sibling_doc["revoked"] is False
 
 
@@ -319,7 +334,7 @@ class TestLogoutRevocation:
 
         await service.logout(owner_id)
 
-        doc = await mock_db["userRefreshTokens"].find_one({"token_id": issued["refresh_token"]})
+        doc = await mock_db["userRefreshTokens"].find_one({"token_id": _stored_token_id(issued["refresh_token"])})
         assert doc["revoked"] is True
         assert doc["revoked_reason"] == "logout"
 
@@ -358,9 +373,110 @@ class TestLogoutRevocation:
 
         await service.logout(owner_id)
 
-        consumed_doc = await mock_db["userRefreshTokens"].find_one({"token_id": issued["refresh_token"]})
+        consumed_doc = await mock_db["userRefreshTokens"].find_one({"token_id": _stored_token_id(issued["refresh_token"])})
         assert consumed_doc["revoked_reason"] == "consumed"
 
-        active_doc = await mock_db["userRefreshTokens"].find_one({"token_id": rotated["refresh_token"]})
+        active_doc = await mock_db["userRefreshTokens"].find_one({"token_id": _stored_token_id(rotated["refresh_token"])})
         assert active_doc["revoked"] is True
         assert active_doc["revoked_reason"] == "logout"
+
+    async def test_logout_by_refresh_token_revokes_session_without_owner_id(self, mock_db):
+        await _seed_tenant(mock_db)
+        service = AuthService(mock_db)
+        issued = await service.login_unified(
+            identifier="tenant@example.com", password="correct-horse", is_email=True
+        )
+
+        await service.logout_by_refresh_token(issued["refresh_token"])
+
+        doc = await mock_db["userRefreshTokens"].find_one({"token_id": _stored_token_id(issued["refresh_token"])})
+        assert doc["revoked"] is True
+
+        with pytest.raises(UnauthorizedError):
+            await service.refresh(issued["refresh_token"])
+
+    async def test_logout_by_refresh_token_revokes_other_family_tokens(self, mock_db):
+        await _seed_tenant(mock_db)
+        service = AuthService(mock_db)
+        issued = await service.login_unified(
+            identifier="tenant@example.com", password="correct-horse", is_email=True
+        )
+        rotated = await service.refresh(issued["refresh_token"])
+
+        await service.logout_by_refresh_token(rotated["refresh_token"])
+
+        active_doc = await mock_db["userRefreshTokens"].find_one({"token_id": _stored_token_id(rotated["refresh_token"])})
+        assert active_doc["revoked"] is True
+        assert active_doc["revoked_reason"] == "consumed"
+
+        with pytest.raises(UnauthorizedError):
+            await service.refresh(rotated["refresh_token"])
+
+    async def test_logout_by_refresh_token_with_expired_token_is_a_noop(self, mock_db, caplog):
+        await _seed_tenant(mock_db)
+        service = AuthService(mock_db)
+        issued = await service.login_unified(
+            identifier="tenant@example.com", password="correct-horse", is_email=True
+        )
+        await mock_db["userRefreshTokens"].update_one(
+            {"token_id": _stored_token_id(issued["refresh_token"])},
+            {"$set": {"expires_at": datetime.now(tz=UTC) - timedelta(days=1)}},
+        )
+
+        with caplog.at_level("WARNING"):
+            await service.logout_by_refresh_token(issued["refresh_token"])
+
+        assert not any(
+            getattr(record, "event", None) == "refresh_token_reuse_detected" for record in caplog.records
+        )
+
+    async def test_logout_by_refresh_token_with_unknown_token_is_a_noop(self, mock_db):
+        service = AuthService(mock_db)
+
+        await service.logout_by_refresh_token("not-a-real-refresh-token")
+
+        assert await mock_db["userRefreshTokens"].count_documents({}) == 0
+
+
+class TestRefreshRebuildsAuthorizationClaims:
+    async def test_refresh_uses_current_role_tenant_and_school_not_stale_token_claims(self, mock_db):
+        settings = Settings(secret_key="test-secret-key-for-tests-32chars!!")
+        user_repo = UserRepository(mock_db)
+        user = await user_repo.create(
+            UserCreate(
+                role=UserRole.SCHOOL_ADMIN,
+                name="School Admin One",
+                email="admin@example.com",
+                hashed_password=hash_password("correct-horse"),
+                tenant_id="tenant-old",
+                school_id="school-old",
+            )
+        )
+        service = AuthService(mock_db)
+
+        issued = await service.login_unified(
+            identifier="admin@example.com", password="correct-horse", is_email=True
+        )
+        original_payload = _decode_access_token(issued["access_token"], settings)
+        assert original_payload["role"] == "school_admin"
+        assert original_payload["tenant_id"] == "tenant-old"
+        assert original_payload["school_id"] == "school-old"
+
+        await user_repo.update(
+            user.id,
+            {"role": UserRole.TENANT, "tenant_id": "tenant-new", "school_id": "school-new"},
+        )
+
+        rotated = await service.refresh(issued["refresh_token"])
+        rotated_payload = _decode_access_token(rotated["access_token"], settings)
+
+        assert rotated_payload["role"] == "tenant"
+        assert rotated_payload["tenant_id"] == "tenant-new"
+        assert rotated_payload["school_id"] == "school-new"
+
+        twice_rotated = await service.refresh(rotated["refresh_token"])
+        twice_rotated_payload = _decode_access_token(twice_rotated["access_token"], settings)
+
+        assert twice_rotated_payload["role"] == "tenant"
+        assert twice_rotated_payload["tenant_id"] == "tenant-new"
+        assert twice_rotated_payload["school_id"] == "school-new"

@@ -6,7 +6,7 @@ from typing import TypedDict
 
 from jose import jwt
 
-from app.platform.auth.jwt import _parse_expires_delta
+from app.platform.auth.jwt import parse_expires_delta
 
 _ALGORITHM = "HS256"
 _ISSUER = "content-aggregator"
@@ -32,7 +32,7 @@ def encode_access_token(
     secret_key: str,
     expires_in: str,
 ) -> tuple[str, int]:
-    delta = _parse_expires_delta(expires_in)
+    delta = parse_expires_delta(expires_in)
     now = datetime.now(tz=UTC)
     expire = now + delta
 

@@ -17,7 +17,7 @@ from fastapi import Depends, Request, Response
 from fastapi.security import OAuth2PasswordBearer
 from pymongo.asynchronous.database import AsyncDatabase
 
-from app.platform.auth.jwt import verify_token
+from app.platform.auth.jwt import parse_expires_delta, verify_token
 from app.platform.auth.providers.firebase_provider import verify_firebase_token
 from app.platform.database import get_database
 from app.platform.error_handling import ForbiddenError, NotFoundError, UnauthorizedError
@@ -33,6 +33,8 @@ REFRESH_COOKIE_NAME = "refresh_token"
 
 
 def set_refresh_cookie(response: Response, refresh_token: str) -> None:
+    settings = get_settings()
+    max_age = int(parse_expires_delta(settings.refresh_token_expires_in).total_seconds())
     response.set_cookie(
         key=REFRESH_COOKIE_NAME,
         value=refresh_token,
@@ -40,6 +42,7 @@ def set_refresh_cookie(response: Response, refresh_token: str) -> None:
         secure=True,
         samesite="lax",
         path="/auth",
+        max_age=max_age,
     )
 
 

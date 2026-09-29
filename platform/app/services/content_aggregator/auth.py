@@ -83,8 +83,7 @@ class _IntegrationTokenStore:
         return self._to_consumed(doc)
 
     async def revoke_all_for_owner(self, owner_id: str, *, reason: str) -> None:
-        del reason
-        await self._repo.revoke_all_for_client(owner_id)
+        await self._repo.revoke_all_for_client(owner_id, reason=reason)
 
 
 class ContentAggregatorAuth:
@@ -165,18 +164,26 @@ class ContentAggregatorAuth:
         )
         return client_id, client_secret
 
-    async def refresh_token(self, refresh_token: str) -> IntegrationTokenPair:
+    async def refresh_token(
+        self, client_id: str, client_secret: str, refresh_token: str
+    ) -> IntegrationTokenPair:
+        client = await self._clients.find_by_client_id(client_id)
+        if client is None or not verify_password(client_secret, client.client_secret_hash):
+            logger.warning(
+                "content_aggregator auth: invalid credentials for client_id=%s", client_id
+            )
+            raise UnauthorizedError("Invalid client credentials")
+
         granted_scope = ""
-        client_name = ""
+        client_name = client.name
 
         async def verify_owner_active(
             owner_id: str, claims: IntegrationClaims
         ) -> IntegrationClaims:
-            nonlocal client_name
-            client = await self._clients.find_by_client_id(owner_id)
-            if client is None or client.status != IntegrationClientStatus.ACTIVE:
+            if owner_id != client_id:
+                raise UnauthorizedError("Invalid refresh token")
+            if client.status != IntegrationClientStatus.ACTIVE:
                 raise AppError("TENANT_NOT_ALLOWED", "Client is not active", 403)
-            client_name = client.name
             return claims
 
         async def build_access_token(owner_id: str, claims: IntegrationClaims) -> tuple[str, int]:
