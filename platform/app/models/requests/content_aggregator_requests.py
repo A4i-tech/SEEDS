@@ -9,6 +9,12 @@ class ContentAggregatorTokenRequest(BaseModel):
     scope: str
 
 
+class ContentAggregatorRefreshRequest(BaseModel):
+    client_id: str = Field(min_length=1)
+    client_secret: str = Field(min_length=1)
+    refresh_token: str = Field(min_length=1)
+
+
 class ContentAggregatorRegisterRequest(BaseModel):
     name: str
     tenant_ids: list[str]
