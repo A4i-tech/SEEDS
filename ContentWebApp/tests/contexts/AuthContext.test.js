@@ -101,6 +101,23 @@ describe("AuthProvider logout", () => {
     expect(screen.getByTestId("token").textContent).toBe("null");
   });
 
+  it("resolves and clears local state when logout is called with no access token", async () => {
+    initSession.mockResolvedValue({ data: null, error: new ApiError("Missing refresh token", 401) });
+    render(
+      <AuthProvider>
+        <Probe />
+      </AuthProvider>
+    );
+    await waitFor(() => expect(screen.getByTestId("authed").textContent).toBe("false"));
+
+    await userEvent.click(screen.getByRole("button", { name: "logout" }));
+
+    await waitFor(() => expect(screen.getByTestId("outcome").textContent).toBe("resolved"));
+    expect(screen.getByTestId("authed").textContent).toBe("false");
+    expect(screen.getByTestId("token").textContent).toBe("null");
+    expect(apiFetch).not.toHaveBeenCalled();
+  });
+
   it("does not raise a false reuse alarm when refresh races a normal logout", async () => {
     await renderAuthed();
     apiFetch.mockResolvedValue({ message: "logged out" });
