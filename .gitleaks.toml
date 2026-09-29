@@ -16,3 +16,10 @@ regexTarget = "match"
 regexes = [
   '''\AVONAGE_CONFERENCE_APPLICATION_PRIVATE_KEY64=\nVONAGE_IVR_APPLICATION_ID=\z''',
 ]
+
+[[allowlists]]
+description = "dummy Fernet key for WEBHOOK_SECRET_ENCRYPTION_KEY in platform/tests/conftest.py"
+regexTarget = "match"
+regexes = [
+  '''Bx3v9fJf5vD8m3sV7bqL4kQe2wZzXr1yT6nC0pA8dEo=''',
+]
