@@ -1,4 +1,5 @@
 import { apiFetch, apiFetchBlob, apiFetchText, buildQueryString, ApiError } from "../../src/services/api";
+import { setAccessToken, clearAccessToken } from "../../src/utils/tokenStore";
 
 jest.mock("../../src/utils/authHelpers", () => ({ clearAuth: jest.fn() }));
 const { clearAuth } = require("../../src/utils/authHelpers");
@@ -25,6 +26,7 @@ describe("apiFetch", () => {
 
   afterEach(() => {
     window.location = originalLocation;
+    clearAccessToken();
   });
 
   it("returns parsed JSON on ok json response", async () => {
@@ -54,11 +56,35 @@ describe("apiFetch", () => {
     expect(window.location.href).toBe("");
   });
 
-  it("clears auth and redirects on 403 when no access token is present", async () => {
+  it("does not clear auth or redirect on 403 (permission failure, not an auth failure)", async () => {
     global.fetch.mockResolvedValue(fakeResponse({ ok: false, status: 403, text: "Access denied" }));
     await expect(apiFetch("/x")).rejects.toMatchObject({ status: 403, message: "Access denied" });
-    expect(clearAuth).toHaveBeenCalled();
-    expect(window.location.href).toBe("/");
+    expect(clearAuth).not.toHaveBeenCalled();
+    expect(window.location.href).toBe("");
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not trigger refresh on 403 even with an access token present", async () => {
+    setAccessToken("current-token");
+    global.fetch.mockResolvedValue(fakeResponse({ ok: false, status: 403, text: "forbidden" }));
+    await expect(apiFetch("/x")).rejects.toMatchObject({ status: 403 });
+    expect(clearAuth).not.toHaveBeenCalled();
+    expect(window.location.href).toBe("");
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("still refreshes and retries on 401 when an access token is present", async () => {
+    setAccessToken("expired-token");
+    global.fetch
+      .mockResolvedValueOnce(fakeResponse({ ok: false, status: 401, text: "expired" }))
+      .mockResolvedValueOnce(fakeResponse({ ok: true, contentType: "application/json", json: { access_token: "new-token" } }))
+      .mockResolvedValueOnce(fakeResponse({ ok: true, contentType: "application/json", json: { a: 1 } }));
+
+    await expect(apiFetch("/x")).resolves.toEqual({ a: 1 });
+    expect(clearAuth).not.toHaveBeenCalled();
+    expect(global.fetch).toHaveBeenCalledTimes(3);
+    expect(global.fetch.mock.calls[2][0]).toBe("/x");
+    expect(global.fetch.mock.calls[2][1].headers.Authorization).toBe("Bearer new-token");
   });
 
   it("uses the backend message from a JSON error envelope", async () => {

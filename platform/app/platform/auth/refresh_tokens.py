@@ -9,7 +9,7 @@ from typing import Protocol, TypedDict
 
 from pydantic import PositiveInt
 
-from app.platform.auth.jwt import _parse_expires_delta
+from app.platform.auth.jwt import parse_expires_delta
 from app.platform.error_handling import AppError, UnauthorizedError
 from app.platform.telemetry import get_counter
 
@@ -21,7 +21,7 @@ def generate_refresh_token() -> str:
 
 
 def refresh_token_expiry(expires_in: str) -> datetime:
-    return datetime.now(tz=UTC) + _parse_expires_delta(expires_in)
+    return datetime.now(tz=UTC) + parse_expires_delta(expires_in)
 
 
 class TokenPair(TypedDict):

@@ -17,6 +17,20 @@ import { isLocalStorageAvailable } from "../utils/authHelpers";
 import { isValidPhoneNumber } from "../utils/phoneUtils";
 import { useAuthContext } from "../contexts/AuthContext";
 
+const getLoginErrorMessage = (error) => {
+  const status = error.response?.status;
+  if (status === 401) {
+    return "Username or password incorrect";
+  }
+  if (status >= 500) {
+    return error.response?.data?.message || "Server error. Please try again later.";
+  }
+  if (!error.response) {
+    return "Unable to reach the server. Please check your connection and try again.";
+  }
+  return error.response?.data?.message || "Login failed. Please try again.";
+};
+
 function Login() {
   const navigate = useNavigation();
   const { login, loginState } = useAuthContext();
@@ -24,7 +38,7 @@ function Login() {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [password, setPassword] = useState("");
 
-  const showError = formError || (loginState.error && "Username or password incorrect");
+  const showError = formError || (loginState.error && getLoginErrorMessage(loginState.error));
 
   const handleLogin = async () => {
     // Check localStorage availability before attempting login

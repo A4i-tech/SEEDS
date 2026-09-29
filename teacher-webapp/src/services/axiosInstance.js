@@ -70,7 +70,9 @@ axiosInstance.interceptors.response.use(
         }
         clearAccessToken();
         window.location.href = "/";
-        return Promise.reject(new Error("Session expired. Please login again."));
+        const sessionExpiredError = new Error("Session expired. Please login again.");
+        sessionExpiredError.status = 401;
+        return Promise.reject(sessionExpiredError);
       }
     }
 

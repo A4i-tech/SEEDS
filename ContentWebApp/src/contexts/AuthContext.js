@@ -44,21 +44,19 @@ export const AuthProvider = ({ children }) => {
 
   const logout = useCallback(async () => {
     const token = getAccessToken();
-    if (!token) {
-      throw new Error("logout called with no access token in memory");
-    }
-
-    try {
-      await apiFetch(`${SEEDS_URL}/tenant/logout`, {
-        method: "POST",
-        credentials: "include",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-    } catch (error) {
-      if (error.status !== 401 && error.status !== 403) {
-        throw error;
+    if (token) {
+      try {
+        await apiFetch(`${SEEDS_URL}/tenant/logout`, {
+          method: "POST",
+          credentials: "include",
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      } catch (error) {
+        if (error.status !== 401 && error.status !== 403) {
+          throw error;
+        }
+        console.warn("AuthProvider: logout request failed with", error.status, "— treating as already logged out");
       }
-      console.warn("AuthProvider: logout request failed with", error.status, "— treating as already logged out");
     }
 
     clearAuth();
