@@ -4,7 +4,7 @@ import logging
 import secrets
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Protocol, TypedDict
 
 from pydantic import PositiveInt
@@ -14,6 +14,8 @@ from app.platform.error_handling import AppError, UnauthorizedError
 from app.platform.telemetry import get_counter
 
 logger = logging.getLogger(__name__)
+
+REPLAY_GRACE_WINDOW = timedelta(seconds=10)
 
 
 def generate_refresh_token() -> str:
@@ -35,6 +37,7 @@ class TokenPair(TypedDict):
 class ConsumedToken[ClaimsT]:
     owner_id: str
     claims: ClaimsT
+    family_expires_at: datetime
 
 
 class RefreshTokenNotFoundError(Exception):
@@ -55,6 +58,19 @@ class RefreshTokenRevokedError(Exception):
     pass
 
 
+class RefreshTokenReplayedError(Exception):
+    """Raised when a just-consumed token is replayed within the grace window.
+
+    Carries the token pair already issued to the original caller so the
+    replaying request (e.g. a racing concurrent refresh) can be answered
+    idempotently instead of triggering reuse-detection revocation.
+    """
+
+    def __init__(self, pair: TokenPair) -> None:
+        super().__init__("Refresh token replayed within grace window")
+        self.pair = pair
+
+
 class RefreshTokenStore[ClaimsT](Protocol):
     async def insert(
         self,
@@ -63,10 +79,13 @@ class RefreshTokenStore[ClaimsT](Protocol):
         owner_id: str,
         claims: ClaimsT,
         expires_at: datetime,
+        family_expires_at: datetime,
         created_at: datetime,
     ) -> None: ...
 
     async def try_consume(self, token_id: str) -> ConsumedToken[ClaimsT]: ...
+
+    async def cache_replay(self, token_id: str, pair: TokenPair) -> None: ...
 
     async def revoke_all_for_owner(self, owner_id: str, *, reason: str = "revoked") -> None: ...
 
@@ -86,11 +105,13 @@ async def issue_pair[ClaimsT](
 ) -> TokenPair:
     refresh_token = generate_refresh_token()
     now = datetime.now(tz=UTC)
+    expires_at = refresh_token_expiry(refresh_ttl)
     await store.insert(
         token_id=refresh_token,
         owner_id=owner_id,
         claims=claims,
-        expires_at=refresh_token_expiry(refresh_ttl),
+        expires_at=expires_at,
+        family_expires_at=expires_at,
         created_at=now,
     )
     return {
@@ -112,6 +133,8 @@ async def rotate[ClaimsT](
 ) -> TokenPair:
     try:
         consumed = await store.try_consume(refresh_token)
+    except RefreshTokenReplayedError as exc:
+        return exc.pair
     except RefreshTokenNotFoundError:
         raise UnauthorizedError("Invalid refresh token") from None
     except RefreshTokenExpiredError:
@@ -137,17 +160,21 @@ async def rotate[ClaimsT](
     access_token, access_expires_in = await build_access_token(consumed.owner_id, claims)
 
     new_refresh_token = generate_refresh_token()
+    new_expires_at = min(refresh_token_expiry(refresh_ttl), consumed.family_expires_at)
     await store.insert(
         token_id=new_refresh_token,
         owner_id=consumed.owner_id,
         claims=claims,
-        expires_at=refresh_token_expiry(refresh_ttl),
+        expires_at=new_expires_at,
+        family_expires_at=consumed.family_expires_at,
         created_at=now,
     )
 
-    return {
+    pair: TokenPair = {
         "access_token": access_token,
         "refresh_token": new_refresh_token,
         "expires_in": access_expires_in,
         "token_type": "Bearer",
     }
+    await store.cache_replay(refresh_token, pair)
+    return pair
