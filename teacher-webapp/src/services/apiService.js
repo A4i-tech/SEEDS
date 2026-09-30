@@ -131,9 +131,7 @@ export const unmuteAll = async (confId) => {
 };
 
 export const playAudio = async (confId, url) => {
-  const audioUrl =
-    url ??
-    `https://${APP_CONFIG.STORAGE_ACCOUNT_NAME}.blob.core.windows.net/output-container/25/1.0.wav`;
+  const audioUrl = url ?? `${APP_CONFIG.AUDIO_STORAGE_BASE_URL}/output-container/25/1.0.wav`;
   const response = await axiosInstance.put(API_ENDPOINTS.CONFERENCE.PLAY_AUDIO(confId, audioUrl));
   return response;
 };

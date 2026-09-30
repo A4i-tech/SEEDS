@@ -14,8 +14,20 @@
 Set these in the platform dashboard (do NOT commit secrets):
 ```
 PORT=<your-port>
-AZURE_STORAGE_ACCOUNT_NAME=<your-azure-storage-account-name>
+STORAGE_BACKEND=s3
+S3_ENDPOINT_URL=<your-s3-endpoint-url>
+S3_ACCESS_KEY_ID=<your-s3-access-key-id>
+S3_SECRET_ACCESS_KEY=<your-s3-secret-access-key>
+S3_REGION=<your-s3-region>
 ```
+
+To store audio in Azure Blob Storage, set `STORAGE_BACKEND=azure` and set these variables instead of the `S3_*` variables:
+```
+AZURE_STORAGE_ACCOUNT_NAME=<your-azure-storage-account-name>
+AZURE_STORAGE_ACCOUNT_KEY=<optional-account-key>
+```
+
+If you do not set `AZURE_STORAGE_ACCOUNT_KEY`, the service signs in with `DefaultAzureCredential`.
 
 > **Note:** Only include variables relevant to your service. Do not commit secrets to version control.
 

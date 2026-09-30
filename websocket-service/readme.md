@@ -2,7 +2,7 @@
 
 [![WebSocket Service Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/a4i-architect/dcc3788d90884aed5ef3bfc393978480/raw/websocket-service-coverage.json)](https://github.com/A4i-tech/SEEDS/actions/workflows/websocket-service-main.yml)
 
-This module provides a WebSocket-based audio streaming service that streams audio content (teacher's choice) and system-generated audio messages from Azure Blob Storage. It supports operations such as play, pause, resume, stop, and handles WebSocket disconnections.
+This module provides a WebSocket-based audio streaming service that streams audio content (teacher's choice) and system-generated audio messages from S3-compatible storage or Azure Blob Storage (set with `STORAGE_BACKEND`, default `s3`). It supports operations such as play, pause, resume, stop, and handles WebSocket disconnections.
 
 ## Features
 
@@ -23,7 +23,7 @@ Streams an audio file chosen by the teacher. Pauses if system audio is playing.
 
 - **Parameters:**
   - `id` (string): Unique identifier for the WebSocket connection.
-  - `blobUrl` (string): Azure Blob Storage URL of the audio file.
+  - `blobUrl` (string): Blob storage URL of the audio file.
 - **Behavior:**
   - Stops any currently playing teacher's choice content.
   - Starts streaming the new audio content unless system audio is playing.
@@ -39,7 +39,7 @@ Streams system-generated audio messages, which take precedence over teacher's ch
 
 - **Parameters:**
   - `id` (string): Unique identifier for the WebSocket connection.
-  - `blobUrl` (string): Azure Blob Storage URL of the system audio file.
+  - `blobUrl` (string): Blob storage URL of the system audio file.
 - **Behavior:**
   - Pauses teacher's choice content if it is currently playing.
   - Queues system audio messages and plays them sequentially.
@@ -188,7 +188,7 @@ Each connection maintains its own state:
   - The playback state is preserved to allow resuming after reconnection.
 
 - **Audio Data Errors:**
-  - If audio data cannot be fetched from Azure Blob Storage, an error is thrown.
+  - If audio data cannot be fetched from blob storage, an error is thrown.
 
 ---
 

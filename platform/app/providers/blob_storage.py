@@ -1,141 +1,49 @@
 """
-Azure Blob Storage provider.
+Blob storage provider interface and backend selection.
 
-Ported from backend-server/src/services/BlobService.js.
+Backends live in separate modules and are imported only when selected by
+STORAGE_BACKEND, so the Azure SDK is never needed for the default S3 backend:
+  - app.providers.s3_blob_storage     (S3-compatible, boto3)
+  - app.providers.azure_blob_storage  (Azure Blob, needs the ``azure`` extra)
 
 SECURITY:
-  - SAS tokens are NEVER logged.
-  - Connection string / account key are never returned to callers.
+  - SAS / presigned URLs are NEVER logged.
+  - Credentials are never returned to callers.
   - Short expiry defaults (1 hour) to minimise token exposure window.
-
-``BlobStorageProvider`` uses the ``azure.storage.blob.aio`` async client so
-upload/download/delete/user-delegation-key calls never block the event loop
-(see A4i-tech/.github#430). ``SASGenerator`` below stays on the synchronous
-``azure.storage.blob`` client since it is called from the non-async Vonage
-NCCO-building code path (``VonageStreamAction.get()`` / ``ActionAccumulator``).
 """
 
 from __future__ import annotations
 
 import logging
-from datetime import UTC, datetime, timedelta
+from abc import ABC, abstractmethod
 from typing import IO
 from urllib.parse import unquote, urlparse
-
-from azure.identity import DefaultAzureCredential
-from azure.identity.aio import DefaultAzureCredential as AsyncDefaultAzureCredential
-from azure.storage.blob import BlobSasPermissions, ContentSettings, generate_blob_sas
-from azure.storage.blob import BlobServiceClient as SyncBlobServiceClient
-from azure.storage.blob.aio import BlobServiceClient, ContainerClient
 
 from app.platform.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
 
-class BlobStorageProvider:
-    """Async-capable wrapper around Azure Blob Service Client.
-
-    Initialises credentials from settings in priority order:
-      1. azure_storage_connection_string
-      2. azure_storage_account_name + azure_storage_account_key  (shared-key SAS)
-      3. DefaultAzureCredential  (managed identity / user delegation SAS)
-    """
-
-    def __init__(self) -> None:
-        settings = get_settings()
-        self._account_name: str = settings.azure_storage_account_name
-        self._account_key: str | None = settings.azure_storage_account_key or None
-        self._use_shared_key: bool = bool(self._account_key)
-
-        conn_str = settings.azure_storage_connection_string
-        if conn_str:
-            self._client = BlobServiceClient.from_connection_string(conn_str)
-        elif self._account_name and self._account_key:
-            self._client = BlobServiceClient(
-                account_url=f"https://{self._account_name}.blob.core.windows.net",
-                credential=self._account_key,
-            )
-        else:
-            credential = AsyncDefaultAzureCredential()
-            self._use_shared_key = False
-            self._client = BlobServiceClient(
-                account_url=f"https://{self._account_name}.blob.core.windows.net",
-                credential=credential,
-            )
-
-    # ------------------------------------------------------------------
-    # Container helpers
-    # ------------------------------------------------------------------
-
-    def get_container_client(self, container: str) -> ContainerClient:
-        """Return a ContainerClient for *container*."""
-        return self._client.get_container_client(container)
-
-    # ------------------------------------------------------------------
-    # Core operations
-    # ------------------------------------------------------------------
-
+class BlobStorageProvider(ABC):
+    @abstractmethod
     async def upload_file(
         self,
         container: str,
         blob_name: str,
         data: bytes | IO[bytes],
         content_type: str = "application/octet-stream",
-    ) -> str:
-        """Upload *data* to *container*/*blob_name* and return the blob URL.
+    ) -> str: ...
 
-        *data* may be raw bytes or a readable binary stream — the Azure SDK
-        streams a file-like object in chunks rather than buffering it whole.
+    @abstractmethod
+    async def download_file(self, container: str, blob_name: str) -> bytes: ...
 
-        Raises on failure; caller is responsible for cleanup.
-        """
-        container_client = self._client.get_container_client(container)
-        blob_client = container_client.get_blob_client(blob_name)
-        await blob_client.upload_blob(
-            data,
-            overwrite=True,
-            content_settings=ContentSettings(content_type=content_type),
-        )
-        url: str = blob_client.url
-        logger.info("blob_storage: uploaded blob container=%s name=%s", container, blob_name)
-        return url
+    @abstractmethod
+    async def exists(self, container: str, blob_name: str) -> bool: ...
 
-    async def download_file(self, container: str, blob_name: str) -> bytes:
-        """Download blob *blob_name* from *container* and return raw bytes."""
-        container_client = self._client.get_container_client(container)
-        blob_client = container_client.get_blob_client(blob_name)
-        stream = await blob_client.download_blob()
-        data: bytes = await stream.readall()
-        logger.debug("blob_storage: downloaded blob container=%s name=%s size=%d", container, blob_name, len(data))
-        return data
+    @abstractmethod
+    async def delete_blob(self, container: str, blob_name: str) -> bool: ...
 
-    async def exists(self, container: str, blob_name: str) -> bool:
-        """Return True if *blob_name* already exists in *container*."""
-        container_client = self._client.get_container_client(container)
-        blob_client = container_client.get_blob_client(blob_name)
-        return await blob_client.exists()
-
-    async def download_from_url(self, blob_url: str) -> bytes:
-        """Download a blob given its full Azure URL and return raw bytes."""
-        container, blob_path = _parse_blob_url(blob_url)
-        return await self.download_file(container, blob_path)
-
-    async def delete_blob(self, container: str, blob_name: str) -> bool:
-        """Delete blob *blob_name* from *container*.
-
-        Returns True if deleted, False if not found.
-        """
-        try:
-            container_client = self._client.get_container_client(container)
-            blob_client = container_client.get_blob_client(blob_name)
-            await blob_client.delete_blob(delete_snapshots="include")
-            logger.info("blob_storage: deleted blob container=%s name=%s", container, blob_name)
-            return True
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("blob_storage: delete failed container=%s name=%s — %s", container, blob_name, exc)
-            return False
-
+    @abstractmethod
     async def generate_sas_url(
         self,
         container: str,
@@ -143,53 +51,19 @@ class BlobStorageProvider:
         expiry_hours: int = 1,
         read: bool = True,
         write: bool = False,
-    ) -> str:
-        """Return a SAS URL for *container*/*blob_name*.
+    ) -> str: ...
 
-        SECURITY: SAS token string is never logged.
-        """
-        now = datetime.now(UTC)
-        start = now - timedelta(minutes=5)   # small clock-skew buffer
-        expiry = now + timedelta(hours=expiry_hours)
+    @abstractmethod
+    def generate_sas_url_sync(self, container: str, blob_name: str, expiry_hours: int = 1) -> str: ...
 
-        permissions = BlobSasPermissions(read=read, write=write)
+    @abstractmethod
+    def blob_url(self, container: str, blob_name: str) -> str: ...
 
-        if self._use_shared_key and self._account_key:
-            sas_token = generate_blob_sas(
-                account_name=self._account_name,
-                container_name=container,
-                blob_name=blob_name,
-                account_key=self._account_key,
-                permission=permissions,
-                expiry=expiry,
-                start=start,
-            )
-        else:
-            # User delegation SAS via managed identity
-            user_delegation_key = await self._client.get_user_delegation_key(start, expiry)
-            sas_token = generate_blob_sas(
-                account_name=self._account_name,
-                container_name=container,
-                blob_name=blob_name,
-                user_delegation_key=user_delegation_key,
-                permission=permissions,
-                expiry=expiry,
-                start=start,
-            )
-
-        blob_url = (
-            f"https://{self._account_name}.blob.core.windows.net"
-            f"/{container}/{blob_name}"
-        )
-        # Intentionally NOT logging the full URL with token attached
-        logger.info("blob_storage: generated SAS url container=%s name=%s expiry_hours=%d", container, blob_name, expiry_hours)
-        return f"{blob_url}?{sas_token}"
+    async def download_from_url(self, blob_url: str) -> bytes:
+        container, blob_path = _parse_blob_url(blob_url)
+        return await self.download_file(container, blob_path)
 
     async def get_sas_url_from_blob_url(self, blob_url: str, expiry_hours: int = 1) -> str:
-        """Given a full Azure Blob URL, return a new read-only SAS URL.
-
-        Mirrors BlobService.getURLWithSAS from the JS implementation.
-        """
         container, blob_path = _parse_blob_url(blob_url)
         return await self.generate_sas_url(container, blob_path, expiry_hours=expiry_hours)
 
@@ -199,21 +73,12 @@ class BlobStorageProvider:
         blob_name: str,
         expiry_hours: int = 1,
     ) -> str:
-        """Return a read-write SAS URL for direct client upload.
-
-        Mirrors BlobService.getUploadSASToken from the JS implementation.
-        """
         return await self.generate_sas_url(
             container, blob_name, expiry_hours=expiry_hours, read=True, write=True
         )
 
     def extract_blob_path_without_extension(self, blob_url: str) -> str:
-        """Extract blob path (after container) without file extension.
-
-        Mirrors BlobService.extractBlobPathWithoutExtension.
-        """
         _container, blob_path = _parse_blob_url(blob_url)
-        # Strip last extension
         dot_pos = blob_path.rfind(".")
         if dot_pos > 0:
             return blob_path[:dot_pos]
@@ -226,66 +91,24 @@ class BlobStorageProvider:
 
 
 class SASGenerator:
-    """Synchronous SAS URL generator for use in Vonage action get() calls.
+    """Synchronous signed-URL generator for use in Vonage action get() calls.
 
-    Mirrors IVRv2/app/utils/sas_gen.py SASGen.get_url_with_sas().
-    Falls back to returning the original URL when Azure storage is disabled.
+    Falls back to returning the original URL when signing is disabled or fails.
     """
 
     def __init__(self) -> None:
-        settings = get_settings()
-        self._account_name: str = settings.azure_storage_account_name
-        self._account_key: str | None = (
-            settings.accountkey or settings.azure_storage_account_key or None
-        )
-        self._azure_enabled: bool = settings.azure_blob_sas_enabled
+        self._azure_enabled: bool = get_settings().azure_blob_sas_enabled
         self._sas_expiry_hours: int = 1
-        self._use_account_key: bool = bool(self._account_name and self._account_key)
 
-    def get_url_with_sas(self, url: str) -> str:  # noqa: C901
-        """Return *url* with a read SAS token appended, or the original URL on error."""
+    def get_url_with_sas(self, url: str) -> str:
+        """Return *url* with a read token appended, or the original URL on error."""
         if not self._azure_enabled:
             return url
         try:
-            decoded_url = unquote(url)
-            parsed = urlparse(decoded_url)
-            parts = [p for p in parsed.path.split("/") if p]
-            if len(parts) < 2:
-                return url
-            container_name = parts[0]
-            blob_path = "/".join(parts[1:])
-
-            expiry = datetime.now(UTC) + timedelta(hours=self._sas_expiry_hours)
-            start = datetime.now(UTC) - timedelta(minutes=5)
-
-            if self._use_account_key:
-                sas_token = generate_blob_sas(
-                    account_name=self._account_name,
-                    container_name=container_name,
-                    blob_name=blob_path,
-                    account_key=self._account_key,
-                    permission=BlobSasPermissions(read=True),
-                    expiry=expiry,
-                    start=start,
-                )
-            else:
-                client = SyncBlobServiceClient(
-                    account_url=f"https://{self._account_name}.blob.core.windows.net",
-                    credential=DefaultAzureCredential(),
-                )
-                udk = client.get_user_delegation_key(start, expiry)
-                sas_token = generate_blob_sas(
-                    account_name=self._account_name,
-                    container_name=container_name,
-                    blob_name=blob_path,
-                    user_delegation_key=udk,
-                    permission=BlobSasPermissions(read=True),
-                    expiry=expiry,
-                    start=start,
-                )
-
-            blob_base = f"https://{self._account_name}.blob.core.windows.net/{container_name}/{blob_path}"
-            return f"{blob_base}?{sas_token}"
+            container, blob_path = _parse_blob_url(url)
+            return get_blob_storage_provider().generate_sas_url_sync(
+                container, blob_path, self._sas_expiry_hours
+            )
         except Exception as exc:  # noqa: BLE001
             logger.warning("SASGenerator: failed to generate SAS URL — %s", exc)
             return url
@@ -300,25 +123,40 @@ _provider: BlobStorageProvider | None = None
 
 
 def get_blob_storage_provider() -> BlobStorageProvider:
-    """Return the process-wide BlobStorageProvider singleton.
-
-    Reuses one aio BlobServiceClient (and its aiohttp session) across calls
-    instead of opening a new session per request.
-    """
+    """Return the process-wide provider, built on first call from STORAGE_BACKEND."""
     global _provider
     if _provider is None:
-        _provider = BlobStorageProvider()
+        _provider = _build_provider()
     return _provider
 
 
-def _parse_blob_url(blob_url: str) -> tuple[str, str]:
-    """Parse an Azure Blob Storage URL into (container_name, blob_path).
+def _build_provider() -> BlobStorageProvider:
+    backend = get_settings().storage_backend
+    if backend == "s3":
+        from app.providers.s3_blob_storage import S3BlobStorageProvider  # noqa: PLC0415
 
+        return S3BlobStorageProvider()
+    if backend == "azure":
+        try:
+            from app.providers.azure_blob_storage import AzureBlobStorageProvider  # noqa: PLC0415
+        except ImportError as exc:
+            raise RuntimeError(
+                "STORAGE_BACKEND=azure needs the azure-storage-blob package. "
+                "Install it with 'poetry install -E azure' or set STORAGE_BACKEND=s3."
+            ) from exc
+        return AzureBlobStorageProvider()
+    raise ValueError(f"STORAGE_BACKEND={backend!r} is not supported. Set it to 'azure' or 's3'.")
+
+
+def _parse_blob_url(blob_url: str) -> tuple[str, str]:
+    """Parse a blob URL into (container_name, blob_path), ignoring the host.
+
+    Works for Azure (``host/container/blob``) and path-style S3 (``host/bucket/key``).
     Raises ValueError on invalid URL format.
     """
 
     parsed = urlparse(blob_url)
-    parts = [p for p in parsed.path.split("/") if p]
+    parts = [unquote(p) for p in parsed.path.split("/") if p]
     if len(parts) < 2:
         raise ValueError(f"Invalid blob URL format: {blob_url!r}")
     container = parts[0]
