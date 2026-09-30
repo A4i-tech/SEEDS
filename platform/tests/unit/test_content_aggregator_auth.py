@@ -498,10 +498,10 @@ class TestAggregatorTokenControllerResponse:
         await _seed_client(mock_db)
 
         result = await issue_token(
-            ContentAggregatorTokenRequest(
+            Response(),
+            body=ContentAggregatorTokenRequest(
                 client_id="partner-1", client_secret="super-secret", scope="content:read"
             ),
-            Response(),
             auth=auth,
         )
 
@@ -519,10 +519,10 @@ class TestAggregatorTokenControllerResponse:
         issued = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
 
         result = await refresh_token(
-            ContentAggregatorRefreshRequest(
+            Response(),
+            body=ContentAggregatorRefreshRequest(
                 client_id="partner-1", client_secret="super-secret", refresh_token=issued["refresh_token"]
             ),
-            Response(),
             auth=auth,
         )
 
