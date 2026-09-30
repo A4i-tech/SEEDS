@@ -293,8 +293,7 @@ class TestContentAggregatorAuth:
         )
         resp = await client.post(
             "/v1/auth/token",
-            data={
-                "grant_type": "client_credentials",
+            json={
                 "client_id": "partner-1",
                 "client_secret": "super-secret",
                 "scope": "content:read",
@@ -319,8 +318,7 @@ class TestContentAggregatorAuth:
         )
         issued = await client.post(
             "/v1/auth/token",
-            data={
-                "grant_type": "client_credentials",
+            json={
                 "client_id": "partner-1",
                 "client_secret": "super-secret",
                 "scope": "content:read",
@@ -335,13 +333,11 @@ class TestContentAggregatorAuth:
         assert resp.headers["pragma"] == "no-cache"
 
     @pytest.mark.asyncio
-    async def test_issue_token_rejects_invalid_grant_type(self, client, mock_db):
+    async def test_issue_token_rejects_missing_client_secret(self, client, mock_db):
         resp = await client.post(
             "/v1/auth/token",
-            data={
-                "grant_type": "password",
+            json={
                 "client_id": "partner-1",
-                "client_secret": "super-secret",
                 "scope": "content:read",
             },
         )
@@ -351,8 +347,7 @@ class TestContentAggregatorAuth:
     async def test_issue_token_invalid_client_returns_oauth_error(self, client, mock_db):
         resp = await client.post(
             "/v1/auth/token",
-            data={
-                "grant_type": "client_credentials",
+            json={
                 "client_id": "does-not-exist",
                 "client_secret": "whatever",
                 "scope": "content:read",
