@@ -238,6 +238,8 @@ class ConferenceCall:
 
         if self._capture_session is None and (transcriber is None or hold_detector is None):
             logger.warning("conference_service: remote audio relay disabled — init failed")
+            self._remote_audio_queue = None
+            self._remote_audio_task = None
             return
 
         try:

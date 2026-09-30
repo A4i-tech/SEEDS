@@ -27,7 +27,7 @@ class WebsiteResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
     id: str = Field(validation_alias="_id")
-    snippet: str | None = None
+    api_base: str | None = None
     site_id: str | None = None
     project_id: str | None = None
     created_at: Any = None
@@ -39,7 +39,7 @@ class WebsiteResponse(BaseModel):
         return str(v)
 
     @classmethod
-    def from_doc(cls, doc: dict, snippet: str | None = None) -> WebsiteResponse:
+    def from_doc(cls, doc: dict, api_base: str | None = None) -> WebsiteResponse:
         model = cls.model_validate(doc)
-        model.snippet = snippet
+        model.api_base = api_base
         return model

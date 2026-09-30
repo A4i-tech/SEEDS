@@ -24,3 +24,4 @@ class AudioContentState(BaseModel):
     position_seconds: float | None = Field(default=None, ge=0)
     duration_seconds: float | None = Field(default=None, ge=0)
     speed: float = Field(default=1.0, ge=0.5, le=2.0)
+    last_refusal: str | None = None

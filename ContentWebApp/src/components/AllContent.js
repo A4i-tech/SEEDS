@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { useContent } from "../hooks/useContent";
 import { useContentAggregatorSync } from "../hooks/useContentAggregatorSync";
@@ -13,12 +13,15 @@ import ContentTab from "./AllContent/ContentTab/ContentTab";
 import IVRTab from "./AllContent/IVRTab/IVRTab";
 import RegistrationTab from "./AllContent/RegistrationTab/RegistrationTab";
 import AnalyticsTab from "./AllContent/AnalyticsTab/AnalyticsTab";
+import LocalizationTab from "./AllContent/LocalizationTab/LocalizationTab";
+import RemediationTab from "./AllContent/RemediationTab/RemediationTab";
 import { USER_ROLES } from "../Constants";
 import "./AllContent/AllContent.css";
 import "./AllContent/shared/responsive.css";
 
 const AllContent = () => {
-  const [activeTab, setActiveTab] = useState("content");
+  const [searchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState(searchParams.get("tab") || "content");
   const [updateIVRStatus, setUpdateIVRStatus] = useState("");
   const [isUpdatingIVR, setIsUpdatingIVR] = useState(false);
   const [currentUser, setCurrentUser] = useState("User");
@@ -79,6 +82,7 @@ const AllContent = () => {
   const canViewRegistration =
     currentUserRole === USER_ROLES.TENANT || currentUserRole === USER_ROLES.SCHOOL_ADMIN;
   const canViewAnalytics = canViewRegistration;
+  const canViewLocalization = canViewRegistration;
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -102,10 +106,14 @@ const AllContent = () => {
       setActiveTab(canViewRegistration ? "registration" : canViewAnalytics ? "analytics" : "content");
       return;
     }
-    if ((!canViewRegistration && activeTab === "registration") || (!canViewAnalytics && activeTab === "analytics")) {
+    if (
+      (!canViewRegistration && activeTab === "registration") ||
+      (!canViewAnalytics && activeTab === "analytics") ||
+      (!canViewLocalization && activeTab === "localization")
+    ) {
       setActiveTab("content");
     }
-  }, [activeTab, canViewAnalytics, canViewContent, canViewRegistration]);
+  }, [activeTab, canViewAnalytics, canViewContent, canViewLocalization, canViewRegistration]);
 
   const handleUpdateIVR = useCallback(async () => {
     setIsUpdatingIVR(true);
@@ -148,11 +156,13 @@ const AllContent = () => {
           showContent={canViewContent}
           showRegistration={canViewRegistration}
           showAnalytics={canViewAnalytics}
+          showLocalization={canViewLocalization}
+          showRemediation={canViewContent}
         />
 
         {updateIVRStatus && <div className="status-message">{updateIVRStatus}</div>}
 
-        {canViewContent && activeTab !== "registration" && activeTab !== "analytics" && (
+        {canViewContent && (activeTab === "content" || activeTab === "ivr") && (
           <div className="tabs-container">
             <button
               type="button"
@@ -201,7 +211,11 @@ const AllContent = () => {
 
         {canViewContent && activeTab === "ivr" && <IVRTab />}
 
+        {canViewContent && activeTab === "remediation" && <RemediationTab />}
+
         {canViewAnalytics && activeTab === "analytics" && <AnalyticsTab />}
+
+        {canViewLocalization && activeTab === "localization" && <LocalizationTab />}
 
         {canViewRegistration && activeTab === "registration" && (
           <RegistrationTab
