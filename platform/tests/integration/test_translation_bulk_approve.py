@@ -74,3 +74,18 @@ async def test_bulk_approve_forbids_school_admin_role(client):
     assert resp.status_code == 403
 
 
+async def test_bulk_approve_denies_a_different_tenants_site(client, mock_db):
+    from app.repositories.website_repository import WebsiteRepository
+
+    await WebsiteRepository.ensure_indexes(mock_db)
+    await WebsiteRepository(mock_db).create("t1", None, "acme.com", "site1")
+    await _seed(mock_db)
+
+    resp = await client.post(
+        "/translations/bulk-approve?site_id=site1",
+        json={},
+        headers={"Authorization": f"Bearer {_token('tenant', user_id='t2')}"},
+    )
+    assert resp.status_code == 404
+
+
