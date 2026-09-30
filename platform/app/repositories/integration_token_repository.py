@@ -9,7 +9,7 @@ from app.models.content_aggregator import IntegrationToken, IntegrationTokenType
 from app.platform.auth.refresh_tokens import (
     RefreshTokenExpiredError,
     RefreshTokenNotFoundError,
-    RefreshTokenRevokedError,
+    RefreshTokenReusedError,
 )
 from app.repositories.base_repository import BaseRepository
 
@@ -25,6 +25,7 @@ class NewRefreshToken:
     tenant_ids: list[str]
     scope: str
     expires_at: datetime
+    family_expires_at: datetime
     created_at: datetime
 
 
@@ -50,7 +51,10 @@ class IntegrationTokenRepository(BaseRepository):
                 "tenant_ids": token.tenant_ids,
                 "scope": token.scope,
                 "expires_at": token.expires_at,
+                "family_expires_at": token.family_expires_at,
                 "revoked": False,
+                "revoked_reason": None,
+                "consumed_at": None,
                 "created_at": token.created_at,
             }
         )
@@ -59,12 +63,32 @@ class IntegrationTokenRepository(BaseRepository):
         doc = await self._col.find_one({"token_id": token_id})
         return IntegrationToken.from_mongo(doc) if doc is not None else None
 
-    async def find_active_by_token_id(self, token_id: str) -> IntegrationToken:
+    async def try_consume(self, token_id: str) -> IntegrationToken:
+        now = datetime.now(tz=UTC)
+        doc = await self._col.find_one_and_update(
+            {
+                "token_id": token_id,
+                "type": IntegrationTokenType.REFRESH.value,
+                "revoked": False,
+                "expires_at": {"$gt": now},
+            },
+            {"$set": {"revoked": True, "revoked_reason": "consumed", "consumed_at": now}},
+        )
+        if doc is not None:
+            return IntegrationToken.from_mongo(doc)
+
         existing = await self.find_by_token_id(token_id)
         if existing is None or existing.type != IntegrationTokenType.REFRESH:
             raise RefreshTokenNotFoundError
-        if existing.revoked:
-            raise RefreshTokenRevokedError
-        if _as_utc(existing.expires_at) <= datetime.now(tz=UTC):
+        if not existing.revoked:
             raise RefreshTokenExpiredError
-        return existing
+        # Already consumed or explicitly revoked. The integration path does not
+        # keep a raw-token replay cache/grace window, so any presentation of a
+        # revoked token is treated as reuse and revokes the whole client.
+        raise RefreshTokenReusedError(existing.client_id)
+
+    async def revoke_all_for_client(self, client_id: str, *, reason: str | None = None) -> None:
+        await self._col.update_many(
+            {"client_id": client_id},
+            {"$set": {"revoked": True, "revoked_reason": reason}},
+        )
