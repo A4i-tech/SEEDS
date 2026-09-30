@@ -97,7 +97,7 @@ async def test_stale_content_snapshot_overwrites_concurrent_title_edit(mock_db):
         new=AsyncMock(side_effect=_transcode_and_concurrently_edit_title),
     ):
         job_doc = await mock_db["content_jobs"].find_one({"_id": job_id})
-        await _process_audio_content_job(job_doc, job_repo, content_repo, mock_blob)
+        await _process_audio_content_job(job_doc, job_repo, content_repo, mock_blob, mock_db)
 
     final_doc = await mock_db["contentsV3"].find_one({"_id": ObjectId(content_id)})
     assert final_doc["title"]["english"] == "New Title From Concurrent Edit", (
@@ -173,7 +173,7 @@ async def test_pull_model_tts_updates_audio_url_without_clobbering_concurrent_ed
             return_value="https://myaccount.blob.core.windows.net/output-container/tts.mp3"
         )
         job_doc = await mock_db["content_jobs"].find_one({"_id": job_id})
-        await _process_audio_content_job(job_doc, job_repo, content_repo, mock_blob)
+        await _process_audio_content_job(job_doc, job_repo, content_repo, mock_blob, mock_db)
 
     final_doc = await mock_db["contentsV3"].find_one({"_id": ObjectId(content_id)})
     assert final_doc["title"]["english"] == "New Title From Concurrent Edit", (
