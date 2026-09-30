@@ -298,19 +298,41 @@ async def test_attempt_delivery_invalid_token_recorded_as_secret_unreadable(webh
 
 
 @pytest.mark.asyncio
-async def test_attempt_delivery_unrelated_exception_propagates(webhook_repo, delivery_repo):
+async def test_attempt_delivery_unrelated_exception_recorded_as_processing_failed(webhook_repo, delivery_repo):
     wh = await _make_webhook(webhook_repo)
-    attempt = await _make_attempt(delivery_repo, wh)
+    attempt = await _make_attempt(delivery_repo, wh, attempt_number=1)
     patcher, fake = _patch_client([])
     with patcher, patch(
         "app.services.webhook_delivery_service.decrypt_secret",
         side_effect=RuntimeError("boom"),
     ):
-        with pytest.raises(RuntimeError):
-            await attempt_delivery(attempt, webhook_repo, delivery_repo)
+        await attempt_delivery(attempt, webhook_repo, delivery_repo)
     assert fake.calls == []
     doc = await delivery_repo._col.find_one({"_id": attempt["_id"]})
-    assert doc["status"] == "pending"
+    assert doc["succeeded"] is False
+    assert doc["status"] == "failed"
+    assert doc["error"] == "processing_failed"
+    pending = await delivery_repo._col.find_one({"webhookId": str(wh["_id"]), "status": "pending"})
+    assert pending is not None
+    assert pending["attemptNumber"] == 2
+
+
+@pytest.mark.asyncio
+async def test_attempt_delivery_missing_secret_field_recorded_as_processing_failed(webhook_repo, delivery_repo):
+    wh = await _make_webhook(webhook_repo)
+    await webhook_repo._col.update_one({"_id": wh["_id"]}, {"$unset": {"secret_encrypted": ""}})
+    attempt = await _make_attempt(delivery_repo, wh, attempt_number=1)
+    patcher, fake = _patch_client([])
+    with patcher:
+        await attempt_delivery(attempt, webhook_repo, delivery_repo)
+    assert fake.calls == []
+    doc = await delivery_repo._col.find_one({"_id": attempt["_id"]})
+    assert doc["succeeded"] is False
+    assert doc["status"] == "failed"
+    assert doc["error"] == "processing_failed"
+    pending = await delivery_repo._col.find_one({"webhookId": str(wh["_id"]), "status": "pending"})
+    assert pending is not None
+    assert pending["attemptNumber"] == 2
 
 
 @pytest.mark.asyncio
