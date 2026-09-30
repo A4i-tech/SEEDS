@@ -539,13 +539,17 @@ function stopAudioContent(id) {
  * @param {string} id - Unique identifier for the connection.
  */
 function closeConnection(id) {
+  sessionSpeeds.delete(id);
+
   const connection = connectionManager.getConnection(id);
 
-  if (!connection) throw new Error("WebSocket connection not found");
+  if (!connection) {
+    logger.info(`Conference end for ID: ${id}; no active WebSocket connection (already disconnected)`);
+    return;
+  }
 
   const { ws, state } = connection;
   state.isClosed = true;
-  sessionSpeeds.delete(id);
   ws.close();
   sendPlaybackStatus(id, PlaybackStatus.STOPPED);
   logger.info(`WebSocket connection closed for ID: ${id}`);

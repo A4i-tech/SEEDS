@@ -723,6 +723,26 @@ describe("WebSocketService", () => {
       expect(websocketService.getSessionSpeed("test-client")).toBe(1.0);
     });
 
+    test("closeConnection still clears the session speed after an accidental disconnect (no active connection)", async () => {
+      await websocketService.setPlaybackSpeed("test-client", 1.5);
+      websocketService.handleAccidentalDisconnection("test-client");
+      expect(websocketService.getSessionSpeed("test-client")).toBe(1.5);
+
+      connectionManager.getConnection.mockImplementation((id) =>
+        id === "confv2server" ? mockControlConnection : undefined
+      );
+
+      expect(() => websocketService.closeConnection("test-client")).not.toThrow();
+      expect(websocketService.getSessionSpeed("test-client")).toBe(1.0);
+    });
+
+    test("a subsequent session does not inherit a stale speed left by a prior session for the same ID", async () => {
+      await websocketService.setPlaybackSpeed("test-client", 1.5);
+      websocketService.closeConnection("test-client");
+
+      expect(websocketService.getSessionSpeed("test-client")).toBe(1.0);
+    });
+
     test("preserves the teacher's requested session-level speed when the current item's variant is unavailable", async () => {
       mockState.audioContentState = {
         containerName: "container",
