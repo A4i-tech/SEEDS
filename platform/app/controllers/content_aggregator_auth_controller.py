@@ -64,18 +64,13 @@ async def issue_token(
 )
 async def refresh_token(
     response: Response,
-    body: ContentAggregatorRefreshRequest = Depends(ContentAggregatorRefreshRequest.as_form),
+    body: ContentAggregatorRefreshRequest,
     auth: ContentAggregatorAuth = Depends(get_content_aggregator_auth),
 ) -> AggregatorTokenResponse | JSONResponse:
     try:
-        result = await auth.refresh_token(
-            client_id=body.client_id,
-            client_secret=body.client_secret,
-            refresh_token=body.refresh_token,
-        )
+        result = await auth.refresh_token(refresh_token=body.refresh_token)
     except UnauthorizedError as exc:
-        error = "invalid_client" if str(exc) == "Invalid client credentials" else "invalid_grant"
-        return _oauth_error(error, str(exc), 401)
+        return _oauth_error("invalid_grant", str(exc), 401)
     except AppError as exc:
         error = "invalid_grant" if exc.code == "REFRESH_TOKEN_EXPIRED" else "invalid_client"
         return _oauth_error(error, exc.message, exc.status_code)

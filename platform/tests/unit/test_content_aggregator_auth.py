@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import ast
-import asyncio
-import hashlib
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -14,25 +12,22 @@ from app.models.requests.content_aggregator_requests import ContentAggregatorTok
 from app.platform.auth.hashing import hash_password
 from app.platform.error_handling import AppError, UnauthorizedError
 from app.platform.settings import Settings
-from app.platform.telemetry import configure_telemetry
-from app.repositories import integration_token_repository
 from app.services.content_aggregator.auth import ContentAggregatorAuth
 from tests.support.mongomock_async import AsyncMongoMockClient
 
 PACKAGE_ROOT = Path(__file__).resolve().parents[2] / "app"
 
 
-def _stored_token_id(raw_token: str) -> str:
-    return hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
-
-
-def _disable_replay_grace_window(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(
-        integration_token_repository, "REPLAY_GRACE_WINDOW", timedelta(seconds=-1)
+def _decode_access_token(token: str, settings: Settings) -> dict:
+    return jose_jwt.decode(
+        token,
+        settings.secret_key,
+        algorithms=["HS256"],
+        issuer="content-aggregator",
     )
 
 
-def _decode_access_token(token: str, settings: Settings) -> dict:
+def _decode_refresh_token(token: str, settings: Settings) -> dict:
     return jose_jwt.decode(
         token,
         settings.secret_key,
@@ -93,20 +88,14 @@ class TestIssueTokenSuccess:
         assert result["access_token"]
         assert result["refresh_token"]
 
-    async def test_refresh_token_persisted(self, mock_db, auth):
+    async def test_refresh_token_is_a_jwt_persisted_by_jti(self, mock_db, auth, settings):
         await _seed_client(mock_db)
 
         result = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
+        claims = _decode_refresh_token(result["refresh_token"], settings)
 
-        stored = await mock_db["integrationTokens"].find_one(
-            {"token_id": _stored_token_id(result["refresh_token"])}
-        )
-        raw_stored = await mock_db["integrationTokens"].find_one(
-            {"token_id": result["refresh_token"]}
-        )
+        stored = await mock_db["integrationTokens"].find_one({"token_id": claims["jti"]})
         assert stored is not None
-        assert stored["token_id"] != result["refresh_token"]
-        assert raw_stored is None
         assert stored["client_id"] == "partner-1"
         assert stored["type"] == "refresh"
         assert stored["revoked"] is False
@@ -191,225 +180,99 @@ class TestRequestValidation:
             ContentAggregatorTokenRequest(client_id="x", client_secret="")
 
 
-async def _seed_expired_refresh_token(
-    mock_db,
-    *,
-    token_id: str,
-    client_id: str = "partner-1",
-    tenant_ids: list[str] | None = None,
-    scope: str = "content:read",
-    revoked: bool = False,
-) -> None:
-    await mock_db["integrationTokens"].insert_one(
-        {
-            "token_id": _stored_token_id(token_id),
-            "client_id": client_id,
-            "type": "refresh",
-            "tenant_ids": tenant_ids if tenant_ids is not None else ["tenant-a"],
-            "scope": scope,
-            "expires_at": datetime.now(tz=UTC) - timedelta(days=1),
-            "family_expires_at": datetime.now(tz=UTC) - timedelta(days=1),
-            "revoked": revoked,
-            "created_at": datetime.now(tz=UTC) - timedelta(days=31),
-        }
-    )
-
-
 class TestRefreshTokenSuccess:
-    async def test_rotation_returns_new_pair_and_revokes_old(self, mock_db, auth):
+    async def test_refresh_does_not_require_client_id_or_client_secret(self, mock_db, auth):
         await _seed_client(mock_db)
         issued = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
-        old_refresh = issued["refresh_token"]
 
-        result = await auth.refresh_token("partner-1", "super-secret", old_refresh)
+        result = await auth.refresh_token(issued["refresh_token"])
 
         assert set(result.keys()) == {"access_token", "refresh_token", "expires_in", "token_type", "scope"}
-        assert result["refresh_token"] != old_refresh
 
-        old_doc = await mock_db["integrationTokens"].find_one(
-            {"token_id": _stored_token_id(old_refresh)}
-        )
-        assert old_doc["revoked"] is True
+    async def test_refresh_token_is_not_rotated(self, mock_db, auth):
+        await _seed_client(mock_db)
+        issued = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
 
-        new_doc = await mock_db["integrationTokens"].find_one(
-            {"token_id": _stored_token_id(result["refresh_token"])}
-        )
-        assert new_doc is not None
-        assert new_doc["revoked"] is False
+        result = await auth.refresh_token(issued["refresh_token"])
 
-    async def test_rotated_access_token_carries_original_scopes_not_escalated(self, mock_db, auth, settings):
+        assert result["refresh_token"] == issued["refresh_token"]
+
+    async def test_same_refresh_token_can_be_used_multiple_times(self, mock_db, auth):
+        await _seed_client(mock_db)
+        issued = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
+
+        first = await auth.refresh_token(issued["refresh_token"])
+        second = await auth.refresh_token(issued["refresh_token"])
+
+        assert first["refresh_token"] == issued["refresh_token"]
+        assert second["refresh_token"] == issued["refresh_token"]
+
+    async def test_refresh_does_not_write_to_integration_token_replays(self, mock_db, auth):
+        await _seed_client(mock_db)
+        issued = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
+
+        await auth.refresh_token(issued["refresh_token"])
+
+        assert "integrationTokenReplays" not in await mock_db.list_collection_names()
+
+    async def test_refreshed_access_token_carries_original_scopes_not_escalated(self, mock_db, auth, settings):
         await _seed_client(mock_db, allowed_scopes=["content:read", "content:write"])
         issued = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
 
-        result = await auth.refresh_token("partner-1", "super-secret", issued["refresh_token"])
+        result = await auth.refresh_token(issued["refresh_token"])
         payload = _decode_access_token(result["access_token"], settings)
 
         assert payload["scope"] == "content:read"
 
-    async def test_rotated_access_token_carries_original_tenant_ids(self, mock_db, auth, settings):
+    async def test_refreshed_access_token_carries_original_tenant_ids(self, mock_db, auth, settings):
         await _seed_client(mock_db, tenant_ids=["tenant-a", "tenant-b"])
         issued = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
 
-        result = await auth.refresh_token("partner-1", "super-secret", issued["refresh_token"])
+        result = await auth.refresh_token(issued["refresh_token"])
         payload = _decode_access_token(result["access_token"], settings)
 
         assert payload["tenant_ids"] == ["tenant-a", "tenant-b"]
 
-    async def test_old_refresh_token_unusable_after_rotation(self, mock_db, auth, settings, monkeypatch):
-        _disable_replay_grace_window(monkeypatch)
-        configure_telemetry(settings)
+
+class TestRefreshTokenExpiredOrRevoked:
+    async def test_expired_refresh_token_raises_distinct_error_code(self, mock_db, auth, settings):
         await _seed_client(mock_db)
         issued = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
-        old_refresh = issued["refresh_token"]
-
-        await auth.refresh_token("partner-1", "super-secret", old_refresh)
-
-        with pytest.raises(UnauthorizedError):
-            await auth.refresh_token("partner-1", "super-secret", old_refresh)
-
-
-class TestRefreshTokenReuseDetection:
-    async def test_replaying_revoked_token_revokes_all_tokens_for_client(
-        self, mock_db, auth, settings, monkeypatch
-    ):
-        configure_telemetry(settings)
-        await _seed_client(mock_db)
-        issued = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
-        root_refresh = issued["refresh_token"]
-        rotated = await auth.refresh_token("partner-1", "super-secret", root_refresh)
-        _disable_replay_grace_window(monkeypatch)
-
-        with pytest.raises(UnauthorizedError):
-            await auth.refresh_token("partner-1", "super-secret", root_refresh)
-
-        with pytest.raises(UnauthorizedError):
-            await auth.refresh_token("partner-1", "super-secret", rotated["refresh_token"])
-
-        docs = [doc async for doc in mock_db["integrationTokens"].find({"client_id": "partner-1"})]
-        assert len(docs) == 2
-        assert all(doc["revoked"] is True for doc in docs)
-
-    async def test_replay_revokes_other_families_for_same_client(
-        self, mock_db, auth, settings, monkeypatch
-    ):
-        configure_telemetry(settings)
-        await _seed_client(mock_db)
-        family_a = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
-        family_b = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
-
-        await auth.refresh_token("partner-1", "super-secret", family_a["refresh_token"])
-        _disable_replay_grace_window(monkeypatch)
-
-        with pytest.raises(UnauthorizedError):
-            await auth.refresh_token("partner-1", "super-secret", family_a["refresh_token"])
-
-        other_family_doc = await mock_db["integrationTokens"].find_one(
-            {"token_id": _stored_token_id(family_b["refresh_token"])}
+        claims = _decode_refresh_token(issued["refresh_token"], settings)
+        await mock_db["integrationTokens"].update_one(
+            {"token_id": claims["jti"]},
+            {"$set": {"expires_at": datetime.now(tz=UTC) - timedelta(days=1)}},
         )
-        assert other_family_doc["revoked"] is True
-
-    async def test_replay_persists_revocation_reason(self, mock_db, auth, settings, monkeypatch):
-        configure_telemetry(settings)
-        await _seed_client(mock_db)
-        issued = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
-        root_refresh = issued["refresh_token"]
-        await auth.refresh_token("partner-1", "super-secret", root_refresh)
-        _disable_replay_grace_window(monkeypatch)
-
-        with pytest.raises(UnauthorizedError):
-            await auth.refresh_token("partner-1", "super-secret", root_refresh)
-
-        docs = [doc async for doc in mock_db["integrationTokens"].find({"client_id": "partner-1"})]
-        assert all(doc["revoked_reason"] == "consumed" for doc in docs)
-
-
-class TestRefreshTokenConcurrency:
-    async def test_concurrent_refresh_within_grace_window_both_get_winners_pair(
-        self, mock_db, auth, settings
-    ):
-        configure_telemetry(settings)
-        await _seed_client(mock_db)
-        issued = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
-        root_refresh = issued["refresh_token"]
-
-        results = await asyncio.gather(
-            auth.refresh_token("partner-1", "super-secret", root_refresh),
-            auth.refresh_token("partner-1", "super-secret", root_refresh),
-            return_exceptions=True,
-        )
-
-        successes = [r for r in results if not isinstance(r, BaseException)]
-        failures = [r for r in results if isinstance(r, BaseException)]
-        assert len(successes) == 2
-        assert len(failures) == 0
-        assert successes[0]["refresh_token"] == successes[1]["refresh_token"]
-
-    async def test_repository_level_double_consume_is_race_safe(self, mock_db):
-        from app.platform.auth.refresh_tokens import RefreshTokenReusedError
-        from app.repositories.integration_token_repository import (
-            IntegrationTokenRepository,
-            NewRefreshToken,
-        )
-
-        repo = IntegrationTokenRepository(mock_db)
-        await repo.insert_refresh_token(
-            NewRefreshToken(
-                token_id="race-token",
-                client_id="partner-1",
-                tenant_ids=["tenant-a"],
-                scope="content:read",
-                expires_at=datetime.now(tz=UTC) + timedelta(days=1),
-                family_expires_at=datetime.now(tz=UTC) + timedelta(days=1),
-                created_at=datetime.now(tz=UTC),
-            )
-        )
-
-        first = await repo.try_consume("race-token")
-        assert first is not None
-
-        with pytest.raises(RefreshTokenReusedError):
-            await repo.try_consume("race-token")
-
-
-class TestRefreshTokenExpired:
-    async def test_expired_token_raises_distinct_error_code(self, mock_db, auth):
-        await _seed_client(mock_db)
-        await _seed_expired_refresh_token(mock_db, token_id="expired-refresh-token")
 
         with pytest.raises(AppError) as exc_info:
-            await auth.refresh_token("partner-1", "super-secret", "expired-refresh-token")
+            await auth.refresh_token(issued["refresh_token"])
         assert exc_info.value.code == "REFRESH_TOKEN_EXPIRED"
         assert exc_info.value.status_code == 401
 
-    async def test_expired_unconsumed_token_does_not_trigger_mass_revocation(self, mock_db, auth):
+    async def test_revoked_refresh_token_rejected(self, mock_db, auth, settings):
         await _seed_client(mock_db)
-        await _seed_expired_refresh_token(mock_db, token_id="expired-refresh-token")
-        sibling = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
-
-        with pytest.raises(AppError):
-            await auth.refresh_token("partner-1", "super-secret", "expired-refresh-token")
-
-        expired_doc = await mock_db["integrationTokens"].find_one(
-            {"token_id": _stored_token_id("expired-refresh-token")}
+        issued = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
+        claims = _decode_refresh_token(issued["refresh_token"], settings)
+        await mock_db["integrationTokens"].update_one(
+            {"token_id": claims["jti"]}, {"$set": {"revoked": True}}
         )
-        assert expired_doc["revoked"] is False
 
-        sibling_doc = await mock_db["integrationTokens"].find_one(
-            {"token_id": _stored_token_id(sibling["refresh_token"])}
-        )
-        assert sibling_doc["revoked"] is False
+        with pytest.raises(UnauthorizedError):
+            await auth.refresh_token(issued["refresh_token"])
+
+    async def test_invalid_tampered_refresh_jwt_is_rejected(self, mock_db, auth):
+        await _seed_client(mock_db)
+        issued = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
+        tampered = issued["refresh_token"][:-1] + ("A" if issued["refresh_token"][-1] != "A" else "B")
+
+        with pytest.raises(UnauthorizedError):
+            await auth.refresh_token(tampered)
 
 
 class TestRefreshTokenUnknownOrDisabledClient:
-    async def test_unknown_client_raises_generic_unauthorized(self, auth):
+    async def test_unknown_refresh_token_raises_generic_unauthorized(self, auth):
         with pytest.raises(UnauthorizedError):
-            await auth.refresh_token("does-not-exist", "whatever", "does-not-exist")
-
-    async def test_unknown_token_raises_generic_unauthorized(self, mock_db, auth):
-        await _seed_client(mock_db)
-
-        with pytest.raises(UnauthorizedError):
-            await auth.refresh_token("partner-1", "super-secret", "does-not-exist")
+            await auth.refresh_token("not-a-jwt")
 
     async def test_disabled_client_rejected_at_refresh(self, mock_db, auth):
         await _seed_client(mock_db)
@@ -420,24 +283,18 @@ class TestRefreshTokenUnknownOrDisabledClient:
         )
 
         with pytest.raises(AppError) as exc_info:
-            await auth.refresh_token("partner-1", "super-secret", issued["refresh_token"])
+            await auth.refresh_token(issued["refresh_token"])
         assert exc_info.value.code == "TENANT_NOT_ALLOWED"
         assert exc_info.value.status_code == 403
 
-    async def test_wrong_client_credentials_rejected(self, mock_db, auth):
+    async def test_deleted_client_rejected_at_refresh(self, mock_db, auth):
         await _seed_client(mock_db)
         issued = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
 
-        with pytest.raises(UnauthorizedError):
-            await auth.refresh_token("partner-1", "wrong-secret", issued["refresh_token"])
-
-    async def test_other_clients_refresh_token_rejected(self, mock_db, auth):
-        await _seed_client(mock_db)
-        await _seed_client(mock_db, client_id="partner-2", secret="other-secret")
-        issued = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
+        await mock_db["integrationClients"].delete_one({"client_id": "partner-1"})
 
         with pytest.raises(UnauthorizedError):
-            await auth.refresh_token("partner-2", "other-secret", issued["refresh_token"])
+            await auth.refresh_token(issued["refresh_token"])
 
 
 def _iter_py_files(root: Path):
@@ -520,12 +377,9 @@ class TestAggregatorTokenControllerResponse:
 
         result = await refresh_token(
             Response(),
-            body=ContentAggregatorRefreshRequest(
-                client_id="partner-1", client_secret="super-secret", refresh_token=issued["refresh_token"]
-            ),
+            body=ContentAggregatorRefreshRequest(refresh_token=issued["refresh_token"]),
             auth=auth,
         )
 
         body = result.model_dump()
-        assert body["refresh_token"]
-        assert body["refresh_token"] != issued["refresh_token"]
+        assert body["refresh_token"] == issued["refresh_token"]
