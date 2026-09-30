@@ -19,6 +19,7 @@ PLATFORM_ROOT = Path(__file__).resolve().parent.parent.parent
 # .env, which also carries DB connection strings and unrelated service keys.
 _REMEDIATION_SETTINGS_KEYS = (
     "openai_api_key",
+    "openai_base_url",
     "mistral_ocr_api_key",
     "mistral_ocr_endpoint",
     "mistral_ocr_model",
