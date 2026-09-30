@@ -328,12 +328,7 @@ class TestContentAggregatorAuth:
         )
         resp = await client.post(
             "/v1/auth/token/refresh",
-            data={
-                "grant_type": "refresh_token",
-                "client_id": "partner-1",
-                "client_secret": "super-secret",
-                "refresh_token": issued.json()["refresh_token"],
-            },
+            json={"refresh_token": issued.json()["refresh_token"]},
         )
         assert resp.status_code == 200
         assert resp.headers["cache-control"] == "no-store"
@@ -383,12 +378,7 @@ class TestContentAggregatorAuth:
         )
         resp = await client.post(
             "/v1/auth/token/refresh",
-            data={
-                "grant_type": "refresh_token",
-                "client_id": "partner-1",
-                "client_secret": "super-secret",
-                "refresh_token": "does-not-exist",
-            },
+            json={"refresh_token": "does-not-exist"},
         )
         assert resp.status_code == 401
         assert resp.headers["www-authenticate"] == "Bearer"
