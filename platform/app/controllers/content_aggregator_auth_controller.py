@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Response
+from fastapi.responses import JSONResponse
 from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.requests.content_aggregator_requests import (
@@ -11,6 +12,7 @@ from app.models.requests.content_aggregator_requests import (
 )
 from app.models.responses.login import AggregatorTokenResponse
 from app.platform.auth.dependencies import get_db
+from app.platform.error_handling import AppError, UnauthorizedError
 from app.platform.settings import Settings, get_settings
 from app.services.content_aggregator.auth import ContentAggregatorAuth
 
@@ -24,35 +26,61 @@ def get_content_aggregator_auth(
     return ContentAggregatorAuth(db, settings)
 
 
-@router.post("/token", summary="Exchange client_id/client_secret for a JWT")
+def _oauth_error(error: str, description: str, status_code: int) -> JSONResponse:
+    headers = {"Cache-Control": "no-store", "Pragma": "no-cache"}
+    if status_code == 401:
+        headers["WWW-Authenticate"] = "Bearer"
+    return JSONResponse(
+        status_code=status_code,
+        content={"error": error, "error_description": description},
+        headers=headers,
+    )
+
+
+@router.post("/token", summary="Exchange client_id/client_secret for a JWT", response_model=None)
 async def issue_token(
-    body: ContentAggregatorTokenRequest,
     response: Response,
+    body: ContentAggregatorTokenRequest = Depends(ContentAggregatorTokenRequest.as_form),
     auth: ContentAggregatorAuth = Depends(get_content_aggregator_auth),
-) -> AggregatorTokenResponse:
+) -> AggregatorTokenResponse | JSONResponse:
+    try:
+        result = await auth.issue_token(
+            client_id=body.client_id,
+            client_secret=body.client_secret,
+            scopes=body.scope.split(),
+        )
+    except UnauthorizedError as exc:
+        return _oauth_error("invalid_client", str(exc), 401)
+    except AppError as exc:
+        error = "invalid_scope" if exc.code == "SCOPE_INSUFFICIENT" else "invalid_client"
+        return _oauth_error(error, exc.message, exc.status_code)
     response.headers["Cache-Control"] = "no-store"
     response.headers["Pragma"] = "no-cache"
-    result = await auth.issue_token(
-        client_id=body.client_id,
-        client_secret=body.client_secret,
-        scopes=body.scope.split(),
-    )
     return AggregatorTokenResponse.model_validate(result)
 
 
-@router.post("/token/refresh", summary="Exchange a refresh token for a new access token")
+@router.post(
+    "/token/refresh", summary="Exchange a refresh token for a new access token", response_model=None
+)
 async def refresh_token(
-    body: ContentAggregatorRefreshRequest,
     response: Response,
+    body: ContentAggregatorRefreshRequest = Depends(ContentAggregatorRefreshRequest.as_form),
     auth: ContentAggregatorAuth = Depends(get_content_aggregator_auth),
-) -> AggregatorTokenResponse:
+) -> AggregatorTokenResponse | JSONResponse:
+    try:
+        result = await auth.refresh_token(
+            client_id=body.client_id,
+            client_secret=body.client_secret,
+            refresh_token=body.refresh_token,
+        )
+    except UnauthorizedError as exc:
+        error = "invalid_client" if str(exc) == "Invalid client credentials" else "invalid_grant"
+        return _oauth_error(error, str(exc), 401)
+    except AppError as exc:
+        error = "invalid_grant" if exc.code == "REFRESH_TOKEN_EXPIRED" else "invalid_client"
+        return _oauth_error(error, exc.message, exc.status_code)
     response.headers["Cache-Control"] = "no-store"
     response.headers["Pragma"] = "no-cache"
-    result = await auth.refresh_token(
-        client_id=body.client_id,
-        client_secret=body.client_secret,
-        refresh_token=body.refresh_token,
-    )
     return AggregatorTokenResponse.model_validate(result)
 
 
