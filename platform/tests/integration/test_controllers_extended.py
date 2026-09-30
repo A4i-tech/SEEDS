@@ -293,7 +293,12 @@ class TestContentAggregatorAuth:
         )
         resp = await client.post(
             "/v1/auth/token",
-            json={"client_id": "partner-1", "client_secret": "super-secret", "scope": "content:read"},
+            data={
+                "grant_type": "client_credentials",
+                "client_id": "partner-1",
+                "client_secret": "super-secret",
+                "scope": "content:read",
+            },
         )
         assert resp.status_code == 200
         assert resp.headers["cache-control"] == "no-store"
@@ -314,11 +319,17 @@ class TestContentAggregatorAuth:
         )
         issued = await client.post(
             "/v1/auth/token",
-            json={"client_id": "partner-1", "client_secret": "super-secret", "scope": "content:read"},
+            data={
+                "grant_type": "client_credentials",
+                "client_id": "partner-1",
+                "client_secret": "super-secret",
+                "scope": "content:read",
+            },
         )
         resp = await client.post(
             "/v1/auth/token/refresh",
-            json={
+            data={
+                "grant_type": "refresh_token",
                 "client_id": "partner-1",
                 "client_secret": "super-secret",
                 "refresh_token": issued.json()["refresh_token"],
@@ -327,6 +338,61 @@ class TestContentAggregatorAuth:
         assert resp.status_code == 200
         assert resp.headers["cache-control"] == "no-store"
         assert resp.headers["pragma"] == "no-cache"
+
+    @pytest.mark.asyncio
+    async def test_issue_token_rejects_invalid_grant_type(self, client, mock_db):
+        resp = await client.post(
+            "/v1/auth/token",
+            data={
+                "grant_type": "password",
+                "client_id": "partner-1",
+                "client_secret": "super-secret",
+                "scope": "content:read",
+            },
+        )
+        assert resp.status_code == 422
+
+    @pytest.mark.asyncio
+    async def test_issue_token_invalid_client_returns_oauth_error(self, client, mock_db):
+        resp = await client.post(
+            "/v1/auth/token",
+            data={
+                "grant_type": "client_credentials",
+                "client_id": "does-not-exist",
+                "client_secret": "whatever",
+                "scope": "content:read",
+            },
+        )
+        assert resp.status_code == 401
+        assert resp.headers["www-authenticate"] == "Bearer"
+        assert resp.headers["cache-control"] == "no-store"
+        assert resp.json()["error"] == "invalid_client"
+
+    @pytest.mark.asyncio
+    async def test_refresh_token_invalid_grant_returns_oauth_error(self, client, mock_db):
+        await mock_db["integrationClients"].insert_one(
+            {
+                "client_id": "partner-1",
+                "client_secret_hash": hash_password("super-secret"),
+                "name": "Partner One",
+                "tenant_ids": ["tenant-a"],
+                "allowed_scopes": ["content:read"],
+                "status": "active",
+                "created_at": datetime.now(tz=UTC),
+            }
+        )
+        resp = await client.post(
+            "/v1/auth/token/refresh",
+            data={
+                "grant_type": "refresh_token",
+                "client_id": "partner-1",
+                "client_secret": "super-secret",
+                "refresh_token": "does-not-exist",
+            },
+        )
+        assert resp.status_code == 401
+        assert resp.headers["www-authenticate"] == "Bearer"
+        assert resp.json()["error"] == "invalid_grant"
 
 
 # ---------------------------------------------------------------------------
