@@ -40,7 +40,10 @@ class IntegrationToken(BaseModel):
     tenant_ids: list[str]
     scope: str
     expires_at: datetime
+    family_expires_at: datetime
     revoked: bool = False
+    revoked_reason: str | None = None
+    consumed_at: datetime | None = None
     created_at: datetime
 
     @classmethod
