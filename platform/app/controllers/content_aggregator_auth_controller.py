@@ -40,7 +40,7 @@ def _oauth_error(error: str, description: str, status_code: int) -> JSONResponse
 @router.post("/token", summary="Exchange client_id/client_secret for a JWT", response_model=None)
 async def issue_token(
     response: Response,
-    body: ContentAggregatorTokenRequest = Depends(ContentAggregatorTokenRequest.as_form),
+    body: ContentAggregatorTokenRequest,
     auth: ContentAggregatorAuth = Depends(get_content_aggregator_auth),
 ) -> AggregatorTokenResponse | JSONResponse:
     try:
