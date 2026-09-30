@@ -127,6 +127,11 @@ async def attempt_delivery(
             "webhook_delivery: webhookId=%s failed to decrypt secret or sign payload", webhook_id,
         )
         error = "secret unreadable"
+    except Exception:
+        logger.exception(
+            "webhook_delivery: webhookId=%s attempt failed with unexpected error", webhook_id,
+        )
+        error = "processing_failed"
 
     await delivery_repo.record_attempt_result(
         attempt_id, status="succeeded" if succeeded else "failed",
