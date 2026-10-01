@@ -1,0 +1,18 @@
+title = "SEEDS gitleaks allowlist"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "dummy secret reused across platform test files"
+regexTarget = "match"
+regexes = [
+  '''test-secret-key-for-integration-tests-32ch''',
+]
+
+[[allowlists]]
+description = "VONAGE_CONFERENCE_APPLICATION_PRIVATE_KEY64 .env.example placeholder, key has no assigned value, generic-api-key fires on the variable name's entropy (match spans into the next line's key name), not a secret"
+regexTarget = "match"
+regexes = [
+  '''\AVONAGE_CONFERENCE_APPLICATION_PRIVATE_KEY64=\nVONAGE_IVR_APPLICATION_ID=\z''',
+]
