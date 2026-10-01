@@ -82,7 +82,7 @@ const AllContent = () => {
   const canViewRegistration =
     currentUserRole === USER_ROLES.TENANT || currentUserRole === USER_ROLES.SCHOOL_ADMIN;
   const canViewAnalytics = canViewRegistration;
-  const canViewLocalization = canViewRegistration;
+  const canViewLocalization = currentUserRole === USER_ROLES.TENANT;
 
   useEffect(() => {
     const fetchUser = async () => {
