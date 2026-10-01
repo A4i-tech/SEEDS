@@ -1,6 +1,7 @@
+import { getAccessToken, setAccessToken, clearAccessToken } from "../utils/tokenStore";
 import { fetchEventSource } from "@microsoft/fetch-event-source";
-
 import { clearAuth } from "../utils/authHelpers";
+import { SEEDS_URL } from "../Constants";
 
 export class ApiError extends Error {
   constructor(message, status, response) {
@@ -10,6 +11,41 @@ export class ApiError extends Error {
     this.response = response;
   }
 }
+
+let refreshPromise = null;
+
+export const refreshAccessToken = async () => {
+  if (!refreshPromise) {
+    refreshPromise = (async () => {
+      try {
+        const response = await fetch(`${SEEDS_URL}/auth/token/refresh`, {
+          method: "POST",
+          credentials: "include",
+        });
+        if (!response.ok) {
+          const body = await response.text();
+          throw new ApiError(body || "refresh failed", response.status, response);
+        }
+        const data = await response.json();
+        setAccessToken(data.access_token);
+        return data.access_token;
+      } finally {
+        refreshPromise = null;
+      }
+    })();
+  }
+  return refreshPromise;
+};
+
+export const initSession = async () => {
+  try {
+    await refreshAccessToken();
+    return { data: true, error: null };
+  } catch (error) {
+    clearAccessToken();
+    return { data: null, error };
+  }
+};
 
 const messageFromBody = (text) => {
   try {
@@ -26,14 +62,36 @@ const messageFromBody = (text) => {
  * @param {Object} options - Fetch options
  * @returns {Promise<any>} - Parsed JSON response
  */
-export const apiFetch = async (url, { timeoutMs, ...options } = {}) => {
+export const apiFetch = async (url, { timeoutMs, ...options } = {}, _isRetry = false) => {
   const controller = timeoutMs ? new AbortController() : null;
   const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
   try {
-    const response = await fetch(url, controller ? { ...options, signal: controller.signal } : options);
+    const response = await fetch(url, {
+      credentials: "include",
+      ...options,
+      ...(controller ? { signal: controller.signal } : {}),
+    });
 
     if (!response.ok) {
-      if (response.status === 401) {
+      if (response.status === 401 && getAccessToken() && !_isRetry) {
+        try {
+          const newToken = await refreshAccessToken();
+          return await apiFetch(
+            url,
+            { ...options, timeoutMs, headers: { ...options.headers, Authorization: `Bearer ${newToken}` } },
+            true
+          );
+        } catch (refreshError) {
+          console.error("apiFetch: token refresh failed", refreshError);
+          if (refreshError.status !== 401) {
+            throw refreshError;
+          }
+          clearAuth();
+          if (typeof window !== "undefined" && window.location.pathname !== "/") {
+            window.location.href = "/";
+          }
+        }
+      } else if (response.status === 401) {
         clearAuth();
         if (typeof window !== "undefined" && window.location.pathname !== "/") {
           window.location.href = "/";
@@ -52,7 +110,6 @@ export const apiFetch = async (url, { timeoutMs, ...options } = {}) => {
     if (response.status !== 204 && contentType && contentType.includes("application/json")) {
       return await response.json();
     }
-
     return await response.text();
   } catch (error) {
     if (error instanceof ApiError) {
