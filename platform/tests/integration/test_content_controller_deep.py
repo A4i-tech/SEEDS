@@ -11,6 +11,8 @@ os.environ.setdefault("APP_MODE", "api")
 os.environ.setdefault("ENV", "development")
 
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
 import pytest_asyncio
 from bson import ObjectId
@@ -250,6 +252,121 @@ class TestSASTokenEndpoint:
         resp = await client.get("/content/sasToken?blob_name=test.mp3")
         assert resp.status_code == 401
 
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("role", "expected"),
+        [("school_admin", 200), ("teacher", 200), ("content_creator", 200), ("student", 403)],
+    )
+    async def test_sas_token_role_access(self, client, mock_db, role, expected):
+        token = create_access_token({"sub": str(ObjectId()), "role": role, "tenant_id": _TENANT_ID, "school_id": _SCHOOL_ID})
+        provider = AsyncMock()
+        provider.get_upload_sas_url.return_value = "https://blob/input-container/x.mp3?sig=1"
+        with patch("app.controllers.content_controller.get_blob_storage_provider", return_value=provider):
+            resp = await client.get("/content/sasToken?blob_name=x.mp3", headers={"Authorization": f"Bearer {token}"})
+        assert resp.status_code == expected
+
+
+_TEACHER_ID = str(ObjectId())
+
+
+def _auth(role, sub=None, school_id=_SCHOOL_ID, tenant_id=_TENANT_ID):
+    token = create_access_token({"sub": sub or str(ObjectId()), "role": role, "tenant_id": tenant_id, "school_id": school_id})
+    return {"Authorization": f"Bearer {token}"}
+
+
+async def _seed_content(db, created_by, school_id=_SCHOOL_ID, tenant_id=_TENANT_ID):
+    result = await db["contentsV3"].insert_one({
+        "tenant_id": ObjectId(tenant_id),
+        "school_id": ObjectId(school_id) if school_id else None,
+        "created_by": ObjectId(created_by),
+        "type": "story",
+        "language": "english",
+    })
+    return str(result.inserted_id)
+
+
+def _patch_body(content_id):
+    return {"id": content_id, "description": "edited"}
+
+
+class TestTeacherContentOwnership:
+    @pytest.mark.asyncio
+    async def test_teacher_create_sets_created_by_and_school(self, client, mock_db):
+        resp = await client.post(
+            "/content",
+            json={"type": "story", "language": "english"},
+            headers=_auth("teacher", _TEACHER_ID),
+        )
+        assert resp.status_code == 201
+        doc = await mock_db["contentsV3"].find_one({})
+        assert doc["created_by"] == ObjectId(_TEACHER_ID)
+        assert doc["school_id"] == ObjectId(_SCHOOL_ID)
+        assert doc["tenant_id"] == ObjectId(_TENANT_ID)
+
+    @pytest.mark.asyncio
+    async def test_teacher_can_edit_and_delete_own_content(self, client, mock_db):
+        cid = await _seed_content(mock_db, _TEACHER_ID)
+        headers = _auth("teacher", _TEACHER_ID)
+        resp = await client.patch(f"/content/{cid}", json=_patch_body(cid), headers=headers)
+        assert resp.status_code == 200
+        assert resp.json()["description"] == "edited"
+        assert (await client.delete(f"/content/{cid}", headers=headers)).status_code == 200
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("owner_role", ["teacher", "content_creator", "school_admin"])
+    async def test_teacher_cannot_modify_others_content_but_can_view(self, client, mock_db, owner_role):
+        owner = await mock_db["users"].insert_one({"role": owner_role, "school_id": _SCHOOL_ID, "tenant_id": _TENANT_ID})
+        cid = await _seed_content(mock_db, str(owner.inserted_id))
+        headers = _auth("teacher", _TEACHER_ID)
+
+        assert (await client.get(f"/content/{cid}", headers=headers)).status_code == 200
+        assert (await client.patch(f"/content/{cid}", json=_patch_body(cid), headers=headers)).status_code == 403
+        assert (await client.delete(f"/content/{cid}", headers=headers)).status_code == 403
+        doc = await mock_db["contentsV3"].find_one({"_id": ObjectId(cid)})
+        assert "description" not in doc
+        assert doc.get("is_deleted") is not True
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("role", ["school_admin", "content_creator"])
+    async def test_school_roles_still_modify_any_school_content(self, client, mock_db, role):
+        cid = await _seed_content(mock_db, _TEACHER_ID)
+        headers = _auth(role)
+        assert (await client.patch(f"/content/{cid}", json=_patch_body(cid), headers=headers)).status_code == 200
+        assert (await client.delete(f"/content/{cid}", headers=headers)).status_code == 200
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("school_id", "tenant_id"),
+        [(str(ObjectId()), _TENANT_ID), (_SCHOOL_ID, str(ObjectId()))],
+    )
+    async def test_teacher_own_content_outside_school_or_tenant_is_not_found(self, client, mock_db, school_id, tenant_id):
+        cid = await _seed_content(mock_db, _TEACHER_ID, school_id=school_id, tenant_id=tenant_id)
+        headers = _auth("teacher", _TEACHER_ID)
+        assert (await client.patch(f"/content/{cid}", json=_patch_body(cid), headers=headers)).status_code == 404
+        assert (await client.delete(f"/content/{cid}", headers=headers)).status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_teacher_cannot_modify_tenant_owned_content(self, client, mock_db):
+        cid = await _seed_content(mock_db, _TEACHER_ID, school_id=None)
+        headers = _auth("teacher", _TEACHER_ID)
+        assert (await client.patch(f"/content/{cid}", json=_patch_body(cid), headers=headers)).status_code == 404
+        assert (await client.delete(f"/content/{cid}", headers=headers)).status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_teacher_still_blocked_from_quiz_and_jobs(self, client, mock_db):
+        headers = _auth("teacher", _TEACHER_ID)
+        assert (await client.get("/content/jobs", headers=headers)).status_code == 403
+        assert (await client.get("/content/job/abc", headers=headers)).status_code == 403
+        assert (await client.post("/content/quiz", json={"type": "quiz", "language": "english"}, headers=headers)).status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_student_cannot_create_or_modify(self, client, mock_db):
+        cid = await _seed_content(mock_db, _TEACHER_ID)
+        headers = _auth("student", _TEACHER_ID)
+        assert (await client.post("/content", json={"type": "story", "language": "english"}, headers=headers)).status_code == 403
+        assert (await client.patch(f"/content/{cid}", json=_patch_body(cid), headers=headers)).status_code == 403
+        assert (await client.delete(f"/content/{cid}", headers=headers)).status_code == 403
+
 
 # ---------------------------------------------------------------------------
 # Content helper functions — unit tests
@@ -278,6 +395,11 @@ class TestContentHelperFunctions:
         user = {"role": "content_creator", "school_id": "s2"}
         result = _write_school_filter(user)
         assert result == {"schoolId": "s2"}
+
+    def test_write_school_filter_teacher(self) -> None:
+        from app.controllers.content_controller import _write_school_filter
+
+        assert _write_school_filter({"role": "teacher", "school_id": "s4"}) == {"schoolId": "s4"}
 
     def test_write_school_filter_tenant(self) -> None:
         from app.controllers.content_controller import _write_school_filter

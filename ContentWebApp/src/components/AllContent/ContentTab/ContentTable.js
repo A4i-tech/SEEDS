@@ -2,7 +2,8 @@ import React from "react";
 import Skeleton, { SkeletonTheme } from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
 import { getLanguageName } from "../../../utils/languageName";
-import { getSchoolId } from "../../../utils/authHelpers";
+import { getRole, getSchoolId, getTokenPayload } from "../../../utils/authHelpers";
+import { USER_ROLES } from "../../../Constants";
 import MiddleEllipsis from "../shared/MiddleEllipsis";
 import RowActions from "../shared/RowActions";
 import "../shared/tables.css";
@@ -20,6 +21,8 @@ const ContentTable = ({
   onSyncCourse,
   onDeleteContentAggregatorCourse,
 }) => {
+  const isTeacher = getRole() === USER_ROLES.TEACHER;
+  const userId = getTokenPayload().sub;
   return (
     <div className="table-wrapper">
       {isLoading && content.length === 0 ? (
@@ -84,7 +87,8 @@ const ContentTable = ({
               const isContentAggregatorItem = item.source === "subodha";
               const syncState = courseSyncStates[itemId];
               const syncing = syncState === "running";
-              const isOwnContent = isTenant || item.school_id === getSchoolId();
+              const isOwnContent =
+                isTenant || (item.school_id === getSchoolId() && (!isTeacher || item.created_by === userId));
               return (
                 <tr key={itemId} className="table-row-white">
                   <td className="table-cell table-cell-truncate">
