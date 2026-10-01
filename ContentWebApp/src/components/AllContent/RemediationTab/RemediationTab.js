@@ -14,7 +14,14 @@ import "../shared/cards.css";
 import "../shared/buttons.css";
 import "../shared/tables.css";
 
-const ARTIFACT_LABELS = { docx: "Word", pdf: "PDF", tex: "LaTeX" };
+const ARTIFACT_LABELS = {
+  docx: "Word",
+  pdf: "PDF",
+  tex: "LaTeX",
+  translated_docx: "Word (translated)",
+  translated_pdf: "PDF (translated)",
+  translated_tex: "LaTeX (translated)",
+};
 
 const RemediationTab = () => {
   const navigate = useNavigate();
@@ -22,7 +29,7 @@ const RemediationTab = () => {
   const fileRef = useRef(null);
   const [selectedFile, setSelectedFile] = useState(null);
   const [targetLanguage, setTargetLanguage] = useState("");
-  const [targetLanguageOptions, setTargetLanguageOptions] = useState([{ value: "", label: "No translation" }]);
+  const [targetLanguageOptions, setTargetLanguageOptions] = useState([{ value: "", label: "Keep original language" }]);
   const [languagesError, setLanguagesError] = useState(null);
 
   useEffect(() => {
@@ -31,7 +38,7 @@ const RemediationTab = () => {
       .getLanguages({ signal: controller.signal })
       .then(({ languages }) => {
         setTargetLanguageOptions([
-          { value: "", label: "No translation" },
+          { value: "", label: "Keep original language" },
           ...languages.map((lang) => ({ value: lang.code, label: lang.name })),
         ]);
       })
@@ -82,7 +89,7 @@ const RemediationTab = () => {
             value={targetLanguage}
             onChange={setTargetLanguage}
             options={targetLanguageOptions}
-            placeholder="No translation"
+            placeholder="Keep original language"
           />
           {languagesError && <span className="content-details-error">Could not load languages: {languagesError}</span>}
           <button
@@ -111,10 +118,10 @@ const RemediationTab = () => {
             <thead>
               <tr>
                 <th className="table-header">Textbook</th>
-                <th className="table-header">Language</th>
-                <th className="table-header">Status</th>
-                <th className="table-header">Stage</th>
                 <th className="table-header">Artifacts</th>
+                <th className="table-header">Language</th>
+                <th className="table-header">Stage</th>
+                <th className="table-header">Status</th>
                 <th className="table-header">Actions</th>
               </tr>
             </thead>
@@ -123,26 +130,6 @@ const RemediationTab = () => {
                 <tr key={job.job_id}>
                   <td className="table-cell table-cell-truncate">
                     <MiddleEllipsis text={job.source_name} />
-                  </td>
-                  <td className="table-cell">
-                    {job.detected_language ? (
-                      <span style={{ fontWeight: 600, color: "var(--color-fg-default)" }}>
-                        {job.detected_language}
-                      </span>
-                    ) : job.language === "auto" || job.language === "detecting" ? (
-                      <span className="remediation-status">
-                        Detecting…
-                      </span>
-                    ) : (
-                      <span style={{ fontWeight: 600 }}>{job.language}</span>
-                    )}
-                  </td>
-                  <td className="table-cell">
-                    <span className={`remediation-status remediation-status-${job.status}`}>{job.status}</span>
-                    {job.error && <div className="table-cell-secondary">{job.error}</div>}
-                  </td>
-                  <td className="table-cell">
-                    <StageProgress job={job} />
                   </td>
                   <td className="table-cell">
                     {ARTIFACT_DOWNLOADS.some((entry) => job.artifacts[entry.key]) ? (
@@ -170,6 +157,29 @@ const RemediationTab = () => {
                     ) : (
                       <span className="table-cell-secondary">—</span>
                     )}
+                  </td>
+                  <td className="table-cell">
+                    {job.detected_language ? (
+                      <span style={{ fontWeight: 600, color: "var(--color-fg-default)" }}>
+                        {job.detected_language}
+                      </span>
+                    ) : job.language === "auto" || job.language === "detecting" ? (
+                      <span className="remediation-status">
+                        Detecting…
+                      </span>
+                    ) : (
+                      <span style={{ fontWeight: 600 }}>{job.language}</span>
+                    )}
+                    {job.translation_error && (
+                      <div className="content-details-error">{job.translation_error}</div>
+                    )}
+                  </td>
+                  <td className="table-cell">
+                    <StageProgress job={job} />
+                  </td>
+                  <td className="table-cell">
+                    <span className={`remediation-status remediation-status-${job.status}`}>{job.status}</span>
+                    {job.error && <div className="table-cell-secondary">{job.error}</div>}
                   </td>
                   <td className="table-cell">
                     <RowActions

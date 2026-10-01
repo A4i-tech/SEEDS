@@ -15,6 +15,7 @@ from app.models.remediation_job import (
     AUTO_LANGUAGES,
     ArtifactName,
     JobMetrics,
+    JobModels,
     JobProgress,
     JobStage,
     JobStatus,
@@ -52,12 +53,15 @@ class TextbookRemediationRepository:
         await self._col.insert_one(doc)
         return RemediationJob.from_doc(doc)
 
-    async def get(self, tenant_id: str, job_id: str) -> RemediationJob | None:
-        doc = await self._col.find_one({"_id": _oid(job_id), "tenant_id": tenant_id, "deleted_at": None})
+    async def get(self, tenant_id: str, job_id: str, *, include_draft: bool = True) -> RemediationJob | None:
+        projection = None if include_draft else {"draft_remediated_md": 0}
+        doc = await self._col.find_one({"_id": _oid(job_id), "tenant_id": tenant_id, "deleted_at": None}, projection)
         return RemediationJob.from_doc(doc) if doc else None
 
     async def list_jobs(self, tenant_id: str, *, limit: int = 20) -> list[RemediationJob]:
-        docs = await self._col.find({"tenant_id": tenant_id, "deleted_at": None}).sort("created_at", -1).to_list(length=limit)
+        docs = await self._col.find(
+            {"tenant_id": tenant_id, "deleted_at": None}, {"draft_remediated_md": 0}
+        ).sort("created_at", -1).to_list(length=limit)
         jobs = []
         for d in docs:
             try:
@@ -106,6 +110,18 @@ class TextbookRemediationRepository:
     async def update_metrics(self, job_id: str, metrics: JobMetrics) -> RemediationJob | None:
         doc = await self._col.find_one_and_update(
             {"_id": _oid(job_id)}, {"$set": {"metrics": metrics.model_dump()}}, return_document=ReturnDocument.AFTER
+        )
+        return RemediationJob.from_doc(doc) if doc else None
+
+    async def update_models(self, job_id: str, models: JobModels) -> RemediationJob | None:
+        doc = await self._col.find_one_and_update(
+            {"_id": _oid(job_id)}, {"$set": {"models": models.model_dump()}}, return_document=ReturnDocument.AFTER
+        )
+        return RemediationJob.from_doc(doc) if doc else None
+
+    async def update_source_page_count(self, job_id: str, page_count: int) -> RemediationJob | None:
+        doc = await self._col.find_one_and_update(
+            {"_id": _oid(job_id)}, {"$set": {"source_page_count": page_count}}, return_document=ReturnDocument.AFTER
         )
         return RemediationJob.from_doc(doc) if doc else None
 
