@@ -27,10 +27,10 @@ const row = (id, createdBy, schoolId = SCHOOL) => ({
 
 const CONTENT = [row("mine", ME), row("others", "user-other"), row("other-school", ME, "school-2")];
 
-const renderAs = (role, isTenant = false) => {
+const renderAs = (role, isTenant = false, payload = { sub: ME }) => {
   getRole.mockReturnValue(role);
   getSchoolId.mockReturnValue(SCHOOL);
-  getTokenPayload.mockReturnValue({ sub: ME });
+  getTokenPayload.mockReturnValue(payload);
   render(
     <ContentTable
       content={CONTENT}
@@ -61,6 +61,19 @@ describe("ContentTable row actions", () => {
     expect(actionsFor("mine")).toEqual(["Edit", "View", "Delete"]);
     expect(actionsFor("others")).toEqual(["Edit", "View", "Delete"]);
     expect(actionsFor("other-school")).toEqual(["View"]);
+  });
+
+  test("unknown role sees View only", () => {
+    renderAs("some_future_role");
+    expect(actionsFor("mine")).toEqual(["View"]);
+    expect(actionsFor("others")).toEqual(["View"]);
+    expect(actionsFor("other-school")).toEqual(["View"]);
+  });
+
+  test("teacher with empty token payload sees View only", () => {
+    renderAs("teacher", false, {});
+    expect(actionsFor("mine")).toEqual(["View"]);
+    expect(actionsFor("others")).toEqual(["View"]);
   });
 
   test("tenant sees Edit/Delete on all content", () => {

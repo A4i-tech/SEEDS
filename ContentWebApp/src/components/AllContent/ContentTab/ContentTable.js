@@ -21,7 +21,8 @@ const ContentTable = ({
   onSyncCourse,
   onDeleteContentAggregatorCourse,
 }) => {
-  const isTeacher = getRole() === USER_ROLES.TEACHER;
+  const role = getRole();
+  const canEditSchoolContent = [USER_ROLES.SCHOOL_ADMIN, USER_ROLES.CONTENT_CREATOR].includes(role);
   const userId = getTokenPayload().sub;
   return (
     <div className="table-wrapper">
@@ -88,7 +89,9 @@ const ContentTable = ({
               const syncState = courseSyncStates[itemId];
               const syncing = syncState === "running";
               const isOwnContent =
-                isTenant || (item.school_id === getSchoolId() && (!isTeacher || item.created_by === userId));
+                isTenant ||
+                (item.school_id === getSchoolId() &&
+                  (canEditSchoolContent || (role === USER_ROLES.TEACHER && item.created_by === userId)));
               return (
                 <tr key={itemId} className="table-row-white">
                   <td className="table-cell table-cell-truncate">

@@ -360,6 +360,29 @@ class TestTeacherContentOwnership:
         assert (await client.post("/content/quiz", json={"type": "quiz", "language": "english"}, headers=headers)).status_code == 403
 
     @pytest.mark.asyncio
+    async def test_teacher_without_school_is_forbidden(self, client, mock_db):
+        cid = await _seed_content(mock_db, _TEACHER_ID)
+        headers = _auth("teacher", _TEACHER_ID, school_id=None)
+        assert (await client.get("/content/sasToken?blob_name=x.mp3", headers=headers)).status_code == 403
+        assert (await client.post("/content", json={"type": "story", "language": "english"}, headers=headers)).status_code == 403
+        assert (await client.patch(f"/content/{cid}", json=_patch_body(cid), headers=headers)).status_code == 403
+        assert (await client.delete(f"/content/{cid}", headers=headers)).status_code == 403
+        assert await mock_db["contentsV3"].count_documents({}) == 1
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("role", ["school_admin", "content_creator"])
+    async def test_school_roles_without_school_unchanged(self, client, mock_db, role):
+        cid = await _seed_content(mock_db, _TEACHER_ID)
+        headers = _auth(role, school_id=None)
+        provider = AsyncMock()
+        provider.get_upload_sas_url.return_value = "https://blob/input-container/x.mp3?sig=1"
+        with patch("app.controllers.content_controller.get_blob_storage_provider", return_value=provider):
+            assert (await client.get("/content/sasToken?blob_name=x.mp3", headers=headers)).status_code == 200
+        assert (await client.post("/content", json={"type": "story", "language": "english"}, headers=headers)).status_code == 201
+        assert (await client.patch(f"/content/{cid}", json=_patch_body(cid), headers=headers)).status_code == 200
+        assert (await client.delete(f"/content/{cid}", headers=headers)).status_code == 200
+
+    @pytest.mark.asyncio
     async def test_student_cannot_create_or_modify(self, client, mock_db):
         cid = await _seed_content(mock_db, _TEACHER_ID)
         headers = _auth("student", _TEACHER_ID)

@@ -52,7 +52,6 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/content", tags=["Content"])
 
 _WRITE_ROLES = frozenset({UserRole.TENANT.value, UserRole.SCHOOL_ADMIN.value, UserRole.CONTENT_CREATOR.value})
-_AUTHOR_ROLES = _WRITE_ROLES | {UserRole.TEACHER.value}
 _READ_ROLES = frozenset({
     UserRole.TENANT.value,
     UserRole.SCHOOL_ADMIN.value,
@@ -90,8 +89,11 @@ async def _require_content_write(
 async def _require_content_author(
     user: dict[str, Any] = Depends(get_current_user),
 ) -> dict[str, Any]:
-    if user.get("role") not in _AUTHOR_ROLES:
+    role = user.get("role")
+    if role not in _WRITE_ROLES | {UserRole.TEACHER.value}:
         raise ForbiddenError("insufficient role for content write")
+    if role == UserRole.TEACHER.value and not user.get("school_id"):
+        raise ForbiddenError("teacher account has no school")
     return user
 
 
