@@ -707,3 +707,39 @@ async def test_verify_job_appends_a_second_record_on_a_repeat_verification(repo,
     assert len(lines) == 2
     assert (lines[1]["previous"], lines[1]["new"]) == ("# Original", "# Edited twice")
 
+
+
+@pytest.mark.asyncio
+async def test_braille_job_rejects_a_job_that_is_not_verified(repo):
+    from app.platform.error_handling import ValidationError
+    from app.services import textbook_remediation as remediation_service
+
+    job = await repo.update_draft((await _create(repo)).job_id, "# Title")
+
+    with pytest.raises(ValidationError, match="verified"):
+        await remediation_service.braille_job(repo, _StubBlob(), job)
+
+
+@pytest.mark.asyncio
+async def test_braille_job_uploads_brf_and_report_under_the_braille_path(repo, monkeypatch):
+    from app.models.remediation_job import ArtifactName
+    from app.services import textbook_remediation as remediation_service
+
+    seen = {}
+
+    def _fake_build(markdown, language):
+        seen.update(markdown=markdown, language=language)
+        return "BRF", {"needs_review": False}
+
+    monkeypatch.setattr(remediation_service, "build_braille", _fake_build)
+    created = await _create(repo)
+    await repo.update_draft(created.job_id, "# Title")
+    job = await repo.mark_verified(created.job_id, verified_by="reviewer@seeds.org", title="Title")
+    blob = _StubBlob()
+
+    updated = await remediation_service.braille_job(repo, blob, job)
+
+    assert seen == {"markdown": "# Title", "language": "kn"}
+    assert blob.uploaded[f"textbook-remediation/{created.job_id}/braille/remediated.brf"] == b"BRF"
+    assert json.loads(blob.uploaded[f"textbook-remediation/{created.job_id}/braille/remediated.braille.json"]) == {"needs_review": False}
+    assert set(updated.artifacts) >= {ArtifactName.BRF, ArtifactName.BRAILLE_REPORT}
