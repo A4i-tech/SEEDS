@@ -63,7 +63,7 @@ _SCHOOL_READ_ROLES = frozenset({
     UserRole.TEACHER.value,
     UserRole.CONTENT_CREATOR.value,
 })
-_SCHOOL_WRITE_ROLES = frozenset({UserRole.SCHOOL_ADMIN.value, UserRole.CONTENT_CREATOR.value})
+_SCHOOL_WRITE_ROLES = frozenset({UserRole.SCHOOL_ADMIN.value, UserRole.TEACHER.value, UserRole.CONTENT_CREATOR.value})
 
 # ---------------------------------------------------------------------------
 # Auth dependency helpers
@@ -84,6 +84,29 @@ async def _require_content_write(
     if user.get("role") not in _WRITE_ROLES:
         raise ForbiddenError("insufficient role for content write")
     return user
+
+
+async def _require_content_author(
+    user: dict[str, Any] = Depends(get_current_user),
+) -> dict[str, Any]:
+    role = user.get("role")
+    if role not in _WRITE_ROLES | {UserRole.TEACHER.value}:
+        raise ForbiddenError("insufficient role for content write")
+    if role == UserRole.TEACHER.value and not user.get("school_id"):
+        raise ForbiddenError("teacher account has no school")
+    return user
+
+
+async def _require_own_content_if_teacher(
+    content_id: str, user: dict[str, Any], service: ContentService
+) -> None:
+    if user.get("role") != UserRole.TEACHER.value:
+        return
+    item = await service.get_content_by_id(content_id, user.get("tenant_id", ""), _write_school_id(user))
+    if item is None:
+        raise NotFoundError("Content", content_id)
+    if item.created_by != user.get("sub"):
+        raise ForbiddenError("teachers can only modify their own content")
 
 
 # ---------------------------------------------------------------------------
@@ -195,7 +218,7 @@ async def get_sas_url(
 @router.get("/sasToken", summary="Get upload SAS token for MP3 blob")
 async def get_sas_token(
     blob_name: str = Query(...),
-    user: dict[str, Any] = Depends(_require_content_write),
+    user: dict[str, Any] = Depends(_require_content_author),
 ) -> SasTokenResponse:
     if not blob_name or not blob_name.lower().endswith(".mp3"):
         raise HTTPException(status_code=400, detail="Only .mp3 files are allowed.")
@@ -321,7 +344,7 @@ async def get_content(
 @router.post("", summary="Create content and trigger processing job", status_code=201)
 async def create_content(
     body: ContentCreateRequest,
-    user: dict[str, Any] = Depends(_require_content_write),
+    user: dict[str, Any] = Depends(_require_content_author),
     service: ContentService = Depends(get_content_service),
 ) -> JobScheduledResponse:
     tenant_id = user.get("tenant_id", "")
@@ -349,9 +372,10 @@ async def update_content(
     content_id: str,
     body: ContentUpdateRequest,
     is_audio_uploaded: bool = Query(False),
-    user: dict[str, Any] = Depends(_require_content_write),
+    user: dict[str, Any] = Depends(_require_content_author),
     service: ContentService = Depends(get_content_service),
 ) -> ContentItem:
+    await _require_own_content_if_teacher(content_id, user, service)
     tenant_id = user.get("tenant_id", "")
     school_id = _write_school_id(user)
     body.id = content_id
@@ -378,9 +402,10 @@ async def update_content(
 @router.delete("/{content_id}", summary="Soft-delete content by ID")
 async def delete_content(
     content_id: str,
-    user: dict[str, Any] = Depends(_require_content_write),
+    user: dict[str, Any] = Depends(_require_content_author),
     service: ContentService = Depends(get_content_service),
 ) -> DeleteMatchedResponse:
+    await _require_own_content_if_teacher(content_id, user, service)
     tenant_id = user.get("tenant_id", "")
     school_id = _write_school_id(user)
 
