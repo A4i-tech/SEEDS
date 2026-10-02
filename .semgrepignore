@@ -1,0 +1,12 @@
+# Paths excluded from the Semgrep PR gate. See .github/SECURITY_SCANS.md for
+# line-level suppression (`# nosemgrep: <rule-id>`).
+
+node_modules/
+.venv/
+venv/
+**/__pycache__/
+**/migrations/
+**/tests/fixtures/
+**/test_data/
+**/*.test.*
+**/*.spec.*
