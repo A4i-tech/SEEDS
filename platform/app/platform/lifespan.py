@@ -215,9 +215,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     from app.repositories.ivr_repository import IVRRepository  # noqa: PLC0415
 
-    await IVRRepository.ensure_ongoing_indexes(
-        get_database(), settings.stale_wait_in_minutes * 60
-    )
+    await IVRRepository.ensure_ongoing_indexes(get_database(), settings.ongoing_ivr_ttl_seconds)
 
     # Init conference manager (available in all modes)
     try:
