@@ -171,6 +171,7 @@ describe("ControlService", () => {
       }
 
       // Test heartbeat
+      const debugSpy = jest.spyOn(logger, "debug").mockImplementation(() => {});
       await mockMessageHandler(
         JSON.stringify({
           websocket_id: "client-7",
@@ -178,9 +179,11 @@ describe("ControlService", () => {
           message: "",
         })
       );
-      expect(
-        findLoggedEntry(consoleSpy, "Heartbeat message received from conf server")
-      ).toBeTruthy();
+      expect(debugSpy).toHaveBeenCalledWith(
+        "Heartbeat message received from conf server",
+        expect.objectContaining({ eventType: "control_command_heartbeat" })
+      );
+      debugSpy.mockRestore();
 
       // Test unknown type
       await mockMessageHandler(

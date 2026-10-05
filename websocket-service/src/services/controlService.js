@@ -16,7 +16,6 @@ function handleControlConnection(ws, id) {
   log.info(`Control connection established (${id}).`, { eventType: "control_connection_established" });
 
   ws.on("message", (message) => {
-    log.info(`Control raw message received: ${message}`, { eventType: "control_message_received" });
     try {
       // Parse the JSON string
       const parsedMessage = JSON.parse(message);
@@ -47,9 +46,8 @@ function handleControlMessage(controlMessage, log = logger) {
   const websocketId = controlMessage.websocket_id;
   const type = controlMessage.type;
   const content = controlMessage.message;
-  const serializedContent = typeof content === "string" ? content : JSON.stringify(content);
   log.info(
-    `Control message received | websocket id: ${websocketId}; type: ${type}; message: ${serializedContent}`,
+    `Control message received | websocket id: ${websocketId}; type: ${type}`,
     { eventType: "control_message_received", websocketId }
   );
   switch (type) {
@@ -96,7 +94,7 @@ function handleControlMessage(controlMessage, log = logger) {
       websocketService.closeConnection(websocketId);
       break;
     case MessageType.HEARTBEAT:
-      log.warn("Heartbeat message received from conf server", { eventType: "control_command_heartbeat" });
+      log.debug("Heartbeat message received from conf server", { eventType: "control_command_heartbeat" });
       break;
     default:
       log.warn(`Unknown control message type: ${type}`, { eventType: "control_command_unknown", websocketId });

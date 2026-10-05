@@ -7,6 +7,7 @@ const url = require("url");
 const websocketService = require("./services/websocketService");
 const controlService = require("./services/controlService");
 const connectionManager = require("./services/connectionManager");
+const redactUrl = require("./redactUrl");
 
 const port = process.env.PORT || 3000;
 const MAXIMUM_CONFERENCE_TIME_ALLOWED_IN_MILLISECONDS = 60 * 60 * 1000; // 1 hour in milliseconds
@@ -72,7 +73,7 @@ wss.on("connection", (ws, req) => {
     websocketService
       .playAudioContent(id, audioUrl)
       .catch((error) =>
-        log.error(`Auto-play failed for ID: ${id}, URL: ${audioUrl}`, error, { eventType: "auto_play_error" })
+        log.error(`Auto-play failed for ID: ${id}, URL: ${redactUrl(audioUrl)}`, error, { eventType: "auto_play_error" })
       );
   }
 

@@ -4,6 +4,7 @@ const logger = require("../logger");
 const azureBlobService = require("./azureBlobService");
 const connectionManager = require("./connectionManager");
 const { PlaybackStatus, PlaybackRefusal } = require("../constants");
+const redactUrl = require("../redactUrl");
 
 const AUDIO_BYTES_PER_SECOND = 16000; // 320 bytes * 50 chunks per second
 const CHUNK_BYTES = 320;
@@ -102,10 +103,10 @@ async function playAudioContent(id, blobUrl) {
       sendAudioContentChunks(ws, id, blobData, state, currentPlaybackId);
     } else {
       // Keep audio content in paused state
-      sendPlaybackStatus(id, PlaybackStatus.PAUSED);
+      sendPlaybackStatus(id, PlaybackStatus.PAUSED, PlaybackRefusal.PLAY_DEFERRED_SYSTEM_AUDIO);
       log.info(
         `Audio content playback paused for ID: ${id} due to system audio content in progress`,
-        { eventType: "audio_playback_paused" }
+        { eventType: "audio_playback_deferred" }
       );
     }
   } else {
@@ -133,7 +134,7 @@ async function playSystemAudioContent(id, blobUrl) {
 
     // Enqueue system audio content
     state.systemAudioContentQueue.push({ blobUrl });
-    log.info(`System audio content queued for ID: ${id}, Blob URL: ${blobUrl}`, { eventType: "system_audio_queued" });
+    log.info(`System audio content queued for ID: ${id}, Blob URL: ${redactUrl(blobUrl)}`, { eventType: "system_audio_queued" });
 
     if (state.currentAudioType === "systemAudioContent") {
       // Do nothing; it will play after the current system audio content
@@ -147,7 +148,7 @@ async function playSystemAudioContent(id, blobUrl) {
       ) {
         state.audioContentState.playing = false;
         sendPlaybackStatus(id, PlaybackStatus.PAUSED);
-        log.info(`Audio content playback paused for ID: ${id} to play system audio content`, { eventType: "audio_playback_paused" });
+        log.info(`Audio content playback paused for ID: ${id} to play system audio content`, { eventType: "audio_playback_preempted" });
       }
 
       // Set currentAudioType to 'systemAudioContent' and start playing next system audio content
@@ -180,7 +181,7 @@ async function playNextSystemAudioContent(ws, id, state) {
 
   const nextSystemAudioContent = state.systemAudioContentQueue.shift();
   const { blobUrl } = nextSystemAudioContent;
-  log.info(`Starting system audio content playback for ID: ${id}, Blob URL: ${blobUrl}`, { eventType: "system_audio_playback_start" });
+  log.info(`Starting system audio content playback for ID: ${id}, Blob URL: ${redactUrl(blobUrl)}`, { eventType: "system_audio_playback_start" });
 
   try {
     const { containerName, blobName } = parseBlobUrl(blobUrl);
@@ -191,7 +192,7 @@ async function playNextSystemAudioContent(ws, id, state) {
     sendSystemAudioContentChunks(ws, id, blobData, state);
   } catch (error) {
     logger.error(
-      `Failed to play system audio content for ID: ${id}, Blob URL: ${blobUrl}: ${error}`,
+      `Failed to play system audio content for ID: ${id}, Blob URL: ${redactUrl(blobUrl)}: ${error}`,
       error
     );
     clearSystemAudio(ws, id, state);
@@ -383,6 +384,7 @@ function resumeAudioContent(id) {
     (state.systemAudioContentQueue && state.systemAudioContentQueue.length > 0)
   ) {
     // Ignore resume request; system audio content is playing or queued
+    sendPlaybackStatus(id, PlaybackStatus.PAUSED, PlaybackRefusal.RESUME_REFUSED_SYSTEM_AUDIO);
     log.info(`Resume request ignored for ID: ${id}; system audio content is playing or queued`, { eventType: "audio_resume_ignored" });
     return;
   }
@@ -553,7 +555,7 @@ function parseBlobUrl(blobUrl) {
   return { containerName, blobName };
 }
 
-function sendPlaybackStatus(id, status) {
+function sendPlaybackStatus(id, status, refusal) {
   const log = scopedLogger(id, connectionManager.getConnection(id)?.state);
   try {
     const confv2Conn = connectionManager.getConnection("confv2server");

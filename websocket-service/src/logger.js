@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const dotenv = require('dotenv');
+const winston = require('winston');
 
 const envPath = path.resolve(process.cwd(), '.env');
 if (fs.existsSync(envPath)) dotenv.config({ path: envPath });
@@ -22,71 +23,70 @@ if (connectionString) {
     .setDistributedTracingMode(appInsights.DistributedTracingModes.AI_AND_W3C)
     .start();
 
-  appInsights.defaultClient.context.tags[
-    appInsights.defaultClient.context.keys.cloudRole
-  ] = 'websocket-service';
-
   client = appInsights.defaultClient;
 }
 
-const LEVELS = { debug: 0, info: 1, warn: 2, error: 3 };
-const configuredLevel = LEVELS[process.env.LOG_LEVEL] ?? LEVELS.info;
+const LEVELS = { error: 0, warn: 1, info: 2, debug: 3 };
+const SEVERITY = { debug: 0, info: 1, warn: 2, error: 3 };
+const CONSOLE_METHOD = { error: 'error', warn: 'warn', info: 'log', debug: 'log' };
+const RESERVED_KEYS = new Set(['timestamp', 'level', 'service', 'message', 'error', 'exception']);
 
 const SENSITIVE_KEYS = /token|password|secret|authorization|apikey|connectionstring/i;
 
-function maskProperties(properties) {
-  const masked = {};
-  for (const [key, value] of Object.entries(properties)) {
-    masked[key] = SENSITIVE_KEYS.test(key) ? '***' : value;
+const maskSensitive = winston.format((info) => {
+  for (const key of Object.keys(info)) {
+    if (SENSITIVE_KEYS.test(key)) info[key] = '***';
   }
-  return masked;
+  return info;
+});
+
+class ConsoleAppInsightsTransport extends winston.Transport {
+  log(info, callback) {
+    const { exception, ...entry } = info;
+    console[CONSOLE_METHOD[info.level]](JSON.stringify(entry));
+
+    if (client) {
+      const properties = {};
+      for (const key of Object.keys(info)) {
+        if (!RESERVED_KEYS.has(key)) properties[key] = info[key];
+      }
+      if (exception instanceof Error) {
+        client.trackException({ exception, properties: { ...properties, message: info.message } });
+      } else {
+        client.trackTrace({ message: info.message, severity: SEVERITY[info.level], properties });
+      }
+    }
+    callback();
+  }
 }
 
-function write(level, message, properties) {
-  const entry = {
-    timestamp: new Date().toISOString(),
-    level,
-    service: 'websocket-service',
-    message,
-    ...properties,
-  };
-  const line = JSON.stringify(entry);
-  if (level === 'error') console.error(line);
-  else if (level === 'warn') console.warn(line);
-  else console.log(line);
-}
-
-function log(level, message, properties = {}) {
-  if (LEVELS[level] < configuredLevel) return;
-  const masked = maskProperties(properties);
-  write(level, message, masked);
-  if (client) client.trackTrace({ message, severity: LEVELS[level], properties: masked });
-}
+const winstonLogger = winston.createLogger({
+  levels: LEVELS,
+  level: process.env.LOG_LEVEL in LEVELS ? process.env.LOG_LEVEL : 'info',
+  defaultMeta: { service: 'websocket-service' },
+  format: winston.format.combine(winston.format.timestamp(), maskSensitive()),
+  transports: [new ConsoleAppInsightsTransport()],
+});
 
 const logger = {
   debug(message, properties = {}) {
-    log('debug', message, properties);
+    winstonLogger.debug(message, properties);
   },
 
   info(message, properties = {}) {
-    log('info', message, properties);
+    winstonLogger.info(message, properties);
   },
 
   warn(message, properties = {}) {
-    log('warn', message, properties);
+    winstonLogger.warn(message, properties);
   },
 
   error(message, error, properties = {}) {
-    if (LEVELS.error < configuredLevel) return;
-    const masked = maskProperties(properties);
-    write('error', message, { ...masked, error: error instanceof Error ? error.message : error ?? null });
-    if (client) {
-      if (error instanceof Error) {
-        client.trackException({ exception: error, properties: { ...masked, message } });
-      } else {
-        client.trackTrace({ message, severity: LEVELS.error, properties: masked });
-      }
-    }
+    winstonLogger.error(message, {
+      ...properties,
+      error: error instanceof Error ? error.message : error ?? null,
+      exception: error instanceof Error ? error : undefined,
+    });
   },
 };
 

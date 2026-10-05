@@ -154,8 +154,9 @@ The service logs key events for easier tracking and debugging:
 
 ### Environment Variables
 
+- **`OTEL_SERVICE_NAME`** (set to `websocket-service` in deployment): sets `cloud_RoleName` in Application Insights. Without it the role shows as `unknown_service:node`.
 - **`LOG_LEVEL`** (optional): Minimum log level to emit — one of `debug`, `info`, `warn`, `error`. Defaults to `info` if unset or unrecognized.
-- **`APPLICATIONINSIGHTS_CONNECTION_STRING`** (optional): Azure Application Insights connection string. When set, all logs are also forwarded to Application Insights (`trackTrace`, or `trackException` for errors) with the `cloudRole` tag set to `websocket-service`. If unset, logs are still written as JSON to stdout/stderr, but nothing is sent to Azure.
+- **`APPLICATIONINSIGHTS_CONNECTION_STRING`** (optional): Azure Application Insights connection string. When set, all logs are also forwarded to Application Insights (`trackTrace`, or `trackException` for errors) If unset, logs are still written as JSON to stdout/stderr, but nothing is sent to Azure.
 
 ### Sample KQL Queries
 
@@ -164,19 +165,19 @@ Once logs are flowing into Application Insights, use Log Analytics to inspect th
 ```kusto
 // Traces for this service, filtered by event type
 traces
-| where cloudRoleName == "websocket-service"
-| where customDimensions.eventType == "playAudioContent"
+| where cloud_RoleName == "websocket-service"
+| where customDimensions.eventType == "play_audio_requested"
 | order by timestamp desc
 
 // Trace correlation and session for a specific WebSocket connection
 traces
-| where cloudRoleName == "websocket-service"
+| where cloud_RoleName == "websocket-service"
 | where customDimensions.sessionId == "connection1" or customDimensions.correlationId == "connection1"
 | order by timestamp desc
 
 // Exceptions logged by the websocket service
 exceptions
-| where cloudRoleName == "websocket-service"
+| where cloud_RoleName == "websocket-service"
 | order by timestamp desc
 ```
 
