@@ -14,7 +14,7 @@ from app.consumers.base_consumer import BaseConsumer, PermanentError
 from app.platform.database import get_database
 from app.platform.settings import get_settings
 from app.providers.service_bus import service_bus_provider
-from app.services.ivr_service import IVRService, hangup_call, update_call_ncco
+from app.services.ivr_service import IVRService, update_call_ncco
 
 logger = logging.getLogger(__name__)
 
@@ -120,7 +120,5 @@ class DtmfConsumer(BaseConsumer):
         if not await update_call_ncco(call_leg_id, ncco, get_settings()):
             logger.error("dtmf_consumer: update_call_ncco failed for call_leg=%s", call_leg_id)
             return
-        if should_hangup and not await hangup_call(call_leg_id, get_settings()):
-            logger.error("dtmf_consumer: hangup failed for call_leg=%s", call_leg_id)
         await service.record_dtmf_processed(call_leg_id, message.message_id)
         logger.info("dtmf_consumer: processed call_leg=%s digit=%r", call_leg_id, digits)

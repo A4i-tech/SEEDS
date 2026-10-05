@@ -435,6 +435,79 @@ class TestWebhookControllerDeep:
         input_action = next(action for action in ncco if action.get("action") == "input")
         assert input_action["dtmf"]["timeOut"] == 20
 
+    @pytest.mark.asyncio
+    async def test_dtmf_webhook_returns_claimed_ncco_fast_path(self) -> None:
+        import asyncio
+
+        from fastapi import BackgroundTasks
+
+        import app.controllers.ivr_webhook_controller as controller
+        from app.providers.service_bus import service_bus_provider
+        from app.repositories.ivr_repository import IVRRepository
+
+        payload = {
+            "dtmf": {"digits": "7", "timed_out": False},
+            "conversation_uuid": "conv-fast-1",
+            "uuid": "leg-fast-1",
+            "timestamp": "2026-01-01T00:00:00Z",
+        }
+        request = MagicMock()
+        request.json = AsyncMock(return_value=payload)
+        message_id = "dtmf:conv-fast-1:leg-fast-1:7:2026-01-01T00:00:00Z"
+        claimed_ncco = [{"action": "talk", "text": "claimed"}]
+
+        db = AsyncMongoMockClient()["test_dtmf_fast_path"]
+        await db["ongoingIVRState"].insert_one({"_id": "leg-fast-1", "version": 1})
+
+        async def claim_after_delay() -> None:
+            await asyncio.sleep(0.01)
+            await IVRRepository(db).try_claim_dtmf_result(
+                "leg-fast-1", message_id, claimed_ncco, False
+            )
+
+        with (
+            patch.object(controller, "get_database", return_value=db),
+            patch.object(controller, "DTMF_BRIDGE_WAIT_SECONDS", 0.2),
+            patch.object(controller, "DTMF_BRIDGE_POLL_INTERVAL_SECONDS", 0.01),
+            patch.object(service_bus_provider, "send_dtmf_input", AsyncMock(return_value=True)),
+        ):
+            claim_task = asyncio.create_task(claim_after_delay())
+            ncco = await controller.ivr_dtmf_webhook(request, BackgroundTasks())
+            await claim_task
+
+        assert ncco == claimed_ncco
+
+
+class TestIVRRepositoryDtmfBridge:
+    @pytest.mark.asyncio
+    async def test_try_claim_dtmf_result_second_claim_returns_false(self) -> None:
+        from app.repositories.ivr_repository import IVRRepository
+
+        db = AsyncMongoMockClient()["test_dtmf_claim_once"]
+        await db["ongoingIVRState"].insert_one({"_id": "leg-claim-1", "version": 1})
+        repo = IVRRepository(db)
+        await repo.set_dtmf_waiting("leg-claim-1", "msg-1")
+
+        first = await repo.try_claim_dtmf_result("leg-claim-1", "msg-1", [{"action": "talk"}], False)
+        second = await repo.try_claim_dtmf_result("leg-claim-1", "msg-1", [{"action": "talk"}], False)
+
+        assert first is True
+        assert second is False
+
+    @pytest.mark.asyncio
+    async def test_is_dtmf_duplicate_true_after_record_dtmf_processed(self) -> None:
+        from app.repositories.ivr_repository import IVRRepository
+
+        db = AsyncMongoMockClient()["test_dtmf_dup_processed"]
+        await db["ongoingIVRState"].insert_one({"_id": "leg-dup-1", "version": 1})
+        repo = IVRRepository(db)
+
+        assert await repo.is_dtmf_duplicate("leg-dup-1", "msg-2") is False
+
+        await repo.record_dtmf_processed("leg-dup-1", "msg-2")
+
+        assert await repo.is_dtmf_duplicate("leg-dup-1", "msg-2") is True
+
 
 # ---------------------------------------------------------------------------
 # Conference service — update_state method
