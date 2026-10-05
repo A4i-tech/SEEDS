@@ -118,6 +118,7 @@ function Block({ block, jobId, editingId, focusIdRef, onEdit, onCommit, onCancel
   if (editing) {
     return (
       <BlockEditor
+        key={block.raw}
         block={block}
         onCommit={(raw, refocus) => onCommit(block.id, raw, refocus)}
         onCancel={(refocus) => onCancel(block.id, refocus)}

@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import hashlib
+import logging
 import os
 import re
 from collections.abc import AsyncIterator
@@ -18,6 +19,8 @@ from omni_ingest.core.pipeline import IngestionContext, register_step
 from pydantic import Field, PositiveInt
 
 from app.platform.settings import get_settings
+
+logger = logging.getLogger(__name__)
 
 ENGINE_NAME = "azure_mistral"
 
@@ -91,7 +94,8 @@ def azure_mistral_ocr_builder(
             ref = match.group(1)
             img = img_by_id.get(ref)
             if img is None:
-                raise RuntimeError(f"Page {page_num} markdown references image '{ref}' that Mistral OCR did not return")
+                logger.warning("Page %s references image %r that Mistral OCR did not return", page_num, ref)
+                return f"[Figure missing from OCR output: {ref}. Check page {page_num} of the source PDF.]"
             if ref not in id_map:
                 id_map[ref] = make_image_item(img, page_num, page_dims, parent)
             return f'<image id="{id_map[ref]}"/>'

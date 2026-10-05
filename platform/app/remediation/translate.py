@@ -31,8 +31,18 @@ def _repair_image_markup(original_md: str, translated_md: str) -> str:
             f"Translation changed the number of figures from {len(original_srcs)} to {len(translated_srcs)}. "
             "Translate again. If it fails again, report the job id."
         )
-    srcs = iter(original_srcs)
-    return _IMAGE_SRC_RE.sub(lambda m: m.group(0)[: m.start(1) - m.start(0)] + next(srcs), repaired)
+    by_key = {src.lower(): src for src in original_srcs}
+
+    def restore(m: re.Match) -> str:
+        original = by_key.get(m.group(1).lower())
+        if original is None:
+            raise RuntimeError(
+                f"Translation changed figure path {m.group(1)!r} to one not in the source. "
+                "Translate again. If it fails again, report the job id."
+            )
+        return m.group(0)[: m.start(1) - m.start(0)] + original
+
+    return _IMAGE_SRC_RE.sub(restore, repaired)
 
 
 async def run_translation(

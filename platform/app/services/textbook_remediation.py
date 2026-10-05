@@ -5,7 +5,6 @@ import json
 import logging
 import tempfile
 from collections.abc import AsyncIterator
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import IO
 
@@ -216,28 +215,6 @@ async def findings_page(
     ).model_dump(mode="json")
 
 
-async def _append_edit_record(
-    blob_provider: BlobStorageProvider,
-    job: RemediationJob,
-    previous_md: str,
-    new_md: str,
-    edited_by: str | None,
-) -> str:
-    container = get_settings().azure_storage_container
-    blob_name = f"textbook-remediation/{job.job_id}/{artifact_filename(ArtifactName.EDITS)}"
-    existing_url = job.artifacts.get(ArtifactName.EDITS)
-    existing = await blob_provider.download_from_url(existing_url) if existing_url else b""
-    record = json.dumps({
-        "timestamp": datetime.now(UTC).isoformat(),
-        "edited_by": edited_by,
-        "previous": previous_md,
-        "new": new_md,
-    })
-    return await blob_provider.upload_file(
-        container, blob_name, existing + (record + "\n").encode("utf-8"), ARTIFACTS[ArtifactName.EDITS][1]
-    )
-
-
 async def save_draft(
     repo: TextbookRemediationRepository,
     blob_provider: BlobStorageProvider,
@@ -278,8 +255,7 @@ async def verify_job(
             previous_md = remediated_bytes.decode("utf-8")
         else:
             previous_md = ""
-        edits_url = await _append_edit_record(blob_provider, job, previous_md, job.draft_remediated_md, edited_by)
-        await repo.record_artifacts(job.job_id, {ArtifactName.EDITS: edits_url}, {})
+        await repo.record_edit(job.job_id, previous_md, job.draft_remediated_md, edited_by)
         with tempfile.TemporaryDirectory() as tmpdir:
             out_dir = Path(tmpdir)
             try:

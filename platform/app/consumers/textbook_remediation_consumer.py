@@ -243,9 +243,6 @@ async def _process_job(
             evt_type = evt.get("type")
             if evt_type in ("step_begin", "step_end"):
                 logger.info("remediation: job_id=%s step=%s %s", job.job_id, evt.get("step_name"), evt_type)
-            elif evt_type == "peak_rss":
-                logger.info("remediation: job_id=%s peak RSS=%sMB", job.job_id, evt.get("mb"))
-                return
             progress = JobProgress(
                 stage=stage,
                 step=evt.get("step_name"),

@@ -85,7 +85,7 @@ async def run_pipeline(
 
     stop_tailing = asyncio.Event()
     last_step: dict[str, str | None] = {"name": None}
-    peak_rss: dict[str, object] = {"mb": None}
+    peak_rss: dict[str, float | None] = {"mb": None}
 
     async def _tail_progress() -> None:
         file_pos = 0
@@ -111,8 +111,6 @@ async def run_pipeline(
                 except Exception as exc:
                     logger.warning("remediation: failed parsing progress line: %s", exc)
                     continue
-                if evt.get("type") == "peak_rss":
-                    peak_rss["mb"] = evt.get("mb")
                 if evt.get("step_name"):
                     last_step["name"] = evt["step_name"]
                 if on_progress:
@@ -126,7 +124,20 @@ async def run_pipeline(
             await asyncio.sleep(0.5)
         await _read_new()
 
+    async def _poll_rss(pid: int) -> None:
+        # Parent samples child RSS: a SIGKILL from the OOM killer skips any child-side reporting.
+        try:
+            page_size = os.sysconf("SC_PAGE_SIZE")
+            while True:
+                pages = int(Path(f"/proc/{pid}/statm").read_text().split()[1])
+                mb = round(pages * page_size / 1048576, 1)
+                peak_rss["mb"] = max(mb, peak_rss["mb"] or 0)
+                await asyncio.sleep(0.5)
+        except (OSError, AttributeError, ValueError):
+            return
+
     tail_task = asyncio.create_task(_tail_progress())
+    rss_task: asyncio.Task | None = None
     try:
         with open(stderr_path, "wb") as stderr_fh:
             proc = await asyncio.create_subprocess_exec(
@@ -136,6 +147,7 @@ async def run_pipeline(
                 stdout=asyncio.subprocess.DEVNULL,
                 stderr=stderr_fh,
             )
+        rss_task = asyncio.create_task(_poll_rss(proc.pid))
         try:
             await asyncio.wait_for(proc.wait(), timeout)
         except TimeoutError as exc:
@@ -145,7 +157,7 @@ async def run_pipeline(
             logger.error(
                 "remediation: pipeline %s timed out after %ss, last step=%s peak_rss_mb=%s: %s",
                 pipeline_path.name, timeout, last_step["name"],
-                peak_rss["mb"] if peak_rss["mb"] is not None else "unavailable (child reported none)", tail,
+                peak_rss["mb"] if peak_rss["mb"] is not None else "unavailable", tail,
             )
             raise RuntimeError(
                 f"Pipeline {pipeline_path.name} timed out after {timeout}s during step "
@@ -158,12 +170,14 @@ async def run_pipeline(
     finally:
         stop_tailing.set()
         await tail_task
+        if rss_task:
+            rss_task.cancel()
 
     if proc.returncode != 0:
         tail = _stderr_tail(stderr_path)
         logger.error(
             "remediation: pipeline %s failed rc=%s last step=%s peak_rss_mb=%s: %s",
             pipeline_path.name, proc.returncode, last_step["name"],
-            peak_rss["mb"] if peak_rss["mb"] is not None else "unavailable (child reported none)", tail,
+            peak_rss["mb"] if peak_rss["mb"] is not None else "unavailable", tail,
         )
         raise RuntimeError(_failure_message(pipeline_path.name, proc.returncode, last_step["name"], tail))

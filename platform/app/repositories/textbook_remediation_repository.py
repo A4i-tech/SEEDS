@@ -36,9 +36,20 @@ def _oid(job_id: str) -> ObjectId:
 
 class TextbookRemediationRepository:
     COLLECTION_NAME: ClassVar[str] = "textbookRemediationJobs"
+    EDITS_COLLECTION_NAME: ClassVar[str] = "textbookRemediationEdits"
 
     def __init__(self, db: AsyncDatabase) -> None:
         self._col = db[self.COLLECTION_NAME]
+        self._edits = db[self.EDITS_COLLECTION_NAME]
+
+    async def record_edit(self, job_id: str, previous_md: str, new_md: str, edited_by: str | None) -> None:
+        await self._edits.insert_one({
+            "job_id": job_id, "timestamp": datetime.now(UTC).isoformat(), "edited_by": edited_by,
+            "previous": previous_md, "new": new_md,
+        })
+
+    async def list_edits(self, job_id: str) -> list[dict[str, object]]:
+        return await self._edits.find({"job_id": job_id}, {"_id": 0}).sort("timestamp", 1).to_list(length=None)
 
     async def create(
         self, *, job_id: ObjectId, tenant_id: str, source_name: str, source_url: str, language: str,

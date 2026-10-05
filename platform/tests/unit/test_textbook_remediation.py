@@ -683,8 +683,7 @@ async def test_verify_job_appends_an_edit_record_against_the_remediated_artifact
 
     await remediation_service.verify_job(repo, blob, job, title="Title", verified_by="reviewer@seeds.org", edited_by="teacher@seeds.org")
 
-    edits_blob = blob.uploaded[f"textbook-remediation/{job.job_id}/remediated.edits.jsonl"]
-    record = json.loads(edits_blob.decode("utf-8").strip())
+    (record,) = await repo.list_edits(job.job_id)
     assert (record["previous"], record["new"], record["edited_by"]) == ("# Original", "# Edited once", "teacher@seeds.org")
 
 
@@ -702,8 +701,7 @@ async def test_verify_job_appends_a_second_record_on_a_repeat_verification(repo,
     job = await repo.update_draft(job.job_id, "# Edited twice", "https://blob/draft.md")
     job = await remediation_service.verify_job(repo, blob, job, title="Title", verified_by="reviewer@seeds.org", edited_by="teacher@seeds.org")
 
-    edits_blob = blob.uploaded[f"textbook-remediation/{job.job_id}/remediated.edits.jsonl"]
-    lines = [json.loads(line) for line in edits_blob.decode("utf-8").splitlines()]
+    lines = await repo.list_edits(job.job_id)
     assert len(lines) == 2
     assert (lines[1]["previous"], lines[1]["new"]) == ("# Original", "# Edited twice")
 

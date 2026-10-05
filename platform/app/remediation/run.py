@@ -60,12 +60,6 @@ async def _run_with_optional_progress(progress_path: Path | None) -> int:
     try:
         return await _main()
     finally:
-        if progress_path and sys.platform != "win32":
-            import resource
-            peak_mb = round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024, 1)
-            rec = {"type": "peak_rss", "mb": peak_mb, "timestamp": datetime.now(UTC).isoformat()}
-            with open(progress_path, "a", encoding="utf-8") as f:
-                f.write(json.dumps(rec) + "\n")
         if task:
             task.cancel()
 

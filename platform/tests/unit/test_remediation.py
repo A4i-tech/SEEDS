@@ -452,3 +452,19 @@ def test_repair_image_markup_fails_when_translation_drops_a_figure():
 
     with pytest.raises(RuntimeError, match="number of figures from 2 to 1"):
         _repair_image_markup("![a](images/a.jpg)\n\n![b](images/b.jpg)", "! [a] (images/a.jpg)")
+
+
+def test_repair_image_markup_keeps_each_caption_with_its_own_figure_when_reordered():
+    from app.remediation.translate import _repair_image_markup
+
+    original = "![a](images/a.jpg)\n\n![b](images/b.jpg)"
+    translated = "![B cap](Images/b.jpg)\n\n![A cap](Images/a.jpg)"
+
+    assert _repair_image_markup(original, translated) == "![B cap](images/b.jpg)\n\n![A cap](images/a.jpg)"
+
+
+def test_repair_image_markup_fails_when_a_figure_path_is_not_in_the_source():
+    from app.remediation.translate import _repair_image_markup
+
+    with pytest.raises(RuntimeError, match="not in the source"):
+        _repair_image_markup("![a](images/a.jpg)", "![a](images/z.jpg)")

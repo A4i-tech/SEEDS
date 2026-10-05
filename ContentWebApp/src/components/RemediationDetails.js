@@ -261,7 +261,7 @@ const RemediationDetails = () => {
     window.addEventListener("popstate", handler);
     return () => {
       window.removeEventListener("popstate", handler);
-      if (!unmountingRef.current) window.history.back();
+      if (unmountingRef.current) window.history.back();
     };
   }, [isDirty]);
 
@@ -273,9 +273,9 @@ const RemediationDetails = () => {
     setPendingNav({ onLeave });
   };
 
-  const handleDraftChange = (value) => {
+  const handlePageEdit = (newPageMd) => {
     setIsDirty(true);
-    setDraftText(value);
+    setDraftText((prev) => replacePageInDocument(prev, splitIntoPages(prev), pageIdx, newPageMd));
   };
 
   const handleMarkVerified = async () => {
@@ -500,9 +500,7 @@ const RemediationDetails = () => {
                         key={bookPageNum}
                         jobId={jobId}
                         pageMarkdown={currentDraftPage}
-                        onChange={(newPageMd) =>
-                          handleDraftChange(replacePageInDocument(draftText, draftPages, pageIdx, newPageMd))
-                        }
+                        onChange={handlePageEdit}
                       />
                       {currentPageFlags.map((flag) => (
                         <div key={flag.id} className="remediation-diagram-marker">
