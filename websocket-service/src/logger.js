@@ -62,53 +62,31 @@ class ConsoleAppInsightsTransport extends winston.Transport {
 
 const winstonLogger = winston.createLogger({
   levels: LEVELS,
-  level: process.env.LOG_LEVEL in LEVELS ? process.env.LOG_LEVEL : 'info',
+  level: process.env.LOG_LEVEL || 'info',
   defaultMeta: { service: 'websocket-service' },
   format: winston.format.combine(winston.format.timestamp(), maskSensitive()),
   transports: [new ConsoleAppInsightsTransport()],
 });
 
 const logger = {
-  debug(message, properties = {}) {
-    winstonLogger.debug(message, properties);
-  },
-
-  info(message, properties = {}) {
-    winstonLogger.info(message, properties);
-  },
-
-  warn(message, properties = {}) {
-    winstonLogger.warn(message, properties);
-  },
-
-  error(message, error, properties = {}) {
+  debug: (message, properties) => winstonLogger.debug(message, properties),
+  info: (message, properties) => winstonLogger.info(message, properties),
+  warn: (message, properties) => winstonLogger.warn(message, properties),
+  error: (message, error, properties) =>
     winstonLogger.error(message, {
       ...properties,
-      error: error instanceof Error ? error.message : error ?? null,
-      exception: error instanceof Error ? error : undefined,
-    });
-  },
+      error: error instanceof Error ? error.message : error,
+      exception: error,
+    }),
 };
 
-logger.withContext = function withContext(context) {
-  return {
-    debug(message, properties = {}) {
-      logger.debug(message, { ...context, ...properties });
-    },
-    info(message, properties = {}) {
-      logger.info(message, { ...context, ...properties });
-    },
-    warn(message, properties = {}) {
-      logger.warn(message, { ...context, ...properties });
-    },
-    error(message, error, properties = {}) {
-      logger.error(message, error, { ...context, ...properties });
-    },
-  };
-};
+logger.withContext = (context) => ({
+  debug: (message, properties) => logger.debug(message, { ...context, ...properties }),
+  info: (message, properties) => logger.info(message, { ...context, ...properties }),
+  warn: (message, properties) => logger.warn(message, { ...context, ...properties }),
+  error: (message, error, properties) => logger.error(message, error, { ...context, ...properties }),
+});
 
-logger.generateCorrelationId = function generateCorrelationId() {
-  return crypto.randomUUID();
-};
+logger.generateCorrelationId = () => crypto.randomUUID();
 
 module.exports = logger;

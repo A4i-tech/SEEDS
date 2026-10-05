@@ -42,6 +42,7 @@ describe("ControlService", () => {
     websocketService.seekAudioContent.mockResolvedValue();
     websocketService.closeConnection.mockReturnValue();
     connectionManager.removeConnection.mockReturnValue();
+    connectionManager.getConnection.mockReturnValue({ ws: mockWebSocket, state: { correlationId: "test-correlation-id" } });
   });
 
   describe("connection handling", () => {
@@ -64,7 +65,7 @@ describe("ControlService", () => {
       );
 
       // Test close event
-      connectionManager.getConnection.mockReturnValue({ ws: mockWebSocket });
+      connectionManager.getConnection.mockReturnValue({ ws: mockWebSocket, state: { correlationId: "test-correlation-id" } });
       mockCloseHandler(1000, "normal");
       expect(
         findLoggedEntry(

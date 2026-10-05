@@ -10,7 +10,7 @@ const { MessageType } = require("../constants");
  * @param {WebSocket} ws - The control WebSocket connection.
  */
 function handleControlConnection(ws, id) {
-  const correlationId = connectionManager.getConnection(id)?.state?.correlationId;
+  const correlationId = connectionManager.getConnection(id).state.correlationId;
   const log = logger.withContext({ sessionId: id, clientId: id, correlationId });
 
   log.info(`Control connection established (${id}).`, { eventType: "control_connection_established" });

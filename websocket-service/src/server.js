@@ -110,7 +110,7 @@ wss.on("connection", (ws, req) => {
       connectionManager.removeConnection(id);
 
       if (!state.isClosed) {
-        websocketService.handleAccidentalDisconnection(id);
+        websocketService.handleAccidentalDisconnection(id, correlationId);
       }
     });
 

@@ -9,8 +9,8 @@ const redactUrl = require("../redactUrl");
 const AUDIO_BYTES_PER_SECOND = 16000; // 320 bytes * 50 chunks per second
 const CHUNK_BYTES = 320;
 
-function scopedLogger(id, state) {
-  return logger.withContext({ sessionId: id, clientId: id, correlationId: state?.correlationId });
+function scopedLogger(id, correlationId) {
+  return logger.withContext({ sessionId: id, clientId: id, correlationId });
 }
 
 /**
@@ -55,7 +55,7 @@ async function playAudioContent(id, blobUrl) {
   if (!connection) throw new Error("WebSocket connection not found");
 
   const { ws, state } = connection;
-  const log = scopedLogger(id, state);
+  const log = scopedLogger(id, state.correlationId);
 
   if (ws.readyState === ws.OPEN) {
     if (!state.audioContentState) {
@@ -125,7 +125,7 @@ async function playSystemAudioContent(id, blobUrl) {
   if (!connection) throw new Error("WebSocket connection not found");
 
   const { ws, state } = connection;
-  const log = scopedLogger(id, state);
+  const log = scopedLogger(id, state.correlationId);
 
   if (ws.readyState === ws.OPEN) {
     if (!state.systemAudioContentQueue) {
@@ -167,7 +167,7 @@ async function playSystemAudioContent(id, blobUrl) {
  * @param {Object} state - State object containing playback information.
  */
 async function playNextSystemAudioContent(ws, id, state) {
-  const log = scopedLogger(id, state);
+  const log = scopedLogger(id, state.correlationId);
   if (state.systemAudioContentQueue.length === 0) {
     // No more system audio content; do not resume audio content
     log.info(`No more system audio content in queue for ID: ${id}`, { eventType: "system_audio_queue_empty" });
@@ -213,7 +213,7 @@ function clearSystemAudio(ws, id, state) {
  * @param {number} playbackId - Unique identifier for the playback session.
  */
 function sendAudioContentChunks(ws, id, blobData, state, playbackId) {
-  const log = scopedLogger(id, state);
+  const log = scopedLogger(id, state.correlationId);
   let position = state.audioContentState.position || 0;
   const totalLength = blobData.length;
   let chunksSinceLastReport = 0;
@@ -297,7 +297,7 @@ function sendAudioContentChunks(ws, id, blobData, state, playbackId) {
  * @param {Object} state - State object containing playback information.
  */
 function sendSystemAudioContentChunks(ws, id, blobData, state) {
-  const log = scopedLogger(id, state);
+  const log = scopedLogger(id, state.correlationId);
   const totalLength = blobData.length;
   let position = 0;
 
@@ -354,7 +354,7 @@ function pauseAudioContent(id) {
   if (!connection) throw new Error("WebSocket connection not found");
 
   const { state } = connection;
-  const log = scopedLogger(id, state);
+  const log = scopedLogger(id, state.correlationId);
 
   if (
     state.currentAudioType === "audioContent" &&
@@ -377,7 +377,7 @@ function resumeAudioContent(id) {
   if (!connection) throw new Error("WebSocket connection not found");
 
   const { ws, state } = connection;
-  const log = scopedLogger(id, state);
+  const log = scopedLogger(id, state.correlationId);
 
   if (
     state.currentAudioType === "systemAudioContent" ||
@@ -415,7 +415,7 @@ async function seekAudioContent(id, seekPayload) {
 
   const { ws, state } = connection;
   const audioState = state.audioContentState;
-  const log = scopedLogger(id, state);
+  const log = scopedLogger(id, state.correlationId);
 
   if (!audioState || !audioState.blobData) {
     throw new Error("No audio content data to seek");
@@ -472,7 +472,7 @@ function setPlaybackSpeed(id, speed) {
 
   const { ws, state } = connection;
   const audioState = state.audioContentState;
-  const log = scopedLogger(id, state);
+  const log = scopedLogger(id, state.correlationId);
 
   if (!audioState || !audioState.blobData) {
     throw new Error("No audio content data to change speed");
@@ -503,7 +503,7 @@ function stopAudioContent(id) {
   if (!connection) throw new Error("WebSocket connection not found");
 
   const { state } = connection;
-  const log = scopedLogger(id, state);
+  const log = scopedLogger(id, state.correlationId);
 
   if (state.audioContentState) {
     state.audioContentState.playing = false;
@@ -524,7 +524,7 @@ function closeConnection(id) {
   if (!connection) throw new Error("WebSocket connection not found");
 
   const { ws, state } = connection;
-  const log = scopedLogger(id, state);
+  const log = scopedLogger(id, state.correlationId);
   state.isClosed = true;
   ws.close();
   sendPlaybackStatus(id, PlaybackStatus.STOPPED);
@@ -535,11 +535,10 @@ function closeConnection(id) {
  * Handles WebSocket disconnection.
  * @param {string} id - Unique identifier for the connection.
  */
-function handleAccidentalDisconnection(id) {
-  const connection = connectionManager.getConnection(id);
-  const log = scopedLogger(id, connection?.state);
+function handleAccidentalDisconnection(id, correlationId) {
+  const log = scopedLogger(id, correlationId);
   log.info(`Sending reconnection message for WebSocket ID: ${id}`, { eventType: "accidental_disconnection" });
-  sendReconnectionMessage(id);
+  sendReconnectionMessage(id, correlationId);
 }
 
 /**
@@ -556,7 +555,8 @@ function parseBlobUrl(blobUrl) {
 }
 
 function sendPlaybackStatus(id, status, refusal) {
-  const log = scopedLogger(id, connectionManager.getConnection(id)?.state);
+  const conn = connectionManager.getConnection(id);
+  const log = scopedLogger(id, conn && conn.state.correlationId);
   try {
     const confv2Conn = connectionManager.getConnection("confv2server");
     if (!confv2Conn || !confv2Conn.ws) {
@@ -564,7 +564,6 @@ function sendPlaybackStatus(id, status, refusal) {
       return;
     }
     const { ws } = confv2Conn;
-    const conn = connectionManager.getConnection(id);
     const audioState = conn?.state?.audioContentState;
     if (conn?.state) {
       conn.state.lastPlaybackStatus = status;
@@ -602,9 +601,9 @@ function sendPlaybackStatus(id, status, refusal) {
   }
 }
 
-function sendReconnectionMessage(id) {
+function sendReconnectionMessage(id, correlationId) {
   const { ws } = connectionManager.getConnection("confv2server");
-  const log = scopedLogger(id, connectionManager.getConnection(id)?.state);
+  const log = scopedLogger(id, correlationId);
   ws.send(
     JSON.stringify({
       websocket_id: id,
