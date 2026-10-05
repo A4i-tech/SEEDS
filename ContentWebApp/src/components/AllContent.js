@@ -157,7 +157,7 @@ const AllContent = () => {
           showRegistration={canViewRegistration}
           showAnalytics={canViewAnalytics}
           showLocalization={canViewLocalization}
-          showRemediation={canViewContent}
+          showRemediation={false}
         />
 
         {updateIVRStatus && <div className="status-message">{updateIVRStatus}</div>}
