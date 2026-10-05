@@ -380,6 +380,7 @@ class TestWebhookControllerDeep:
         request.json = AsyncMock(return_value=payload)
 
         db = AsyncMongoMockClient()["test_dtmf_dedup"]
+        await db["ongoingIVRState"].insert_one({"_id": "leg-dedup-1", "version": 1})
         with (
             patch.object(controller, "get_database", return_value=db),
             patch.object(controller, "DTMF_BRIDGE_WAIT_SECONDS", 0.02),
@@ -422,6 +423,7 @@ class TestWebhookControllerDeep:
         request.json = AsyncMock(return_value=payload)
 
         db = AsyncMongoMockClient()["test_dtmf_placeholder"]
+        await db["ongoingIVRState"].insert_one({"_id": "leg-ncco-1", "version": 1})
         with (
             patch.object(controller, "get_database", return_value=db),
             patch.object(controller, "DTMF_BRIDGE_WAIT_SECONDS", 0.02),

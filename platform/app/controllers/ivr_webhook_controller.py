@@ -22,7 +22,7 @@ from app.models.ivr_state import DTMFInput, EventWebhookRequest
 from app.platform.database import get_database
 from app.platform.settings import get_settings
 from app.providers.service_bus import service_bus_provider
-from app.services.ivr_service import IVRService, hangup_call
+from app.services.ivr_service import IVRService
 
 logger = logging.getLogger(__name__)
 
@@ -167,8 +167,6 @@ async def ivr_dtmf_webhook(request: Request, background_tasks: BackgroundTasks) 
             poll_interval_seconds=DTMF_BRIDGE_POLL_INTERVAL_SECONDS,
         )
         if marker and not marker["waiting"] and marker.get("ncco") is not None:
-            if marker.get("should_hangup"):
-                background_tasks.add_task(hangup_call, call_leg_id, get_settings())
             return marker["ncco"]
 
     placeholder = [dict(action) for action in PLACEHOLDER_DTMF_NCCO]
