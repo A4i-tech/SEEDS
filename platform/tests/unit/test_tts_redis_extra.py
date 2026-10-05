@@ -15,7 +15,7 @@ import pytest
 
 class TestTTSServicePure:
     def test_get_tts_attributes_english(self) -> None:
-        from app.services.tts_service import _get_tts_attributes
+        from app.providers.tts_provider import _get_tts_attributes
 
         result = _get_tts_attributes("en")
         assert result is not None
@@ -23,26 +23,26 @@ class TestTTSServicePure:
         assert "en" in lang_code.lower() or "en" in voice_name.lower()
 
     def test_get_tts_attributes_hindi(self) -> None:
-        from app.services.tts_service import _get_tts_attributes
+        from app.providers.tts_provider import _get_tts_attributes
 
         result = _get_tts_attributes("hi")
         assert result is not None
 
     def test_get_tts_attributes_unsupported(self) -> None:
-        from app.services.tts_service import _get_tts_attributes
+        from app.providers.tts_provider import _get_tts_attributes
 
         result = _get_tts_attributes("klingon")
         assert result is None
 
     def test_get_tts_attributes_kannada(self) -> None:
-        from app.services.tts_service import _get_tts_attributes
+        from app.providers.tts_provider import _get_tts_attributes
 
         result = _get_tts_attributes("kn")
         # May or may not be supported — just check no crash
         assert result is None or isinstance(result, tuple)
 
     def test_build_ssml_basic(self) -> None:
-        from app.services.tts_service import _build_ssml
+        from app.providers.tts_provider import _build_ssml
 
         ssml = _build_ssml("Hello world", "en-US", "en-US-JennyNeural", "1.0")
         assert "<speak" in ssml
@@ -51,7 +51,7 @@ class TestTTSServicePure:
         assert 'rate="1.0"' in ssml
 
     def test_build_ssml_custom_rate(self) -> None:
-        from app.services.tts_service import _build_ssml
+        from app.providers.tts_provider import _build_ssml
 
         ssml = _build_ssml("Test", "hi-IN", "hi-IN-SwaraNeural", "slow")
         assert 'rate="slow"' in ssml
