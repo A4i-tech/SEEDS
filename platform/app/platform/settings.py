@@ -4,7 +4,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -94,6 +94,12 @@ class Settings(BaseSettings):
 
     azure_translation_key: str = Field(default="", repr=False)
 
+    translation_provider: str = "openai"
+    translation_base_url: str = ""
+    translation_api_key: str = Field(default="", repr=False)
+    translation_model: str = ""
+    openai_base_url: str = ""
+
     low_confidence_threshold: float = 0.7
     enable_dev_localhost_origin_alias: bool = False
 
@@ -156,6 +162,30 @@ class Settings(BaseSettings):
     subodha_jobs_collection_name: str = "subodhaSyncJobs"
     subodha_asset_container: str = "subodha"
 
+    @field_validator("translation_provider")
+    @classmethod
+    def _check_translation_provider(cls, value: str) -> str:
+        value = value.strip().lower()
+        if value not in ("azure", "openai"):
+            raise ValueError(
+                f"TRANSLATION_PROVIDER '{value}' is not supported. Set it to 'azure' or 'openai'."
+            )
+        return value
+
+    @model_validator(mode="after")
+    def _check_translation_settings(self) -> Settings:
+        if self.translation_provider == "openai" and not self.translation_model:
+            raise ValueError(
+                "TRANSLATION_MODEL is empty. Set it to a model name when "
+                "TRANSLATION_PROVIDER is 'openai', or set TRANSLATION_PROVIDER to 'azure'."
+            )
+        if self.translation_provider == "azure" and not (self.azure_translation_key and self.tts_region):
+            raise ValueError(
+                "AZURE_TRANSLATION_KEY and TTS_REGION are required when TRANSLATION_PROVIDER "
+                "is 'azure'. Set both, or set TRANSLATION_PROVIDER to 'openai'."
+            )
+        return self
+
     @property
     def call_webhook_queue_name(self) -> str:
         return f"call_webhook_{self.azure_service_bus_queue_name}"
@@ -181,6 +211,14 @@ class Settings(BaseSettings):
     def azure_translation_region(self) -> str:
         """Azure Translator region, reused from the Azure speech/TTS region."""
         return self.tts_region
+
+    @property
+    def translation_effective_base_url(self) -> str:
+        return self.translation_base_url or self.openai_base_url or "https://api.openai.com/v1"
+
+    @property
+    def translation_effective_api_key(self) -> str:
+        return self.translation_api_key or self.openai_api_key
 
 
 @lru_cache
