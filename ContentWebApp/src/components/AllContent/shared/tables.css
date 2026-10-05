@@ -58,6 +58,22 @@
   border-right: none;
 }
 
+.remediation-link {
+  background: none;
+  border: none;
+  padding: 0;
+  width: 100%;
+  font: inherit;
+  color: var(--color-primary);
+  font-weight: 600;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.remediation-link:hover {
+  text-decoration: underline;
+}
+
 /* Content type cell with pill badge */
 .content-type {
   display: inline-flex;

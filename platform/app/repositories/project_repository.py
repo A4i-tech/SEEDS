@@ -16,6 +16,7 @@ class ProjectRepository(BaseRepository):
 
     async def create(
         self,
+        tenant_id: str,
         name: str,
         description: str = "",
         source_language: str = "English",
@@ -23,6 +24,7 @@ class ProjectRepository(BaseRepository):
     ) -> dict[str, Any]:
         now = datetime.now(UTC)
         doc = {
+            "tenant_id": tenant_id,
             "name": name,
             "description": description,
             "source_language": source_language,
@@ -34,19 +36,21 @@ class ProjectRepository(BaseRepository):
         doc["_id"] = result.inserted_id
         return doc
 
-    async def find_by_id(self, project_id: str) -> dict[str, Any] | None:
-        return await self._col.find_one({"_id": self._to_id(project_id)})
+    async def find_by_id_and_tenant(self, project_id: str, tenant_id: str) -> dict[str, Any] | None:
+        return await self._col.find_one({"_id": self._to_id(project_id), "tenant_id": tenant_id})
 
-    async def find_all(self) -> list[dict[str, Any]]:
-        return await self._col.find({}).to_list(length=None)
+    async def find_all_by_tenant(self, tenant_id: str) -> list[dict[str, Any]]:
+        return await self._col.find({"tenant_id": tenant_id}).to_list(length=None)
 
-    async def update(self, project_id: str, fields: dict[str, Any]) -> dict[str, Any] | None:
+    async def update(self, project_id: str, tenant_id: str, fields: dict[str, Any]) -> dict[str, Any] | None:
         fields = {**fields, "updated_at": datetime.now(UTC)}
-        await self._col.update_one({"_id": self._to_id(project_id)}, {"$set": fields})
-        return await self.find_by_id(project_id)
+        await self._col.update_one(
+            {"_id": self._to_id(project_id), "tenant_id": tenant_id}, {"$set": fields}
+        )
+        return await self.find_by_id_and_tenant(project_id, tenant_id)
 
-    async def delete(self, project_id: str) -> bool:
-        result = await self._col.delete_one({"_id": self._to_id(project_id)})
+    async def delete(self, project_id: str, tenant_id: str) -> bool:
+        result = await self._col.delete_one({"_id": self._to_id(project_id), "tenant_id": tenant_id})
         return result.deleted_count > 0
 
     async def count(self) -> int:

@@ -1,4 +1,11 @@
 /**
+ * Get the raw auth token, for callers that can't send an Authorization
+ * header (e.g. a plain <img> tag needs it as a query param).
+ * @returns {string|null} The stored JWT, or null if not logged in
+ */
+export const getAuthToken = () => localStorage.getItem("authToken");
+
+/**
  * Get authorization headers with bearer token
  * @returns {Object} Headers object with Authorization
  */

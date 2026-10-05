@@ -6,6 +6,7 @@ import PublicRoute from "./components/PublicRoute";
 
 const AllContent = lazy(() => import("./components/AllContent"));
 const SyncHistoryPage = lazy(() => import("./components/SyncHistoryPage"));
+const RemediationDetails = lazy(() => import("./components/RemediationDetails"));
 const ContentDetails = lazy(() => import("./components/ContentDetails"));
 const ContentEdit = lazy(() => import("./components/ContentEdit"));
 const AddContent = lazy(() => import("./components/AddContent"));
@@ -44,6 +45,10 @@ function App() {
             <Route
               path="/content/edit/:type/:id"
               element={<ProtectedRoute element={<ContentEdit />} />}
+            />
+            <Route
+              path="/content/remediation/:jobId"
+              element={<ProtectedRoute element={<RemediationDetails />} />}
             />
             <Route path="/ivr" element={<ProtectedRoute element={<IVR />} />} />
             <Route

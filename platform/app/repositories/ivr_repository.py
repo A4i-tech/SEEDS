@@ -132,6 +132,8 @@ class IVRRepository(BaseRepository):
         new_version = current_version + 1
         doc["version"] = new_version
         doc["updated_at"] = datetime.now(UTC)
+        doc.pop("pending_dtmf", None)
+        doc.pop("last_dtmf_message_id", None)
         try:
             result = await self._ongoing_col.update_one(
                 {"_id": doc["_id"], "version": current_version},
@@ -144,6 +146,80 @@ class IVRRepository(BaseRepository):
             return False
         state.version = new_version
         return True
+
+    async def set_dtmf_waiting(self, call_leg_id: str, message_id: str) -> bool:
+        result = await self._ongoing_col.update_one(
+            {"_id": call_leg_id},
+            {
+                "$set": {
+                    "pending_dtmf": {
+                        "message_id": message_id,
+                        "waiting": True,
+                        "ncco": None,
+                        "should_hangup": None,
+                        "created_at": datetime.utcnow(),
+                    }
+                }
+            },
+        )
+        return result.matched_count > 0
+
+    async def is_dtmf_duplicate(self, call_leg_id: str, message_id: str) -> bool:
+        doc = await self._ongoing_col.find_one(
+            {"_id": call_leg_id}, {"pending_dtmf": 1, "last_dtmf_message_id": 1}
+        )
+        if not doc:
+            return False
+        if doc.get("last_dtmf_message_id") == message_id:
+            return True
+        marker = doc.get("pending_dtmf") or {}
+        return (
+            marker.get("message_id") == message_id
+            and not marker["waiting"]
+            and marker.get("ncco") is not None
+        )
+
+    async def record_dtmf_processed(self, call_leg_id: str, message_id: str) -> None:
+        await self._ongoing_col.update_one(
+            {"_id": call_leg_id},
+            {"$set": {"last_dtmf_message_id": message_id}},
+        )
+
+    async def peek_dtmf_result(self, call_leg_id: str, message_id: str) -> dict[str, Any] | None:
+        doc = await self._ongoing_col.find_one(
+            {"_id": call_leg_id, "pending_dtmf.message_id": message_id}
+        )
+        return doc.get("pending_dtmf") if doc else None
+
+    async def pop_dtmf_result(self, call_leg_id: str, message_id: str) -> dict[str, Any] | None:
+        doc = await self._ongoing_col.find_one_and_update(
+            {"_id": call_leg_id, "pending_dtmf.message_id": message_id},
+            {"$unset": {"pending_dtmf": ""}},
+        )
+        return doc.get("pending_dtmf") if doc else None
+
+    async def try_claim_dtmf_result(
+        self,
+        call_leg_id: str,
+        message_id: str,
+        ncco: list[dict[str, Any]],
+        should_hangup: bool,
+    ) -> bool:
+        result = await self._ongoing_col.update_one(
+            {
+                "_id": call_leg_id,
+                "pending_dtmf.message_id": message_id,
+                "pending_dtmf.waiting": True,
+            },
+            {
+                "$set": {
+                    "pending_dtmf.waiting": False,
+                    "pending_dtmf.ncco": ncco,
+                    "pending_dtmf.should_hangup": should_hangup,
+                }
+            },
+        )
+        return result.matched_count > 0
 
     async def push_stream_playback(self, conversation_id: str, item: dict[str, Any]) -> None:
         await self._ongoing_col.update_one(
