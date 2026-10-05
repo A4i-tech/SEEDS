@@ -25,7 +25,17 @@ const PlaybackStatus = {
   STOPPED: "Stopped",
 };
 
+/**
+ * Enum for Playback Refusal Reasons
+ */
+const PlaybackRefusal = {
+  PLAY_DEFERRED_SYSTEM_AUDIO: "play-deferred-system-audio",
+  RESUME_REFUSED_SYSTEM_AUDIO: "resume-refused-system-audio",
+  SEEK_DEFERRED_SYSTEM_AUDIO: "seek-deferred-system-audio",
+};
+
 module.exports = {
   MessageType,
   PlaybackStatus,
+  PlaybackRefusal,
 };

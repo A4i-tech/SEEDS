@@ -25,7 +25,6 @@ from app.controllers import (
     ivr_structure_controller,
     ivr_webhook_controller,
     language_controller,
-    language_management_controller,
     # Onboarding
     onboarding_controller,
     participants_controller,
@@ -40,6 +39,7 @@ from app.controllers import (
     # Users (split from users_controller)
     teacher_controller,
     tenant_auth_controller,
+    textbook_remediation_controller,
     translation_controller,
     user_controller,
     # Webhooks (split from webhook_controller)
@@ -68,11 +68,11 @@ api_router.include_router(class_controller.router)
 api_router.include_router(content_controller.router)
 api_router.include_router(audit_controller.router)
 api_router.include_router(content_aggregator_controller.router)
+api_router.include_router(textbook_remediation_controller.router)
 api_router.include_router(translation_controller.router)
 api_router.include_router(onboarding_controller.router)
 api_router.include_router(glossary_controller.router)
 api_router.include_router(language_controller.router)
-api_router.include_router(language_management_controller.router)
 
 # Calls
 api_router.include_router(conference_controller.router)

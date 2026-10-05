@@ -9,6 +9,7 @@
   var LANG_STORAGE_KEY = "translationSdk.lang";
   var EXTRACT_DEBOUNCE_MS = 800;
   var EXTRACT_CHUNK_SIZE = 500;
+  var FETCH_TIMEOUT_MS = 8000;
   var SKIP_TAGS = { SCRIPT: 1, STYLE: 1, NOSCRIPT: 1, TITLE: 1 };
   var ATTR_NAMES = ["placeholder", "aria-label", "title", "alt", "aria-placeholder", "value"];
 
@@ -19,6 +20,14 @@
   var registry = new Map();
   var pendingKeys = new Map();
   var extractTimer = null;
+
+  function fetchWithTimeout(url, options) {
+    var controller = new AbortController();
+    var timer = setTimeout(function () { controller.abort(); }, FETCH_TIMEOUT_MS);
+    return fetch(url, Object.assign({}, options, { signal: controller.signal })).finally(function () {
+      clearTimeout(timer);
+    });
+  }
 
   function getDescriptors(key) {
     var descriptors = registry.get(key);
@@ -72,22 +81,23 @@
 
   function registerNode(node) {
     var text = node.textContent;
-    if (!isTranslatable(text)) return;
-    if (isSkippableElement(node.parentElement)) return;
-    if (node.__translationOriginal !== undefined && node.textContent !== node.__translationOriginal) return;
-    if (node.__translationSelfWrite) return;
+    if (!isTranslatable(text)) return false;
+    if (isSkippableElement(node.parentElement)) return false;
+    if (node.__translationOriginal !== undefined && node.textContent !== node.__translationOriginal) return false;
+    if (node.__translationSelfWrite) return false;
 
     var key = hashText(text.trim());
-    if (!node.__translationOriginal) node.__translationOriginal = text;
+    if (node.__translationOriginal === undefined) node.__translationOriginal = text;
 
     var descriptors = getDescriptors(key);
     var alreadyRegistered = descriptors.some(function (d) {
       return d.kind === "text" && d.node === node;
     });
-    if (alreadyRegistered) return;
+    if (alreadyRegistered) return false;
     descriptors.push({ kind: "text", node: node });
     pendingKeys.set(key, text.trim());
     scheduleExtractFlush();
+    return true;
   }
 
   function registerAttr(el, attr) {
@@ -150,34 +160,20 @@
     for (var i = 0; i < items.length; i += EXTRACT_CHUNK_SIZE) {
       var chunk = items.slice(i, i + EXTRACT_CHUNK_SIZE);
       requests.push(
-        fetch(API_BASE + "/translations/extract", {
+        fetchWithTimeout(API_BASE + "/translations/extract", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ site_id: SITE_ID, items: chunk }),
+        }).catch(function (err) {
+          console.warn("translation-sdk: extract request failed, will retry on next change", err);
         })
       );
     }
     await Promise.all(requests);
   }
 
-  var APPLY_DEBOUNCE_MS = 500;
-  var APPLY_MAX_WAIT_MS = 1500;
   var applyInFlight = false;
   var applyPendingLang = null;
-  var applyTimer = null;
-  var applyScheduleStart = null;
-
-  function scheduleApplyTranslations() {
-    var now = Date.now();
-    if (applyScheduleStart === null) applyScheduleStart = now;
-    var delay = now - applyScheduleStart >= APPLY_MAX_WAIT_MS ? 0 : APPLY_DEBOUNCE_MS;
-    clearTimeout(applyTimer);
-    applyTimer = setTimeout(function () {
-      applyTimer = null;
-      applyScheduleStart = null;
-      applyTranslations(currentLang());
-    }, delay);
-  }
 
   async function applyTranslations(lang) {
     if (applyInFlight) {
@@ -190,7 +186,7 @@
     } finally {
       applyInFlight = false;
     }
-    if (applyPendingLang !== null && applyPendingLang !== lang) {
+    if (applyPendingLang !== null) {
       var next = applyPendingLang;
       applyPendingLang = null;
       applyTranslations(next);
@@ -214,18 +210,19 @@
       "/translations?site_id=" + encodeURIComponent(SITE_ID) +
       "&route=" + encodeURIComponent(route) +
       "&lang=" + encodeURIComponent(lang);
-    var r = await fetch(url);
-    if (!r.ok) {
-      console.warn("translation-sdk: /translations request failed (" + r.status + "), skipping apply");
-      return;
+    try {
+      var r = await fetchWithTimeout(url, {});
+      var translations = await r.json();
+      swapText(translations);
+    } catch (err) {
+      console.warn("translation-sdk: /translations request errored, skipping apply", err);
     }
-    var translations = await r.json();
-    swapText(translations);
   }
 
   function applyValues(descriptors, getValue) {
     descriptors.forEach(function (d) {
       var value = getValue(d);
+      if (value === undefined) return;
       if (d.kind === "attr") {
         if (d.el.getAttribute(d.attr) === value) return;
         d.el.setAttribute(d.attr, value);
@@ -279,12 +276,13 @@
     var observer = new MutationObserver(function (mutations) {
       var newRoots = [];
       var changedTextNodes = [];
+      var reappliedBareText = false;
 
       mutations.forEach(function (m) {
         if (m.type === "childList") {
           m.addedNodes.forEach(function (n) {
             if (n.nodeType === Node.TEXT_NODE) {
-              registerNode(n);
+              if (registerNode(n)) reappliedBareText = true;
             } else if (n.nodeType === Node.ELEMENT_NODE) {
               newRoots.push(n);
             }
@@ -311,8 +309,8 @@
       changedTextNodes.forEach(registerNode);
 
       var lang = currentLang();
-      if (lang !== DEFAULT_LANG && (newRoots.length > 0 || changedTextNodes.length > 0)) {
-        scheduleApplyTranslations();
+      if (lang !== DEFAULT_LANG && (newRoots.length > 0 || changedTextNodes.length > 0 || reappliedBareText)) {
+        applyTranslations(lang);
       }
     });
     observer.observe(document.body, {
@@ -365,13 +363,21 @@
   }
 
   async function loadLanguages() {
-    var r = await fetch(API_BASE + "/languages?enabledOnly=true");
-    var list = await r.json();
-    var map = {};
-    list.forEach(function (lang) {
-      map[lang.code] = lang.name;
-    });
-    return map;
+    try {
+      var r = await fetchWithTimeout(
+        API_BASE + "/v1/languages?site_id=" + encodeURIComponent(SITE_ID),
+        {}
+      );
+      var body = await r.json();
+      var map = {};
+      body.languages.forEach(function (lang) {
+        map[lang.code] = lang.name;
+      });
+      return map;
+    } catch (err) {
+      console.warn("translation-sdk: failed to load languages, widget will be hidden", err);
+      return {};
+    }
   }
 
   async function init() {
@@ -380,8 +386,10 @@
     observeRouteChanges();
 
     LANGUAGES = await loadLanguages();
-    createWidget();
-    applyCurrentLangIfNeeded();
+    if (Object.keys(LANGUAGES).length > 0) {
+      createWidget();
+      applyCurrentLangIfNeeded();
+    }
   }
 
   if (document.readyState === "loading") {
