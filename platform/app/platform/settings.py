@@ -104,6 +104,7 @@ class Settings(BaseSettings):
     my_number: str = ""
     call_duration_limit: int = 0
     ivr_daily_listening_limit_seconds: int = 7200
+    stale_wait_in_minutes: int = 60
     default_welcome_language: str = "kn"
 
     auto_end_timeout_minutes: int = 15

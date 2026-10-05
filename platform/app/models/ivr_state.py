@@ -106,6 +106,7 @@ class IVRCallStateMongoDoc(BaseModel):
     current_state_id: str
     current_conversation_uuid: str = ""
     created_at: datetime
+    updated_at: datetime | None = None
     stopped_at: datetime | None = None
     duration: str | None = ""
     user_actions: list[UserAction] = Field(default_factory=list)

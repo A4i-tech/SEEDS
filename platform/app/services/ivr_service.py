@@ -224,6 +224,7 @@ class IVRService:
             current_state_id=latest_fsm.init_state_id,
             current_conversation_uuid=conv_uuid,
             created_at=datetime.now(),
+            updated_at=datetime.now(UTC),
             tenant_id=tenant_id,
         )
         await ongoing_col.replace_one(
@@ -434,7 +435,10 @@ class IVRService:
 
         ivr_state = IVRCallStateMongoDoc.from_mongo(doc)
 
-        update_ops: dict[str, Any] = {"current_conversation_uuid": conversation_uuid}
+        update_ops: dict[str, Any] = {
+            "current_conversation_uuid": conversation_uuid,
+            "updated_at": datetime.now(UTC),
+        }
         if timestamp_str:
             try:
                 if isinstance(timestamp_str, str):

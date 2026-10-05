@@ -1,7 +1,7 @@
 """IVR repository — PyMongo async data access for IVR FSM state and logs."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from pymongo.asynchronous.database import AsyncDatabase
@@ -106,6 +106,15 @@ class IVRRepository(BaseRepository):
     # Ongoing IVR state (stream playback tracking)
     # ------------------------------------------------------------------
 
+    @classmethod
+    async def ensure_ongoing_indexes(cls, db: AsyncDatabase, ttl_seconds: int) -> None:
+        col = db[cls.ONGOING_COLLECTION]
+        await col.create_index("updated_at", expireAfterSeconds=ttl_seconds)
+        await col.update_many(
+            {"updated_at": {"$exists": False}},
+            [{"$set": {"updated_at": {"$ifNull": ["$created_at", "$$NOW"]}}}],
+        )
+
     async def find_ongoing_state(self, conversation_id: str) -> dict[str, Any] | None:
         return await self._ongoing_col.find_one({"_id": conversation_id})
 
@@ -122,6 +131,7 @@ class IVRRepository(BaseRepository):
         current_version = doc.get("version", 0)
         new_version = current_version + 1
         doc["version"] = new_version
+        doc["updated_at"] = datetime.now(UTC)
         try:
             result = await self._ongoing_col.update_one(
                 {"_id": doc["_id"], "version": current_version},
@@ -138,7 +148,10 @@ class IVRRepository(BaseRepository):
     async def push_stream_playback(self, conversation_id: str, item: dict[str, Any]) -> None:
         await self._ongoing_col.update_one(
             {"_id": conversation_id},
-            {"$push": {"stream_playback": item}},
+            {
+                "$push": {"stream_playback": item},
+                "$set": {"updated_at": datetime.now(UTC)},
+            },
         )
 
     async def set_playback_field(
@@ -146,7 +159,7 @@ class IVRRepository(BaseRepository):
     ) -> None:
         await self._ongoing_col.update_one(
             {"_id": conversation_id, "stream_playback.play_id": play_id},
-            {"$set": {f"stream_playback.$.{field}": value}},
+            {"$set": {f"stream_playback.$.{field}": value, "updated_at": datetime.now(UTC)}},
         )
 
     # ------------------------------------------------------------------
