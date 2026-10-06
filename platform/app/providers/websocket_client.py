@@ -210,6 +210,7 @@ class WebsocketClientProvider:
         position_seconds = data.get("position_seconds")
         duration_seconds = data.get("duration_seconds")
         speed = data.get("speed")
+        refusal = data.get("refusal")
 
         if not self._conference_manager:
             return
@@ -219,12 +220,18 @@ class WebsocketClientProvider:
             return
 
         if msg_type == MessageType.PLAYBACK_STATE_UPDATES:
+            try:
+                content_state = ContentStatus(message)
+            except ValueError:
+                logger.error("WebsocketClientProvider: unknown playback status %r, dropping update", message)
+                return
             await conf_call.queue_event(PlaybackStateUpdateEvent(
                 conf_call=conf_call,
-                content_state=ContentStatus(message),
+                content_state=content_state,
                 position_seconds=position_seconds,
                 duration_seconds=duration_seconds,
                 speed=speed,
+                refusal=refusal,
             ))
         elif msg_type == MessageType.AUDIO_DATA:
             if conf_call._remote_audio_queue is not None:
@@ -246,7 +253,7 @@ class WebsocketClientProvider:
                 try:
                     hb = WebsocketServiceMessage(
                         websocket_id=self.connection_id,
-                        type="heartbeat",
+                        type=MessageType.HEARTBEAT,
                     )
                     await self.send_message(hb)
                 except Exception as exc:

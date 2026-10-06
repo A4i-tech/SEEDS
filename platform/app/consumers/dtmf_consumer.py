@@ -10,12 +10,11 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from app.consumers.base_consumer import BaseConsumer
+from app.consumers.base_consumer import BaseConsumer, PermanentError
 from app.platform.database import get_database
 from app.platform.settings import get_settings
 from app.providers.service_bus import service_bus_provider
-from app.repositories.ivr_repository import IVRRepository
-from app.services.ivr_service import IVRService, hangup_call, update_call_ncco
+from app.services.ivr_service import IVRService, update_call_ncco
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +62,9 @@ class DtmfConsumer(BaseConsumer):
         try:
             await self.process(msg)
             await sb.complete_message("dtmf_input", msg)
+        except PermanentError as exc:
+            logger.error("dtmf_consumer: permanent error — %s; dead-lettering", exc)
+            await sb.dead_letter_message("dtmf_input", msg, reason=str(exc))
         except Exception as exc:
             logger.error("dtmf_consumer: processing error — %s", exc)
             await sb.abandon_message("dtmf_input", msg)
@@ -76,22 +78,27 @@ class DtmfConsumer(BaseConsumer):
         timed_out = payload.get("timed_out", False)
 
         if not conversation_uuid:
-            logger.error("dtmf_consumer: missing conversation_uuid in payload: %s", payload)
-            return
+            raise PermanentError(f"dtmf_consumer: missing conversation_uuid in payload: {payload}")
 
         db = get_database()
+        service = IVRService(db)
         if not call_leg_id:
-            ivr_state = await IVRRepository(db).find_by_conversation_uuid(conversation_uuid)
-            call_leg_id = ivr_state.id if ivr_state else None
+            call_leg_id = await service.resolve_call_leg_id(conversation_uuid)
 
         if not call_leg_id:
-            logger.error(
-                "dtmf_consumer: could not resolve call_leg_id for conversation_uuid=%s",
-                conversation_uuid,
+            raise RuntimeError(
+                "dtmf_consumer: could not resolve call_leg_id "
+                f"for conversation_uuid={conversation_uuid}"
+            )
+
+        if await service.is_dtmf_duplicate(call_leg_id, message.message_id):
+            logger.info(
+                "dtmf_consumer: duplicate delivery call_leg=%s message_id=%s, skipping",
+                call_leg_id, message.message_id,
             )
             return
 
-        ncco, should_hangup = await IVRService(db).process_dtmf(
+        ncco, should_hangup = await service.process_dtmf(
             call_leg_id=call_leg_id, dtmf=digits, timed_out=timed_out
         )
         if ncco is None:
@@ -99,9 +106,19 @@ class DtmfConsumer(BaseConsumer):
                 "dtmf_consumer: no NCCO to push for call_leg=%s (stale write), skipping", call_leg_id
             )
             return
+
+        claimed = await service.try_claim_dtmf_result(
+            call_leg_id, message.message_id, ncco, should_hangup
+        )
+        if claimed:
+            logger.info(
+                "dtmf_consumer: fast-path claim succeeded call_leg=%s digit=%r", call_leg_id, digits
+            )
+            await service.record_dtmf_processed(call_leg_id, message.message_id)
+            return
+
         if not await update_call_ncco(call_leg_id, ncco, get_settings()):
             logger.error("dtmf_consumer: update_call_ncco failed for call_leg=%s", call_leg_id)
             return
-        if should_hangup and not await hangup_call(call_leg_id, get_settings()):
-            logger.error("dtmf_consumer: hangup failed for call_leg=%s", call_leg_id)
+        await service.record_dtmf_processed(call_leg_id, message.message_id)
         logger.info("dtmf_consumer: processed call_leg=%s digit=%r", call_leg_id, digits)

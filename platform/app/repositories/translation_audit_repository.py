@@ -46,6 +46,10 @@ class TranslationAuditRepository(BaseRepository):
             }
         )
 
+    async def record_bulk(self, entries: list[dict[str, Any]]) -> None:
+        docs = [{**e, "at": e.get("at") or datetime.now(UTC)} for e in entries]
+        await self._col.insert_many(docs)
+
     async def find_by_item(self, site_id: str, route: str, key: str) -> list[dict[str, Any]]:
         return (
             await self._col.find({"site_id": site_id, "route": route, "key": key})

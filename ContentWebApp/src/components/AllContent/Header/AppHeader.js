@@ -6,6 +6,13 @@ import "../shared/buttons.css";
 import "../shared/cards.css";
 import "../shared/utilities.css";
 
+const NAV_LINKS = [
+  { key: "content", show: "showContent", label: "Content" },
+  { key: "registration", show: "showRegistration", label: "Registration" },
+  { key: "analytics", show: "showAnalytics", label: "Analytics" },
+  { key: "localization", show: "showLocalization", label: "Localization" },
+];
+
 const AppHeader = ({
   activeTab,
   onTabChange,
@@ -14,7 +21,10 @@ const AppHeader = ({
   showContent = true,
   showRegistration = true,
   showAnalytics = true,
+  showLocalization,
+  showRemediation = true,
 }) => {
+  const visibility = { showContent, showRegistration, showAnalytics, showLocalization };
   const [showUserDropdown, setShowUserDropdown] = useState(false);
   const navigate = useNavigate();
 
@@ -36,28 +46,24 @@ const AppHeader = ({
           <span>SEEDS</span>
         </div>
         <div className="action-group">
-          {showContent && (
-            <button
-              className={`nav-link ${activeTab === "content" ? "active" : ""}`}
-              onClick={() => onTabChange("content")}
-            >
-              Content
-            </button>
+          {NAV_LINKS.map(
+            ({ key, show, label }) =>
+              visibility[show] && (
+                <button
+                  key={key}
+                  className={`nav-link ${activeTab === key ? "active" : ""}`}
+                  onClick={() => onTabChange(key)}
+                >
+                  {label}
+                </button>
+              )
           )}
-          {showRegistration && (
+          {showRemediation && (
             <button
-              className={`nav-link ${activeTab === "registration" ? "active" : ""}`}
-              onClick={() => onTabChange("registration")}
+              className={`nav-link ${activeTab === "remediation" ? "active" : ""}`}
+              onClick={() => onTabChange("remediation")}
             >
-              Registration
-            </button>
-          )}
-          {showAnalytics && (
-            <button
-              className={`nav-link ${activeTab === "analytics" ? "active" : ""}`}
-              onClick={() => onTabChange("analytics")}
-            >
-              Analytics
+              Textbooks
             </button>
           )}
         </div>
@@ -65,8 +71,11 @@ const AppHeader = ({
       <div className="user-dropdown-container">
         <div className="user-info-wrapper" onClick={() => setShowUserDropdown(!showUserDropdown)}>
           <span className="welcome-text">Welcome, {currentUser}</span>
-          <div className="user-avatar">{currentUser.substring(0, 2).toUpperCase()}</div>
+          <div className="user-avatar">
+            {currentUser.substring(0, 2).toUpperCase()}
+          </div>
         </div>
+
         {showUserDropdown && (
           <UserDropdown onProfileClick={handleProfileClick} onLogoutClick={handleLogoutClick} />
         )}

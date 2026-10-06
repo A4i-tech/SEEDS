@@ -2,7 +2,7 @@ const websocketService = require("../../src/services/websocketService");
 const azureBlobService = require("../../src/services/azureBlobService");
 const connectionManager = require("../../src/services/connectionManager");
 const logger = require("../../src/logger");
-const { PlaybackStatus } = require("../../src/constants");
+const { PlaybackStatus, PlaybackRefusal } = require("../../src/constants");
 
 // Mock dependencies
 jest.mock("../../src/services/azureBlobService");
@@ -280,7 +280,19 @@ describe("WebSocketService", () => {
       expect(mockState.audioContentState.position).toBe(
         mockState.audioContentState.blobData.length
       );
-      expect(mockControlWebSocket.send).toHaveBeenCalledTimes(1);
+      expect(mockControlWebSocket.send).toHaveBeenCalledTimes(2);
+      expect(mockControlWebSocket.send).toHaveBeenLastCalledWith(
+        JSON.stringify({
+          websocket_id: "test-client",
+          type: "playback-state-update",
+          message: PlaybackStatus.PAUSED,
+          position_seconds: 4,
+          duration_seconds: 4,
+          speed: 1,
+          refusal: PlaybackRefusal.SEEK_DEFERRED_SYSTEM_AUDIO,
+        }),
+        expect.any(Function)
+      );
 
       // Negative clamp
       await websocketService.seekAudioContent("test-client", {

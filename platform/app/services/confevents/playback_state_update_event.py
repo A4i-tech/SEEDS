@@ -10,12 +10,13 @@ if TYPE_CHECKING:
     from app.services.conference_service import ConferenceCall
 
 class PlaybackStateUpdateEvent(ConferenceEvent):
-    def __init__(self, conf_call: ConferenceCall, content_state: ContentStatus, position_seconds: float | None = None, duration_seconds: float | None = None, speed: float | None = None) -> None:
+    def __init__(self, conf_call: ConferenceCall, content_state: ContentStatus, position_seconds: float | None = None, duration_seconds: float | None = None, speed: float | None = None, refusal: str | None = None) -> None:
         self.conf_call = conf_call
         self.content_state = content_state
         self.position_seconds = position_seconds
         self.duration_seconds = duration_seconds
         self.speed = speed
+        self.refusal = refusal
 
     async def execute_event(self) -> None:
         state = self.conf_call.state.audio_content_state
@@ -26,4 +27,5 @@ class PlaybackStateUpdateEvent(ConferenceEvent):
             state.duration_seconds = self.duration_seconds
         if self.speed is not None:
             state.speed = self.speed
+        state.last_refusal = self.refusal
         await self.conf_call.update_state()

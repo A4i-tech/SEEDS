@@ -116,6 +116,7 @@ const Profile = () => {
           showContent={Boolean(profile)}
           showRegistration={profile && profile.role !== USER_ROLES.CONTENT_CREATOR}
           showAnalytics={profile && profile.role !== USER_ROLES.CONTENT_CREATOR}
+          showLocalization={profile && profile.role === USER_ROLES.TENANT}
         />
 
         {loading || !profile ? (
