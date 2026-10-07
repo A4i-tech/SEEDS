@@ -406,7 +406,7 @@ class TestLogoutRevocation:
         with pytest.raises(UnauthorizedError):
             await service.refresh(issued["refresh_token"])
 
-    async def test_logout_by_refresh_token_revokes_other_family_tokens(self, mock_db):
+    async def test_logout_by_refresh_token_revokes_other_family_tokens(self, mock_db, caplog):
         await _seed_tenant(mock_db)
         service = AuthService(mock_db)
         issued = await service.login_unified(
@@ -418,10 +418,15 @@ class TestLogoutRevocation:
 
         active_doc = await mock_db["userRefreshTokens"].find_one({"token_id": _stored_token_id(rotated["refresh_token"])})
         assert active_doc["revoked"] is True
-        assert active_doc["revoked_reason"] == "consumed"
+        assert active_doc["revoked_reason"] == "logout"
 
-        with pytest.raises(UnauthorizedError):
-            await service.refresh(rotated["refresh_token"])
+        with caplog.at_level("WARNING"):
+            with pytest.raises(UnauthorizedError):
+                await service.refresh(rotated["refresh_token"])
+
+        assert not any(
+            getattr(record, "event", None) == "refresh_token_reuse_detected" for record in caplog.records
+        )
 
     async def test_logout_by_refresh_token_with_expired_token_is_a_noop(self, mock_db, caplog):
         await _seed_tenant(mock_db)

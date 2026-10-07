@@ -114,6 +114,13 @@ class UserRefreshTokenRepository(BaseRepository):
             upsert=True,
         )
 
+    async def mark_logout(self, token_id: str) -> None:
+        hashed = hash_refresh_token(token_id)
+        await self._col.update_one(
+            {"token_id": hashed, "revoked_reason": "consumed"},
+            {"$set": {"revoked_reason": "logout"}},
+        )
+
     async def revoke_all_for_owner(self, owner_id: str, *, reason: str) -> None:
         await self._col.update_many(
             {"owner_id": owner_id, "revoked": False},
