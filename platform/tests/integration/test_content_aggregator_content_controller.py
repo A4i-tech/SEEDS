@@ -68,10 +68,8 @@ async def test_post_content_notes_happy_path(client, mock_db):
         headers={**headers, "Idempotency-Key": "note-1"},
         json={"type": "notes", "language": "en", "display_name": "My Notes", "text": "hello"},
     )
-    assert resp.status_code == 201
-    body = resp.json()
-    assert body[0]["source_id"] == "note-1"
-    assert body[0]["item_type"] == "plaintext"
+    assert resp.status_code == 200
+    assert resp.json() == {"jobs": {"tenant-a": "note-1"}}
 
 
 @pytest.mark.asyncio

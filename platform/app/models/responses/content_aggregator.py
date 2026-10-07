@@ -91,8 +91,16 @@ class PartnerContentResponse(BaseModel):
     deleted_at: str
 
 
+class PartnerContentUpdateResponse(PartnerContentResponse):
+    job_id: str = ""
+
+
 class PartnerContentStatusResponse(BaseModel):
     status: Literal["completed"]
+
+
+class PartnerJobsResponse(BaseModel):
+    jobs: dict[str, str]
 
 
 class PartnerDeleteResponse(BaseModel):
