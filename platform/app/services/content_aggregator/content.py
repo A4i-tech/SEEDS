@@ -104,8 +104,9 @@ class PartnerContentService:
             raise AppError("VALIDATION_ERROR", "cannot update a container node directly", 422)
         if not isinstance(body.content, _PATCH_BY_ITEM_TYPE[node.item_type]):
             raise AppError("VALIDATION_ERROR", f"content does not match item type '{node.item_type}'", 422)
-        await self._repo.update_item_content(tenant_id, client_id, source_id, _content_from_patch(body.content))
-        return replace(node, content=_content_from_patch(body.content))
+        content = _content_from_patch(body.content)
+        await self._repo.update_item_content(tenant_id, client_id, source_id, content)
+        return replace(node, content=content)
 
     async def delete_item(self, tenant_id: str, client_id: str, source_id: str) -> None:
         await self.get_item(tenant_id, client_id, source_id)
