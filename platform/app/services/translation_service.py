@@ -41,6 +41,10 @@ def _normalize_newlines(value: str) -> str:
     return value.replace("\r\n", "\n").replace("\r", "\n")
 
 
+def _canonical_source(value: str) -> str:
+    return js_trim(_normalize_newlines(value))
+
+
 def _is_url_pathname(route: str) -> bool:
     if len(route) > IMPORT_ROUTE_MAX_LENGTH or not route.startswith("/"):
         return False
@@ -533,7 +537,7 @@ class TranslationService:
         for row_no, row in enumerate(rows, start=1):
             route = row.get("route") or ""
             key = (row.get("key") or "").strip()
-            source = js_trim(_normalize_newlines(row.get("source") or ""))
+            source = _canonical_source(row.get("source") or "")
             text = _normalize_newlines(row.get("text") or "")
             reason = _import_row_error(route, key, source, text)
             if reason is None and (route, key) in seen:
@@ -546,7 +550,9 @@ class TranslationService:
 
         existing: dict[tuple[str, str], dict[str, Any]] = {}
         if parsed:
-            docs = await self._repo.find_by_keys(site_id, sorted({key for _, _, key, _, _ in parsed}))
+            docs = await self._repo.find_by_route_keys(
+                site_id, sorted({(route, key) for _, route, key, _, _ in parsed})
+            )
             existing = {(doc["route"], doc["key"]): doc for doc in docs}
 
         now = datetime.now(UTC)
@@ -560,7 +566,7 @@ class TranslationService:
             entry = ((doc or {}).get("translations") or {}).get(lang)
             current = (entry or {}).get("text") or ""
 
-            if doc is not None and js_trim(_normalize_newlines(doc.get("source_text") or "")) != source:
+            if doc is not None and _canonical_source(doc.get("source_text") or "") != source:
                 fail(row_no, route, key, "source_mismatch")
                 continue
 
@@ -730,10 +736,12 @@ class TranslationService:
                 counts[plan["kind"]] += 1
                 written.append(plan)
 
-        new_keys = [p["key"] for p in written if p.get("version_doc") and p["translation_id"] is None]
+        new_identities = [
+            (p["route"], p["key"]) for p in written if p.get("version_doc") and p["translation_id"] is None
+        ]
         new_ids: dict[tuple[str, str], str] = {}
-        if new_keys:
-            created_docs = await self._repo.find_by_keys(site_id, new_keys)
+        if new_identities:
+            created_docs = await self._repo.find_by_route_keys(site_id, new_identities)
             new_ids = {(doc["route"], doc["key"]): str(doc["_id"]) for doc in created_docs}
 
         version_docs = [

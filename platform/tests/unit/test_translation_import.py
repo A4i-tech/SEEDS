@@ -561,3 +561,148 @@ async def test_import_approved_over_rejected_approves_and_clears_rejection(servi
     assert entry["approved_by"] == ACTOR
     assert not {"rejected_by", "rejected_at", "rejection_reason"} & set(entry)
     assert len(await service.get_version_history(str(doc["_id"]), TENANT)) == 1
+
+
+async def test_find_by_route_keys_returns_only_the_exact_route_and_key_pairs(repo):
+    for route in ("/a", "/b"):
+        for key in ("k1", "k2"):
+            await repo.upsert_source(SITE, route, key, "en", f"{route}-{key}")
+    await repo.upsert_source("other-site", "/a", "k1", "en", "other site")
+
+    docs = await repo.find_by_route_keys(SITE, [("/a", "k1"), ("/b", "k2")])
+
+    assert sorted((d["route"], d["key"]) for d in docs) == [("/a", "k1"), ("/b", "k2")]
+    assert await repo.find_by_route_keys(SITE, []) == []
+
+
+async def test_find_by_route_keys_batches_large_identity_lists(repo, monkeypatch):
+    monkeypatch.setattr("app.repositories.translation_repository.ROUTE_KEY_QUERY_BATCH", 2)
+    identities = [(f"/p{i}", f"k{i}") for i in range(5)]
+    for route, key in identities:
+        await repo.upsert_source(SITE, route, key, "en", key)
+    await repo.upsert_source(SITE, "/p0", "k1", "en", "cross product that must not be returned")
+
+    docs = await repo.find_by_route_keys(SITE, identities)
+
+    assert sorted((d["route"], d["key"]) for d in docs) == sorted(identities)
+
+
+async def test_import_resolves_rows_by_exact_route_and_key_without_a_site_wide_key_lookup(
+    service, repo, monkeypatch
+):
+    await _seed(repo, route="/a")
+    await _seed(repo, route="/b")
+    seen = []
+    real = service._repo.find_by_route_keys
+
+    async def spy(site_id, identities):
+        seen.append(list(identities))
+        return await real(site_id, identities)
+
+    async def forbidden(*_args, **_kwargs):
+        raise AssertionError("import must not look rows up by key alone")
+
+    monkeypatch.setattr(service._repo, "find_by_route_keys", spy)
+    monkeypatch.setattr(service._repo, "find_by_keys", forbidden)
+    key = sdk_rolling_hash("Hello World")
+
+    res = await _import(service, [_row("Hello World", "a", route="/a"), _row("Hello World", "b", route="/b")])
+
+    assert res["updated"] == 2
+    assert seen == [[("/a", key), ("/b", key)]]
+
+
+async def test_import_for_a_route_without_the_row_creates_it_and_leaves_the_same_key_on_other_routes(service, repo):
+    await _seed(repo, route="/a", lang="kn", text="a original")
+    key = sdk_rolling_hash("Hello World")
+
+    res = await _import(service, [_row("Hello World", "b new", route="/b")])
+
+    assert res["created"] == 1 and res["updated"] == 0
+    assert (await _doc(repo, key, "/a"))["translations"]["kn"]["text"] == "a original"
+    assert (await _doc(repo, key, "/b"))["translations"]["kn"]["text"] == "b new"
+
+
+async def test_same_key_with_different_sources_on_two_routes_is_resolved_independently(service, repo):
+    colliding_key = sdk_rolling_hash("Aa")
+    assert colliding_key == sdk_rolling_hash("BB")
+    await repo.upsert_source(SITE, "/a", colliding_key, "en", "Aa")
+    await repo.upsert_source(SITE, "/b", colliding_key, "en", "BB")
+
+    res = await _import(
+        service,
+        [
+            {"route": "/a", "key": colliding_key, "source": "Aa", "text": "for a"},
+            {"route": "/b", "key": colliding_key, "source": "BB", "text": "for b"},
+        ],
+    )
+
+    assert res["updated"] == 2 and res["failed"] == 0
+    assert (await _doc(repo, colliding_key, "/a"))["translations"]["kn"]["text"] == "for a"
+    assert (await _doc(repo, colliding_key, "/b"))["translations"]["kn"]["text"] == "for b"
+
+    wrong = await _import(service, [{"route": "/a", "key": colliding_key, "source": "BB", "text": "x"}])
+
+    assert wrong["errors"][0]["reason"] == "source_mismatch"
+    assert (await _doc(repo, colliding_key, "/a"))["translations"]["kn"]["text"] == "for a"
+    assert (await _doc(repo, colliding_key, "/b"))["translations"]["kn"]["text"] == "for b"
+
+
+async def test_canonical_source_is_used_for_the_hash_check_and_is_what_a_new_row_stores(service, repo):
+    canonical = "Hello" + chr(10) + "World"
+    messy = chr(13) + chr(10) + "  " + "Hello" + chr(13) + chr(10) + "World " + chr(10) + chr(10)
+
+    res = await _import(service, [{"route": "/", "key": sdk_rolling_hash(canonical), "source": messy, "text": "x"}])
+
+    assert res["created"] == 1
+    assert (await _doc(repo, sdk_rolling_hash(canonical)))["source_text"] == canonical
+
+
+async def test_a_key_hashed_from_the_raw_untrimmed_crlf_source_is_rejected(service, repo):
+    messy = chr(13) + chr(10) + "  Hello" + chr(13) + chr(10) + "World "
+
+    res = await _import(service, [{"route": "/", "key": sdk_rolling_hash(messy), "source": messy, "text": "x"}])
+
+    assert res["errors"] == [{"row": 1, "route": "/", "key": sdk_rolling_hash(messy), "reason": "key_mismatch"}]
+    assert await repo.find_by_route(SITE, "/") == []
+
+
+@pytest.mark.parametrize(
+    ("stored", "csv_source"),
+    [
+        ("Line one" + chr(13) + chr(10) + "Line two", "Line one" + chr(10) + "Line two"),
+        ("Line one" + chr(10) + "Line two", "Line one" + chr(13) + chr(10) + "Line two"),
+        ("Line one" + chr(13) + "Line two", "Line one" + chr(10) + "Line two"),
+        ("  Hello World  ", "Hello World"),
+        ("Hello World", chr(9) + chr(160) + "Hello World" + chr(10) + chr(32)),
+        (chr(65279) + "Hello World", "Hello World"),
+    ],
+)
+async def test_existing_source_comparison_uses_the_same_canonical_form_and_never_rewrites_the_stored_source(
+    service, repo, stored, csv_source
+):
+    await repo.upsert_source(SITE, "/", "tstored", "en", stored)
+
+    res = await _import(service, [{"route": "/", "key": "tstored", "source": csv_source, "text": "ok"}])
+
+    assert res["updated"] == 1 and res["failed"] == 0
+    doc = await _doc(repo, "tstored")
+    assert doc["source_text"] == stored
+    assert doc["translations"]["kn"]["text"] == "ok"
+
+
+@pytest.mark.parametrize(
+    ("stored", "csv_source"),
+    [
+        ("a  b", "a b"),
+        ("Line one" + chr(10) + "Line two", "Line one Line two"),
+        ("Hello", "hello"),
+    ],
+)
+async def test_internal_whitespace_and_case_differences_are_still_a_source_mismatch(service, repo, stored, csv_source):
+    await repo.upsert_source(SITE, "/", "tstored", "en", stored)
+
+    res = await _import(service, [{"route": "/", "key": "tstored", "source": csv_source, "text": "x"}])
+
+    assert res["errors"][0]["reason"] == "source_mismatch"
+    assert (await _doc(repo, "tstored"))["translations"] == {}

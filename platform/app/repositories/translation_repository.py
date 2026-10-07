@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 MAX_TRANSLATION_ROWS = 20_000
 IMPORT_PROVIDER = "Import"
+ROUTE_KEY_QUERY_BATCH = 500
 
 
 class TranslationRepository(BaseRepository):
@@ -57,6 +58,16 @@ class TranslationRepository(BaseRepository):
 
     async def find_by_keys(self, site_id: str, keys: list[str]) -> list[dict[str, Any]]:
         return await self._col.find({"site_id": site_id, "key": {"$in": keys}}).to_list(length=None)
+
+    async def find_by_route_keys(
+        self, site_id: str, identities: list[tuple[str, str]]
+    ) -> list[dict[str, Any]]:
+        docs: list[dict[str, Any]] = []
+        for start in range(0, len(identities), ROUTE_KEY_QUERY_BATCH):
+            batch = identities[start : start + ROUTE_KEY_QUERY_BATCH]
+            query = {"site_id": site_id, "$or": [{"route": route, "key": key} for route, key in batch]}
+            docs.extend(await self._col.find(query).to_list(length=None))
+        return docs
 
     async def find_by_site(self, site_id: str, status: str | None = None) -> list[dict[str, Any]]:
         query: dict[str, Any] = {"site_id": site_id}
