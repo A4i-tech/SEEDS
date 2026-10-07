@@ -19,7 +19,6 @@ from app.aggregators.sync_job_models import (
 )
 from app.models.responses.content_aggregator import (
     SyncJobResponse,
-    SyncStatsResponse,
     SyncStreamEvent,
 )
 from app.platform.auth.dependencies import get_db
@@ -50,7 +49,7 @@ def serialize_job(job: SyncJob, stats: SyncStats) -> SyncJobResponse:
         finished_at=job.finished_at,
         total_courses=job.total_items,
         processed=processed,
-        stats=SyncStatsResponse(**stats.to_doc()),
+        stats=stats,
         error=job.error,
     )
 

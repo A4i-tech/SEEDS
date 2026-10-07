@@ -9,6 +9,7 @@ from typing import ClassVar, TypedDict
 
 from pymongo.asynchronous.database import AsyncDatabase
 
+from app.aggregators.base_adapter import SourceAdapter
 from app.aggregators.models import BlobContext, CanonicalNode, QuizChoice, QuizContent, SourceType
 from app.aggregators.sync_job_models import SyncItemResult, SyncItemStatus, SyncJob, SyncJobStatus
 from app.models.responses.content_aggregator import SyncedCourseSummary
@@ -91,6 +92,21 @@ class ContentAggregatorSourceService(ABC):
                 at=datetime.now(UTC).isoformat(),
             ),
         )
+
+    async def _save_nodes(
+        self, tenant_id: str, root_id: str, nodes: list[CanonicalNode], content_hash: str,
+        adapter: SourceAdapter, ctx: Callable[[CanonicalNode], BlobContext], *, dry_run: bool,
+    ) -> CourseOutcome:
+        if dry_run:
+            return CourseOutcome(SyncItemStatus.SKIPPED)
+        if await self._repo.get_root_content_hash(tenant_id, self.SOURCE_TYPE, root_id) == content_hash:
+            return CourseOutcome(SyncItemStatus.SKIPPED)
+        processed = await adapter.process_nodes(nodes, ctx, self._blob)
+        for node in processed:
+            if node.parent_id is None:
+                node.source_metadata["content_hash"] = content_hash
+        await self._repo.upsert_tree(tenant_id, self.SOURCE_TYPE, root_id, processed)
+        return CourseOutcome(SyncItemStatus.SAVED)
 
     def _diff_courses[CourseT](
         self, live_courses: list[CourseT], stored_ids: set[str], key: Callable[[CourseT], str]

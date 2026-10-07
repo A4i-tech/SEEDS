@@ -144,21 +144,10 @@ class SubodhaService(ContentAggregatorSourceService):
             nodes = self._adapter.build_canonical_nodes(course, blocks_response, run_id, url_map)
             content_hash = self._adapter.compute_content_hash(nodes)
 
-            if dry_run:
-                logger.info("[subodha-process] course=%s skipped (dry_run)", course_id)
-                return CourseOutcome(SyncItemStatus.SKIPPED)
-
-            if await self._repo.get_root_content_hash(tenant_id, self.SOURCE_TYPE, course_id) == content_hash:
-                logger.info("[subodha-process] course=%s skipped (unchanged content_hash)", course_id)
-                return CourseOutcome(SyncItemStatus.SKIPPED)
-
-            processed = await self._adapter.process_nodes(nodes, self._blob_ctx_factory(course_id, "courses"), self._blob)
-            for node in processed:
-                if node.parent_id is None:
-                    node.source_metadata["content_hash"] = content_hash
-            await self._repo.upsert_tree(tenant_id, self.SOURCE_TYPE, course_id, processed)
-            logger.info("[subodha-process] course=%s saved nodes=%d", course_id, len(processed))
-            return CourseOutcome(SyncItemStatus.SAVED)
+            return await self._save_nodes(
+                tenant_id, course_id, nodes, content_hash, self._adapter,
+                self._blob_ctx_factory(course_id, "courses"), dry_run=dry_run,
+            )
         except Exception as exc:  # noqa: BLE001
             logger.exception("[subodha-process] course=%s failed: %s", course_id, exc)
             return CourseOutcome(SyncItemStatus.FAILED, str(exc))

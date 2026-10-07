@@ -94,19 +94,10 @@ class HexisService(ContentAggregatorSourceService):
 
             nodes = self._adapter.build_canonical_nodes(subject, subject.items, run_id)
             content_hash = self._adapter.compute_content_hash(nodes)
-
-            if dry_run:
-                return CourseOutcome(SyncItemStatus.SKIPPED)
-
-            if await self._repo.get_root_content_hash(tenant_id, self.SOURCE_TYPE, subject.subject_id) == content_hash:
-                return CourseOutcome(SyncItemStatus.SKIPPED)
-
-            processed = await self._adapter.process_nodes(nodes, self._blob_ctx_factory(subject.subject_id, "hexis"), self._blob)
-            for node in processed:
-                if node.parent_id is None:
-                    node.source_metadata["content_hash"] = content_hash
-            await self._repo.upsert_tree(tenant_id, self.SOURCE_TYPE, subject.subject_id, processed)
-            return CourseOutcome(SyncItemStatus.SAVED)
+            return await self._save_nodes(
+                tenant_id, subject.subject_id, nodes, content_hash, self._adapter,
+                self._blob_ctx_factory(subject.subject_id, "hexis"), dry_run=dry_run,
+            )
         except Exception as exc:  # noqa: BLE001
             logger.exception("[hexis-process] subject=%s failed", subject.subject_id)
             return CourseOutcome(SyncItemStatus.FAILED, str(exc))

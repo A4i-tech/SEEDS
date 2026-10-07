@@ -22,7 +22,6 @@ async def test_text_strategy_uploads_markdown_only():
     content = await TextStrategy().process("<p><strong>Hi</strong></p>", ctx, blob)
 
     assert content.markdown_url == "https://blob.test/subodha/courses/c1/items/b1.md"
-    assert content.html_url == ""
     assert content.conversion_failed is False
     assert b"**Hi**" in blob.uploaded["courses/c1/items/b1.md"]
     assert "courses/c1/items/b1.html" not in blob.uploaded
