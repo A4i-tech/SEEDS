@@ -23,6 +23,7 @@ from app.aggregators.models import (
     ImageContent,
     ItemType,
     OtherContent,
+    QuizChoice,
     QuizContent,
     RawItemPayload,
     TextContent,
@@ -80,8 +81,7 @@ class TextStrategy(ContentStrategy):
 
 class PlainTextStrategy(ContentStrategy):
     async def process(self, raw: RawItemPayload, ctx: BlobContext, blob: BlobStorageProvider) -> ContentPayload:
-        text = raw if isinstance(raw, str) else ""
-        url = await blob.upload_file(ctx.container, f"{ctx.blob_prefix}.txt", text.encode("utf-8"), "text/plain")
+        url = await blob.upload_file(ctx.container, f"{ctx.blob_prefix}.txt", raw.encode("utf-8"), "text/plain")
         return TextContent(markdown_url=url)
 
 
@@ -107,7 +107,7 @@ async def _upload_raw_html(raw: RawItemPayload, ctx: BlobContext, blob: BlobStor
     return await blob.upload_file(ctx.container, f"{ctx.blob_prefix}.raw.html", safe_html.encode("utf-8"), "text/html")
 
 
-def _parse_multiple_choice(raw_html: str) -> tuple[str, list[dict[str, str]]] | None:
+def _parse_multiple_choice(raw_html: str) -> tuple[str, list[QuizChoice]]:
     """Extract question/choices out of Subodha's MCQ markup.
 
     The question/choices live inside a `data-content` attribute, double
@@ -119,7 +119,7 @@ def _parse_multiple_choice(raw_html: str) -> tuple[str, list[dict[str, str]]] | 
     content_tag = wrapper.find(attrs={"data-content": True})
     encoded = content_tag.get("data-content") if content_tag else None
     if not encoded:
-        return None
+        return "", []
 
     inner = BeautifulSoup(html_lib.unescape(encoded), "html.parser")
     legend = inner.find("legend")
@@ -133,17 +133,22 @@ def _parse_multiple_choice(raw_html: str) -> tuple[str, list[dict[str, str]]] | 
         choices.append({"value": input_tag.get("value", ""), "text": text})
 
     if not question or not choices:
-        return None
+        return "", []
     return question, choices
 
 
 class QuizStrategy(ContentStrategy):
     async def process(self, raw: RawItemPayload, ctx: BlobContext, blob: BlobStorageProvider) -> ContentPayload:
+        if isinstance(raw, dict):
+            ca = int(raw["ca"])
+            choices = [
+                QuizChoice(value=str(i), text=raw[f"a{i}"], correct=ca == i)
+                for i in (1, 2, 3)
+                if f"a{i}" in raw
+            ]
+            return QuizContent(raw_html_url="", question=raw["question"], choices=choices)
         raw_html_url = await _upload_raw_html(raw, ctx, blob)
-        parsed = _parse_multiple_choice(raw)
-        if parsed is None:
-            return QuizContent(raw_html_url=raw_html_url)
-        question, choices = parsed
+        question, choices = _parse_multiple_choice(raw)
         return QuizContent(raw_html_url=raw_html_url, question=question, choices=choices)
 
 
@@ -157,24 +162,21 @@ class OtherStrategy(ContentStrategy):
         return OtherContent(payload=raw if isinstance(raw, dict) else {})
 
 
+async def _rehost(source_url: str, ctx: BlobContext, blob: BlobStorageProvider, ext: str, content_type: str) -> str:
+    if not source_url.lower().endswith(ext):
+        raise ValueError(f"Only {ext} files are allowed.")
+    data = await blob.download_from_url(source_url)
+    return await blob.upload_file(ctx.container, f"{ctx.blob_prefix}{ext}", data, content_type)
+
+
 class AudioStrategy(ContentStrategy):
     async def process(self, raw: RawItemPayload, ctx: BlobContext, blob: BlobStorageProvider) -> ContentPayload:
-        source_url: str = raw
-        if not source_url.lower().endswith(".mp3"):
-            raise ValueError("Only .mp3 files are allowed for audio content.")
-        data = await blob.download_from_url(source_url)
-        new_url = await blob.upload_file(ctx.container, f"{ctx.blob_prefix}.mp3", data, "audio/mpeg")
-        return AudioContent(audio_url=new_url)
+        return AudioContent(audio_url=await _rehost(raw, ctx, blob, ".mp3", "audio/mpeg"))
 
 
 class BrailleStrategy(ContentStrategy):
     async def process(self, raw: RawItemPayload, ctx: BlobContext, blob: BlobStorageProvider) -> ContentPayload:
-        source_url: str = raw
-        if not source_url.lower().endswith(".brf"):
-            raise ValueError("Only .brf files are allowed for braille content.")
-        data = await blob.download_from_url(source_url)
-        new_url = await blob.upload_file(ctx.container, f"{ctx.blob_prefix}.brf", data, "text/plain")
-        return BrailleContent(brf_url=new_url)
+        return BrailleContent(brf_url=await _rehost(raw, ctx, blob, ".brf", "text/plain"))
 
 
 STRATEGY_REGISTRY: dict[ItemType, ContentStrategy] = {

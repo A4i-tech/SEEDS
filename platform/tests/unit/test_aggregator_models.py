@@ -67,7 +67,7 @@ def test_canonical_node_container_has_no_content():
     node = CanonicalNode(
         source_type="subodha", source_id="course-1", root_id="course-1",
         parent_id=None, order=0, node_kind=NodeKind.CONTAINER, item_type=None,
-        display_name="Demo", content=None, lms_url=None, native_type="course",
+        display_name="Demo", content=None, lms_url="", native_type="course",
         source_metadata={"org": "edX"}, last_run_id="run-1", fetched_at="x", created_at="x", updated_at="x",
     )
     doc = node.to_doc()

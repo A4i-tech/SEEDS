@@ -9,8 +9,10 @@ from app.aggregators.models import (
     ItemType,
     NodeKind,
     QuizContent,
+    SourceType,
     TextContent,
 )
+from app.platform.error_handling import NotFoundError
 from app.repositories.content_aggregator_repository import ContentAggregatorRepository
 from tests.support.mongomock_async import AsyncMongoMockClient
 
@@ -25,7 +27,7 @@ def _course_node(root_id="course-1"):
     return CanonicalNode(
         source_type="subodha", source_id=root_id, root_id=root_id, parent_id=None,
         order=0, node_kind=NodeKind.CONTAINER, item_type=None, display_name="Course One", content=None,
-        lms_url=None, native_type="course", source_metadata={}, last_run_id="run-1",
+        lms_url="", native_type="course", source_metadata={}, last_run_id="run-1",
         fetched_at="x", created_at="x", updated_at="x",
     )
 
@@ -79,12 +81,15 @@ async def test_upsert_tree_replaces_previous_nodes(repo):
 
 
 @pytest.mark.asyncio
-async def test_get_root_returns_only_the_container_with_no_parent(repo):
-    await repo.upsert_tree("tenant-a", "subodha", "course-1", [_course_node(), _item_node(source_id="block-1")])
+async def test_get_root_content_hash_reads_only_the_root_container(repo):
+    root = _course_node()
+    root.source_metadata["content_hash"] = "abc"
+    item = _item_node(source_id="block-1")
+    item.source_metadata["content_hash"] = "other"
+    await repo.upsert_tree("tenant-a", "subodha", "course-1", [root, item])
 
-    root = await repo.get_root("tenant-a", "subodha", "course-1")
-    assert root is not None
-    assert root.parent_id is None
+    assert await repo.get_root_content_hash("tenant-a", "subodha", "course-1") == "abc"
+    assert await repo.get_root_content_hash("tenant-b", "subodha", "course-1") == ""
 
 
 @pytest.mark.asyncio
@@ -203,11 +208,10 @@ async def test_delete_tree_returns_zero_when_tenant_was_never_enrolled(repo):
 
 def _partner_node(client_id="client-1", source_id="item-1"):
     return CanonicalNode(
-        source_type="partner", source_id=source_id, root_id=client_id, parent_id=None,
+        source_type=SourceType.PARTNER, source_id=source_id, root_id=client_id, parent_id=None,
         order=0, node_kind=NodeKind.ITEM, item_type=ItemType.AUDIO, display_name="Story One",
-        content=AudioContent(audio_url="https://blob/a.mp3"), lms_url=None, native_type="audio",
+        content=AudioContent(audio_url="https://blob/a.mp3"), lms_url="", native_type="audio",
         source_metadata={}, last_run_id="partner-push", fetched_at="x", created_at="x", updated_at="x",
-        client_id=client_id,
     )
 
 
@@ -215,8 +219,7 @@ def _partner_node(client_id="client-1", source_id="item-1"):
 async def test_upsert_item_then_get_by_client(repo):
     await repo.upsert_item("tenant-a", _partner_node())
     node = await repo.get_by_client("tenant-a", "client-1", "item-1")
-    assert node is not None
-    assert node.client_id == "client-1"
+    assert node.root_id == "client-1"
 
 
 @pytest.mark.asyncio
@@ -228,9 +231,10 @@ async def test_upsert_item_is_idempotent_on_same_source_id(repo):
 
 
 @pytest.mark.asyncio
-async def test_get_by_client_returns_none_for_other_client(repo):
+async def test_get_by_client_raises_for_other_client(repo):
     await repo.upsert_item("tenant-a", _partner_node(client_id="client-1"))
-    assert await repo.get_by_client("tenant-a", "client-2", "item-1") is None
+    with pytest.raises(NotFoundError):
+        await repo.get_by_client("tenant-a", "client-2", "item-1")
 
 
 @pytest.mark.asyncio
@@ -247,7 +251,8 @@ async def test_soft_delete_excludes_from_get_and_list(repo):
     await repo.upsert_item("tenant-a", _partner_node())
     modified = await repo.soft_delete("tenant-a", "client-1", "item-1", "2026-08-31T00:00:00+00:00")
     assert modified == 1
-    assert await repo.get_by_client("tenant-a", "client-1", "item-1") is None
+    with pytest.raises(NotFoundError):
+        await repo.get_by_client("tenant-a", "client-1", "item-1")
     assert await repo.list_by_client("tenant-a", "client-1") == []
 
 
@@ -257,3 +262,11 @@ async def test_soft_delete_returns_zero_for_already_deleted(repo):
     await repo.soft_delete("tenant-a", "client-1", "item-1", "2026-08-31T00:00:00+00:00")
     modified = await repo.soft_delete("tenant-a", "client-1", "item-1", "2026-08-31T01:00:00+00:00")
     assert modified == 0
+
+
+@pytest.mark.asyncio
+async def test_upsert_item_revives_soft_deleted_item(repo):
+    await repo.upsert_item("tenant-a", _partner_node())
+    await repo.soft_delete("tenant-a", "client-1", "item-1", "2026-08-31T00:00:00+00:00")
+    await repo.upsert_item("tenant-a", _partner_node())
+    assert (await repo.get_by_client("tenant-a", "client-1", "item-1")).is_deleted is False

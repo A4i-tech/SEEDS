@@ -4,6 +4,8 @@ import asyncio
 
 import pytest
 
+from app.aggregators.models import SourceType
+from app.aggregators.sync_job_models import SyncOptions, SyncScope
 from app.consumers.sync_job_consumer import SyncJobConsumer
 from app.repositories.content_aggregator_sync_job_item_repository import (
     ContentAggregatorSyncJobItemRepository,
@@ -13,6 +15,7 @@ from app.repositories.content_aggregator_sync_job_repository import (
 )
 from app.services.content_aggregator_sync_jobs import SyncJobService
 from app.services.subodha_service import SubodhaService
+from tests.support.fake_blob import FakeBlob
 from tests.support.mongomock_async import AsyncMongoMockClient
 
 
@@ -44,20 +47,6 @@ class FakeSubodhaClient:
 
     async def enrich_blocks_with_content(self, blocks_response, session_cookie):
         return None
-
-
-class FakeBlobStorageProvider:
-    def __init__(self):
-        self.uploaded: dict[str, bytes] = {}
-
-    async def upload_file(self, container, blob_name, data, content_type="application/octet-stream"):
-        self.uploaded[blob_name] = data
-        return f"https://blob.test/{container}/{blob_name}"
-
-    async def download_from_url(self, blob_url: str) -> bytes:
-        prefix = "https://blob.test/subodha/"
-        blob_name = blob_url[len(prefix):]
-        return self.uploaded[blob_name]
 
 
 def _course(course_id: str, name: str) -> dict[str, object]:
@@ -94,8 +83,8 @@ def mock_subodha_client():
 
 
 @pytest.fixture
-def mock_subodha_service(mock_db, mock_subodha_client):
-    return SubodhaService(mock_db, blob=FakeBlobStorageProvider(), client=mock_subodha_client)
+def mock_subodha_service(mock_db, mock_subodha_client, sync_jobs):
+    return SubodhaService(mock_db, FakeBlob(), mock_subodha_client, sync_jobs)
 
 
 @pytest.mark.asyncio
@@ -103,11 +92,12 @@ async def test_full_sync_job_lifecycle_through_consumer(
     job_repo, mock_db, mock_subodha_service, sync_jobs,
 ):
     job = await sync_jobs.create_job(
-        tenant_id="t1", source_type="subodha", scope="all", source_id=None, total_items=0,
+        tenant_id="t1", source_type=SourceType.SUBODHA, scope=SyncScope.ALL, source_id="", total_items=0,
+        options=SyncOptions(),
     )
     assert job.status == "pending"
 
-    consumer = SyncJobConsumer(db=mock_db, poll_interval_seconds=0.01, service=mock_subodha_service)
+    consumer = SyncJobConsumer(mock_subodha_service, poll_interval_seconds=0.01)
     consumer_task = asyncio.create_task(consumer._run_loop())
 
     # subscribe() treats any non-"running" status as terminal, so wait for the
@@ -125,11 +115,11 @@ async def test_full_sync_job_lifecycle_through_consumer(
     events = []
     async for event in sync_jobs.subscribe("t1", job.job_id):
         events.append(event)
-        if event["event"] == "done":
+        if event.event == "done":
             break
 
     consumer_task.cancel()
 
-    assert events[-1]["event"] == "done"
+    assert events[-1].event == "done"
     final = await job_repo.get_job("t1", job.job_id)
     assert final.status == "completed"

@@ -12,7 +12,8 @@ from fastapi import Depends
 from pymongo import ASCENDING, ReturnDocument, UpdateOne
 from pymongo.asynchronous.database import AsyncDatabase
 
-from app.aggregators.sync_job_models import SyncJob
+from app.aggregators.models import SourceType
+from app.aggregators.sync_job_models import SyncJob, SyncJobStatus, SyncOptions, SyncScope
 from app.platform.auth.dependencies import get_db
 from app.repositories.content_aggregator_sync_job_item_repository import (
     ContentAggregatorSyncJobItemRepository,
@@ -32,27 +33,26 @@ class ContentAggregatorSyncJobRepository:
         job_id: str,
         *,
         tenant_id: str,
-        source_type: str,
-        scope: str,
-        source_id: str | None,
+        source_type: SourceType,
+        scope: SyncScope,
+        source_id: str,
         total_items: int,
-        options: dict[str, object] | None = None,
+        options: SyncOptions,
     ) -> SyncJob:
-        options = options or {}
         job = SyncJob(
             job_id=job_id, tenant_id=tenant_id, source_type=source_type, scope=scope, source_id=source_id,
-            status="pending", created_at=datetime.now(UTC).isoformat(), started_at=None, finished_at=None,
-            total_items=total_items, error=None, options=options,
+            status=SyncJobStatus.PENDING, created_at=datetime.now(UTC).isoformat(), started_at="", finished_at="",
+            total_items=total_items, error="", options=options,
         )
         await self._col.insert_one(job.to_doc())
         return job
 
-    async def claim_next_pending(self, source_type: str) -> SyncJob | None:
+    async def claim_next_pending(self, source_type: SourceType) -> SyncJob | None:
         """Atomically claims the oldest pending job for source_type. Not tenant-scoped —
         this is a global work queue, same exception class as reconcile_interrupted_jobs."""
         doc = await self._col.find_one_and_update(
-            {"status": "pending", "source_type": source_type},
-            {"$set": {"status": "running", "started_at": datetime.now(UTC).isoformat()}},
+            {"status": SyncJobStatus.PENDING.value, "source_type": source_type.value},
+            {"$set": {"status": SyncJobStatus.RUNNING.value, "started_at": datetime.now(UTC).isoformat()}},
             sort=[("created_at", ASCENDING)],
             return_document=ReturnDocument.AFTER,
         )
@@ -65,12 +65,12 @@ class ContentAggregatorSyncJobRepository:
         return SyncJob.from_doc(doc) if doc else None
 
     async def set_job_status(
-        self, tenant_id: str, job_id: str, status: str, *, error: str | None = None, finished_total: int | None = None
+        self, tenant_id: str, job_id: str, status: SyncJobStatus, *, error: str = "", finished_total: int | None = None
     ) -> SyncJob | None:
         doc = await self._col.find_one_and_update(
             {"_id": job_id, "tenant_id": tenant_id},
             {"$set": {
-                "status": status, "finished_at": datetime.now(UTC).isoformat(), "error": error,
+                "status": status.value, "finished_at": datetime.now(UTC).isoformat(), "error": error,
                 "finished_total": finished_total,
             }},
             return_document=ReturnDocument.AFTER,
@@ -82,22 +82,22 @@ class ContentAggregatorSyncJobRepository:
         return SyncJob.from_doc(doc) if doc else None
 
     async def list_jobs(
-        self, tenant_id: str, source_type: str | None = None, *, limit: int = 20, scope: str | None = None, source_id: str | None = None
+        self, tenant_id: str, source_type: SourceType | None = None, *, limit: int = 20, scope: SyncScope | None = None, source_id: str = ""
     ) -> list[SyncJob]:
         query: dict[str, object] = {"tenant_id": tenant_id}
         if source_type:
-            query["source_type"] = source_type
+            query["source_type"] = source_type.value
         if scope:
-            query["scope"] = scope
+            query["scope"] = scope.value
         if source_id:
             query["source_id"] = source_id
         docs = await self._col.find(query).sort("created_at", -1).to_list(length=limit)
         return [SyncJob.from_doc(d) for d in docs]
 
-    async def get_active_jobs(self, tenant_id: str, source_type: str | None = None) -> list[SyncJob]:
-        query: dict[str, object] = {"tenant_id": tenant_id, "status": {"$in": ["pending", "running"]}}
+    async def get_active_jobs(self, tenant_id: str, source_type: SourceType | None = None) -> list[SyncJob]:
+        query: dict[str, object] = {"tenant_id": tenant_id, "status": {"$in": [SyncJobStatus.PENDING.value, SyncJobStatus.RUNNING.value]}}
         if source_type:
-            query["source_type"] = source_type
+            query["source_type"] = source_type.value
         docs = await self._col.find(query).to_list(length=None)
         return [SyncJob.from_doc(d) for d in docs]
 
@@ -110,7 +110,7 @@ class ContentAggregatorSyncJobRepository:
         Jobs that have already been interrupted that many times are marked "failed" instead.
         "pending" jobs are left untouched — they were never claimed and remain safely resumable.
         """
-        interrupted = await self._col.find({"status": "running"}).to_list(length=None)
+        interrupted = await self._col.find({"status": SyncJobStatus.RUNNING.value}).to_list(length=None)
         if not interrupted:
             return 0
 
@@ -122,17 +122,17 @@ class ContentAggregatorSyncJobRepository:
             if new_retry_count <= self.MAX_INTERRUPTED_RETRIES:
                 update = {
                     "$set": {
-                        "status": "pending",
+                        "status": SyncJobStatus.PENDING.value,
                         "retry_count": new_retry_count,
-                        "started_at": None,
-                        "error": None,
+                        "started_at": "",
+                        "error": "",
                     }
                 }
                 requeued_job_ids.append(doc["_id"])
             else:
                 update = {
                     "$set": {
-                        "status": "failed",
+                        "status": SyncJobStatus.FAILED.value,
                         "retry_count": new_retry_count,
                         "error": "exceeded max retries after interruption",
                         "finished_at": now,

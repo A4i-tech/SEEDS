@@ -11,7 +11,7 @@ from typing import ClassVar
 from bs4 import BeautifulSoup
 
 from app.aggregators.base_adapter import SourceAdapter
-from app.aggregators.models import CanonicalNode, ItemType, NodeKind
+from app.aggregators.models import CanonicalNode, ItemType, NodeKind, SourceType
 from app.providers.subodha_client import SubodhaCourse
 
 _CONTENT_TYPES = {"html", "video", "problem", "drag-and-drop-v2", "lti", "discussion"}
@@ -44,7 +44,7 @@ def _now() -> str:
 
 
 class SubodhaAdapter(SourceAdapter):
-    source_type: ClassVar[str] = "subodha"
+    source_type: ClassVar[SourceType] = SourceType.SUBODHA
 
     def is_empty(self, native_content: dict | None) -> bool:
         if not native_content or not native_content.get("blocks"):

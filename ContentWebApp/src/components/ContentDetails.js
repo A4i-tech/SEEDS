@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import QuizDetails from "./QuizDetails";
 import StoryDetails from "./StoryDetails";
 import ContentAggregatorDetails from "./ContentAggregatorDetails";
@@ -11,6 +11,7 @@ import "./AllContent/shared/pageShell.css";
 
 const ContentDetails = () => {
   const { type, id } = useParams();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const [content, setContent] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -63,7 +64,7 @@ const ContentDetails = () => {
   if (isContentAggregatorCourse) {
     return (
       <div className="page-shell">
-        <ContentAggregatorDetails courseId={id} onBack={() => navigate("/content")} />
+        <ContentAggregatorDetails courseId={id} source={searchParams.get("source")} onBack={() => navigate("/content")} />
       </div>
     );
   }

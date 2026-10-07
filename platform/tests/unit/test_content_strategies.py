@@ -4,22 +4,14 @@ import html as html_lib
 
 import pytest
 
-from app.aggregators.content_strategies import STRATEGY_REGISTRY, TextStrategy
+from app.aggregators.content_strategies import (
+    STRATEGY_REGISTRY,
+    AudioStrategy,
+    BrailleStrategy,
+    TextStrategy,
+)
 from app.aggregators.models import BlobContext, ItemType, VideoContent
-
-
-class FakeBlob:
-    def __init__(self):
-        self.uploaded: dict[str, bytes] = {}
-        self.downloaded_urls: list[str] = []
-
-    async def upload_file(self, container, blob_name, data, content_type="application/octet-stream"):
-        self.uploaded[blob_name] = data
-        return f"https://blob.test/{container}/{blob_name}"
-
-    async def download_from_url(self, url: str) -> bytes:
-        self.downloaded_urls.append(url)
-        return b"raw-bytes-from-" + url.encode("utf-8")
+from tests.support.fake_blob import FakeBlob
 
 
 @pytest.mark.asyncio
@@ -30,7 +22,7 @@ async def test_text_strategy_uploads_markdown_only():
     content = await TextStrategy().process("<p><strong>Hi</strong></p>", ctx, blob)
 
     assert content.markdown_url == "https://blob.test/subodha/courses/c1/items/b1.md"
-    assert content.html_url is None
+    assert content.html_url == ""
     assert content.conversion_failed is False
     assert b"**Hi**" in blob.uploaded["courses/c1/items/b1.md"]
     assert "courses/c1/items/b1.html" not in blob.uploaded
@@ -126,8 +118,6 @@ async def test_other_strategy_passes_through_dict_unchanged():
 
 @pytest.mark.asyncio
 async def test_audio_strategy_moves_blob_and_rejects_non_mp3():
-    from app.aggregators.content_strategies import AudioStrategy
-
     blob = FakeBlob()
     ctx = BlobContext(container="contentAggregators", blob_prefix="partner/client-1/items/story-1")
     content = await AudioStrategy().process("https://partner.example/a.mp3", ctx, blob)
@@ -141,8 +131,6 @@ async def test_audio_strategy_moves_blob_and_rejects_non_mp3():
 
 @pytest.mark.asyncio
 async def test_braille_strategy_moves_blob_and_rejects_non_brf():
-    from app.aggregators.content_strategies import BrailleStrategy
-
     blob = FakeBlob()
     ctx = BlobContext(container="contentAggregators", blob_prefix="partner/client-1/items/brf-1")
     content = await BrailleStrategy().process("https://partner.example/b.brf", ctx, blob)

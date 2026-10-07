@@ -13,7 +13,7 @@ function getYoutubeId(streams) {
   return preferred?.split(":")[1] || null;
 }
 
-function BlockContent({ block, courseId, onBlockChange }) {
+function BlockContent({ block, courseId, source, onBlockChange }) {
   if (!block) return null;
   const sources = block.student_view_data?.sources || [];
   const youtubeId = sources.length === 0 ? getYoutubeId(block.student_view_data?.streams) : null;
@@ -38,7 +38,7 @@ function BlockContent({ block, courseId, onBlockChange }) {
   }
 
   if (block.type === "problem") {
-    return <MultipleChoiceProblem block={block} courseId={courseId} onBlockChange={onBlockChange} />;
+    return <MultipleChoiceProblem block={block} courseId={courseId} source={source} onBlockChange={onBlockChange} />;
   }
 
   // Other interactive types (drag-and-drop-v2, etc.) still need Subodha's own
@@ -72,11 +72,11 @@ function BlockContent({ block, courseId, onBlockChange }) {
   return <p className="table-cell-secondary">No preview available for this content type.</p>;
 }
 
-export function BlockCard({ block, courseId, onBlockChange }) {
+export function BlockCard({ block, courseId, source, onBlockChange }) {
   if (!block) return null;
   return (
     <div className="content-aggregator-block-card">
-      <BlockContent block={block} courseId={courseId} onBlockChange={onBlockChange} />
+      <BlockContent block={block} courseId={courseId} source={source} onBlockChange={onBlockChange} />
     </div>
   );
 }
