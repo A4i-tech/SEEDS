@@ -9,22 +9,24 @@ from fastapi import APIRouter, Depends, Header, Query
 from fastapi.security import OAuth2PasswordBearer
 from pymongo.asynchronous.database import AsyncDatabase
 
+from app.models.content import Content
 from app.models.requests.content_aggregator_content_requests import (
-    PartnerContentCreateRequest,
-    PartnerContentUpdateRequest,
+    PartnerContentCreate,
+    PartnerContentUpdate,
 )
 from app.models.responses.content_aggregator import (
-    PartnerContentResponse,
+    PartnerContentPageResponse,
     PartnerContentStatusResponse,
     PartnerContentUpdateResponse,
     PartnerDeleteResponse,
     PartnerJobsResponse,
+    PartnerPagination,
 )
 from app.platform.auth.dependencies import get_db
 from app.platform.error_handling import AppError
 from app.platform.settings import Settings, get_settings
-from app.providers.blob_storage import BlobStorageProvider, get_blob_storage_provider
 from app.repositories.content_aggregator_repository import ContentAggregatorRepository
+from app.repositories.content_repository import ContentRepository
 from app.services.content_aggregator._jwt import AccessTokenClaims, decode_access_token
 from app.services.content_aggregator.content import PartnerContentService
 from app.services.content_service import ContentService, get_content_service
@@ -83,26 +85,22 @@ async def get_tenant_ids(
     return _parse_tenant_ids(x_tenant_ids, claims)
 
 
-def get_partner_content_service(
-    db: AsyncDatabase = Depends(get_db),
-    settings: Settings = Depends(get_settings),
-    blob: BlobStorageProvider = Depends(get_blob_storage_provider),
-) -> PartnerContentService:
-    return PartnerContentService(ContentAggregatorRepository(db), blob, settings.content_aggregator_asset_container)
+def get_partner_content_service(db: AsyncDatabase = Depends(get_db)) -> PartnerContentService:
+    return PartnerContentService(ContentAggregatorRepository(db), ContentRepository(db))
 
 
 @router.post("", summary="Push a single piece of content to one or more tenants")
 async def create_content(
-    body: PartnerContentCreateRequest,
+    body: PartnerContentCreate,
     idempotency_key: Annotated[str, Header(alias="Idempotency-Key")] = "",
     claims: AccessTokenClaims = Depends(require_scope(PartnerScope.CONTENT_WRITE)),
     tenant_ids: list[str] = Depends(get_tenant_ids),
     service: PartnerContentService = Depends(get_partner_content_service),
 ) -> PartnerJobsResponse:
-    source_id = idempotency_key or str(uuid.uuid4())
+    content_id = idempotency_key or str(uuid.uuid4())
     for tenant_id in tenant_ids:
-        await service.create_item(tenant_id, claims["sub"], source_id, body)
-    return PartnerJobsResponse(jobs=dict.fromkeys(tenant_ids, source_id))
+        await service.create_item(tenant_id, claims["sub"], content_id, body)
+    return PartnerJobsResponse(jobs=dict.fromkeys(tenant_ids, content_id))
 
 
 @router.get("/{content_id}", summary="Get a single content item")
@@ -111,19 +109,38 @@ async def get_content(
     claims: AccessTokenClaims = Depends(require_scope(PartnerScope.CONTENT_READ)),
     tenant_id: str = Depends(get_tenant_id),
     service: PartnerContentService = Depends(get_partner_content_service),
-) -> PartnerContentResponse:
-    node = await service.get_item(tenant_id, claims["sub"], content_id)
-    return PartnerContentResponse.model_validate(node, from_attributes=True)
+) -> Content:
+    doc = await service.get_item(tenant_id, content_id)
+    return Content.from_mongo(doc)
 
 
-@router.get("", summary="List all content this client has pushed to this tenant")
+@router.get("", summary="List content for this tenant")
 async def list_content(
+    language: str | None = None,
+    theme: str | None = None,
+    exp_name: str | None = Query(None),
+    ids: list[str] | None = Query(None),
+    only_teacher_app: bool | None = Query(None),
+    limit: int = Query(15, ge=1, le=200),
+    cursor: str | None = None,
     claims: AccessTokenClaims = Depends(require_scope(PartnerScope.CONTENT_READ)),
     tenant_id: str = Depends(get_tenant_id),
     service: PartnerContentService = Depends(get_partner_content_service),
-) -> list[PartnerContentResponse]:
-    nodes = await service.list_items(tenant_id, claims["sub"])
-    return [PartnerContentResponse.model_validate(n, from_attributes=True) for n in nodes]
+) -> PartnerContentPageResponse:
+    items, next_cursor, has_more = await service.list_items(
+        tenant_id,
+        language=language,
+        theme=theme,
+        exp_name=exp_name,
+        ids=ids,
+        only_teacher_app=bool(only_teacher_app),
+        cursor=cursor,
+        limit=limit,
+    )
+    return PartnerContentPageResponse(
+        data=[Content.from_mongo(doc) for doc in items],
+        pagination=PartnerPagination(next_cursor=next_cursor, has_more=has_more, limit=limit),
+    )
 
 
 @router.get("-status/{content_id}", summary="Get ingestion status for a content item")
@@ -133,25 +150,23 @@ async def get_content_status(
     tenant_id: str = Depends(get_tenant_id),
     service: PartnerContentService = Depends(get_partner_content_service),
 ) -> PartnerContentStatusResponse:
-    await service.get_item(tenant_id, claims["sub"], content_id)
+    await service.get_item(tenant_id, content_id)
     return PartnerContentStatusResponse(status="completed")
 
 
-@router.patch("/{content_id}", summary="Update a content item's content")
+@router.patch("/{content_id}", summary="Update a content item")
 async def update_content(
     content_id: str,
-    body: PartnerContentUpdateRequest,
+    body: PartnerContentUpdate,
     is_audio_uploaded: bool = Query(False, alias="isAudioUploaded"),
     claims: AccessTokenClaims = Depends(require_scope(PartnerScope.CONTENT_WRITE)),
     tenant_id: str = Depends(get_tenant_id),
     service: PartnerContentService = Depends(get_partner_content_service),
     content_service: ContentService = Depends(get_content_service),
 ) -> PartnerContentUpdateResponse:
-    node = await service.update_item(tenant_id, claims["sub"], content_id, body)
-    response = PartnerContentUpdateResponse.model_validate(node, from_attributes=True)
-    if is_audio_uploaded:
-        response.job_id = await content_service.enqueue_content_job(content_id)
-    return response
+    doc = await service.update_item(tenant_id, content_id, body, is_audio_uploaded=is_audio_uploaded)
+    job_id = await content_service.enqueue_content_job(content_id) if is_audio_uploaded else ""
+    return PartnerContentUpdateResponse(**Content.from_mongo(doc).model_dump(), job_id=job_id)
 
 
 @router.delete("/{content_id}", summary="Soft-delete a content item")
@@ -161,5 +176,5 @@ async def delete_content(
     tenant_id: str = Depends(get_tenant_id),
     service: PartnerContentService = Depends(get_partner_content_service),
 ) -> PartnerDeleteResponse:
-    acknowledged, matched, modified = await service.delete_item(tenant_id, claims["sub"], content_id)
+    acknowledged, matched, modified = await service.delete_item(tenant_id, content_id)
     return PartnerDeleteResponse(acknowledged=acknowledged, matched_count=matched, modified_count=modified)

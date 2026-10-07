@@ -8,6 +8,8 @@ DTO<->dict conversion happens only here (CanonicalNode.to_doc()/from_doc())
 """
 from __future__ import annotations
 
+import urllib.parse
+from datetime import UTC, datetime
 from typing import ClassVar
 
 from pymongo import UpdateOne
@@ -18,6 +20,14 @@ from app.aggregators.models import CanonicalNode, ContentPayload, SourceType
 from app.platform.error_handling import NotFoundError
 
 _DUPLICATE_KEY_ERROR_CODE = 11000
+
+
+def _after_cursor(creation_time: int, key: str | None) -> dict:
+    """Exclusive page boundary: strictly older, tie-broken by `content_id`."""
+    clause: dict = {"creation_time": {"$lt": creation_time}}
+    if key is not None:
+        clause = {"$or": [clause, {"creation_time": creation_time, "content_id": {"$lt": key}}]}
+    return clause
 
 
 class ContentAggregatorRepository:
@@ -139,3 +149,79 @@ class ContentAggregatorRepository:
             self._client_filter(tenant_id, root_id, source_id), {"$set": {"content": content.to_dict()}}
         )
         return result.matched_count
+
+    # ------------------------------------------------------------------
+    # Partner-pushed content — contentsV3-shaped docs, tenant-scoped and
+    # keyed by `content_id` (not the canonical node key).
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def _partner_content_filter(tenant_id: str, content_id: str | None = None) -> dict[str, object]:
+        query: dict[str, object] = {
+            "tenant_id": tenant_id,
+            "content_id": {"$exists": True},
+            "is_deleted": {"$ne": True},
+        }
+        if content_id is not None:
+            query["content_id"] = content_id
+        return query
+
+    async def upsert_partner_content(self, tenant_id: str, doc: dict) -> None:
+        await self._col.update_one(
+            {"tenant_id": tenant_id, "content_id": doc["content_id"]},
+            {"$set": doc | {"tenant_id": tenant_id}},
+            upsert=True,
+        )
+
+    async def find_partner_content(self, tenant_id: str, content_id: str) -> dict | None:
+        return await self._col.find_one(self._partner_content_filter(tenant_id, content_id))
+
+    async def update_partner_content(self, tenant_id: str, content_id: str, updates: dict) -> dict | None:
+        updates = {**updates, "updated_at": datetime.now(UTC)}
+        return await self._col.find_one_and_update(
+            {"tenant_id": tenant_id, "content_id": content_id, "is_deleted": {"$ne": True}},
+            {"$set": updates},
+            return_document=True,
+        )
+
+    async def soft_delete_partner_content(
+        self, tenant_id: str, content_id: str, deleted_at: str
+    ) -> tuple[bool, int, int]:
+        result = await self._col.update_one(
+            {"tenant_id": tenant_id, "content_id": content_id, "is_deleted": {"$ne": True}},
+            {"$set": {"is_deleted": True, "updated_at": deleted_at}},
+        )
+        return result.acknowledged, result.matched_count, result.modified_count
+
+    async def search_partner_content(
+        self,
+        tenant_id: str,
+        *,
+        content_ids: list[str] | None = None,
+        language: str | None = None,
+        theme: str | None = None,
+        exp_name: str | None = None,
+        only_teacher_app: bool = False,
+        after_creation_time: int | None = None,
+        after_key: str | None = None,
+        limit: int = 16,
+    ) -> list[dict]:
+        q = self._partner_content_filter(tenant_id)
+        clauses: list[dict] = []
+        if content_ids:
+            clauses.append({"content_id": {"$in": content_ids}})
+        if language:
+            q["language"] = language
+        if theme:
+            q["theme.english"] = urllib.parse.unquote(theme)
+        if exp_name:
+            q["type"] = exp_name.lower()
+        if only_teacher_app:
+            q["is_teacher_app"] = True
+        if after_creation_time is not None:
+            clauses.append(_after_cursor(after_creation_time, after_key))
+        if clauses:
+            q["$and"] = clauses
+        return await (
+            self._col.find(q).sort([("creation_time", -1), ("content_id", -1)]).to_list(length=limit)
+        )
