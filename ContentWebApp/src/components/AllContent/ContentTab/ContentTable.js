@@ -81,7 +81,7 @@ const ContentTable = ({
             {content.map((item) => {
               const itemId = item.id;
               const itemType = item.type.toLowerCase();
-              const isContentAggregatorItem = item.source === "subodha";
+              const isContentAggregatorItem = Boolean(item.source);
               const syncState = courseSyncStates[itemId];
               const syncing = syncState === "running";
               const isOwnContent = isTenant || item.school_id === getSchoolId();
@@ -111,7 +111,9 @@ const ContentTable = ({
                   <td className="table-cell">{getLanguageName(item.language)}</td>
                   <td className="table-cell">
                     <span className="content-type">
-                      {isContentAggregatorItem ? "Subodha" : itemType}
+                      {isContentAggregatorItem
+                        ? (item.source ? item.source.charAt(0).toUpperCase() + item.source.slice(1) : "Content")
+                        : itemType}
                       {itemType === "quiz" && (
                         <span className="content-type-badge-quiz" title="Quiz Content">
                           Q
@@ -128,12 +130,12 @@ const ContentTable = ({
                             label: syncing ? "Syncing…" : "Sync",
                             variant: "sync",
                             disabled: syncing,
-                            onClick: () => onSyncCourse(itemId, item.title.english),
+                            onClick: () => onSyncCourse(itemId, item.title.english, item.source),
                           },
-                          { key: "view", label: "View", variant: "view", onClick: () => onView(itemType, itemId) },
+                          { key: "view", label: "View", variant: "view", onClick: () => onView(itemType, itemId, item.source) },
                           isTenant && {
                             key: "delete", label: "Delete", variant: "delete",
-                            onClick: () => onDeleteContentAggregatorCourse(itemId, item.title.english),
+                            onClick: () => onDeleteContentAggregatorCourse(itemId, item.title.english, item.source),
                           },
                         ].filter(Boolean)}
                       />

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.aggregators.sync_job_models import SyncItemResult
+from app.aggregators.sync_job_models import SyncItemResult, SyncItemStatus
 from app.repositories.content_aggregator_sync_job_item_repository import (
     ContentAggregatorSyncJobItemRepository,
 )
@@ -17,8 +17,8 @@ def repo():
 
 @pytest.mark.asyncio
 async def test_insert_and_list_by_job(repo):
-    await repo.insert("tenant-a", "job-1", SyncItemResult("c1", "Course One", "saved", None, "2026-08-18T00:00:00Z"))
-    await repo.insert("tenant-a", "job-1", SyncItemResult("c2", "Course Two", "failed", "boom", "2026-08-18T00:01:00Z"))
+    await repo.insert("tenant-a", "job-1", SyncItemResult("c1", "Course One", SyncItemStatus.SAVED, "", "2026-08-18T00:00:00Z"))
+    await repo.insert("tenant-a", "job-1", SyncItemResult("c2", "Course Two", SyncItemStatus.FAILED, "boom", "2026-08-18T00:01:00Z"))
 
     items = await repo.list_by_job("tenant-a", "job-1")
     assert {i.source_id for i in items} == {"c1", "c2"}
@@ -29,9 +29,9 @@ async def test_insert_and_list_by_job(repo):
 
 @pytest.mark.asyncio
 async def test_list_by_job_isolated_between_jobs_and_tenants(repo):
-    await repo.insert("tenant-a", "job-1", SyncItemResult("c1", "Course One", "saved", None, "x"))
-    await repo.insert("tenant-a", "job-2", SyncItemResult("c2", "Course Two", "saved", None, "x"))
-    await repo.insert("tenant-b", "job-1", SyncItemResult("c3", "Course Three", "saved", None, "x"))
+    await repo.insert("tenant-a", "job-1", SyncItemResult("c1", "Course One", SyncItemStatus.SAVED, "", "x"))
+    await repo.insert("tenant-a", "job-2", SyncItemResult("c2", "Course Two", SyncItemStatus.SAVED, "", "x"))
+    await repo.insert("tenant-b", "job-1", SyncItemResult("c3", "Course Three", SyncItemStatus.SAVED, "", "x"))
 
     assert {i.source_id for i in await repo.list_by_job("tenant-a", "job-1")} == {"c1"}
     assert {i.source_id for i in await repo.list_by_job("tenant-a", "job-2")} == {"c2"}
@@ -41,42 +41,42 @@ async def test_list_by_job_isolated_between_jobs_and_tenants(repo):
 @pytest.mark.asyncio
 async def test_list_by_job_page_paginates_with_cursor(repo):
     for i in range(5):
-        await repo.insert("tenant-a", "job-1", SyncItemResult(f"c{i}", f"Course {i}", "saved", None, "x"))
+        await repo.insert("tenant-a", "job-1", SyncItemResult(f"c{i}", f"Course {i}", SyncItemStatus.SAVED, "", "x"))
 
     page1, cursor1, total1 = await repo.list_by_job_page("tenant-a", "job-1", limit=2)
     assert [i.source_id for i in page1] == ["c0", "c1"]
-    assert cursor1 is not None
+    assert cursor1
     assert total1 == 5
 
     page2, cursor2, total2 = await repo.list_by_job_page("tenant-a", "job-1", limit=2, after=cursor1)
     assert [i.source_id for i in page2] == ["c2", "c3"]
-    assert cursor2 is not None
+    assert cursor2
     assert total2 == 5
 
     page3, cursor3, total3 = await repo.list_by_job_page("tenant-a", "job-1", limit=2, after=cursor2)
     assert [i.source_id for i in page3] == ["c4"]
-    assert cursor3 is None
+    assert cursor3 == ""
     assert total3 == 5
 
 
 @pytest.mark.asyncio
 async def test_list_by_job_page_isolated_between_jobs_and_tenants(repo):
-    await repo.insert("tenant-a", "job-1", SyncItemResult("c1", "Course One", "saved", None, "x"))
-    await repo.insert("tenant-a", "job-2", SyncItemResult("c2", "Course Two", "saved", None, "x"))
-    await repo.insert("tenant-b", "job-1", SyncItemResult("c3", "Course Three", "saved", None, "x"))
+    await repo.insert("tenant-a", "job-1", SyncItemResult("c1", "Course One", SyncItemStatus.SAVED, "", "x"))
+    await repo.insert("tenant-a", "job-2", SyncItemResult("c2", "Course Two", SyncItemStatus.SAVED, "", "x"))
+    await repo.insert("tenant-b", "job-1", SyncItemResult("c3", "Course Three", SyncItemStatus.SAVED, "", "x"))
 
     items, cursor, total = await repo.list_by_job_page("tenant-a", "job-1", limit=50)
     assert [i.source_id for i in items] == ["c1"]
-    assert cursor is None
+    assert cursor == ""
     assert total == 1
 
 
 @pytest.mark.asyncio
 async def test_get_stats_counts_by_status(repo):
-    await repo.insert("tenant-a", "job-1", SyncItemResult("c1", "Course One", "saved", None, "x"))
-    await repo.insert("tenant-a", "job-1", SyncItemResult("c2", "Course Two", "saved", None, "x"))
-    await repo.insert("tenant-a", "job-1", SyncItemResult("c3", "Course Three", "skipped", None, "x"))
-    await repo.insert("tenant-a", "job-1", SyncItemResult("c4", "Course Four", "failed", "boom", "x"))
+    await repo.insert("tenant-a", "job-1", SyncItemResult("c1", "Course One", SyncItemStatus.SAVED, "", "x"))
+    await repo.insert("tenant-a", "job-1", SyncItemResult("c2", "Course Two", SyncItemStatus.SAVED, "", "x"))
+    await repo.insert("tenant-a", "job-1", SyncItemResult("c3", "Course Three", SyncItemStatus.SKIPPED, "", "x"))
+    await repo.insert("tenant-a", "job-1", SyncItemResult("c4", "Course Four", SyncItemStatus.FAILED, "boom", "x"))
 
     stats = await repo.get_stats("tenant-a", "job-1")
     assert stats.saved == 2
@@ -87,8 +87,8 @@ async def test_get_stats_counts_by_status(repo):
 
 @pytest.mark.asyncio
 async def test_get_stats_isolated_between_tenants(repo):
-    await repo.insert("tenant-a", "job-1", SyncItemResult("c1", "Course One", "saved", None, "x"))
-    await repo.insert("tenant-b", "job-1", SyncItemResult("c2", "Course Two", "failed", "boom", "x"))
+    await repo.insert("tenant-a", "job-1", SyncItemResult("c1", "Course One", SyncItemStatus.SAVED, "", "x"))
+    await repo.insert("tenant-b", "job-1", SyncItemResult("c2", "Course Two", SyncItemStatus.FAILED, "boom", "x"))
 
     stats = await repo.get_stats("tenant-a", "job-1")
     assert stats.saved == 1

@@ -164,6 +164,12 @@ class Settings(BaseSettings):
     subodha_collection_name: str = "subodhaCourses"
     subodha_jobs_collection_name: str = "subodhaSyncJobs"
 
+    hexis_base_url: str = "https://vembi.in/hexis/api/php"
+    hexis_mobile: str = Field(default="", repr=False)
+    hexis_password: str = Field(default="", repr=False)
+    hexis_admin_aid: str = ""
+    hexis_course_concurrency: int = 4
+
     @property
     def call_webhook_queue_name(self) -> str:
         return f"call_webhook_{self.azure_service_bus_queue_name}"

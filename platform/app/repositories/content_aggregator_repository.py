@@ -14,7 +14,8 @@ from pymongo import UpdateOne
 from pymongo.asynchronous.database import AsyncDatabase
 from pymongo.errors import BulkWriteError
 
-from app.aggregators.models import CanonicalNode, ContentPayload
+from app.aggregators.models import CanonicalNode, ContentPayload, SourceType
+from app.platform.error_handling import NotFoundError
 
 _DUPLICATE_KEY_ERROR_CODE = 11000
 
@@ -26,7 +27,7 @@ class ContentAggregatorRepository:
         self._col = db[self.COLLECTION_NAME]
 
     async def upsert_tree(
-        self, tenant_id: str, source_type: str, root_id: str, nodes: list[CanonicalNode], *, batch_size: int = 20
+        self, tenant_id: str, source_type: SourceType, root_id: str, nodes: list[CanonicalNode], *, batch_size: int = 20
     ) -> None:
         for i in range(0, len(nodes), batch_size):
             batch = nodes[i : i + batch_size]
@@ -55,14 +56,14 @@ class ContentAggregatorRepository:
             }
         )
 
-    async def is_enrolled(self, tenant_id: str, source_type: str, root_id: str) -> bool:
+    async def is_enrolled(self, tenant_id: str, source_type: SourceType, root_id: str) -> bool:
         doc = await self._col.find_one(
             {"tenant_id": tenant_id, "source_type": source_type, "source_id": root_id, "parent_id": None},
             {"_id": 1},
         )
         return doc is not None
 
-    async def get_tree(self, tenant_id: str, source_type: str, root_id: str) -> list[CanonicalNode]:
+    async def get_tree(self, tenant_id: str, source_type: SourceType, root_id: str) -> list[CanonicalNode]:
         docs = await (
             self._col.find({"tenant_id": tenant_id, "source_type": source_type, "root_id": root_id})
             .sort("order", 1)
@@ -70,33 +71,32 @@ class ContentAggregatorRepository:
         )
         return [CanonicalNode.from_doc(d) for d in docs]
 
-    async def get_root(self, tenant_id: str, source_type: str, root_id: str) -> CanonicalNode | None:
-        doc = await self._col.find_one({"tenant_id": tenant_id, "source_type": source_type, "source_id": root_id, "parent_id": None})
-        return CanonicalNode.from_doc(doc) if doc else None
+    async def get_root_content_hash(self, tenant_id: str, source_type: SourceType, root_id: str) -> str:
+        doc = await self._col.find_one(
+            {"tenant_id": tenant_id, "source_type": source_type, "source_id": root_id, "parent_id": None}
+        )
+        return doc["source_metadata"].get("content_hash", "") if doc else ""
 
     async def list_roots(
         self,
         tenant_id: str,
-        source_type: str,
+        source_type: SourceType,
         *,
-        cursor: str | None = None,
-        limit: int | None = None,
+        cursor: str = "",
+        limit: int = 0,
     ) -> list[CanonicalNode]:
         query: dict = {"tenant_id": tenant_id, "source_type": source_type, "parent_id": None}
-        if cursor is not None:
+        if cursor:
             query["source_id"] = {"$gt": cursor}
-        find = self._col.find(query).sort("source_id", 1)
-        if limit is not None:
-            find = find.limit(limit)
-        docs = await find.to_list(length=None)
+        docs = await self._col.find(query).sort("source_id", 1).limit(limit).to_list(length=None)
         return [CanonicalNode.from_doc(d) for d in docs]
 
-    async def stored_root_ids(self, tenant_id: str, source_type: str) -> set[str]:
+    async def stored_root_ids(self, tenant_id: str, source_type: SourceType) -> set[str]:
         return set(
             await self._col.distinct("source_id", {"tenant_id": tenant_id, "source_type": source_type, "parent_id": None})
         )
 
-    async def delete_tree(self, tenant_id: str, source_type: str, root_id: str) -> int:
+    async def delete_tree(self, tenant_id: str, source_type: SourceType, root_id: str) -> int:
         result = await self._col.delete_many({"tenant_id": tenant_id, "source_type": source_type, "root_id": root_id})
         return result.deleted_count
 
@@ -107,38 +107,35 @@ class ContentAggregatorRepository:
             upsert=True,
         )
 
-    async def get_by_client(self, tenant_id: str, root_id: str, source_id: str) -> CanonicalNode | None:
-        doc = await self._col.find_one(
-            {
-                "tenant_id": tenant_id, "source_type": "partner", "root_id": root_id,
-                "source_id": source_id, "is_deleted": {"$ne": True},
-            }
-        )
-        return CanonicalNode.from_doc(doc) if doc else None
+    @staticmethod
+    def _client_filter(tenant_id: str, root_id: str, source_id: str = "") -> dict[str, object]:
+        query: dict[str, object] = {
+            "tenant_id": tenant_id, "source_type": SourceType.PARTNER, "root_id": root_id,
+            "is_deleted": {"$ne": True},
+        }
+        if source_id:
+            query["source_id"] = source_id
+        return query
+
+    async def get_by_client(self, tenant_id: str, root_id: str, source_id: str) -> CanonicalNode:
+        doc = await self._col.find_one(self._client_filter(tenant_id, root_id, source_id))
+        if doc is None:
+            raise NotFoundError("content item", source_id)
+        return CanonicalNode.from_doc(doc)
 
     async def list_by_client(self, tenant_id: str, root_id: str) -> list[CanonicalNode]:
-        docs = await (
-            self._col.find({"tenant_id": tenant_id, "source_type": "partner", "root_id": root_id, "is_deleted": {"$ne": True}})
-            .sort("created_at", 1)
-            .to_list(length=None)
-        )
+        docs = await self._col.find(self._client_filter(tenant_id, root_id)).sort("created_at", 1).to_list(length=None)
         return [CanonicalNode.from_doc(d) for d in docs]
 
     async def soft_delete(self, tenant_id: str, root_id: str, source_id: str, deleted_at: str) -> int:
         result = await self._col.update_one(
-            {
-                "tenant_id": tenant_id, "source_type": "partner", "root_id": root_id,
-                "source_id": source_id, "is_deleted": {"$ne": True},
-            },
+            self._client_filter(tenant_id, root_id, source_id),
             {"$set": {"is_deleted": True, "deleted_at": deleted_at}},
         )
         return result.modified_count
 
-    async def update_item_content(
-        self, tenant_id: str, source_type: str, root_id: str, source_id: str, content: ContentPayload
-    ) -> int:
+    async def update_item_content(self, tenant_id: str, root_id: str, source_id: str, content: ContentPayload) -> int:
         result = await self._col.update_one(
-            {"tenant_id": tenant_id, "source_type": source_type, "root_id": root_id, "source_id": source_id},
-            {"$set": {"content": content.to_dict()}},
+            self._client_filter(tenant_id, root_id, source_id), {"$set": {"content": content.to_dict()}}
         )
-        return result.modified_count
+        return result.matched_count

@@ -12,27 +12,16 @@ from app.platform.auth.dependencies import get_db
 from app.platform.auth.hashing import hash_password
 from app.providers.blob_storage import get_blob_storage_provider
 from app.repositories.integration_client_repository import IntegrationClientRepository
+from tests.support.fake_blob import FakeBlob
+from tests.support.mongomock_async import AsyncMongoMockClient
 
 
 @pytest_asyncio.fixture
 async def mock_db():
-    from tests.support.mongomock_async import AsyncMongoMockClient
-
     mongo_client = AsyncMongoMockClient()
     db = mongo_client["seeds_test_content_aggregator_content"]
     yield db
     await mongo_client.close()
-
-
-class _FakeBlob:
-    async def upload_file(self, container, blob_name, data, content_type="application/octet-stream"):
-        return f"https://blob.test/{container}/{blob_name}"
-
-    async def download_from_url(self, url: str) -> bytes:
-        return b"raw-bytes"
-
-    async def get_upload_sas_url(self, container: str, blob_name: str, expiry_hours: int = 1) -> str:
-        return f"https://blob.test/{container}/{blob_name}?sas=1"
 
 
 @pytest_asyncio.fixture
@@ -41,7 +30,7 @@ async def client(mock_db):
         yield mock_db
 
     app.dependency_overrides[get_db] = _override_db
-    app.dependency_overrides[get_blob_storage_provider] = lambda: _FakeBlob()
+    app.dependency_overrides[get_blob_storage_provider] = lambda: FakeBlob()
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         yield ac
@@ -111,8 +100,7 @@ async def test_post_content_unsupported_type(client, mock_db):
         "/v1/content", headers={**headers, "Idempotency-Key": "x-1"},
         json={"type": "video", "language": "en", "display_name": "X"},
     )
-    assert resp.status_code == 400
-    assert resp.json()["code"] == "UNSUPPORTED_TYPE"
+    assert resp.status_code == 422
 
 
 @pytest.mark.asyncio

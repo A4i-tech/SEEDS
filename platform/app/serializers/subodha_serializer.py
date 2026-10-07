@@ -6,6 +6,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
 from app.aggregators.models import CanonicalNode, ItemType, NodeKind
@@ -183,7 +184,11 @@ def _build_outline(
     return outline, ordered_items
 
 
-async def to_course_doc(nodes: list[CanonicalNode], blob: BlobStorageProvider) -> LegacyCourseDoc:
+async def to_course_doc(
+    nodes: list[CanonicalNode],
+    blob: BlobStorageProvider,
+    to_block: Callable[[CanonicalNode, BlobStorageProvider], Awaitable[LegacyBlock]] = _to_legacy_block,
+) -> LegacyCourseDoc:
     root = next((n for n in nodes if n.parent_id is None), None)
     if root is None:
         raise ValueError("course tree has no root node (parent_id is None)")
@@ -200,7 +205,7 @@ async def to_course_doc(nodes: list[CanonicalNode], blob: BlobStorageProvider) -
             items_by_parent.setdefault(n.parent_id, []).append(n)
 
     outline, item_nodes = _build_outline(containers_by_parent, items_by_parent, root.source_id)
-    blocks = list(await asyncio.gather(*(_to_legacy_block(n, blob) for n in item_nodes)))
+    blocks = list(await asyncio.gather(*(to_block(n, blob) for n in item_nodes)))
 
     return LegacyCourseDoc(
         source_id=root.source_id, source_type=root.source_type, content_hash=meta.get("content_hash"),
