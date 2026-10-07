@@ -39,6 +39,10 @@ class TextbookRemediationRepository:
     def __init__(self, db: AsyncDatabase) -> None:
         self._col = db[self.COLLECTION_NAME]
 
+    @classmethod
+    async def ensure_indexes(cls, db: AsyncDatabase) -> None:
+        await db[cls.COLLECTION_NAME].create_index([("status", 1), ("deleted_at", 1), ("created_at", 1)])
+
     async def create(
         self, *, job_id: ObjectId, tenant_id: str, source_name: str, source_url: str, language: str,
         target_language: str | None = None,
