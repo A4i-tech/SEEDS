@@ -1,0 +1,33 @@
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--seeds-eyebrow-text);
+  font-weight: 700;
+}
+
+.dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--mantine-spacing-md);
+  padding: var(--mantine-spacing-xl);
+  border: 1px dashed var(--seeds-border-default);
+  border-radius: var(--mantine-radius-md);
+  background-color: var(--seeds-bg-surface);
+  cursor: pointer;
+  text-align: center;
+}
+
+.dragging {
+  border-color: var(--seeds-btn-secondary-border);
+}
+
+.browseButton.browseButton {
+  border-color: var(--seeds-btn-secondary-border);
+  color: var(--seeds-btn-secondary-text);
+}
+
+.submitButton.submitButton {
+  background-color: var(--seeds-btn-primary-bg);
+  color: var(--seeds-btn-primary-text);
+}

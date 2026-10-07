@@ -1,0 +1,26 @@
+.header.header {
+  background-color: var(--seeds-nav-topbar-bg);
+  color: var(--seeds-nav-topbar-text);
+  border-color: var(--seeds-nav-topbar-bg);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--mantine-spacing-md);
+}
+
+.brandmark {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--mantine-radius-md);
+}
+
+.brandName {
+  color: var(--seeds-nav-topbar-text);
+}
+
+.active.active {
+  background-color: var(--seeds-subnav-bg-active);
+  color: var(--seeds-subnav-text-active);
+}

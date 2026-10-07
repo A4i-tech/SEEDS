@@ -1,0 +1,14 @@
+.header {
+  align-items: center;
+}
+
+.filtersButton.filtersButton {
+  background-color: var(--seeds-btn-primary-bg);
+  color: var(--seeds-btn-primary-text);
+}
+
+.eyebrow {
+  color: var(--seeds-eyebrow-text);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}

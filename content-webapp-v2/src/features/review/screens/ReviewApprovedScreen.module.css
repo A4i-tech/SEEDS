@@ -1,0 +1,15 @@
+.wrap {
+  max-width: 640px;
+}
+
+.eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--seeds-eyebrow-text);
+  font-weight: 700;
+}
+
+.submitButton.submitButton {
+  background-color: var(--seeds-btn-primary-bg);
+  color: var(--seeds-btn-primary-text);
+}

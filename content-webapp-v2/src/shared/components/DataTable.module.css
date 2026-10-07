@@ -1,0 +1,10 @@
+.table.table th {
+  background-color: var(--seeds-table-header-bg);
+  color: var(--seeds-table-header-text);
+}
+
+.paginationControl.paginationControl[data-active] {
+  background-color: var(--seeds-pagebtn-active-bg);
+  color: var(--seeds-pagebtn-active-text);
+  border-color: var(--seeds-pagebtn-active-bg);
+}

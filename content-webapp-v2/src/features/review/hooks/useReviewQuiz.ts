@@ -1,0 +1,45 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { notifications } from '@mantine/notifications';
+import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router';
+import { routePaths } from '@app/navigation/routePaths';
+import { useAuthStore } from '@features/auth/store/useAuthStore';
+import { getContentById } from '@features/library/api/library';
+import { toApiErrorMessage } from '@shared/utils/apiErrors';
+import { updateReviewContent } from '../api/review';
+
+export function useReviewQuiz(id: string) {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const status = useAuthStore((s) => s.status);
+
+  const content = useQuery({
+    queryKey: ['review', 'quiz', id],
+    queryFn: () => getContentById(id),
+    enabled: status === 'authenticated' && id !== '',
+  });
+
+  const approve = useMutation({
+    mutationFn: () => updateReviewContent(id, {}),
+    onSuccess: () => {
+      notifications.show({ message: t('review.approved') });
+      void queryClient.invalidateQueries({ queryKey: ['review', 'quiz', id] });
+      const item = content.data;
+      void navigate(`${routePaths.review}/approved`, {
+        state: { title: item && item.title?.english ? item.title.english : id },
+      });
+    },
+    onError: (err) => {
+      const message = toApiErrorMessage(err);
+      if (message) notifications.show({ color: 'red', message });
+    },
+  });
+
+  return {
+    item: content.data,
+    isLoading: content.isLoading,
+    loadError: toApiErrorMessage(content.error),
+    approve,
+  };
+}

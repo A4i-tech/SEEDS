@@ -1,0 +1,25 @@
+[
+  {
+    "jsonrpc": "2.0",
+    "id": 1791374218089,
+    "result": {
+      "isError": true,
+      "content": [
+        {
+          "type": "text",
+          "text": "You've reached the Figma MCP tool call limit for your View seat on the Professional plan. Upgrade your seat or plan for more tool calls: https://www.figma.com/files/1419934227233968041/recents-and-sharing?upgrade_request_type=expert&entry_point=mcp_rate_limit_deeplink"
+        },
+        {
+          "type": "resource_link",
+          "uri": "file://figma/docs/rate-limits-access.md",
+          "name": "rate-limits-access.md",
+          "mimeType": "text/plain",
+          "size": 3932,
+          "_meta": {
+            "size": 3932
+          }
+        }
+      ]
+    }
+  }
+]

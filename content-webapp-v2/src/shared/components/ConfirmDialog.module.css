@@ -1,0 +1,4 @@
+.destructiveButton.destructiveButton {
+  background-color: var(--seeds-btn-destructive-bg);
+  color: var(--seeds-btn-destructive-text);
+}

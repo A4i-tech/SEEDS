@@ -1,0 +1,18 @@
+export const routePaths = {
+  login: '/',
+  register: '/register',
+  home: '/home',
+  library: '/library',
+  jobs: '/jobs',
+  registration: '/registration',
+  analytics: '/analytics',
+  create: '/create',
+  makeAccessible: '/make-accessible',
+  localize: '/localize',
+  localizeAdd: '/localize/add',
+  localizeEdit: '/localize/sites/:siteId/edit',
+  localizeReview: '/localize/review',
+  review: '/review',
+  ivrView: '/ivr-view',
+  syncHistory: '/content/sync-history',
+} as const;

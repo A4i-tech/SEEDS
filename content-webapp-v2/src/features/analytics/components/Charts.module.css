@@ -1,0 +1,89 @@
+.card {
+  background-color: var(--seeds-bg-surface);
+  border: 1px solid var(--seeds-card-border);
+  border-radius: 8px;
+  padding: 16px;
+  flex: 1 0 0;
+  min-width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  cursor: pointer;
+}
+
+.card:focus-visible {
+  outline: 2px solid var(--seeds-btn-secondary-border);
+  outline-offset: 2px;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--seeds-text-primary);
+}
+
+.expand {
+  color: var(--seeds-btn-tertiary-text);
+}
+
+.row {
+  display: flex;
+  gap: 16px;
+  align-items: stretch;
+  width: 100%;
+  flex-wrap: wrap;
+}
+
+.trend {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.trendSvg {
+  width: 100%;
+  height: 120px;
+}
+
+.axis {
+  display: flex;
+  justify-content: space-between;
+}
+
+.bars {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+}
+
+.barRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+}
+
+.barLabel {
+  width: 120px;
+  flex-shrink: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.track {
+  flex: 1 0 0;
+  height: 12px;
+  min-width: 0;
+}
+
+.barCount {
+  color: var(--seeds-text-primary);
+  font-weight: 700;
+  min-width: 32px;
+  text-align: right;
+}

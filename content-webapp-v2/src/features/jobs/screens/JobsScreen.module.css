@@ -1,0 +1,17 @@
+.filters {
+  align-items: flex-end;
+}
+
+.search {
+  flex: 1;
+  min-width: 240px;
+}
+
+.outlineAction.outlineAction {
+  border-color: var(--seeds-btn-secondary-border);
+  color: var(--seeds-btn-secondary-text);
+}
+
+.textAction.textAction {
+  color: var(--seeds-btn-tertiary-text);
+}

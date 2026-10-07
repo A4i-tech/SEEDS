@@ -1,0 +1,61 @@
+.swatch {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border-radius: var(--mantine-radius-sm);
+}
+
+.removedSwatch {
+  background-color: var(--seeds-badge-hard-bg);
+  border: 1px solid var(--seeds-badge-hard-text);
+}
+
+.addedSwatch {
+  background-color: var(--seeds-badge-easy-bg);
+  border: 1px solid var(--seeds-badge-easy-text);
+}
+
+.sourcePane {
+  border: 1px solid var(--seeds-card-border);
+  border-radius: var(--mantine-radius-md);
+  background-color: var(--seeds-bg-surface);
+  padding: var(--mantine-spacing-md);
+  max-height: 60vh;
+  overflow-y: auto;
+  font-family: monospace;
+}
+
+.lineNo {
+  display: inline-block;
+  width: 32px;
+  color: var(--seeds-text-secondary);
+  user-select: none;
+}
+
+.removed {
+  background-color: var(--seeds-badge-hard-bg);
+  color: var(--seeds-badge-hard-text);
+}
+
+.added {
+  background-color: var(--seeds-badge-easy-bg);
+  color: var(--seeds-badge-easy-text);
+}
+
+.same {
+  color: var(--seeds-text-primary);
+}
+
+.editPane textarea {
+  font-family: monospace;
+}
+
+.secondaryButton.secondaryButton {
+  border-color: var(--seeds-btn-secondary-border);
+  color: var(--seeds-btn-secondary-text);
+}
+
+.submitButton.submitButton {
+  background-color: var(--seeds-btn-primary-bg);
+  color: var(--seeds-btn-primary-text);
+}
