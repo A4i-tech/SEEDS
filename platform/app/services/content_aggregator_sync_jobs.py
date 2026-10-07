@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import uuid
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 
 from fastapi import Depends
 from pymongo.asynchronous.database import AsyncDatabase
@@ -95,13 +95,17 @@ class SyncJobService:
     async def list_items(self, tenant_id: str, job_id: str) -> list[SyncItemResult]:
         return await self._item_repo.list_by_job(tenant_id, job_id)
 
-    async def has_active_all_sync(self, tenant_id: str, source_type: SourceType) -> bool:
+    async def _has_active(self, tenant_id: str, source_type: SourceType, predicate: Callable[[SyncJob], bool]) -> bool:
         active_jobs = await self._job_repo.get_active_jobs(tenant_id, source_type=source_type)
-        return any(j.scope == SyncScope.ALL for j in active_jobs)
+        return any(predicate(j) for j in active_jobs)
+
+    async def has_active_all_sync(self, tenant_id: str, source_type: SourceType) -> bool:
+        return await self._has_active(tenant_id, source_type, lambda j: j.scope == SyncScope.ALL)
 
     async def has_active_course_sync(self, tenant_id: str, source_type: SourceType, course_id: str) -> bool:
-        active_jobs = await self._job_repo.get_active_jobs(tenant_id, source_type=source_type)
-        return any(j.scope == SyncScope.COURSE and j.source_id == course_id for j in active_jobs)
+        return await self._has_active(
+            tenant_id, source_type, lambda j: j.scope == SyncScope.COURSE and j.source_id == course_id
+        )
 
     async def _get_job(self, tenant_id: str, job_id: str) -> SyncJob:
         job = await self._job_repo.get_job(tenant_id, job_id)
@@ -120,15 +124,18 @@ class SyncJobService:
         await self._get_job(tenant_id, job_id)
         return await self._item_repo.list_by_job_page(tenant_id, job_id, limit=limit, after=after)
 
+    async def _with_stats(self, tenant_id: str, jobs: list[SyncJob]) -> list[SyncJobResponse]:
+        return [serialize_job(j, await self._item_repo.get_stats(tenant_id, j.job_id)) for j in jobs]
+
     async def list_jobs_with_stats(
         self, tenant_id: str, source_type: SourceType | None, *, limit: int, scope: SyncScope | None = None, source_id: str = "",
     ) -> list[SyncJobResponse]:
         job_list = await self._job_repo.list_jobs(tenant_id, source_type, limit=limit, scope=scope, source_id=source_id)
-        return [serialize_job(j, await self._item_repo.get_stats(tenant_id, j.job_id)) for j in job_list]
+        return await self._with_stats(tenant_id, job_list)
 
     async def get_active_jobs_with_stats(self, tenant_id: str, source_type: SourceType | None) -> list[SyncJobResponse]:
         jobs = await self._job_repo.get_active_jobs(tenant_id, source_type)
-        return [serialize_job(j, await self._item_repo.get_stats(tenant_id, j.job_id)) for j in jobs]
+        return await self._with_stats(tenant_id, jobs)
 
     async def finish_job(self, tenant_id: str, job_id: str, status: SyncJobStatus, *, error: str = "") -> None:
         stats = await self._item_repo.get_stats(tenant_id, job_id)

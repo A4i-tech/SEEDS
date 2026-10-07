@@ -34,18 +34,17 @@ class HexisClient:
         return token
 
     async def _get(self, path: str, params: dict[str, str]) -> httpx.Response:
-        res = await self._http.get(
-            f"{self._settings.hexis_base_url}/{path}",
-            params=params,
-            headers={"Authorization": await self.get_session()},
-        )
-        if res.status_code == httpx.codes.UNAUTHORIZED:
-            self._jwt = ""
-            res = await self._http.get(
+        async def send() -> httpx.Response:
+            return await self._http.get(
                 f"{self._settings.hexis_base_url}/{path}",
                 params=params,
                 headers={"Authorization": await self.get_session()},
             )
+
+        res = await send()
+        if res.status_code == httpx.codes.UNAUTHORIZED:
+            self._jwt = ""
+            res = await send()
         res.raise_for_status()
         return res
 

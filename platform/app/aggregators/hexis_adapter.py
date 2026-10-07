@@ -55,7 +55,7 @@ class HexisAdapter(SourceAdapter):
         return not any(str(_body(i)).strip() for i in items)
 
     def build_canonical_nodes(
-        self, native_subject: HexisSubject, native_items: list[HexisContentItem], run_id: str, url_map: dict[str, str]
+        self, native_subject: HexisSubject, native_items: list[HexisContentItem], run_id: str
     ) -> list[CanonicalNode]:
         subject = native_subject.subject_id
         now = _now()

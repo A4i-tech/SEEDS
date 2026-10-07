@@ -117,16 +117,8 @@ class LegacyCourseDoc:
         }
 
 
-async def _resolve_markdown(node: CanonicalNode, blob: BlobStorageProvider) -> str | None:
-    url = getattr(node.content, "markdown_url", None)
-    if not url:
-        return None
-    data = await blob.download_from_url(url)
-    return await _sign_blob_urls(data.decode("utf-8"), blob)
-
-
-async def _resolve_html(node: CanonicalNode, blob: BlobStorageProvider) -> str:
-    url = getattr(node.content, "raw_html_url", None)
+async def _resolve(node: CanonicalNode, blob: BlobStorageProvider, attr: str) -> str:
+    url = getattr(node.content, attr, None)
     if not url:
         return ""
     data = await blob.download_from_url(url)
@@ -144,11 +136,11 @@ async def _to_legacy_block(node: CanonicalNode, blob: BlobStorageProvider) -> Le
             "poster": content.poster_url, "transcript_languages": content.transcript_languages,
         }
     elif node.item_type == ItemType.TEXT:
-        markdown = await _resolve_markdown(node, blob)
+        markdown = await _resolve(node, blob, "markdown_url") or None
         if markdown is None:
-            html = await _resolve_html(node, blob)  # pandoc-conversion-failure fallback
+            html = await _resolve(node, blob, "raw_html_url")  # pandoc-conversion-failure fallback
     else:
-        html = await _resolve_html(node, blob)
+        html = await _resolve(node, blob, "raw_html_url")
     return LegacyBlock(
         block_id=node.source_id, type=node.native_type, display_name=node.display_name,
         html=html, markdown=markdown, student_view_data=student_view_data, lms_url=node.lms_url or "",

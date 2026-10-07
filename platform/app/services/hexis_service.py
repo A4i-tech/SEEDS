@@ -2,17 +2,14 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import re
-from collections.abc import Callable
-from datetime import UTC, datetime
 
 from fastapi import Depends
 from pymongo.asynchronous.database import AsyncDatabase
 
 from app.aggregators.hexis_adapter import HexisAdapter, HexisSubject
 from app.aggregators.hexis_types import HexisContentItem
-from app.aggregators.models import BlobContext, CanonicalNode, SourceType
-from app.aggregators.sync_job_models import SyncItemResult, SyncItemStatus
+from app.aggregators.models import SourceType
+from app.aggregators.sync_job_models import SyncItemStatus
 from app.models.responses.content_aggregator import SyncedCourseSummary
 from app.platform.auth.dependencies import get_db
 from app.platform.error_handling import NotFoundError
@@ -98,18 +95,6 @@ class HexisService(ContentAggregatorSourceService):
         await self._apply_overrides(tenant_id, tree)
         return await to_course_doc(tree, self._blob)
 
-    def _blob_ctx_factory(self, subject_id: str) -> Callable[[CanonicalNode], BlobContext]:
-        safe_subject = re.sub(r"[:/+@]", "_", subject_id)
-
-        def factory(node: CanonicalNode) -> BlobContext:
-            safe_cid = re.sub(r"[:/+@]", "_", node.source_id)
-            return BlobContext(
-                container=self._settings.content_aggregator_asset_container,
-                blob_prefix=f"hexis/{safe_subject}/items/{safe_cid}",
-            )
-
-        return factory
-
     async def process_course(
         self, tenant_id: str, subject: HexisSubject, run_id: str, dry_run: bool
     ) -> CourseOutcome:
@@ -117,7 +102,7 @@ class HexisService(ContentAggregatorSourceService):
             if self._adapter.is_empty(subject.items):
                 return CourseOutcome(SyncItemStatus.EMPTY)
 
-            nodes = self._adapter.build_canonical_nodes(subject, subject.items, run_id, {})
+            nodes = self._adapter.build_canonical_nodes(subject, subject.items, run_id)
             content_hash = self._adapter.compute_content_hash(nodes)
 
             if dry_run:
@@ -126,7 +111,7 @@ class HexisService(ContentAggregatorSourceService):
             if await self._repo.get_root_content_hash(tenant_id, self.SOURCE_TYPE, subject.subject_id) == content_hash:
                 return CourseOutcome(SyncItemStatus.SKIPPED)
 
-            processed = await self._adapter.process_nodes(nodes, self._blob_ctx_factory(subject.subject_id), self._blob)
+            processed = await self._adapter.process_nodes(nodes, self._blob_ctx_factory(subject.subject_id, "hexis"), self._blob)
             for node in processed:
                 if node.parent_id is None:
                     node.source_metadata["content_hash"] = content_hash
@@ -138,11 +123,7 @@ class HexisService(ContentAggregatorSourceService):
 
     async def _sync_subject(self, tenant_id: str, job_id: str, subject: HexisSubject, dry_run: bool) -> None:
         outcome = await self.process_course(tenant_id, subject, job_id, dry_run)
-        entry = SyncItemResult(
-            source_id=subject.subject_id, name=subject.name, status=outcome.status,
-            error=outcome.error, at=datetime.now(UTC).isoformat(),
-        )
-        await self._sync_jobs.record_item_result(tenant_id, job_id, entry)
+        await self._record_outcome(tenant_id, job_id, subject.subject_id, subject.name, outcome)
 
     async def run_sync(
         self, tenant_id: str, job_id: str, *, only_new: bool, limit: int, dry_run: bool
