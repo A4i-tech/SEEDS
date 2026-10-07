@@ -4,8 +4,9 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.aggregators.models import ContentPayload, ItemType, NodeKind, SourceType
+from app.aggregators.models import SourceType
 from app.aggregators.sync_job_models import SyncItemResult, SyncJobStatus, SyncScope, SyncStats
+from app.models.content import Content
 
 
 class SyncJobResponse(BaseModel):
@@ -73,25 +74,20 @@ class ModifiedCountResponse(BaseModel):
     modified: int
 
 
-class PartnerContentResponse(BaseModel):
-    source_id: str
-    root_id: str
-    parent_id: str | None
-    order: int
-    node_kind: NodeKind
-    item_type: ItemType | None
-    display_name: str
-    content: ContentPayload | None
-    native_type: str
-    last_run_id: str
-    fetched_at: str
-    created_at: str
-    updated_at: str
-    is_deleted: bool
-    deleted_at: str
+class PartnerPagination(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    next_cursor: str | None = Field(None, alias="nextCursor")
+    has_more: bool = Field(False, alias="hasMore")
+    limit: int
 
 
-class PartnerContentUpdateResponse(PartnerContentResponse):
+class PartnerContentPageResponse(BaseModel):
+    data: list[Content]
+    pagination: PartnerPagination
+
+
+class PartnerContentUpdateResponse(Content):
     job_id: str = ""
 
 
