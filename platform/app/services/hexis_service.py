@@ -56,18 +56,8 @@ class HexisService(ContentAggregatorSourceService):
         subjects, stored_ids = await asyncio.gather(
             self.list_live_courses(), self._repo.stored_root_ids(tenant_id, self.SOURCE_TYPE)
         )
-        live_ids = {s.subject_id for s in subjects}
-        new_subjects = [s for s in subjects if s.subject_id not in stored_ids]
-        removed_ids = [i for i in stored_ids if i not in live_ids]
-        return {
-            "totalLive": len(subjects),
-            "totalStored": len(stored_ids),
-            "newCount": len(new_subjects),
-            "removedCount": len(removed_ids),
-            "newCourseIds": [s.subject_id for s in new_subjects],
-            "removedCourseIds": removed_ids,
-            "liveCourses": [{"id": s.subject_id, "name": s.name} for s in subjects],
-        }
+        live: list[LiveCourse] = [{"id": s.subject_id, "name": s.name} for s in subjects]
+        return self._diff_courses(live, stored_ids, lambda c: c["id"])
 
     async def get_content_list(
         self, tenant_id: str, *, cursor: str = "", limit: int = 20

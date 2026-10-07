@@ -92,6 +92,19 @@ class ContentAggregatorSourceService(ABC):
             ),
         )
 
+    def _diff_courses[CourseT](
+        self, live_courses: list[CourseT], stored_ids: set[str], key: Callable[[CourseT], str]
+    ) -> CourseDiffResult[CourseT]:
+        live_ids = {key(c) for c in live_courses}
+        new_courses = [c for c in live_courses if key(c) not in stored_ids]
+        removed_ids = [i for i in stored_ids if i not in live_ids]
+        return {
+            "totalLive": len(live_courses), "totalStored": len(stored_ids),
+            "newCount": len(new_courses), "removedCount": len(removed_ids),
+            "newCourseIds": [key(c) for c in new_courses], "removedCourseIds": removed_ids,
+            "liveCourses": live_courses,
+        }
+
     def _blob_ctx_factory(self, root_id: str, prefix: str) -> Callable[[CanonicalNode], BlobContext]:
         safe_root = re.sub(r"[:/+@]", "_", root_id)
 

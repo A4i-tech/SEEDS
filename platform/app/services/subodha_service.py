@@ -97,22 +97,7 @@ class SubodhaService(ContentAggregatorSourceService):
         live_courses, stored_ids = await asyncio.gather(
             self._client.list_all_courses(), self._repo.stored_root_ids(tenant_id, self.SOURCE_TYPE)
         )
-        live_ids = {c["id"] for c in live_courses}
-        new_courses = [c for c in live_courses if c["id"] not in stored_ids]
-        removed_ids = [i for i in stored_ids if i not in live_ids]
-        logger.info(
-            "[subodha-diff] tenant=%s live=%d stored=%d new=%d removed=%d",
-            tenant_id, len(live_courses), len(stored_ids), len(new_courses), len(removed_ids),
-        )
-        return {
-            "totalLive": len(live_courses),
-            "totalStored": len(stored_ids),
-            "newCount": len(new_courses),
-            "removedCount": len(removed_ids),
-            "newCourseIds": [c["id"] for c in new_courses],
-            "removedCourseIds": removed_ids,
-            "liveCourses": live_courses,
-        }
+        return self._diff_courses(live_courses, stored_ids, lambda c: c["id"])
 
     async def get_content_list(
         self, tenant_id: str, *, cursor: str = "", limit: int = 20
