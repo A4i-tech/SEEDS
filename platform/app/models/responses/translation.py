@@ -80,3 +80,19 @@ class TranslationVersionResponse(BaseModel):
     @classmethod
     def from_doc(cls, doc: dict) -> TranslationVersionResponse:
         return cls.model_validate(doc)
+
+
+class ImportRowError(BaseModel):
+    row: int
+    route: str
+    key: str
+    reason: str
+
+
+class TranslationImportResponse(BaseModel):
+    updated: int = 0
+    created: int = 0
+    unchanged: int = 0
+    skipped_blank: int = 0
+    failed: int = 0
+    errors: list[ImportRowError] = Field(default_factory=list)

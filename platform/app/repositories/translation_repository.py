@@ -13,6 +13,7 @@ from app.repositories.base_repository import BaseRepository
 logger = logging.getLogger(__name__)
 
 MAX_TRANSLATION_ROWS = 20_000
+IMPORT_PROVIDER = "Import"
 
 
 class TranslationRepository(BaseRepository):
@@ -127,7 +128,7 @@ class TranslationRepository(BaseRepository):
             logger.warning("get_analytics hit MAX_TRANSLATION_ROWS cap", extra={"site_id": site_id})
         for doc in docs:
             providers = {t.get("provider") for t in (doc.get("translations") or {}).values()}
-            if providers - {"TranslationMemory"}:
+            if providers - {"TranslationMemory", IMPORT_PROVIDER}:
                 ai_generated += 1
             if "TranslationMemory" in providers:
                 tm_reused += 1
@@ -202,5 +203,8 @@ class TranslationRepository(BaseRepository):
 
         await self._col.update_one({"_id": self._to_id(translation_id)}, {"$set": set_fields})
 
-    async def bulk_approve(self, ops: list[UpdateOne]) -> BulkWriteResult:
+    async def bulk_write(self, ops: list[UpdateOne]) -> BulkWriteResult:
         return await self._col.bulk_write(ops, ordered=False)
+
+    async def bulk_approve(self, ops: list[UpdateOne]) -> BulkWriteResult:
+        return await self.bulk_write(ops)
