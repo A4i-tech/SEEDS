@@ -76,7 +76,8 @@ def _init_conference_manager() -> ConferenceCallManager:
     if private_key_raw:
         try:
             private_key = base64.b64decode(private_key_raw).decode()
-        except Exception:
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Conference private key is not base64; using raw value: %s", exc)
             private_key = private_key_raw  # Already PEM
     else:
         private_key = ""

@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+import re
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import ClassVar, TypedDict
 
 from pymongo.asynchronous.database import AsyncDatabase
 
-from app.aggregators.models import CanonicalNode, QuizChoice, QuizContent, SourceType
-from app.aggregators.sync_job_models import SyncItemStatus, SyncJob, SyncJobStatus
+from app.aggregators.models import BlobContext, CanonicalNode, QuizChoice, QuizContent, SourceType
+from app.aggregators.sync_job_models import SyncItemResult, SyncItemStatus, SyncJob, SyncJobStatus
 from app.models.responses.content_aggregator import SyncedCourseSummary
 from app.platform.error_handling import NotFoundError
 from app.platform.settings import get_settings
@@ -77,6 +80,29 @@ class ContentAggregatorSourceService(ABC):
 
     async def finish_job(self, tenant_id: str, job_id: str, status: SyncJobStatus, *, error: str = "") -> None:
         await self._sync_jobs.finish_job(tenant_id, job_id, status, error=error)
+
+    async def _record_outcome(
+        self, tenant_id: str, job_id: str, source_id: str, name: str, outcome: CourseOutcome
+    ) -> None:
+        await self._sync_jobs.record_item_result(
+            tenant_id, job_id,
+            SyncItemResult(
+                source_id=source_id, name=name, status=outcome.status, error=outcome.error,
+                at=datetime.now(UTC).isoformat(),
+            ),
+        )
+
+    def _blob_ctx_factory(self, root_id: str, prefix: str) -> Callable[[CanonicalNode], BlobContext]:
+        safe_root = re.sub(r"[:/+@]", "_", root_id)
+
+        def factory(node: CanonicalNode) -> BlobContext:
+            safe_id = re.sub(r"[:/+@]", "_", node.source_id)
+            return BlobContext(
+                container=self._settings.content_aggregator_asset_container,
+                blob_prefix=f"{prefix}/{safe_root}/items/{safe_id}",
+            )
+
+        return factory
 
     async def update_problem_block(
         self, tenant_id: str, course_id: str, block_id: str, question: str, choices: list[QuizChoice]

@@ -2,6 +2,7 @@ import React, { useState, useMemo } from "react";
 import { Breadcrumb } from "../AllContent/shared/Breadcrumb";
 import { disambiguateLabels } from "./disambiguateLabels";
 import { BlockCard } from "./BlockContent";
+import { Pager } from "./Pager";
 
 export function FlatBlockNavigator({ blocks, courseId, source, courseTitle, onBlockChange, onBack }) {
   const [index, setIndex] = useState(null);
@@ -42,27 +43,7 @@ export function FlatBlockNavigator({ blocks, courseId, source, courseTitle, onBl
           { label: labels[index] },
         ]}
       />
-      <div className="content-aggregator-pager">
-        <button
-          type="button"
-          className="secondary-button"
-          onClick={() => setIndex(index - 1)}
-          disabled={index === 0}
-        >
-          ← Previous
-        </button>
-        <span className="content-aggregator-pager-position">
-          {index + 1} / {blocks.length}: {labels[index]}
-        </span>
-        <button
-          type="button"
-          className="secondary-button"
-          onClick={() => setIndex(index + 1)}
-          disabled={index === blocks.length - 1}
-        >
-          Next →
-        </button>
-      </div>
+      <Pager current={index} total={blocks.length} label={labels[index]} onChange={setIndex} />
       <div key={index} className="content-aggregator-unit-fade">
         <BlockCard block={block} courseId={courseId} source={source} onBlockChange={onBlockChange} />
       </div>

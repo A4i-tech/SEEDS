@@ -23,7 +23,7 @@ async def test_serialize_hexis_tree_plaintext_and_quiz():
     ]
     adapter = HexisAdapter()
     blob = FakeBlob()
-    nodes = adapter.build_canonical_nodes(HexisSubject(subject_id="3", name="Subject 3", items=items), items, "run1", {})
+    nodes = adapter.build_canonical_nodes(HexisSubject(subject_id="3", name="Subject 3", items=items), items, "run1")
     processed = await adapter.process_nodes(nodes, _ctx_factory, blob)
 
     doc = await to_course_doc(processed, blob)

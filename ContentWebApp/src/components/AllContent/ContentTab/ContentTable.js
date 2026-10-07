@@ -112,7 +112,7 @@ const ContentTable = ({
                   <td className="table-cell">
                     <span className="content-type">
                       {isContentAggregatorItem
-                        ? (item.source ? item.source.charAt(0).toUpperCase() + item.source.slice(1) : "Content")
+                        ? item.source.charAt(0).toUpperCase() + item.source.slice(1)
                         : itemType}
                       {itemType === "quiz" && (
                         <span className="content-type-badge-quiz" title="Quiz Content">

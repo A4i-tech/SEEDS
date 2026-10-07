@@ -31,7 +31,7 @@ def test_build_tree_shape_and_item_mapping():
          "ctype": "3", "actual_content": '{"question":"2+2?","a1":"3","a2":"4","a3":"5","ca":2}',
          "folder": "mcq", "common_content": "0", "author_id": "241"},
     ]
-    nodes = HexisAdapter().build_canonical_nodes(_subject(), items, "run1", {})
+    nodes = HexisAdapter().build_canonical_nodes(_subject(), items, "run1")
 
     root = next(n for n in nodes if n.parent_id is None)
     assert root.source_id == "3" and root.native_type == "subject"
@@ -56,6 +56,6 @@ def test_content_hash_stable_across_rebuilds():
     items = [{"cid": "1", "title": "A", "class": "5", "language": "1", "subject": "3", "ctype": "2",
               "actual_content": "x", "folder": "f", "common_content": "0"}]
     adapter = HexisAdapter()
-    h1 = adapter.compute_content_hash(adapter.build_canonical_nodes(_subject(), items, "r1", {}))
-    h2 = adapter.compute_content_hash(adapter.build_canonical_nodes(_subject(), items, "r2", {}))
+    h1 = adapter.compute_content_hash(adapter.build_canonical_nodes(_subject(), items, "r1"))
+    h2 = adapter.compute_content_hash(adapter.build_canonical_nodes(_subject(), items, "r2"))
     assert h1 == h2

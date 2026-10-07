@@ -7,7 +7,6 @@ import asyncio
 import logging
 import mimetypes
 import re
-from datetime import UTC, datetime
 from pathlib import PurePosixPath
 from typing import Any
 from urllib.parse import unquote
@@ -15,9 +14,9 @@ from urllib.parse import unquote
 from fastapi import Depends
 from pymongo.asynchronous.database import AsyncDatabase
 
-from app.aggregators.models import BlobContext, SourceType
+from app.aggregators.models import SourceType
 from app.aggregators.subodha_adapter import SubodhaAdapter
-from app.aggregators.sync_job_models import SyncItemResult, SyncItemStatus, SyncStats
+from app.aggregators.sync_job_models import SyncItemStatus, SyncStats
 from app.models.responses.content_aggregator import SyncedCourseSummary
 from app.platform.auth.dependencies import get_db
 from app.platform.error_handling import NotFoundError
@@ -143,15 +142,6 @@ class SubodhaService(ContentAggregatorSourceService):
         await self._apply_overrides(tenant_id, tree)
         return await to_course_doc(tree, self._blob)
 
-    def _blob_ctx_factory(self, course_id: str):
-        safe_course_id = re.sub(r"[:/+]", "_", course_id)
-
-        def factory(node) -> BlobContext:
-            safe_block_id = re.sub(r"[:/+@]", "_", node.source_id)
-            return BlobContext(container=self._settings.content_aggregator_asset_container, blob_prefix=f"courses/{safe_course_id}/items/{safe_block_id}")
-
-        return factory
-
     async def process_course(
         self, tenant_id: str, course: SubodhaCourse, session_cookie: str, run_id: str, dry_run: bool
     ) -> CourseOutcome:
@@ -177,7 +167,7 @@ class SubodhaService(ContentAggregatorSourceService):
                 logger.info("[subodha-process] course=%s skipped (unchanged content_hash)", course_id)
                 return CourseOutcome(SyncItemStatus.SKIPPED)
 
-            processed = await self._adapter.process_nodes(nodes, self._blob_ctx_factory(course_id), self._blob)
+            processed = await self._adapter.process_nodes(nodes, self._blob_ctx_factory(course_id, "courses"), self._blob)
             for node in processed:
                 if node.parent_id is None:
                     node.source_metadata["content_hash"] = content_hash
@@ -226,11 +216,7 @@ class SubodhaService(ContentAggregatorSourceService):
                     cookie = session_box["cookie"]
 
                 outcome = await self.process_course(tenant_id, course, cookie, job_id, dry_run)
-                entry = SyncItemResult(
-                    source_id=course["id"], name=course.get("name") or "", status=outcome.status,
-                    error=outcome.error, at=datetime.now(UTC).isoformat(),
-                )
-                await self._sync_jobs.record_item_result(tenant_id, job_id, entry)
+                await self._record_outcome(tenant_id, job_id, course["id"], course.get("name") or "", outcome)
 
                 async with lock:
                     processed_count += 1
@@ -257,11 +243,7 @@ class SubodhaService(ContentAggregatorSourceService):
 
         await self._sync_jobs.set_total(tenant_id, job_id, 1)
         outcome = await self.process_course(tenant_id, course, session_cookie, job_id, dry_run)
-        entry = SyncItemResult(
-            source_id=course_id, name=course.get("name") or "", status=outcome.status,
-            error=outcome.error, at=datetime.now(UTC).isoformat(),
-        )
-        await self._sync_jobs.record_item_result(tenant_id, job_id, entry)
+        await self._record_outcome(tenant_id, job_id, course_id, course.get("name") or "", outcome)
 
         items = await self._sync_jobs.list_items(tenant_id, job_id)
         logger.info("[subodha] single-course done -> %s", SyncStats.from_items(items).to_doc())

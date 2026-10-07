@@ -56,11 +56,15 @@ class ContentAggregatorRepository:
             }
         )
 
+    @staticmethod
+    def _root_filter(tenant_id: str, source_type: SourceType, root_id: str | None = None) -> dict[str, object]:
+        query: dict[str, object] = {"tenant_id": tenant_id, "source_type": source_type, "parent_id": None}
+        if root_id is not None:
+            query["source_id"] = root_id
+        return query
+
     async def is_enrolled(self, tenant_id: str, source_type: SourceType, root_id: str) -> bool:
-        doc = await self._col.find_one(
-            {"tenant_id": tenant_id, "source_type": source_type, "source_id": root_id, "parent_id": None},
-            {"_id": 1},
-        )
+        doc = await self._col.find_one(self._root_filter(tenant_id, source_type, root_id), {"_id": 1})
         return doc is not None
 
     async def get_tree(self, tenant_id: str, source_type: SourceType, root_id: str) -> list[CanonicalNode]:
@@ -72,9 +76,7 @@ class ContentAggregatorRepository:
         return [CanonicalNode.from_doc(d) for d in docs]
 
     async def get_root_content_hash(self, tenant_id: str, source_type: SourceType, root_id: str) -> str:
-        doc = await self._col.find_one(
-            {"tenant_id": tenant_id, "source_type": source_type, "source_id": root_id, "parent_id": None}
-        )
+        doc = await self._col.find_one(self._root_filter(tenant_id, source_type, root_id))
         return doc["source_metadata"].get("content_hash", "") if doc else ""
 
     async def list_roots(
@@ -85,16 +87,14 @@ class ContentAggregatorRepository:
         cursor: str = "",
         limit: int = 0,
     ) -> list[CanonicalNode]:
-        query: dict = {"tenant_id": tenant_id, "source_type": source_type, "parent_id": None}
+        query = self._root_filter(tenant_id, source_type)
         if cursor:
             query["source_id"] = {"$gt": cursor}
         docs = await self._col.find(query).sort("source_id", 1).limit(limit).to_list(length=None)
         return [CanonicalNode.from_doc(d) for d in docs]
 
     async def stored_root_ids(self, tenant_id: str, source_type: SourceType) -> set[str]:
-        return set(
-            await self._col.distinct("source_id", {"tenant_id": tenant_id, "source_type": source_type, "parent_id": None})
-        )
+        return set(await self._col.distinct("source_id", self._root_filter(tenant_id, source_type)))
 
     async def delete_tree(self, tenant_id: str, source_type: SourceType, root_id: str) -> int:
         result = await self._col.delete_many({"tenant_id": tenant_id, "source_type": source_type, "root_id": root_id})
