@@ -173,6 +173,9 @@ class ContentAggregatorAuth:
         )
         return client_id, client_secret
 
+    async def verify_token(self, token: str) -> _jwt.AccessTokenClaims:
+        return _jwt.decode_access_token(token, secret_key=self._settings.secret_key)
+
     async def refresh_token(self, refresh_token: str) -> IntegrationTokenPair:
         granted_scope = ""
         client_name = ""

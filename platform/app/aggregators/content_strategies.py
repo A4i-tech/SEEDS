@@ -78,6 +78,13 @@ class TextStrategy(ContentStrategy):
         return TextContent(markdown_url=markdown_url)
 
 
+class PlainTextStrategy(ContentStrategy):
+    async def process(self, raw: RawItemPayload, ctx: BlobContext, blob: BlobStorageProvider) -> ContentPayload:
+        text = raw if isinstance(raw, str) else ""
+        url = await blob.upload_file(ctx.container, f"{ctx.blob_prefix}.txt", text.encode("utf-8"), "text/plain")
+        return TextContent(markdown_url=url)
+
+
 class VideoStrategy(ContentStrategy):
     async def process(self, raw: RawItemPayload, ctx: BlobContext, blob: BlobStorageProvider) -> ContentPayload:
         data = raw if isinstance(raw, dict) else {}
@@ -172,6 +179,7 @@ class BrailleStrategy(ContentStrategy):
 
 STRATEGY_REGISTRY: dict[ItemType, ContentStrategy] = {
     ItemType.TEXT: TextStrategy(),
+    ItemType.PLAINTEXT: PlainTextStrategy(),
     ItemType.VIDEO: VideoStrategy(),
     ItemType.IMAGE: ImageStrategy(),
     ItemType.QUIZ: QuizStrategy(),

@@ -16,6 +16,7 @@ class NodeKind(StrEnum):
 
 class ItemType(StrEnum):
     TEXT = "text"
+    PLAINTEXT = "plaintext"
     VIDEO = "video"
     IMAGE = "image"
     QUIZ = "quiz"
@@ -169,7 +170,7 @@ ContentPayload = (
 RawItemPayload = str | dict[str, object]
 
 _CONTENT_TYPE_BY_ITEM_TYPE: dict[ItemType, type] = {
-    ItemType.TEXT: TextContent, ItemType.VIDEO: VideoContent, ItemType.IMAGE: ImageContent,
+    ItemType.TEXT: TextContent, ItemType.PLAINTEXT: TextContent, ItemType.VIDEO: VideoContent, ItemType.IMAGE: ImageContent,
     ItemType.QUIZ: QuizContent, ItemType.DISCUSSION: DiscussionContent, ItemType.OTHER: OtherContent,
     ItemType.AUDIO: AudioContent, ItemType.BRAILLE: BrailleContent,
 }
