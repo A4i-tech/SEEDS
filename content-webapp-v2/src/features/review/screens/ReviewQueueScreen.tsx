@@ -1,6 +1,6 @@
 import { Chip, Group, Stack, Tabs, Text, Title } from '@mantine/core';
 import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { routePaths } from '@app/navigation/routePaths';
 import type { DataTableColumn } from '@shared/components/DataTable';
@@ -116,7 +116,7 @@ export function ReviewQueueScreen() {
           <button
             type="button"
             className={classes.openAction}
-            onClick={() => void navigate(`${routePaths.review}/text/${row.id}`)}
+            onClick={() => void navigate({ to: `${routePaths.review}/text/$jobId`, params: { jobId: row.id } })}
           >
             {t('review.open')}
           </button>

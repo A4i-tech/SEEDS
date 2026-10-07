@@ -1,5 +1,5 @@
 import { Breadcrumbs, Button, Group, Stack, Text, Title } from '@mantine/core';
-import { useNavigate, useParams } from 'react-router';
+import { useNavigate, useParams } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { routePaths } from '@app/navigation/routePaths';
 import { useReviewQuiz } from '../hooks/useReviewQuiz';
@@ -10,7 +10,7 @@ const optionLabels = ['A', 'B', 'C', 'D'];
 export function ReviewQuizScreen() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { id = '' } = useParams();
+  const { id = '' } = useParams({ strict: false });
   const { item, isLoading, loadError, approve } = useReviewQuiz(id);
 
   const isQuiz = item?.type === 'quiz';
@@ -64,7 +64,7 @@ export function ReviewQuizScreen() {
           >
             {t('review.approve')}
           </Button>
-          <Button variant="subtle" onClick={() => void navigate(routePaths.review)}>
+          <Button variant="subtle" onClick={() => void navigate({ to: routePaths.review })}>
             {t('review.backQueue')}
           </Button>
         </Group>

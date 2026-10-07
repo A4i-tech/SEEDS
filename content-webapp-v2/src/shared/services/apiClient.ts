@@ -30,7 +30,7 @@ export interface RequestOptions {
   timeoutMs?: number;
 }
 
-const DEFAULT_TIMEOUT_MS = 15000;
+const DEFAULT_TIMEOUT_MS = 60000;
 
 function buildUrl(path: string, params?: RequestOptions['params']): string {
   const query = new URLSearchParams();

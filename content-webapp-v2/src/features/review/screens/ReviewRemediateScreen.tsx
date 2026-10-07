@@ -1,6 +1,6 @@
 import { Breadcrumbs, Button, Group, Stack, Text, Textarea, Title } from '@mantine/core';
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { useNavigate, useParams } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { routePaths } from '@app/navigation/routePaths';
@@ -27,7 +27,7 @@ function FigureImage({ jobId, imageName, alt }: { jobId: string; imageName: stri
 export function ReviewRemediateScreen() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { jobId = '' } = useParams();
+  const { jobId = '' } = useParams({ strict: false });
   const { job, summary, draftSeed, isLoading, loadError, save, approve } = useReviewRemediate(jobId);
   const [edited, setEdited] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -138,7 +138,7 @@ export function ReviewRemediateScreen() {
         >
           {t('review.approve')}
         </Button>
-        <Button variant="subtle" onClick={() => void navigate(routePaths.review)}>
+        <Button variant="subtle" onClick={() => void navigate({ to: routePaths.review })}>
           {t('review.backQueue')}
         </Button>
       </Group>

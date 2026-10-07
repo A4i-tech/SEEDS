@@ -1,6 +1,6 @@
 import { Breadcrumbs, Button, Group, Stack, Text, Textarea, Title } from '@mantine/core';
 import { useState } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { useNavigate, useParams } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { routePaths } from '@app/navigation/routePaths';
 import { toApiErrorMessage } from '@shared/utils/apiErrors';
@@ -10,7 +10,7 @@ import classes from './ReviewAudioEditScreen.module.css';
 export function ReviewAudioEditScreen() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { id = '' } = useParams();
+  const { id = '' } = useParams({ strict: false });
   const { item, audioSrc, isLoading, loadError, save, approve } = useReviewAudio(id);
   const [edited, setEdited] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -93,7 +93,7 @@ export function ReviewAudioEditScreen() {
             >
               {t('review.approve')}
             </Button>
-            <Button variant="subtle" onClick={() => void navigate(`${routePaths.review}/audio/${id}`)}>
+            <Button variant="subtle" onClick={() => void navigate({ to: `${routePaths.review}/audio/$id`, params: { id } })}>
               {t('review.backListen')}
             </Button>
           </Group>

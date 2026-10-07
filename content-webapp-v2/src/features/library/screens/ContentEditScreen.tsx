@@ -1,9 +1,8 @@
 import { Breadcrumbs, Button, Checkbox, Group, Select, Stack, Text, Textarea, TextInput, Title } from '@mantine/core';
 import { useState } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { useNavigate, useParams } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { routePaths } from '@app/navigation/routePaths';
 import { useAuthStore } from '@features/auth/store/useAuthStore';
 import { getLanguages } from '@shared/services/languages';
 import { toApiErrorMessage } from '@shared/utils/apiErrors';
@@ -50,7 +49,7 @@ function EditForm({ item }: { item: ContentItem }) {
       return updateContent(item.id, patch, audioUploaded);
     },
     onSuccess: (updated) => {
-      void navigate(`${routePaths.library}/${updated.type}/${updated.id}`);
+      void navigate({ to: '/library/$kind/$id', params: { kind: updated.type, id: updated.id } });
     },
     onError: (err) => setError(toApiErrorMessage(err)),
   });
@@ -114,7 +113,7 @@ function EditForm({ item }: { item: ContentItem }) {
         <Button className={classes.submitButton} loading={save.isPending} onClick={() => void save.mutateAsync()}>
           {t('library.save')}
         </Button>
-        <Button variant="subtle" onClick={() => void navigate(`${routePaths.library}/${item.type}/${item.id}`)}>
+        <Button variant="subtle" onClick={() => void navigate({ to: '/library/$kind/$id', params: { kind: item.type, id: item.id } })}>
           {t('dialog.cancel')}
         </Button>
       </Group>
@@ -124,7 +123,7 @@ function EditForm({ item }: { item: ContentItem }) {
 
 export function ContentEditScreen() {
   const { t } = useTranslation();
-  const { kind = '', id = '' } = useParams();
+  const { kind = '', id = '' } = useParams({ strict: false });
   const status = useAuthStore((s) => s.status);
 
   const detail = useQuery({

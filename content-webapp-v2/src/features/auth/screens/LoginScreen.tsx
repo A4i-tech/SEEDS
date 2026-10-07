@@ -2,7 +2,7 @@ import { Button, Paper, PasswordInput, Stack, Text, TextInput, Title } from '@ma
 import { useForm } from '@mantine/form';
 import { zodResolver } from 'mantine-form-zod-resolver';
 import { useState } from 'react';
-import { Link, Navigate, useNavigate } from 'react-router';
+import { Link, Navigate, useNavigate } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { z } from 'zod';
 import { routePaths } from '@app/navigation/routePaths';
@@ -38,7 +38,7 @@ export function LoginScreen() {
     setError(null);
     try {
       await login(values);
-      await navigate(routePaths.home);
+      await navigate({ to: routePaths.home });
     } catch (err) {
       setError(toApiErrorMessage(err));
     }

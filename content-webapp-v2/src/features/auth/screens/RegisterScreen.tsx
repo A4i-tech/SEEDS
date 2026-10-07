@@ -2,7 +2,7 @@ import { Button, List, Paper, PasswordInput, Stack, Text, TextInput, Title } fro
 import { useForm } from '@mantine/form';
 import { zodResolver } from 'mantine-form-zod-resolver';
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { z } from 'zod';
 import { routePaths } from '@app/navigation/routePaths';
@@ -54,7 +54,7 @@ export function RegisterScreen() {
     setSubmitting(true);
     try {
       await registerTenant({ email: values.email, password: values.password, tenant_name: values.tenantName });
-      await navigate(routePaths.login);
+      await navigate({ to: routePaths.login });
     } catch (err) {
       setError(toApiErrorMessage(err));
     } finally {

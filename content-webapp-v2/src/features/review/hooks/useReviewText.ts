@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router';
+import { useNavigate } from '@tanstack/react-router';
 import { routePaths } from '@app/navigation/routePaths';
 import { useAuthStore } from '@features/auth/store/useAuthStore';
 import { toApiErrorMessage } from '@shared/utils/apiErrors';
@@ -38,7 +38,7 @@ export function useReviewText(jobId: string) {
     onSuccess: () => {
       notifications.show({ message: t('review.approved') });
       void queryClient.invalidateQueries({ queryKey: ['jobs'] });
-      void navigate(routePaths.review);
+      void navigate({ to: routePaths.review });
     },
     onError: (err) => {
       const message = toApiErrorMessage(err);

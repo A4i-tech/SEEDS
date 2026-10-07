@@ -1,6 +1,6 @@
 import { Breadcrumbs, Button, Group, Progress, Stack, Text, Title } from '@mantine/core';
 import { useState } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { useNavigate, useParams } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { routePaths } from '@app/navigation/routePaths';
 import { toApiErrorMessage } from '@shared/utils/apiErrors';
@@ -25,7 +25,7 @@ function metricsSummary(metrics: {
 export function MakeAccessibleJobScreen() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { jobId = '' } = useParams();
+  const { jobId = '' } = useParams({ strict: false });
   const { data: job, isLoading, error } = useRemediationJob(jobId);
   const [downloading, setDownloading] = useState(false);
 
@@ -78,7 +78,7 @@ export function MakeAccessibleJobScreen() {
             <Button
               variant="outline"
               className={classes.secondaryButton}
-              onClick={() => void navigate(routePaths.jobs)}
+              onClick={() => void navigate({ to: routePaths.jobs })}
             >
               {t('makeAccessible.goToJobs')}
             </Button>
@@ -112,7 +112,7 @@ export function MakeAccessibleJobScreen() {
             >
               {t('makeAccessible.download')}
             </Button>
-            <Button className={classes.submitButton} onClick={() => void navigate(routePaths.review)}>
+            <Button className={classes.submitButton} onClick={() => void navigate({ to: routePaths.review })}>
               {t('makeAccessible.startReview')}
             </Button>
           </Group>
@@ -120,7 +120,7 @@ export function MakeAccessibleJobScreen() {
       )}
 
       <Group gap="md">
-        <Button variant="subtle" onClick={() => void navigate(routePaths.home)}>
+        <Button variant="subtle" onClick={() => void navigate({ to: routePaths.home })}>
           {t('makeAccessible.backHome')}
         </Button>
       </Group>

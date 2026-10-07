@@ -1,5 +1,5 @@
 import { Breadcrumbs, Button, Group, Progress, Stack, Text, Title } from '@mantine/core';
-import { useNavigate, useParams } from 'react-router';
+import { useNavigate, useParams } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { routePaths } from '@app/navigation/routePaths';
 import { StatusBadge } from '@shared/components/StatusBadge';
@@ -21,7 +21,7 @@ function toneFor(status: SyncJob['status'] | undefined): JobStatus {
 export function JobDetailScreen() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { jobId = '' } = useParams();
+  const { jobId = '' } = useParams({ strict: false });
   const { rows } = useJobs();
   const row = rows.find((r) => r.id === jobId);
   const isRemediation = row?.type === 'make-accessible';
@@ -65,7 +65,7 @@ export function JobDetailScreen() {
           <Button
             variant="outline"
             className={classes.secondaryButton}
-            onClick={() => void navigate(`${routePaths.makeAccessible}/${row.id}`)}
+            onClick={() => void navigate({ to: '/make-accessible/$jobId', params: { jobId: row.id } })}
           >
             {t('jobs.detail.openRemediation')}
           </Button>
@@ -107,7 +107,7 @@ export function JobDetailScreen() {
       {(done || failed) && <SyncJobItemsTable jobId={jobId} />}
 
       <Group gap="md">
-        <Button variant="subtle" onClick={() => void navigate(routePaths.jobs)}>
+        <Button variant="subtle" onClick={() => void navigate({ to: routePaths.jobs })}>
           {t('jobs.detail.back')}
         </Button>
       </Group>

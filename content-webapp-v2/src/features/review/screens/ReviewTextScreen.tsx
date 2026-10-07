@@ -1,6 +1,6 @@
 import { Breadcrumbs, Button, Grid, Group, Stack, Text, Textarea, Title } from '@mantine/core';
 import { useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { useNavigate, useParams } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { routePaths } from '@app/navigation/routePaths';
 import { toApiErrorMessage } from '@shared/utils/apiErrors';
@@ -27,7 +27,7 @@ function wrapSelection(textarea: HTMLTextAreaElement | null, before: string, aft
 export function ReviewTextScreen() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { jobId = '' } = useParams();
+  const { jobId = '' } = useParams({ strict: false });
   const { raw, corrected, isLoading, save, approve } = useReviewText(jobId);
   const [edited, setEdited] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -165,7 +165,7 @@ export function ReviewTextScreen() {
         >
           {t('review.approve')}
         </Button>
-        <Button variant="subtle" onClick={() => void navigate(routePaths.review)}>
+        <Button variant="subtle" onClick={() => void navigate({ to: routePaths.review })}>
           {t('review.backQueue')}
         </Button>
       </Group>

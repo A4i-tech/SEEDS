@@ -20,7 +20,7 @@ import {
   Users,
 } from 'lucide-react';
 import { useEffect, useRef } from 'react';
-import { Outlet, useLocation, useNavigate } from 'react-router';
+import { Outlet, useLocation, useNavigate } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { useUiStore } from '@app/store/useUiStore';
 import { useAuthStore } from '@features/auth/store/useAuthStore';
@@ -62,7 +62,7 @@ export function Shell() {
       cancelLabel: t('dialog.cancel'),
       onConfirm: () => {
         logout();
-        void navigate(routePaths.login);
+        void navigate({ to: routePaths.login });
       },
     });
   };
@@ -97,10 +97,10 @@ export function Shell() {
               </UnstyledButton>
             </Menu.Target>
             <Menu.Dropdown>
-              <Menu.Item onClick={() => void navigate('/account/profile')}>
+              <Menu.Item onClick={() => void navigate({ to: '/account/profile' })}>
                 {t('account.profile')}
               </Menu.Item>
-              <Menu.Item onClick={() => void navigate('/account/settings')}>
+              <Menu.Item onClick={() => void navigate({ to: '/account/settings' })}>
                 {t('account.settings')}
               </Menu.Item>
               <Menu.Divider />
@@ -123,7 +123,7 @@ export function Shell() {
               active={active}
               aria-label={label}
               title={collapsed ? label : undefined}
-              onClick={() => void navigate(to)}
+              onClick={() => void navigate({ to })}
               className={active ? classes.active : undefined}
             />
           );

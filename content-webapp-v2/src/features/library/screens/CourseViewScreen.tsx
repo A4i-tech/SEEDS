@@ -1,6 +1,6 @@
 import { Breadcrumbs, Button, Group, Stack, Text, Textarea, TextInput, Title } from '@mantine/core';
 import { useState } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { useNavigate, useParams } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
@@ -130,7 +130,7 @@ export function CourseViewScreen() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { id = '' } = useParams();
+  const { id = '' } = useParams({ strict: false });
   const status = useAuthStore((s) => s.status);
   const [index, setIndex] = useState<number | null>(null);
 
@@ -145,7 +145,7 @@ export function CourseViewScreen() {
     mutationFn: () => deleteCourse(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['library'] });
-      void navigate(routePaths.library);
+      void navigate({ to: routePaths.library });
     },
     onError: (err) => {
       const message = toApiErrorMessage(err);
@@ -211,7 +211,7 @@ export function CourseViewScreen() {
             <Button variant="outline" className={classes.secondaryButton} onClick={confirmRemove}>
               {t('library.delete')}
             </Button>
-            <Button className={classes.submitButton} onClick={() => void navigate(routePaths.library)}>
+            <Button className={classes.submitButton} onClick={() => void navigate({ to: routePaths.library })}>
               {t('library.done')}
             </Button>
           </Group>

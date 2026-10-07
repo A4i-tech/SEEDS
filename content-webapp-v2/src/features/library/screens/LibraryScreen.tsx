@@ -1,7 +1,7 @@
 import { Button, Chip, Group, Stack, Text, TextInput, Title } from '@mantine/core';
 import { Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { routePaths } from '@app/navigation/routePaths';
 import type { DataTableColumn } from '@shared/components/DataTable';
@@ -149,7 +149,7 @@ export function LibraryScreen() {
         <Button
           variant="outline"
           className={classes.secondaryButton}
-          onClick={() => void navigate(routePaths.ivrView)}
+          onClick={() => void navigate({ to: routePaths.ivrView })}
         >
           {t('library.viewIvr')}
         </Button>
@@ -161,7 +161,7 @@ export function LibraryScreen() {
         >
           {t('library.syncAll')}
         </Button>
-        <Button className={classes.submitButton} onClick={() => void navigate(routePaths.create)}>
+        <Button className={classes.submitButton} onClick={() => void navigate({ to: routePaths.create })}>
           {t('library.addContent')}
         </Button>
       </Group>
@@ -210,9 +210,9 @@ export function LibraryScreen() {
               type="button"
               className={classes.rowAction}
               onClick={() =>
-                void navigate(
-                  row.isCourse ? `${routePaths.library}/course/${row.id}` : `${routePaths.library}/${row.kind}/${row.id}`,
-                )
+                row.isCourse
+                  ? void navigate({ to: '/library/course/$id', params: { id: row.id } })
+                  : void navigate({ to: '/library/$kind/$id', params: { kind: row.kind, id: row.id } })
               }
             >
               {t('library.view')}

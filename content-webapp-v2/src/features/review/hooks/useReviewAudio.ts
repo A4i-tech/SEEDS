@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router';
+import { useNavigate } from '@tanstack/react-router';
 import { routePaths } from '@app/navigation/routePaths';
 import { useAuthStore } from '@features/auth/store/useAuthStore';
 import { getContentById, getContentSasUrl } from '@features/library/api/library';
@@ -49,9 +49,7 @@ export function useReviewAudio(id: string) {
     mutationFn: (description?: string) => updateReviewContent(id, { description }),
     onSuccess: () => {
       notifications.show({ message: t('review.approved') });
-      void navigate(`${routePaths.review}/approved`, {
-        state: { title: item && item.title?.english ? item.title.english : id },
-      });
+      void navigate({ to: `${routePaths.review}/approved`, state: { title: item && item.title?.english ? item.title.english : id } });
     },
     onError: (err) => {
       const message = toApiErrorMessage(err);

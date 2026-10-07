@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router';
+import { useNavigate } from '@tanstack/react-router';
 import { routePaths } from '@app/navigation/routePaths';
 import { useAuthStore } from '@features/auth/store/useAuthStore';
 import { toApiErrorMessage } from '@shared/utils/apiErrors';
@@ -26,7 +26,7 @@ export function useRemediationUpload() {
     onSuccess: (_jobId, { file }) => {
       void queryClient.invalidateQueries({ queryKey: ['jobs'] });
       notifications.show({ message: t('makeAccessible.uploaded', { name: file.name }) });
-      void navigate(routePaths.jobs);
+      void navigate({ to: routePaths.jobs });
     },
     onError: (err) => {
       const message = toApiErrorMessage(err);

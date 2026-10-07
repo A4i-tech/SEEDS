@@ -1,5 +1,5 @@
 import { Button, Stack, Text, Title } from '@mantine/core';
-import { useNavigate } from 'react-router';
+import { useNavigate } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { routePaths } from '@app/navigation/routePaths';
 import { useAuthStore } from '@features/auth/store/useAuthStore';
@@ -23,7 +23,7 @@ export function AccountProfileScreen() {
       cancelLabel: t('dialog.cancel'),
       onConfirm: () => {
         logout();
-        void navigate(routePaths.login);
+        void navigate({ to: routePaths.login });
       },
     });
   };

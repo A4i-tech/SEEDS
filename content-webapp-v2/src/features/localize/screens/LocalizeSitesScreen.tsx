@@ -1,7 +1,7 @@
 import { Button, Code, Group, Modal, Select, Stack, Text, TextInput, Title } from '@mantine/core';
 import { Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { notifications } from '@mantine/notifications';
 import { API_BASE_URL } from '@/config/env';
@@ -126,13 +126,13 @@ export function LocalizeSitesScreen() {
       <Title order={2}>{t('localize.title')}</Title>
       <Text c="dimmed">{t('localize.description')}</Text>
       <Group gap="md">
-        <Button className={classes.submitButton} onClick={() => void navigate(routePaths.localizeAdd)}>
+        <Button className={classes.submitButton} onClick={() => void navigate({ to: routePaths.localizeAdd })}>
           {t('localize.addSite')}
         </Button>
         <Button
           variant="outline"
           className={classes.secondaryButton}
-          onClick={() => void navigate(routePaths.localizeReview)}
+          onClick={() => void navigate({ to: routePaths.localizeReview })}
         >
           {t('localize.reviewTranslations')}
         </Button>
@@ -173,7 +173,7 @@ export function LocalizeSitesScreen() {
             <button
               type="button"
               className={classes.rowAction}
-              onClick={() => void navigate(`${routePaths.localize}/sites/${row.id}/edit`)}
+              onClick={() => void navigate({ to: '/localize/sites/$siteId/edit', params: { siteId: row.id } })}
             >
               {t('localize.edit')}
             </button>

@@ -1,6 +1,6 @@
 import { Breadcrumbs, Button, Group, Stack, Text, Title } from '@mantine/core';
 import { useState } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { useNavigate, useParams } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
@@ -16,7 +16,7 @@ export function LibraryDetailScreen() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { kind = '', id = '' } = useParams();
+  const { kind = '', id = '' } = useParams({ strict: false });
   const status = useAuthStore((s) => s.status);
   const [error, setError] = useState<string | null>(null);
 
@@ -30,7 +30,7 @@ export function LibraryDetailScreen() {
     mutationFn: () => deleteContent(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['library'] });
-      void navigate(routePaths.library);
+      void navigate({ to: routePaths.library });
     },
     onError: (err) => {
       const message = toApiErrorMessage(err);
@@ -75,7 +75,7 @@ export function LibraryDetailScreen() {
             <Button
               variant="outline"
               className={classes.secondaryButton}
-              onClick={() => void navigate(`${routePaths.library}/${item.type}/${item.id}/edit`)}
+              onClick={() => void navigate({ to: '/library/$kind/$id/edit', params: { kind: item.type, id: item.id } })}
             >
               {t('library.edit')}
             </Button>
@@ -86,7 +86,7 @@ export function LibraryDetailScreen() {
             >
               {t('library.delete')}
             </Button>
-            <Button className={classes.submitButton} onClick={() => void navigate(routePaths.library)}>
+            <Button className={classes.submitButton} onClick={() => void navigate({ to: routePaths.library })}>
               {t('library.done')}
             </Button>
           </Group>

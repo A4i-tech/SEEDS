@@ -1,6 +1,6 @@
 import { Button, Chip, Group, Select, Stack, Text, TextInput, Title } from '@mantine/core';
 import { useState } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { useNavigate, useParams } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { routePaths } from '@app/navigation/routePaths';
 import { toApiErrorMessage } from '@shared/utils/apiErrors';
@@ -49,7 +49,7 @@ function SiteForm({ site }: { site?: Website }) {
       } else {
         await create(fields);
       }
-      void navigate(routePaths.localize);
+      void navigate({ to: routePaths.localize });
     } catch (err) {
       setError(toApiErrorMessage(err));
     }
@@ -95,7 +95,7 @@ function SiteForm({ site }: { site?: Website }) {
         <Button className={classes.submitButton} loading={saving} onClick={() => void handleSave()}>
           {editing ? t('localize.update') : t('localize.submit')}
         </Button>
-        <Button variant="subtle" onClick={() => void navigate(routePaths.localize)}>
+        <Button variant="subtle" onClick={() => void navigate({ to: routePaths.localize })}>
           {t('localize.backSites')}
         </Button>
       </Group>
@@ -105,7 +105,7 @@ function SiteForm({ site }: { site?: Website }) {
 
 export function LocalizeAddScreen() {
   const { t } = useTranslation();
-  const { siteId } = useParams();
+  const { siteId } = useParams({ strict: false });
   const { sites, isLoading } = useLocalizeSites();
   const site = sites.find((s) => s.id === siteId);
 

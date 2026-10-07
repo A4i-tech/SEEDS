@@ -1,7 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router';
+import { useNavigate } from '@tanstack/react-router';
 import { routePaths } from '@app/navigation/routePaths';
 import { toApiErrorMessage } from '@shared/utils/apiErrors';
 import type { QuizCreate } from '../../library/types/content.types';
@@ -18,7 +18,7 @@ export function useCreateQuiz() {
       notifications.show({ message: t('create.quizSaved') });
       void queryClient.invalidateQueries({ queryKey: ['library'] });
       void queryClient.invalidateQueries({ queryKey: ['jobs'] });
-      void navigate(routePaths.library);
+      void navigate({ to: routePaths.library });
     },
     onError: (err) => {
       const message = toApiErrorMessage(err);

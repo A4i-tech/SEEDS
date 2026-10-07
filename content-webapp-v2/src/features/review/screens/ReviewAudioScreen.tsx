@@ -1,5 +1,5 @@
 import { Breadcrumbs, Button, Group, Stack, Text, Title } from '@mantine/core';
-import { useNavigate, useParams } from 'react-router';
+import { useNavigate, useParams } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { routePaths } from '@app/navigation/routePaths';
 import { useReviewAudio } from '../hooks/useReviewAudio';
@@ -8,7 +8,7 @@ import classes from './ReviewAudioScreen.module.css';
 export function ReviewAudioScreen() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { id = '' } = useParams();
+  const { id = '' } = useParams({ strict: false });
   const { item, audioUrl, audioSrc, isLoading, loadError, approve } = useReviewAudio(id);
 
   const isAudio = item && item.type !== 'quiz';
@@ -76,7 +76,7 @@ export function ReviewAudioScreen() {
             <Button
               variant="outline"
               className={classes.secondaryButton}
-              onClick={() => void navigate(`${routePaths.review}/audio/${id}/edit`)}
+              onClick={() => void navigate({ to: `${routePaths.review}/audio/$id/edit`, params: { id } })}
             >
               {t('review.editAudio')}
             </Button>
@@ -87,7 +87,7 @@ export function ReviewAudioScreen() {
             >
               {t('review.approve')}
             </Button>
-            <Button variant="subtle" onClick={() => void navigate(routePaths.review)}>
+            <Button variant="subtle" onClick={() => void navigate({ to: routePaths.review })}>
               {t('review.backQueue')}
             </Button>
           </Group>

@@ -1,7 +1,7 @@
 import { Button, Group, Select, Stack, Text, TextInput, Title } from '@mantine/core';
 import { Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { useNavigate } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { routePaths } from '@app/navigation/routePaths';
 import type { DataTableColumn } from '@shared/components/DataTable';
@@ -32,29 +32,33 @@ function RowAction({ row }: { row: JobRow }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const target = rowTarget(row);
+  const go = () =>
+    row.type === 'make-accessible'
+      ? navigate({ to: '/make-accessible/$jobId', params: { jobId: row.id } })
+      : navigate({ to: target });
   if (row.status === 'failed') {
     return (
-      <Button variant="outline" size="sm" className={classes.outlineAction} onClick={() => void navigate(target)}>
+      <Button variant="outline" size="sm" className={classes.outlineAction} onClick={() => void go()}>
         {t('jobs.fix')}
       </Button>
     );
   }
   if (row.status === 'needs-review') {
     return (
-      <Button variant="outline" size="sm" className={classes.outlineAction} onClick={() => void navigate(target)}>
+      <Button variant="outline" size="sm" className={classes.outlineAction} onClick={() => void go()}>
         {t('jobs.continue')}
       </Button>
     );
   }
   if (row.type === 'create') {
     return (
-      <Button variant="transparent" size="sm" className={classes.textAction} onClick={() => void navigate(target)}>
+      <Button variant="transparent" size="sm" className={classes.textAction} onClick={() => void go()}>
         {t('jobs.open')}
       </Button>
     );
   }
   return (
-    <Button variant="transparent" size="sm" className={classes.textAction} onClick={() => void navigate(target)}>
+    <Button variant="transparent" size="sm" className={classes.textAction} onClick={() => void go()}>
       {t('jobs.view')}
     </Button>
   );

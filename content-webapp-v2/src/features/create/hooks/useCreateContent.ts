@@ -1,13 +1,13 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router';
+import { useNavigate } from '@tanstack/react-router';
 import { routePaths } from '@app/navigation/routePaths';
 import { toApiErrorMessage } from '@shared/utils/apiErrors';
 import type { ContentCreate } from '../../library/types/content.types';
 import { createContent, getUploadSasUrl, uploadMp3ToSasUrl } from '../api/content';
 
-function useCreateBase(target: string, successKey: string) {
+function useCreateBase(target: typeof routePaths.library | typeof routePaths.jobs, successKey: string) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -22,7 +22,7 @@ export function useCreateContentText() {
       notifications.show({ message: t(successKey) });
       void queryClient.invalidateQueries({ queryKey: ['library'] });
       void queryClient.invalidateQueries({ queryKey: ['jobs'] });
-      void navigate(target);
+      void navigate({ to: target });
     },
     onError: (err) => {
       const message = toApiErrorMessage(err);
@@ -48,7 +48,7 @@ export function useCreateContentAudio() {
       notifications.show({ message: t('create.contentSaved') });
       void queryClient.invalidateQueries({ queryKey: ['library'] });
       void queryClient.invalidateQueries({ queryKey: ['jobs'] });
-      void navigate(routePaths.jobs);
+      void navigate({ to: routePaths.jobs });
     },
     onError: (err) => {
       const message = toApiErrorMessage(err);

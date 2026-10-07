@@ -1,6 +1,6 @@
 import { Button, Card, SimpleGrid, Stack, Text, Title } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
-import { useNavigate } from 'react-router';
+import { useNavigate } from '@tanstack/react-router';
 import { routePaths } from '@app/navigation/routePaths';
 
 const cards = [
@@ -30,7 +30,7 @@ export function CreateHubScreen() {
               </Text>
               <Button
                 variant="outline"
-                onClick={() => void navigate(card.target)}
+                onClick={() => void navigate({ to: card.target })}
               >
                 {t(`create.cards.${card.key}.action`)}
               </Button>

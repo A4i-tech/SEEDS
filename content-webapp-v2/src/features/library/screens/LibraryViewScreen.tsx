@@ -1,5 +1,5 @@
 import { Breadcrumbs, Button, Group, Stack, Text, Title } from '@mantine/core';
-import { useNavigate, useParams } from 'react-router';
+import { useNavigate, useParams } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { routePaths } from '@app/navigation/routePaths';
@@ -14,7 +14,7 @@ const audioKinds = ['story', 'song', 'poem', 'snippet'];
 export function LibraryViewScreen() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { kind = '', id = '' } = useParams();
+  const { kind = '', id = '' } = useParams({ strict: false });
   const status = useAuthStore((s) => s.status);
 
   const detail = useQuery({
@@ -44,7 +44,7 @@ export function LibraryViewScreen() {
       {kind === 'course' && (
         <Group gap="md">
           <Text c="dimmed">{t('library.courseMoved')}</Text>
-          <Button variant="subtle" onClick={() => void navigate(`${routePaths.library}/course/${id}`)}>
+          <Button variant="subtle" onClick={() => void navigate({ to: '/library/course/$id', params: { id } })}>
             {t('library.view')}
           </Button>
         </Group>
@@ -65,11 +65,11 @@ export function LibraryViewScreen() {
             <Button
               variant="outline"
               className={classes.secondaryButton}
-              onClick={() => void navigate(`${routePaths.library}/${item.type}/${item.id}/edit`)}
+              onClick={() => void navigate({ to: '/library/$kind/$id/edit', params: { kind: item.type, id: item.id } })}
             >
               {t('library.edit')}
             </Button>
-            <Button className={classes.submitButton} onClick={() => void navigate(routePaths.library)}>
+            <Button className={classes.submitButton} onClick={() => void navigate({ to: routePaths.library })}>
               {t('library.done')}
             </Button>
           </Group>
