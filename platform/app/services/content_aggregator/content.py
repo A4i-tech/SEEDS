@@ -66,7 +66,7 @@ class PartnerContentService:
             nodes = [self._make_node(tenant_id, client_id, source_id, None, item_type, body.display_name, content, now)]
 
         for node in nodes:
-            await self._repo.upsert_item(node)
+            await self._repo.upsert_item(tenant_id, node)
         return nodes
 
     async def get_item(self, tenant_id: str, client_id: str, source_id: str) -> CanonicalNode:
@@ -146,7 +146,7 @@ class PartnerContentService:
         node_kind: NodeKind = NodeKind.ITEM,
     ) -> CanonicalNode:
         return CanonicalNode(
-            tenant_id=tenant_id, source_type=_SOURCE_TYPE, source_id=source_id, root_id=client_id, parent_id=parent_id,
+            source_type=_SOURCE_TYPE, source_id=source_id, root_id=client_id, parent_id=parent_id,
             order=0, node_kind=node_kind, item_type=item_type, display_name=display_name, content=content,
             lms_url=None, native_type=item_type.value if item_type else "container", source_metadata={},
             last_run_id="partner-push", fetched_at=now, created_at=now, updated_at=now, client_id=client_id,

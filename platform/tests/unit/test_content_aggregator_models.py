@@ -12,7 +12,7 @@ from app.aggregators.models import (
 
 def _node(**overrides) -> CanonicalNode:
     base = {
-        "tenant_id": "tenant-a", "source_type": "partner", "source_id": "item-1", "root_id": "client-1",
+        "source_type": "partner", "source_id": "item-1", "root_id": "client-1",
         "parent_id": None, "order": 0, "node_kind": NodeKind.ITEM, "item_type": ItemType.AUDIO,
         "display_name": "Story One", "content": AudioContent(audio_url="https://blob/a.mp3"),
         "lms_url": None, "native_type": "audio", "source_metadata": {}, "last_run_id": "partner-push",

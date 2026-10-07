@@ -14,7 +14,7 @@ from pymongo import UpdateOne
 from pymongo.asynchronous.database import AsyncDatabase
 from pymongo.errors import BulkWriteError
 
-from app.aggregators.models import CanonicalNode
+from app.aggregators.models import CanonicalNode, ContentPayload
 
 _DUPLICATE_KEY_ERROR_CODE = 11000
 
@@ -134,3 +134,11 @@ class ContentAggregatorRepository:
         )
         return result.modified_count
 
+    async def update_item_content(
+        self, tenant_id: str, source_type: str, root_id: str, source_id: str, content: ContentPayload
+    ) -> int:
+        result = await self._col.update_one(
+            {"tenant_id": tenant_id, "source_type": source_type, "root_id": root_id, "source_id": source_id},
+            {"$set": {"content": content.to_dict()}},
+        )
+        return result.modified_count
