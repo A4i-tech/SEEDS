@@ -200,16 +200,8 @@ async def test_delete_content_then_get_404(client, mock_db):
         json={"type": "notes", "language": "en", "display_name": "My Notes", "text": "hello"},
     )
     del_resp = await client.delete("/v1/content/note-1", headers=headers)
-    assert del_resp.status_code == 204
+    assert del_resp.status_code == 200
+    assert del_resp.json() == {"acknowledged": True, "matchedCount": 1, "modifiedCount": 1}
 
     get_resp = await client.get("/v1/content/note-1", headers=headers)
     assert get_resp.status_code == 404
-
-
-@pytest.mark.asyncio
-async def test_get_upload_url(client, mock_db):
-    await _seed_client(mock_db)
-    headers = await _auth_headers(client, mock_db)
-    resp = await client.get("/v1/content/upload-url", headers=headers, params={"blob_name": "story.mp3"})
-    assert resp.status_code == 200
-    assert "sas_token" in resp.json() or "sas_url" in resp.json()

@@ -56,6 +56,8 @@ _SERVICE_FACTORIES: dict[SourceType, Callable[[AsyncDatabase], ContentAggregator
     SourceType.SUBODHA: get_subodha_service,
     SourceType.HEXIS: get_hexis_service,
 }
+# HEXIS is a one-time pull; sync-all only fans out over push sources.
+_SYNC_ALL_SOURCES = (SourceType.SUBODHA,)
 
 
 def _valid_source(source: str) -> SourceType:
@@ -126,10 +128,10 @@ async def start_sync_all_sources(
     sync_jobs: SyncJobService = Depends(get_sync_job_service),
 ) -> SyncAllJobsResponse:
     tenant_id = user["tenant_id"]
-    for source in _SERVICE_FACTORIES:
+    for source in _SYNC_ALL_SOURCES:
         await _assert_no_active_all_sync(sync_jobs, tenant_id, source)
     return SyncAllJobsResponse(
-        job_ids={source: await _enqueue_all_sync(sync_jobs, tenant_id, source, body) for source in _SERVICE_FACTORIES}
+        job_ids={source: await _enqueue_all_sync(sync_jobs, tenant_id, source, body) for source in _SYNC_ALL_SOURCES}
     )
 
 

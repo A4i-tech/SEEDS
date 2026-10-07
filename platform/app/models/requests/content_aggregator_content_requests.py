@@ -38,7 +38,7 @@ class PartnerStoryCreate(_PartnerContentCreate):
 class PartnerBrfCreate(_PartnerContentCreate):
     type: Literal[PartnerContentType.BRF]
     brf_url: HttpsUrl
-    braille_grade: int = Field(1, ge=1)
+    braille_grade: int = Field(2, ge=1, le=2)
 
 
 class PartnerNotesCreate(_PartnerContentCreate):

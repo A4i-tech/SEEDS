@@ -34,7 +34,6 @@ from app.providers.blob_storage import BlobStorageProvider
 from app.repositories.content_aggregator_repository import ContentAggregatorRepository
 from app.services.language_registry import SUPPORTED_LANGUAGES
 
-_UPLOAD_EXTENSIONS = (".mp3", ".brf")
 _PATCH_BY_ITEM_TYPE: dict[ItemType, type] = {
     ItemType.AUDIO: AudioContentPatch,
     ItemType.BRAILLE: BrailleContentPatch,
@@ -66,11 +65,6 @@ class PartnerContentService:
         self._repo = repo
         self._blob = blob
         self._asset_container = asset_container
-
-    async def create_upload_url(self, blob_name: str) -> str:
-        if not blob_name.lower().endswith(_UPLOAD_EXTENSIONS):
-            raise AppError("UNSUPPORTED_TYPE", "Only .mp3 or .brf files are allowed.", 400)
-        return await self._blob.get_upload_sas_url("input-container", blob_name, expiry_hours=1)
 
     async def create_item(
         self, tenant_id: str, client_id: str, source_id: str, body: PartnerContentCreateRequest
@@ -108,9 +102,9 @@ class PartnerContentService:
         await self._repo.update_item_content(tenant_id, client_id, source_id, content)
         return replace(node, content=content)
 
-    async def delete_item(self, tenant_id: str, client_id: str, source_id: str) -> None:
+    async def delete_item(self, tenant_id: str, client_id: str, source_id: str) -> tuple[bool, int, int]:
         await self.get_item(tenant_id, client_id, source_id)
-        await self._repo.soft_delete(tenant_id, client_id, source_id, _now())
+        return await self._repo.soft_delete(tenant_id, client_id, source_id, _now())
 
     async def _build_single_content(
         self, body: PartnerStoryCreate | PartnerBrfCreate | PartnerNotesCreate, ctx: BlobContext

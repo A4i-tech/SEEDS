@@ -249,8 +249,8 @@ async def test_list_by_client_only_own_root(repo):
 @pytest.mark.asyncio
 async def test_soft_delete_excludes_from_get_and_list(repo):
     await repo.upsert_item("tenant-a", _partner_node())
-    modified = await repo.soft_delete("tenant-a", "client-1", "item-1", "2026-08-31T00:00:00+00:00")
-    assert modified == 1
+    acknowledged, matched, modified = await repo.soft_delete("tenant-a", "client-1", "item-1", "2026-08-31T00:00:00+00:00")
+    assert (acknowledged, matched, modified) == (True, 1, 1)
     with pytest.raises(NotFoundError):
         await repo.get_by_client("tenant-a", "client-1", "item-1")
     assert await repo.list_by_client("tenant-a", "client-1") == []
@@ -260,7 +260,7 @@ async def test_soft_delete_excludes_from_get_and_list(repo):
 async def test_soft_delete_returns_zero_for_already_deleted(repo):
     await repo.upsert_item("tenant-a", _partner_node())
     await repo.soft_delete("tenant-a", "client-1", "item-1", "2026-08-31T00:00:00+00:00")
-    modified = await repo.soft_delete("tenant-a", "client-1", "item-1", "2026-08-31T01:00:00+00:00")
+    _, _, modified = await repo.soft_delete("tenant-a", "client-1", "item-1", "2026-08-31T01:00:00+00:00")
     assert modified == 0
 
 
