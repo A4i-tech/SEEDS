@@ -505,7 +505,9 @@ describe("Export safety and limits", () => {
 
     await waitFor(() => expect(downloads).toHaveLength(1));
     const text = utf8((await readBlob(downloads[0].blob)).slice(3));
-    expect(text).toContain("\"k1\",\"/\",\"'=HYPERLINK(\"\"http://evil.example\"\",\"\"click\"\")\",\"'-5% ಆಫರ್\"");
+    expect(text).toContain(
+      "\"k1\",\"/\",\"'=HYPERLINK(\"\"http://evil.example\"\",\"\"click\"\")\",\"'-5% ಆಫರ್\""
+    );
   });
 
   test("an all-pages export that reaches the 20,000-row cap warns that it may be incomplete", async () => {
@@ -551,5 +553,103 @@ describe("Export safety and limits", () => {
 
     await screen.findByText("Exported 20000 rows");
     expect(screen.queryByText(/may be incomplete/)).not.toBeInTheDocument();
+  });
+});
+
+describe("Import dialog layout on short viewports", () => {
+  const manyErrors = (count) =>
+    Array.from({ length: count }, (_, i) => ({
+      row: i + 1,
+      route: `/page-${i}`,
+      key: `tkey${i}`,
+      reason: "key_mismatch",
+    }));
+
+  async function importWithErrors(count) {
+    translationService.listTranslations.mockResolvedValue(docs);
+    translationService.importTranslations.mockResolvedValue({
+      updated: 0,
+      created: 0,
+      unchanged: 0,
+      skippedBlank: 0,
+      failed: count,
+      errors: manyErrors(count),
+    });
+    renderWorkspace();
+    await screen.findByText("Untranslated one");
+    const dialog = await openImportDialog();
+    await userEvent.upload(
+      within(dialog).getByLabelText("CSV file"),
+      csvFile(`${HEADER}\n"k1","/","Hello","ಹಲೋ"\n`)
+    );
+    await within(dialog).findByText(/1 rows/);
+    await userEvent.click(within(dialog).getByRole("button", { name: "Import" }));
+    await within(dialog).findByRole("button", { name: "Close" });
+    return dialog;
+  }
+
+  test("the header close button and the footer buttons stay outside the scrolling content", async () => {
+    const dialog = await importWithErrors(1);
+    const scroll = within(dialog).getByTestId("import-dialog-scroll");
+
+    expect(scroll).not.toBeNull();
+    expect(scroll).toContainElement(within(dialog).getByLabelText("CSV file"));
+    expect(scroll).toContainElement(within(dialog).getByText(/Updated 0, created 0/));
+    expect(scroll).not.toContainElement(within(dialog).getByRole("button", { name: "Close" }));
+    expect(scroll).not.toContainElement(
+      within(dialog).getByRole("button", { name: String.fromCharCode(0x2715) })
+    );
+  });
+
+  test("the footer is outside the scroll area before a result too", async () => {
+    translationService.listTranslations.mockResolvedValue(docs);
+    renderWorkspace();
+    await screen.findByText("Untranslated one");
+    const dialog = await openImportDialog();
+
+    expect(within(dialog).getByTestId("import-dialog-scroll")).not.toContainElement(
+      within(dialog).getByRole("button", { name: "Cancel" })
+    );
+    expect(within(dialog).getByTestId("import-dialog-scroll")).not.toContainElement(
+      within(dialog).getByRole("button", { name: "Import" })
+    );
+  });
+
+  test("the form fields live inside the scroll area before the import", async () => {
+    translationService.listTranslations.mockResolvedValue(docs);
+    renderWorkspace();
+    await screen.findByText("Untranslated one");
+    const dialog = await openImportDialog();
+
+    expect(within(dialog).getByTestId("import-dialog-scroll")).toContainElement(
+      within(dialog).getByLabelText("CSV file")
+    );
+  });
+
+  test("a long error list is capped at 100 rows inside its own scroll container", async () => {
+    const dialog = await importWithErrors(150);
+    const errors = within(dialog).getByTestId("import-dialog-errors");
+
+    expect(within(dialog).getByTestId("import-dialog-scroll")).toContainElement(errors);
+    expect(within(errors).getAllByRole("row")).toHaveLength(101);
+    expect(within(errors).getByText("and 50 more")).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: "Close" })).toBeInTheDocument();
+  });
+
+  test("the stylesheet bounds the scroll area to the viewport and scrolls the error table on its own", () => {
+    const css = require("fs").readFileSync(
+      require("path").join(
+        __dirname,
+        "../../src/components/AllContent/LocalizationTab/TranslationImportDialog.css"
+      ),
+      "utf8"
+    );
+    const rule = (selector) => css.slice(css.indexOf(selector)).split("}")[0];
+
+    expect(rule(".import-dialog-scroll {")).toMatch(/max-height:\s*calc\(92vh - 160px\)/);
+    expect(rule(".import-dialog-scroll {")).toMatch(/overflow-y:\s*auto/);
+    expect(rule(".import-dialog-scroll > * {")).toMatch(/flex-shrink:\s*0/);
+    expect(rule(".import-dialog-scroll .import-dialog-errors {")).toMatch(/max-height:\s*16rem/);
+    expect(rule(".import-dialog-scroll .import-dialog-errors {")).toMatch(/overflow:\s*auto/);
   });
 });

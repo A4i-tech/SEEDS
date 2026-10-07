@@ -5,6 +5,7 @@ import "../shared/buttons.css";
 import "../shared/utilities.css";
 import "../shared/modal.css";
 import "../AnalyticsTab/css/AnalyticsTab.css";
+import "./TranslationImportDialog.css";
 import { translationService } from "../../../services/translationService";
 import {
   MAX_IMPORT_ROWS,
@@ -105,102 +106,107 @@ export function TranslationImportDialog({ siteId, languages, defaultLang, onClos
 
   return (
     <Modal title="Import translations" onClose={onClose} maxWidth={640}>
-      <label className="label" htmlFor="import-csv-file">
-        CSV file
-      </label>
-      <input
-        id="import-csv-file"
-        type="file"
-        accept=".csv"
-        onChange={chooseFile}
-        disabled={busy || Boolean(result)}
-      />
-      {fileName && table && !table.error && (
-        <p className="placeholder-text">
-          {fileName}: {table.rows.length} rows, language column: {detected}
-        </p>
-      )}
-
-      <label className="label">Target language</label>
-      <Select
-        value={lang}
-        onChange={setLang}
-        placeholder="Select language"
-        options={languages.map((l) => ({ value: l.code, label: `${l.name} (${l.code})` }))}
-      />
-
-      <label className="checkbox-item">
+      <div className="import-dialog-scroll" data-testid="import-dialog-scroll">
+        <label className="label" htmlFor="import-csv-file">
+          CSV file
+        </label>
         <input
-          type="checkbox"
-          checked={overwriteBlank}
-          onChange={(e) => setOverwriteBlank(e.target.checked)}
-          disabled={Boolean(result)}
+          id="import-csv-file"
+          type="file"
+          accept=".csv"
+          onChange={chooseFile}
+          disabled={busy || Boolean(result)}
         />
-        Overwrite blank values
-      </label>
-      <p className="placeholder-text">
-        {overwriteBlank
-          ? "Blank cells will clear the existing translation for this language."
-          : "Blank cells are skipped and existing translations are kept."}
-      </p>
-
-      <label className="label">Imported translations are</label>
-      <div className="checkbox-list">
-        {STATE_OPTIONS.map((option) => (
-          <label key={option.value} className="checkbox-item">
-            <input
-              type="radio"
-              name="import-state"
-              value={option.value}
-              checked={state === option.value}
-              onChange={() => setState(option.value)}
-              disabled={Boolean(result)}
-            />
-            {option.label}
-          </label>
-        ))}
-      </div>
-
-      {problem && <p className="error-message">{problem}</p>}
-      {target?.warning && <p className="status-message">{target.warning}</p>}
-      {failure && <p className="error-message">{failure}</p>}
-
-      {result && (
-        <div role="status">
-          <p className={result.failed ? "error-message" : "success-message"}>
-            {`Updated ${result.updated}, created ${result.created}, unchanged ${result.unchanged}, skipped blank ${result.skippedBlank}, failed ${result.failed}`}
+        {fileName && table && !table.error && (
+          <p className="placeholder-text">
+            {fileName}: {table.rows.length} rows, language column: {detected}
           </p>
-          {result.errors.length > 0 && (
-            <div className="table-wrapper">
-              <table className="content-table">
-                <thead>
-                  <tr>
-                    <th className="table-header">Row</th>
-                    <th className="table-header">Route</th>
-                    <th className="table-header">Asset ID</th>
-                    <th className="table-header">Problem</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {result.errors.slice(0, MAX_LISTED_ERRORS).map((err) => (
-                    <tr key={`${err.row}-${err.reason}`} className="table-row-white">
-                      <td className="table-cell">{err.row}</td>
-                      <td className="table-cell">{err.route}</td>
-                      <td className="table-cell">{err.key}</td>
-                      <td className="table-cell">{REASONS[err.reason] || err.reason}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {result.errors.length > MAX_LISTED_ERRORS && (
-                <p className="placeholder-text">
-                  and {result.errors.length - MAX_LISTED_ERRORS} more
-                </p>
-              )}
-            </div>
-          )}
+        )}
+
+        <label className="label">Target language</label>
+        <Select
+          value={lang}
+          onChange={setLang}
+          placeholder="Select language"
+          options={languages.map((l) => ({ value: l.code, label: `${l.name} (${l.code})` }))}
+        />
+
+        <label className="checkbox-item">
+          <input
+            type="checkbox"
+            checked={overwriteBlank}
+            onChange={(e) => setOverwriteBlank(e.target.checked)}
+            disabled={Boolean(result)}
+          />
+          Overwrite blank values
+        </label>
+        <p className="placeholder-text">
+          {overwriteBlank
+            ? "Blank cells will clear the existing translation for this language."
+            : "Blank cells are skipped and existing translations are kept."}
+        </p>
+
+        <label className="label">Imported translations are</label>
+        <div className="checkbox-list">
+          {STATE_OPTIONS.map((option) => (
+            <label key={option.value} className="checkbox-item">
+              <input
+                type="radio"
+                name="import-state"
+                value={option.value}
+                checked={state === option.value}
+                onChange={() => setState(option.value)}
+                disabled={Boolean(result)}
+              />
+              {option.label}
+            </label>
+          ))}
         </div>
-      )}
+
+        {problem && <p className="error-message">{problem}</p>}
+        {target?.warning && <p className="status-message">{target.warning}</p>}
+        {failure && <p className="error-message">{failure}</p>}
+
+        {result && (
+          <div role="status">
+            <p className={result.failed ? "error-message" : "success-message"}>
+              {`Updated ${result.updated}, created ${result.created}, unchanged ${result.unchanged}, skipped blank ${result.skippedBlank}, failed ${result.failed}`}
+            </p>
+            {result.errors.length > 0 && (
+              <div
+                className="table-wrapper import-dialog-errors"
+                data-testid="import-dialog-errors"
+              >
+                <table className="content-table">
+                  <thead>
+                    <tr>
+                      <th className="table-header">Row</th>
+                      <th className="table-header">Route</th>
+                      <th className="table-header">Asset ID</th>
+                      <th className="table-header">Problem</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {result.errors.slice(0, MAX_LISTED_ERRORS).map((err) => (
+                      <tr key={`${err.row}-${err.reason}`} className="table-row-white">
+                        <td className="table-cell">{err.row}</td>
+                        <td className="table-cell">{err.route}</td>
+                        <td className="table-cell">{err.key}</td>
+                        <td className="table-cell">{REASONS[err.reason] || err.reason}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {result.errors.length > MAX_LISTED_ERRORS && (
+                  <p className="placeholder-text">
+                    and {result.errors.length - MAX_LISTED_ERRORS} more
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       <div className="modal-actions">
         <button type="button" className="action-ghost-button" onClick={onClose}>

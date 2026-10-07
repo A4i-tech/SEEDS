@@ -1,0 +1,16 @@
+.import-dialog-scroll {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: calc(92vh - 160px);
+  overflow-y: auto;
+}
+
+.import-dialog-scroll > * {
+  flex-shrink: 0;
+}
+
+.import-dialog-scroll .import-dialog-errors {
+  max-height: 16rem;
+  overflow: auto;
+}
