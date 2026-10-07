@@ -20,7 +20,6 @@ from app.aggregators.models import (
     BrailleContent,
     ContentPayload,
     DiscussionContent,
-    ImageContent,
     ItemType,
     OtherContent,
     QuizChoice,
@@ -94,12 +93,6 @@ class VideoStrategy(ContentStrategy):
             poster_url=data.get("poster"),
             transcript_languages=dict(data.get("transcriptLanguages", {})),
         )
-
-
-class ImageStrategy(ContentStrategy):
-    async def process(self, raw: RawItemPayload, ctx: BlobContext, blob: BlobStorageProvider) -> ContentPayload:
-        data = raw if isinstance(raw, dict) else {}
-        return ImageContent(image_url=data.get("image_url", ""), alt_text=data.get("alt_text", ""))
 
 
 async def _upload_raw_html(raw: RawItemPayload, ctx: BlobContext, blob: BlobStorageProvider) -> str:
@@ -183,7 +176,6 @@ STRATEGY_REGISTRY: dict[ItemType, ContentStrategy] = {
     ItemType.TEXT: TextStrategy(),
     ItemType.PLAINTEXT: PlainTextStrategy(),
     ItemType.VIDEO: VideoStrategy(),
-    ItemType.IMAGE: ImageStrategy(),
     ItemType.QUIZ: QuizStrategy(),
     ItemType.DISCUSSION: DiscussionStrategy(),
     ItemType.OTHER: OtherStrategy(),
