@@ -36,7 +36,7 @@ def _item_node(root_id="course-1", source_id="block-1"):
     return CanonicalNode(
         source_type="subodha", source_id=source_id, root_id=root_id, parent_id=root_id,
         order=0, node_kind=NodeKind.ITEM, item_type=ItemType.TEXT, display_name="Intro",
-        content=TextContent(markdown_url="https://blob/x.md", html_url="https://blob/x.html"),
+        content=TextContent(markdown_url="https://blob/x.md"),
         lms_url="https://lms/x", native_type="html", source_metadata={}, last_run_id="run-1",
         fetched_at="x", created_at="x", updated_at="x",
     )

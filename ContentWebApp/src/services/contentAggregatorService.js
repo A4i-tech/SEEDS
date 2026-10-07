@@ -116,8 +116,8 @@ export const contentAggregatorService = {
    * @param {{limit?: number, scope?: "all"|"course", courseId?: string}} params
    * @returns {Promise<{jobs: Array<Object>}>}
    */
-  async getSyncJobs({ limit = 20, scope, courseId, source } = {}) {
-    const qs = buildQueryString({ limit, scope, courseId, source });
+  async getSyncJobs({ limit = 20, scope, courseId } = {}) {
+    const qs = buildQueryString({ limit, scope, courseId });
     return apiFetch(`${root}/sync/jobs${qs ? `?${qs}` : ""}`, {
       method: "GET",
       headers: getAuthHeaders(),

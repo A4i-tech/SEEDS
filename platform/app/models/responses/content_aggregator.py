@@ -5,14 +5,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.aggregators.models import ContentPayload, ItemType, NodeKind, SourceType
-from app.aggregators.sync_job_models import SyncItemResult, SyncJobStatus, SyncScope
-
-
-class SyncStatsResponse(BaseModel):
-    saved: int
-    skipped: int
-    empty: int
-    failed: int
+from app.aggregators.sync_job_models import SyncItemResult, SyncJobStatus, SyncScope, SyncStats
 
 
 class SyncJobResponse(BaseModel):
@@ -25,7 +18,7 @@ class SyncJobResponse(BaseModel):
     finished_at: str
     total_courses: int
     processed: int
-    stats: SyncStatsResponse
+    stats: SyncStats
     error: str
 
 

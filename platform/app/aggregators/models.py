@@ -47,7 +47,6 @@ class BlobContext:
 @dataclass(frozen=True)
 class TextContent:
     markdown_url: str = ""
-    html_url: str = ""
     raw_html_url: str = ""
     conversion_failed: bool = False
 
@@ -55,8 +54,6 @@ class TextContent:
         d: dict[str, str | bool] = {}
         if self.markdown_url:
             d["markdown_url"] = self.markdown_url
-        if self.html_url:
-            d["html_url"] = self.html_url
         if self.raw_html_url:
             d["raw_html_url"] = self.raw_html_url
         if self.conversion_failed:
@@ -67,7 +64,6 @@ class TextContent:
     def from_dict(cls, d: dict[str, object]) -> TextContent:
         return cls(
             markdown_url=d.get("markdown_url", ""),
-            html_url=d.get("html_url", ""),
             raw_html_url=d.get("raw_html_url", ""),
             conversion_failed=bool(d.get("conversion_failed", False)),
         )
