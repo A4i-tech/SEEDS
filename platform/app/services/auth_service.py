@@ -483,6 +483,7 @@ class AuthService:
             RefreshTokenReusedError,
         ):
             return
+        await repo.mark_logout(refresh_token)
         await repo.revoke_all_for_owner(consumed.owner_id, reason="logout")
 
     async def get_user_profile(self, user_id: str, entity_label: str) -> User:
