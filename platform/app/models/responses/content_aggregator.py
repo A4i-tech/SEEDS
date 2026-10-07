@@ -93,3 +93,11 @@ class PartnerContentResponse(BaseModel):
 
 class PartnerContentStatusResponse(BaseModel):
     status: Literal["completed"]
+
+
+class PartnerDeleteResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    acknowledged: bool
+    matched_count: int = Field(alias="matchedCount")
+    modified_count: int = Field(alias="modifiedCount")

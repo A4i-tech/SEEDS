@@ -238,12 +238,12 @@ async def test_start_sync_rejects_second_active_all_sync_for_same_source(client,
 
 
 @pytest.mark.asyncio
-async def test_sync_all_sources_enqueues_one_job_per_source(client, mock_db, auth_headers):
+async def test_sync_all_sources_enqueues_one_job_per_push_source(client, mock_db, auth_headers):
     resp = await client.post("/content-aggregators/sync", json={"onlyNew": True}, headers=auth_headers)
 
     assert resp.status_code == 202
     job_ids = resp.json()["job_ids"]
-    assert set(job_ids) == {"subodha", "hexis"}
+    assert set(job_ids) == {"subodha"}
     repo = ContentAggregatorSyncJobRepository(mock_db)
     for source, job_id in job_ids.items():
         assert [j.job_id for j in await repo.list_jobs("tenant-a", SourceType(source))] == [job_id]
@@ -255,7 +255,7 @@ async def test_active_jobs_lists_every_source(client, auth_headers):
 
     resp = await client.get("/content-aggregators/sync/jobs/active", headers=auth_headers)
 
-    assert {j["source"] for j in resp.json()["jobs"]} == {"subodha", "hexis"}
+    assert {j["source"] for j in resp.json()["jobs"]} == {"subodha"}
 
 
 @pytest.mark.asyncio

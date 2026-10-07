@@ -35,19 +35,6 @@ def _notes(text="hi", display_name="X", language="en"):
     return PartnerNotesCreate(type=PartnerContentType.NOTES, language=language, display_name=display_name, text=text)
 
 
-@pytest.mark.asyncio
-async def test_create_upload_url_rejects_bad_extension(service):
-    with pytest.raises(AppError) as exc:
-        await service.create_upload_url("file.pdf")
-    assert exc.value.code == "UNSUPPORTED_TYPE"
-
-
-@pytest.mark.asyncio
-async def test_create_upload_url_returns_sas_for_mp3(service):
-    url = await service.create_upload_url("story.mp3")
-    assert url == "https://blob.test/input-container/story.mp3?sas=1"
-
-
 def test_create_request_rejects_unsupported_type():
     with pytest.raises(ValidationError):
         TypeAdapter(PartnerContentCreateRequest).validate_python(

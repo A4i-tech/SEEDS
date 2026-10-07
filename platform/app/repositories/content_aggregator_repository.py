@@ -127,12 +127,12 @@ class ContentAggregatorRepository:
         docs = await self._col.find(self._client_filter(tenant_id, root_id)).sort("created_at", 1).to_list(length=None)
         return [CanonicalNode.from_doc(d) for d in docs]
 
-    async def soft_delete(self, tenant_id: str, root_id: str, source_id: str, deleted_at: str) -> int:
+    async def soft_delete(self, tenant_id: str, root_id: str, source_id: str, deleted_at: str) -> tuple[bool, int, int]:
         result = await self._col.update_one(
             self._client_filter(tenant_id, root_id, source_id),
             {"$set": {"is_deleted": True, "deleted_at": deleted_at}},
         )
-        return result.modified_count
+        return result.acknowledged, result.matched_count, result.modified_count
 
     async def update_item_content(self, tenant_id: str, root_id: str, source_id: str, content: ContentPayload) -> int:
         result = await self._col.update_one(

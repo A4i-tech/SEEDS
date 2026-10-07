@@ -5,8 +5,7 @@ from collections.abc import Awaitable, Callable
 from enum import StrEnum
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, Query
-from fastapi.responses import Response
+from fastapi import APIRouter, Depends, Header
 from fastapi.security import OAuth2PasswordBearer
 from pymongo.asynchronous.database import AsyncDatabase
 
@@ -17,8 +16,8 @@ from app.models.requests.content_aggregator_content_requests import (
 from app.models.responses.content_aggregator import (
     PartnerContentResponse,
     PartnerContentStatusResponse,
+    PartnerDeleteResponse,
 )
-from app.models.responses.job import SasTokenResponse
 from app.platform.auth.dependencies import get_db
 from app.platform.error_handling import AppError
 from app.platform.settings import Settings, get_settings
@@ -69,15 +68,6 @@ def get_partner_content_service(
     blob: BlobStorageProvider = Depends(get_blob_storage_provider),
 ) -> PartnerContentService:
     return PartnerContentService(ContentAggregatorRepository(db), blob, settings.content_aggregator_asset_container)
-
-
-@router.get("/upload-url", summary="Get an upload SAS URL for an .mp3 or .brf blob")
-async def get_upload_url(
-    blob_name: str = Query(...),
-    _: AccessTokenClaims = Depends(require_scope(PartnerScope.CONTENT_WRITE)),
-    service: PartnerContentService = Depends(get_partner_content_service),
-) -> SasTokenResponse:
-    return SasTokenResponse(sas_token=await service.create_upload_url(blob_name))
 
 
 @router.post("", status_code=201, summary="Push a single piece of content")
@@ -136,12 +126,12 @@ async def update_content(
     return PartnerContentResponse.model_validate(node, from_attributes=True)
 
 
-@router.delete("/{content_id}", status_code=204, summary="Soft-delete a content item")
+@router.delete("/{content_id}", summary="Soft-delete a content item")
 async def delete_content(
     content_id: str,
     claims: AccessTokenClaims = Depends(require_scope(PartnerScope.CONTENT_DELETE)),
     tenant_id: str = Depends(get_tenant_id),
     service: PartnerContentService = Depends(get_partner_content_service),
-) -> Response:
-    await service.delete_item(tenant_id, claims["sub"], content_id)
-    return Response(status_code=204)
+) -> PartnerDeleteResponse:
+    acknowledged, matched, modified = await service.delete_item(tenant_id, claims["sub"], content_id)
+    return PartnerDeleteResponse(acknowledged=acknowledged, matched_count=matched, modified_count=modified)
