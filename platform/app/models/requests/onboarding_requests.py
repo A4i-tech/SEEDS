@@ -25,6 +25,7 @@ class LanguageConfig(BaseModel):
 class WebsiteCreateRequest(BaseModel):
     project_id: str | None = None
     domain: str
+    additional_domains: list[str] | None = None
     name: str = ""
     status: str = "Active"
     languages: list[LanguageConfig] | None = None
@@ -33,5 +34,6 @@ class WebsiteCreateRequest(BaseModel):
 class WebsiteUpdateRequest(BaseModel):
     name: str | None = None
     domain: str | None = None
+    additional_domains: list[str] | None = None
     status: str | None = None
     languages: list[LanguageConfig] | None = None

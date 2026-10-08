@@ -32,6 +32,13 @@ def _validate_domain(domain: str) -> None:
         raise ValidationError(f"Invalid domain: {domain!r}")
 
 
+def _normalize_domains(domains: list[str]) -> list[str]:
+    normalized = list(dict.fromkeys(domain.strip().lower() for domain in domains))
+    for domain in normalized:
+        _validate_domain(domain)
+    return normalized
+
+
 class OnboardingService:
     def __init__(self, db: AsyncDatabase) -> None:
         self._projects = ProjectRepository(db)
@@ -73,8 +80,10 @@ class OnboardingService:
         name: str = "",
         status: str = "Active",
         languages: list[dict[str, Any]] | None = None,
+        additional_domains: list[str] | None = None,
     ) -> WebsiteResponse:
         _validate_domain(domain)
+        additional_domains = _normalize_domains(additional_domains or [])
         self._base_url()
 
         if project_id is not None:
@@ -82,9 +91,13 @@ class OnboardingService:
             if project is None:
                 raise NotFoundError("Project", project_id)
 
+        await self._ensure_domains_unclaimed([domain, *additional_domains])
+
         site_id = str(uuid.uuid4())
         try:
-            website = await self._websites.create(tenant_id, project_id, domain, site_id, name, status, languages)
+            website = await self._websites.create(
+                tenant_id, project_id, domain, site_id, name, status, languages, additional_domains
+            )
         except DuplicateKeyError as exc:
             raise ConflictError(f"Website with domain {domain!r}") from exc
         return WebsiteResponse.from_doc(website, api_base=self._base_url())
@@ -111,6 +124,10 @@ class OnboardingService:
 
         if "domain" in fields and fields["domain"]:
             _validate_domain(fields["domain"])
+        if "additional_domains" in fields:
+            fields = {**fields, "additional_domains": _normalize_domains(fields["additional_domains"])}
+        claimed = [fields["domain"]] if fields.get("domain") else []
+        await self._ensure_domains_unclaimed(claimed + fields.get("additional_domains", []), str(website["_id"]))
 
         updated = await self._websites.update(website_id, tenant_id, fields)
         return WebsiteResponse.from_doc(updated, api_base=self._base_url())
@@ -119,6 +136,12 @@ class OnboardingService:
         deleted = await self._websites.delete(website_id, tenant_id)
         if not deleted:
             raise NotFoundError("Website", website_id)
+
+    async def _ensure_domains_unclaimed(self, domains: list[str], own_website_id: str | None = None) -> None:
+        for domain in domains:
+            existing = await self._websites.find_by_domain(domain)
+            if existing is not None and str(existing["_id"]) != own_website_id:
+                raise ConflictError(f"Website with domain {domain!r}")
 
     def _base_url(self) -> str:
         base_url = get_settings().base_url.rstrip("/")

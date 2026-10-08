@@ -19,6 +19,7 @@ class WebsiteRepository(BaseRepository):
         col = db[cls.COLLECTION]
         await col.create_index("site_id", unique=True)
         await col.create_index("domain", unique=True)
+        await col.create_index("additional_domains")
 
     async def create(
         self,
@@ -29,12 +30,14 @@ class WebsiteRepository(BaseRepository):
         name: str = "",
         status: str = "Active",
         languages: list[dict[str, Any]] | None = None,
+        additional_domains: list[str] | None = None,
     ) -> dict[str, Any]:
         now = datetime.now(UTC)
         doc = {
             "tenant_id": tenant_id,
             "project_id": project_id,
             "domain": domain,
+            "additional_domains": additional_domains or [],
             "site_id": site_id,
             "name": name,
             "status": status,
@@ -53,7 +56,7 @@ class WebsiteRepository(BaseRepository):
         return await self._col.find_one({"site_id": site_id})
 
     async def find_by_domain(self, domain: str) -> dict[str, Any] | None:
-        return await self._col.find_one({"domain": domain})
+        return await self._col.find_one({"$or": [{"domain": domain}, {"additional_domains": domain}]})
 
     async def find_by_project_and_tenant(self, project_id: str, tenant_id: str) -> list[dict[str, Any]]:
         return await self._col.find({"project_id": project_id, "tenant_id": tenant_id}).to_list(length=None)

@@ -71,6 +71,84 @@ async def test_register_website_rejects_duplicate_domain(onboarding_service):
         await onboarding_service.register_website(TENANT, project.id, "acme.com")
 
 
+async def test_register_website_defaults_to_no_additional_domains(onboarding_service):
+    website = await onboarding_service.register_website(TENANT, None, "acme.com")
+
+    assert website.additional_domains == []
+
+
+async def test_register_website_stores_normalized_deduped_additional_domains(onboarding_service):
+    website = await onboarding_service.register_website(
+        TENANT, None, "apps.acme.com", additional_domains=[" LMS.Acme.com ", "lms.acme.com", "acme.com"]
+    )
+
+    assert website.additional_domains == ["lms.acme.com", "acme.com"]
+
+
+async def test_register_website_rejects_an_invalid_additional_domain_and_creates_nothing(onboarding_service, mock_db):
+    with pytest.raises(ValidationError):
+        await onboarding_service.register_website(TENANT, None, "acme.com", additional_domains=["not a domain"])
+
+    assert await mock_db["websites"].count_documents({}) == 0
+
+
+async def test_register_website_rejects_a_domain_already_claimed_by_another_site(onboarding_service, mock_db):
+    await onboarding_service.register_website(TENANT, None, "primary.com", additional_domains=["extra.com"])
+
+    with pytest.raises(ConflictError):
+        await onboarding_service.register_website(OTHER_TENANT, None, "other.com", additional_domains=["primary.com"])
+    with pytest.raises(ConflictError):
+        await onboarding_service.register_website(OTHER_TENANT, None, "other.com", additional_domains=["extra.com"])
+    with pytest.raises(ConflictError):
+        await onboarding_service.register_website(OTHER_TENANT, None, "extra.com")
+
+    assert await mock_db["websites"].count_documents({}) == 1
+
+
+async def test_update_website_sets_and_clears_additional_domains(onboarding_service):
+    website = await onboarding_service.register_website(TENANT, None, "apps.acme.com")
+
+    updated = await onboarding_service.update_website(
+        website.id, TENANT, {"additional_domains": ["Acme.com"], "domain": "apps.acme.com"}
+    )
+    assert updated.additional_domains == ["acme.com"]
+    assert updated.site_id == website.site_id
+
+    cleared = await onboarding_service.update_website(website.id, TENANT, {"additional_domains": []})
+    assert cleared.additional_domains == []
+
+
+async def test_update_website_without_additional_domains_leaves_them_unchanged(onboarding_service):
+    website = await onboarding_service.register_website(TENANT, None, "apps.acme.com", additional_domains=["acme.com"])
+
+    updated = await onboarding_service.update_website(website.id, TENANT, {"name": "Renamed"})
+
+    assert updated.additional_domains == ["acme.com"]
+
+
+async def test_update_website_rejects_a_domain_claimed_by_another_site_and_changes_nothing(onboarding_service, mock_db):
+    await onboarding_service.register_website(OTHER_TENANT, None, "taken.com", additional_domains=["taken-extra.com"])
+    website = await onboarding_service.register_website(TENANT, None, "acme.com")
+    before = await WebsiteRepository(mock_db).find_by_id_and_tenant(website.id, TENANT)
+
+    for fields in (
+        {"additional_domains": ["taken.com"]},
+        {"additional_domains": ["taken-extra.com"]},
+        {"domain": "taken-extra.com"},
+    ):
+        with pytest.raises(ConflictError):
+            await onboarding_service.update_website(website.id, TENANT, fields)
+
+    assert await WebsiteRepository(mock_db).find_by_id_and_tenant(website.id, TENANT) == before
+
+
+async def test_update_website_rejects_an_invalid_additional_domain(onboarding_service):
+    website = await onboarding_service.register_website(TENANT, None, "acme.com")
+
+    with pytest.raises(ValidationError):
+        await onboarding_service.update_website(website.id, TENANT, {"additional_domains": ["bad domain"]})
+
+
 async def test_snippet_format(onboarding_service):
     project = await onboarding_service.create_project(TENANT, "Acme Corp")
     website = await onboarding_service.register_website(TENANT, project.id, "acme.com")

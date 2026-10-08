@@ -65,9 +65,11 @@ def mock_db(monkeypatch):
     return db
 
 
-async def _seed(db, domain: str, status: str = "Active") -> None:
+async def _seed(db, domain: str, status: str = "Active", additional_domains: list[str] | None = None) -> None:
     await WebsiteRepository.ensure_indexes(db)
-    await WebsiteRepository(db).create("tenant-1", None, domain, f"site-{domain}", "", status)
+    await WebsiteRepository(db).create(
+        "tenant-1", None, domain, f"site-{domain}", "", status, additional_domains=additional_domains
+    )
 
 
 async def test_allowed_origin_gets_cors_headers_without_credentials():
@@ -278,6 +280,41 @@ async def test_origin_match_is_exact_host_not_a_wildcard(mock_db):
     assert await is_registered_site_origin("https://acme.com.evil.example") is False
 
 
+async def test_additional_domain_of_an_active_site_is_allowed(mock_db):
+    await _seed(mock_db, "apps.acme.com", additional_domains=["acme.com"])
+
+    assert await is_registered_site_origin("https://apps.acme.com") is True
+    assert await is_registered_site_origin("https://acme.com") is True
+    assert await is_registered_site_origin("https://unrelated.com") is False
+
+
+async def test_additional_domains_of_an_inactive_site_are_rejected(mock_db):
+    await _seed(mock_db, "apps.dormant.com", "Inactive", additional_domains=["dormant.com"])
+
+    assert await is_registered_site_origin("https://apps.dormant.com") is False
+    assert await is_registered_site_origin("https://dormant.com") is False
+
+
+async def test_additional_domain_match_is_exact_host_not_a_wildcard(mock_db):
+    await _seed(mock_db, "apps.acme.com", additional_domains=["lms.acme.com"])
+
+    assert await is_registered_site_origin("http://LMS.acme.com:8080") is True
+    assert await is_registered_site_origin("https://acme.com") is False
+    assert await is_registered_site_origin("https://www.lms.acme.com") is False
+    assert await is_registered_site_origin("https://x.lms.acme.com") is False
+    assert await is_registered_site_origin("https://lms.acme.com.evil.example") is False
+
+
+async def test_site_without_the_additional_domains_field_still_matches_its_primary_domain(mock_db):
+    await WebsiteRepository.ensure_indexes(mock_db)
+    await mock_db["websites"].insert_one(
+        {"tenant_id": "tenant-1", "domain": "legacy.com", "site_id": "site-legacy", "status": "Active"}
+    )
+
+    assert await is_registered_site_origin("https://legacy.com") is True
+    assert await is_registered_site_origin("https://other.com") is False
+
+
 @pytest.mark.parametrize(
     "origin",
     [
@@ -329,6 +366,29 @@ async def test_setup_security_opens_only_registered_origins_on_sdk_paths(mock_db
     assert "access-control-allow-origin" not in other_path.headers
     assert "access-control-allow-origin" not in inactive.headers
     assert "access-control-allow-origin" not in stranger.headers
+
+
+async def test_setup_security_allows_sdk_preflight_for_an_additional_domain(mock_db):
+    await _seed(mock_db, "apps.acme.com", additional_domains=["acme.com"])
+    app = FastAPI()
+    _routes(app)
+    setup_security(app, SimpleNamespace(env="production", cors_allowed_origins=ADMIN_ORIGIN))
+
+    async with _client(app) as client:
+        preflight = await client.options(
+            "/translations/extract",
+            headers={
+                "origin": "https://acme.com",
+                "access-control-request-method": "POST",
+                "access-control-request-headers": "content-type",
+            },
+        )
+        other_path = await client.get("/translations/list", headers={"origin": "https://acme.com"})
+
+    assert preflight.status_code == 204
+    assert preflight.headers["access-control-allow-origin"] == "https://acme.com"
+    assert "access-control-allow-credentials" not in preflight.headers
+    assert "access-control-allow-origin" not in other_path.headers
 
 
 async def test_setup_security_leaves_the_global_allow_list_unchanged(mock_db):
