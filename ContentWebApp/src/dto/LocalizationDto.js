@@ -70,4 +70,7 @@ export const toTranslationImportRequest = ({ lang, overwriteBlank, state, rows }
   rows,
 });
 
-export const fromTranslationImportResponse = (res) => ({ ...res, skippedBlank: res.skipped_blank });
+export const fromTranslationImportResponse = ({ skipped_blank: skippedBlank, ...rest }) => ({
+  ...rest,
+  skippedBlank,
+});

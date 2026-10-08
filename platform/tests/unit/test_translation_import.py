@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import pytest
-from pymongo.errors import BulkWriteError
+from pymongo.errors import BulkWriteError, PyMongoError
 
+from app.models.requests.translation_requests import TranslationImportRow
 from app.platform.error_handling import NotFoundError, ValidationError
 from app.repositories.translation_repository import TranslationRepository
 from app.services.sdk_rolling_hash import sdk_rolling_hash
@@ -67,8 +68,12 @@ async def _doc(repo, key, route="/"):
     return next(d for d in await repo.find_by_keys(SITE, [key]) if d["route"] == route)
 
 
+def _models(rows):
+    return [TranslationImportRow(**row) for row in rows]
+
+
 async def _import(service, rows, lang="kn", **kwargs):
-    return await service.import_translations(SITE, TENANT, ACTOR, lang, rows, **kwargs)
+    return await service.import_translations(SITE, TENANT, ACTOR, lang, _models(rows), **kwargs)
 
 
 @pytest.mark.parametrize(
@@ -102,7 +107,15 @@ async def test_import_updates_existing_row_as_pending_by_default(service, repo):
 
     res = await _import(service, [_row("Hello World", "ಹಲೋ ವರ್ಲ್ಡ್")])
 
-    assert res == {"updated": 1, "created": 0, "unchanged": 0, "skipped_blank": 0, "failed": 0, "errors": []}
+    assert res == {
+        "updated": 1,
+        "created": 0,
+        "unchanged": 0,
+        "skipped_blank": 0,
+        "failed": 0,
+        "errors": [],
+        "warnings": [],
+    }
     entry = (await _doc(repo, key))["translations"]["kn"]
     assert entry["text"] == "ಹಲೋ ವರ್ಲ್ಡ್"
     assert entry["status"] == "pending"
@@ -212,14 +225,14 @@ async def test_import_rejects_a_language_that_is_not_enabled_for_the_site(servic
 
 async def test_import_requires_an_active_site(service, mock_db):
     with pytest.raises(NotFoundError):
-        await service.import_translations("inactive", TENANT, ACTOR, "kn", [_row("Hello World", "x")])
+        await service.import_translations("inactive", TENANT, ACTOR, "kn", _models([_row("Hello World", "x")]))
 
 
 async def test_import_denies_another_tenants_site(service, repo):
     key = await _seed(repo)
 
     with pytest.raises(NotFoundError):
-        await service.import_translations(SITE, "other-tenant", ACTOR, "kn", [_row("Hello World", "x")])
+        await service.import_translations(SITE, "other-tenant", ACTOR, "kn", _models([_row("Hello World", "x")]))
     assert (await _doc(repo, key))["translations"] == {}
 
 
@@ -706,3 +719,116 @@ async def test_internal_whitespace_and_case_differences_are_still_a_source_misma
 
     assert res["errors"][0]["reason"] == "source_mismatch"
     assert (await _doc(repo, "tstored"))["translations"] == {}
+
+
+async def test_key_longer_than_the_limit_is_a_row_level_error_and_other_rows_still_import(service, repo):
+    await _seed(repo)
+
+    res = await _import(service, [_row("Hello World", "ok"), {"route": "/", "key": "t" + "x" * 256, "source": "Long", "text": "x"}])
+
+    assert res["updated"] == 1
+    assert res["errors"] == [{"row": 2, "route": "/", "key": "t" + "x" * 256, "reason": "key_too_long"}]
+
+
+async def test_a_key_at_the_length_limit_is_not_rejected_for_its_length(service):
+    res = await _import(service, [{"route": "/", "key": "t" * 256, "source": "Anything", "text": "x"}])
+
+    assert res["errors"][0]["reason"] == "key_mismatch"
+
+
+async def test_errors_report_the_csv_row_numbers_sent_by_the_client(service, repo):
+    await _seed(repo)
+    rows = [
+        {**_row("Hello World", "ok"), "row": 7},
+        {**_row("Hello World", "again"), "row": 9},
+        {"route": "/", "key": "tbad", "source": "Nope", "text": "x", "row": 12},
+        {"route": "/a b", "key": "t2p", "source": "a", "text": "x", "row": 15},
+    ]
+
+    res = await _import(service, rows)
+
+    assert [(e["row"], e["reason"]) for e in res["errors"]] == [
+        (9, "duplicate_row"),
+        (12, "key_mismatch"),
+        (15, "invalid_route"),
+    ]
+
+
+async def test_rows_without_a_csv_row_number_fall_back_to_their_position(service):
+    res = await _import(service, [{"route": "/", "key": "tbad", "source": "Nope", "text": "x"}])
+
+    assert res["errors"][0]["row"] == 1
+
+
+async def test_import_reads_the_site_document_once(service, repo, monkeypatch):
+    await _seed(repo)
+    calls = []
+    real = service._website_repo.find_by_site_id
+
+    async def spy(site_id):
+        calls.append(site_id)
+        return await real(site_id)
+
+    monkeypatch.setattr(service._website_repo, "find_by_site_id", spy)
+
+    await _import(service, [_row("Hello World", "x")])
+
+    assert calls == [SITE]
+
+
+async def test_failed_version_write_does_not_turn_saved_rows_into_a_server_error(service, repo, monkeypatch):
+    key = await _seed(repo, lang="kn", text="old")
+
+    async def boom(_docs):
+        raise PyMongoError("version store down")
+
+    monkeypatch.setattr(service._version_repo, "add_versions_bulk", boom)
+
+    res = await _import(service, [{**_row("Hello World", "new text"), "row": 4}], state="approved")
+
+    assert res["updated"] == 1 and res["failed"] == 0 and res["errors"] == []
+    assert res["warnings"] == [{"row": 4, "route": "/", "key": key, "reason": "version_not_recorded"}]
+    entry = (await _doc(repo, key))["translations"]["kn"]
+    assert (entry["text"], entry["status"]) == ("new text", "approved")
+    assert sorted(a["action"] for a in await service.get_audit_trail(SITE, TENANT)) == ["approved", "imported"]
+
+
+async def test_failed_audit_write_is_reported_as_a_warning_and_the_rows_stay_saved(service, repo, monkeypatch):
+    await _seed(repo, "First")
+    await _seed(repo, "Second")
+
+    async def boom(_docs):
+        raise PyMongoError("audit store down")
+
+    monkeypatch.setattr(service._audit_repo, "record_bulk", boom)
+
+    res = await _import(service, [_row("First", "one"), _row("Second", "two")])
+
+    assert res["updated"] == 2 and res["failed"] == 0
+    assert [(w["row"], w["reason"]) for w in res["warnings"]] == [(1, "audit_not_recorded"), (2, "audit_not_recorded")]
+    assert (await _doc(repo, sdk_rolling_hash("First")))["translations"]["kn"]["text"] == "one"
+    assert (await _doc(repo, sdk_rolling_hash("Second")))["translations"]["kn"]["text"] == "two"
+
+
+async def test_history_warnings_do_not_hide_row_level_errors(service, repo, monkeypatch):
+    await _seed(repo)
+
+    async def boom(_docs):
+        raise PyMongoError("audit store down")
+
+    monkeypatch.setattr(service._audit_repo, "record_bulk", boom)
+
+    res = await _import(service, [_row("Hello World", "x"), {"route": "/", "key": "tbad", "source": "Nope", "text": "x"}])
+
+    assert res["updated"] == 1 and res["failed"] == 1
+    assert res["errors"][0]["reason"] == "key_mismatch"
+    assert [w["reason"] for w in res["warnings"]] == ["audit_not_recorded"]
+
+
+async def test_a_clean_import_has_no_warnings(service, repo):
+    await _seed(repo)
+
+    res = await _import(service, [_row("Hello World", "x")], state="approved")
+
+    assert res["warnings"] == []
+    assert len(await service.get_audit_trail(SITE, TENANT)) == 2

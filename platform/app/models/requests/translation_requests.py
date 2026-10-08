@@ -6,6 +6,8 @@ from pydantic import BaseModel, Field
 
 MAX_IMPORT_ROWS = 5000
 
+ImportState = Literal["pending", "approved", "keep"]
+
 
 class TranslationUpdateRequest(BaseModel):
     lang: str
@@ -27,14 +29,15 @@ class BulkApproveRequest(BaseModel):
 
 
 class TranslationImportRow(BaseModel):
-    route: str = ""
-    key: str = ""
-    source: str = ""
-    text: str = ""
+    route: str
+    key: str
+    source: str
+    text: str
+    row: int | None = Field(default=None, ge=1)
 
 
 class TranslationImportRequest(BaseModel):
     lang: str
     overwrite_blank: bool = False
-    state: Literal["pending", "approved", "keep"] = "pending"
+    state: ImportState = "pending"
     rows: list[TranslationImportRow] = Field(max_length=MAX_IMPORT_ROWS)

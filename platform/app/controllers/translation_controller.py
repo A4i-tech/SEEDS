@@ -135,7 +135,7 @@ async def import_translations(
         _tenant_id(user),
         _reviewer_id(user),
         body.lang,
-        [row.model_dump() for row in body.rows],
+        body.rows,
         overwrite_blank=body.overwrite_blank,
         state=body.state,
     )

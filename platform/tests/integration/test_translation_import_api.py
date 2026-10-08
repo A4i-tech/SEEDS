@@ -85,6 +85,7 @@ async def test_import_writes_rows_and_returns_per_row_results(client, mock_db):
         "skipped_blank": 0,
         "failed": 1,
         "errors": [{"row": 2, "route": "/", "key": "tbad", "reason": "key_mismatch"}],
+        "warnings": [],
     }
     doc = (await repo.find_by_route("site1", "/"))[0]
     assert doc["translations"]["kn"]["text"] == "ಹಲೋ"
@@ -148,3 +149,30 @@ async def test_import_reports_an_invalid_route_per_row_not_for_the_whole_request
         {"row": 2, "route": "/about?x=1", "key": sdk_rolling_hash("Other"), "reason": "invalid_route"}
     ]
     assert len(await repo.find_by_route("site1", "/about?x=1")) == 0
+
+
+async def test_import_rejects_rows_with_missing_or_misspelled_fields_instead_of_guessing(client, mock_db):
+    await _seed_site(mock_db)
+    row = {"rout": "/", "key": "k", "source": "s", "text": "t"}
+
+    resp = await client.post(URL, json=_body(rows=[row]), headers=_headers())
+
+    assert resp.status_code == 422
+    assert "route" in str(resp.json())
+
+
+async def test_import_rejects_a_zero_csv_row_number(client, mock_db):
+    await _seed_site(mock_db)
+    row = {"route": "/", "key": "k", "source": "s", "text": "t", "row": 0}
+
+    assert (await client.post(URL, json=_body(rows=[row]), headers=_headers())).status_code == 422
+
+
+async def test_import_reports_the_csv_row_number_sent_by_the_client(client, mock_db):
+    await _seed_site(mock_db)
+    row = {"route": "/", "key": "tbad", "source": "Nope", "text": "t", "row": 41}
+
+    resp = await client.post(URL, json=_body(rows=[row]), headers=_headers())
+
+    assert resp.status_code == 200
+    assert resp.json()["errors"] == [{"row": 41, "route": "/", "key": "tbad", "reason": "key_mismatch"}]

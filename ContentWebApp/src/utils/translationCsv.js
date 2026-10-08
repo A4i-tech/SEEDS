@@ -65,6 +65,11 @@ export const readFileText = (file) =>
     reader.readAsText(file, "UTF-8");
   });
 
+const quotesError = (rowIndex) =>
+  `The CSV has a quoted value that is not closed properly${
+    rowIndex === undefined ? "" : ` near row ${rowIndex + 1}`
+  }. Every opening quote needs a closing quote. Fix that row and import again.`;
+
 const buildTable = (data, headerIndex) => {
   const header = data[headerIndex].map((value) => (value ?? "").trim());
   const lower = header.map((value) => value.toLowerCase());
@@ -84,7 +89,10 @@ const buildTable = (data, headerIndex) => {
     routeIndex,
     sourceIndex: source.index,
     targets: targets.map(({ label, index }) => ({ index, label, code: localeFromHeader(label) })),
-    rows: data.slice(headerIndex + 1),
+    rows: data
+      .slice(headerIndex + 1)
+      .map((cells, offset) => ({ cells, number: headerIndex + offset + 2 }))
+      .filter(({ cells }) => cells.some((value) => (value ?? "").trim() !== "")),
   };
 };
 
@@ -92,9 +100,12 @@ export const parseTranslationCsv = (text) => {
   if (ENCODING_PROBLEM.test(text)) return { error: ENCODING_ERROR };
   const content = text.replace(/^\uFEFF/, "");
   for (const delimiter of DELIMITERS) {
-    const { data } = Papa.parse(content, { delimiter, skipEmptyLines: "greedy" });
+    const { data, errors } = Papa.parse(content, { delimiter });
     const headerIndex = data.findIndex((row) => (row[0] ?? "").trim().toLowerCase() === "asset id");
-    if (headerIndex >= 0) return buildTable(data, headerIndex);
+    if (headerIndex >= 0) {
+      const quoteError = errors.find((error) => error.type === "Quotes");
+      return quoteError ? { error: quotesError(quoteError.row) } : buildTable(data, headerIndex);
+    }
   }
   return {
     error:
@@ -121,7 +132,8 @@ export const selectTargetColumn = (table, lang) => {
 };
 
 export const buildImportRows = (table, targetIndex) =>
-  table.rows.map((row) => ({
+  table.rows.map(({ cells: row, number }) => ({
+    row: number,
     route: unescapeFormula(cell(row, table.routeIndex).trim()),
     key: unescapeFormula(cell(row, table.assetIndex).trim()),
     source: unescapeFormula(cell(row, table.sourceIndex)),

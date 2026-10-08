@@ -52,5 +52,6 @@ test("importTranslations posts the rows with the 5-minute timeout and maps the r
   expect(options).toEqual(expect.objectContaining({ method: "POST", timeoutMs: 300000 }));
   expect(JSON.parse(options.body)).toEqual({ lang: "kn", overwrite_blank: true, state: "keep", rows });
   expect(result.skippedBlank).toBe(2);
+  expect(result).not.toHaveProperty("skipped_blank");
   expect(result.updated).toBe(1);
 });

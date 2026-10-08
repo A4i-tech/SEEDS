@@ -31,3 +31,20 @@
 .import-dialog-scroll .import-dialog-errors .table-cell:last-child {
   width: 55%;
 }
+
+.import-dialog-scroll fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.import-dialog-scroll legend {
+  padding: 0;
+  margin-bottom: 4px;
+}
+
+.import-dialog-scroll .import-dialog-errors .table-cell {
+  height: 44px;
+  line-height: 1.4;
+}

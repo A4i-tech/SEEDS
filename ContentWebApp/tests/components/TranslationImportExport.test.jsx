@@ -193,7 +193,7 @@ describe("Import dialog", () => {
 
     const dialog = await openImportDialog();
 
-    expect(within(dialog).getByRole("button", { name: /Kannada \(kn\)/ })).toBeInTheDocument();
+    expect(within(dialog).getByRole("button", { name: /Target language/ })).toBeInTheDocument();
     expect(within(dialog).getByLabelText("Overwrite blank values")).not.toBeChecked();
     expect(within(dialog).getByLabelText("Pending review")).toBeChecked();
     expect(within(dialog).queryByLabelText(/Rejected/)).not.toBeInTheDocument();
@@ -233,9 +233,9 @@ describe("Import dialog", () => {
       overwriteBlank: true,
       state: "approved",
       rows: [
-        { route: "/", key: "k1", source: "Welcome, friend", text: "ಹೊಸ, ಅನುವಾದ" },
-        { route: "/new", key: "k5", source: "Brand \"new\"", text: "ಹೊಸ\nಸಾಲು" },
-        { route: "/new", key: "tbad", source: "Other", text: "" },
+        { row: 2, route: "/", key: "k1", source: "Welcome, friend", text: "ಹೊಸ, ಅನುವಾದ" },
+        { row: 3, route: "/new", key: "k5", source: "Brand \"new\"", text: "ಹೊಸ\nಸಾಲು" },
+        { row: 4, route: "/new", key: "tbad", source: "Other", text: "" },
       ],
     });
     await within(dialog).findByText("Updated 1, created 1, unchanged 0, skipped blank 0, failed 1");
@@ -271,7 +271,7 @@ describe("Import dialog", () => {
     );
     await within(dialog).findByText(/column is for "te"/);
 
-    await userEvent.click(within(dialog).getByRole("button", { name: /Kannada \(kn\)/ }));
+    await userEvent.click(within(dialog).getByRole("button", { name: /Target language/ }));
     await userEvent.click(within(dialog).getByRole("option", { name: "Telugu (te)" }));
 
     expect(within(dialog).queryByText(/column is for "te"/)).not.toBeInTheDocument();
@@ -441,8 +441,8 @@ describe("Import safety", () => {
 
     await waitFor(() => expect(translationService.importTranslations).toHaveBeenCalled());
     expect(translationService.importTranslations.mock.calls[0][0].rows).toEqual([
-      { route: "/", key: "=cmd", source: "=SUM(1+1)", text: "+91 ಹಲೋ" },
-      { route: "/", key: "k2", source: "normal", text: "'quoted' word" },
+      { row: 2, route: "/", key: "=cmd", source: "=SUM(1+1)", text: "+91 ಹಲೋ" },
+      { row: 3, route: "/", key: "k2", source: "normal", text: "'quoted' word" },
     ]);
   });
 
@@ -466,7 +466,7 @@ describe("Import safety", () => {
 
     await userEvent.click(within(dialog).getByRole("button", { name: "Import" }));
 
-    await within(dialog).findByText(/not a valid page path/);
+    await within(dialog).findByText(/plain ASCII page-path characters/);
     expect(within(dialog).getByText("/a?x=1")).toBeInTheDocument();
   });
 });
@@ -624,5 +624,142 @@ describe("Import dialog layout on short viewports", () => {
     expect(rule(".import-dialog-scroll .import-dialog-errors .table-cell {")).toMatch(
       /white-space:\s*normal/
     );
+  });
+});
+
+describe("Import review fixes", () => {
+  const importOk = {
+    updated: 1,
+    created: 0,
+    unchanged: 0,
+    skippedBlank: 0,
+    failed: 0,
+    errors: [],
+    warnings: [],
+  };
+
+  beforeEach(() => {
+    translationService.listTranslations.mockResolvedValue(docs);
+  });
+
+  async function openWithFile(content) {
+    renderWorkspace();
+    await screen.findByText("Untranslated one");
+    const dialog = await openImportDialog();
+    await userEvent.upload(within(dialog).getByLabelText("CSV file"), csvFile(content));
+    return dialog;
+  }
+
+  test("a malformed CSV is blocked with its row and nothing is sent, even with Overwrite blank on", async () => {
+    const dialog = await openWithFile(
+      `${HEADER}\n"k1","/","Hello","ಹಲೋ"\n"k2","/","Unclosed,ಹಲೋ\n"k3","/","After",""\n`
+    );
+    await userEvent.click(within(dialog).getByLabelText("Overwrite blank values"));
+
+    await within(dialog).findByText(/not closed properly near row 3/);
+    expect(within(dialog).getByRole("button", { name: "Import" })).toBeDisabled();
+    expect(translationService.importTranslations).not.toHaveBeenCalled();
+  });
+
+  test("the CSV row numbers are sent so errors point at the right spreadsheet row", async () => {
+    translationService.importTranslations.mockResolvedValue(importOk);
+    const dialog = await openWithFile(`${HEADER}\n\n"k1","/","Hello","ಹಲೋ"\n`);
+    await within(dialog).findByText(/1 rows/);
+
+    await userEvent.click(within(dialog).getByRole("button", { name: "Import" }));
+
+    await waitFor(() => expect(translationService.importTranslations).toHaveBeenCalled());
+    expect(translationService.importTranslations.mock.calls[0][0].rows[0].row).toBe(3);
+  });
+
+  test("a failed import request still reloads the list, because some rows may already be saved", async () => {
+    translationService.importTranslations.mockRejectedValue(new Error("Gateway timeout"));
+    const dialog = await openWithFile(`${HEADER}\n"k1","/","Hello","ಹಲೋ"\n`);
+    await within(dialog).findByText(/1 rows/);
+    translationService.listTranslations.mockClear();
+
+    await userEvent.click(within(dialog).getByRole("button", { name: "Import" }));
+
+    await within(dialog).findByText("Gateway timeout");
+    await waitFor(() => expect(translationService.listTranslations).toHaveBeenCalled());
+  });
+
+  test("a partial import (some rows failed) reloads the list and keeps the row errors visible", async () => {
+    translationService.importTranslations.mockResolvedValue({
+      ...importOk,
+      failed: 1,
+      errors: [{ row: 5, route: "/x", key: "tbad", reason: "key_mismatch" }],
+    });
+    const dialog = await openWithFile(`${HEADER}\n"k1","/","Hello","ಹಲೋ"\n`);
+    await within(dialog).findByText(/1 rows/);
+    translationService.listTranslations.mockClear();
+
+    await userEvent.click(within(dialog).getByRole("button", { name: "Import" }));
+
+    await within(dialog).findByText("Asset ID does not match the source text");
+    expect(translationService.listTranslations).toHaveBeenCalled();
+  });
+
+  test("history warnings tell the user which rows were saved without their history", async () => {
+    translationService.importTranslations.mockResolvedValue({
+      ...importOk,
+      warnings: [
+        { row: 4, route: "/", key: "k1", reason: "version_not_recorded" },
+        { row: 4, route: "/", key: "k1", reason: "audit_not_recorded" },
+      ],
+    });
+    const dialog = await openWithFile(`${HEADER}\n"k1","/","Hello","ಹಲೋ"\n`);
+    await within(dialog).findByText(/1 rows/);
+
+    await userEvent.click(within(dialog).getByRole("button", { name: "Import" }));
+
+    await within(dialog).findByText(
+      /saved, but their version history and audit entry could not be recorded: row 4/
+    );
+  });
+
+  test("error cells keep their full text in a tooltip and show the route and key", async () => {
+    translationService.importTranslations.mockResolvedValue({
+      ...importOk,
+      failed: 1,
+      errors: [{ row: 9, route: "/faq?page=2", key: "x".repeat(300), reason: "key_too_long" }],
+    });
+    const dialog = await openWithFile(`${HEADER}\n"k1","/","Hello","ಹಲೋ"\n`);
+    await within(dialog).findByText(/1 rows/);
+
+    await userEvent.click(within(dialog).getByRole("button", { name: "Import" }));
+
+    const problem = await within(dialog).findByText("Asset ID is too long");
+    expect(problem).toHaveAttribute("title", "Asset ID is too long");
+    expect(within(dialog).getByText("/faq?page=2")).toHaveAttribute("title", "/faq?page=2");
+    expect(within(dialog).getByText("9")).toBeInTheDocument();
+  });
+
+  test("the target language field and the status radios have accessible names", async () => {
+    renderWorkspace();
+    await screen.findByText("Untranslated one");
+    const dialog = await openImportDialog();
+
+    expect(within(dialog).getByLabelText("Target language")).toHaveTextContent("Kannada (kn)");
+    const group = within(dialog).getByRole("group", { name: "Imported translations are" });
+    expect(within(group).getAllByRole("radio")).toHaveLength(3);
+    expect(within(group).getByLabelText("Pending review")).toBeChecked();
+  });
+
+  test("the invalid-route message states the whole route rule", async () => {
+    translationService.importTranslations.mockResolvedValue({
+      ...importOk,
+      failed: 1,
+      errors: [{ row: 2, route: "/a b", key: "k1", reason: "invalid_route" }],
+    });
+    const dialog = await openWithFile(`${HEADER}\n"k1","/a b","Hello","ಹಲೋ"\n`);
+    await within(dialog).findByText(/1 rows/);
+
+    await userEvent.click(within(dialog).getByRole("button", { name: "Import" }));
+
+    const message = await within(dialog).findByText(/Route must start with \//);
+    expect(message).toHaveTextContent(/ASCII/);
+    expect(message).toHaveTextContent(/\.\. segments/);
+    expect(message).toHaveTextContent(/2048/);
   });
 });

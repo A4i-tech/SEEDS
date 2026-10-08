@@ -3,13 +3,15 @@ import {
   ENCODING_ERROR,
   LIST_ROW_CAP,
   MAX_IMPORT_ROWS,
-  buildImportRows,
+  buildImportRows as buildRows,
   buildTranslationCsv,
   countQuestionMarkTranslations,
   parseTranslationCsv,
   questionMarkError,
   selectTargetColumn,
 } from "../../src/utils/translationCsv";
+
+const buildImportRows = (table, index) => buildRows(table, index).map(({ row, ...rest }) => rest);
 
 const doc = (key, route, sourceText, kn) => ({
   key,
@@ -182,13 +184,62 @@ describe("parseTranslationCsv", () => {
     );
   });
 
-  test("a malformed row never throws and yields blank cells", () => {
+  test("an unclosed quote is reported with its row instead of swallowing the rest of the file", () => {
+    const result = parseTranslationCsv(
+      "\"Asset ID\",\"Route\",\"English, en\",\"Kannada, kn\"\n" +
+        "\"k1\",\"/\",\"Hello\",\"ಹಲೋ\"\n" +
+        "\"k2\",\"/\",\"Unclosed,ಹಲೋ\n" +
+        "\"k3\",\"/\",\"After\",\"ನಂತರ\"\n"
+    );
+
+    expect(result.error).toMatch(/not closed properly near row 3/);
+    expect(result.rows).toBeUndefined();
+  });
+
+  test("a stray quote inside a quoted value is rejected too", () => {
+    const result = parseTranslationCsv(
+      "\"Asset ID\",\"Route\",\"English, en\",\"Kannada, kn\"\n\"k1\",\"/\",\"Hel\"lo\",\"ಹಲೋ\"\n"
+    );
+
+    expect(result.error).toMatch(/not closed properly/);
+  });
+
+  test("numbers rows as a spreadsheet would, counting comment rows and blank lines", () => {
     const table = parseTranslationCsv(
-      "\"Asset ID\",\"Route\",\"English, en\",\"Kannada, kn\"\n\"k1\",\"/\",\"Unclosed,ಹಲೋ\n"
+      "'Loco csv export,,,\r\n" +
+        "'Project: x,,,\r\n" +
+        "Asset ID,Route,\"English, en\",\"Kannada, kn\"\r\n" +
+        "k1,/,One,ಒಂದು\r\n" +
+        ",,,\r\n" +
+        "\r\n" +
+        "k2,/,Two,ಎರಡು\r\n"
+    );
+
+    expect(buildRows(table, 3).map((r) => [r.row, r.key])).toEqual([
+      [4, "k1"],
+      [7, "k2"],
+    ]);
+  });
+
+  test("a CSV with only an Asset ID, Route, source and one target column is accepted", () => {
+    const table = parseTranslationCsv(
+      "\"Asset ID\",\"Route\",\"English, en\",\"Kannada, kn\"\n\"k1\",\"/\",\"Hello\",\"ಹಲೋ\"\n"
     );
 
     expect(table.error).toBeUndefined();
-    expect(buildImportRows(table, 3)).toHaveLength(1);
+    expect(table.targets).toHaveLength(1);
+    expect(selectTargetColumn(table, "kn")).toEqual({ index: 3, code: "kn" });
+  });
+
+  test("Context and Notes columns do not change which column is the target", () => {
+    const table = parseTranslationCsv(
+      "\"Asset ID\",\"Route\",\"English, en\",\"Kannada, kn\",\"Context\",\"Notes\"\n\"k1\",\"/\",\"Hello\",\"ಹಲೋ\",\"ctx\",\"note\"\n"
+    );
+
+    expect(selectTargetColumn(table, "kn")).toEqual({ index: 3, code: "kn" });
+    expect(buildImportRows(table, 3)).toEqual([
+      { route: "/", key: "k1", source: "Hello", text: "ಹಲೋ" },
+    ]);
   });
 
   test("exposes a row cap constant matching the backend", () => {

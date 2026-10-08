@@ -96,3 +96,4 @@ class TranslationImportResponse(BaseModel):
     skipped_blank: int = 0
     failed: int = 0
     errors: list[ImportRowError] = Field(default_factory=list)
+    warnings: list[ImportRowError] = Field(default_factory=list)

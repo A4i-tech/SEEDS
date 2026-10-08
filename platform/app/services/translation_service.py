@@ -8,8 +8,9 @@ from typing import Any
 from fastapi import Depends
 from pymongo import UpdateOne
 from pymongo.asynchronous.database import AsyncDatabase
-from pymongo.errors import BulkWriteError
+from pymongo.errors import BulkWriteError, PyMongoError
 
+from app.models.requests.translation_requests import ImportState, TranslationImportRow
 from app.platform.auth.dependencies import get_db
 from app.platform.error_handling import NotFoundError, ValidationError
 from app.platform.settings import get_settings
@@ -32,6 +33,7 @@ logger = logging.getLogger(__name__)
 
 IMPORT_TEXT_MAX_LENGTH = 5000
 IMPORT_ROUTE_MAX_LENGTH = 2048
+IMPORT_KEY_MAX_LENGTH = 256
 _ROUTE_FORBIDDEN_CHARS = frozenset(['"', "#", "<", ">", "?", "^", "`", "{", "}", chr(92)])
 _REJECTION_FIELDS = ("rejected_by", "rejected_at", "rejection_reason")
 _REVIEW_FIELDS = ("approved_by", "approved_at", *_REJECTION_FIELDS)
@@ -45,6 +47,30 @@ def _canonical_source(value: str) -> str:
     return js_trim(_normalize_newlines(value))
 
 
+def _import_audit_doc(
+    site_id: str,
+    route: str,
+    key: str,
+    lang: str,
+    action: str,
+    actor: str,
+    provider: str | None,
+    detail: str,
+    at: datetime,
+) -> dict[str, Any]:
+    return {
+        "site_id": site_id,
+        "route": route,
+        "key": key,
+        "lang": lang,
+        "action": action,
+        "actor": actor,
+        "provider": provider,
+        "detail": detail,
+        "at": at,
+    }
+
+
 def _is_url_pathname(route: str) -> bool:
     if len(route) > IMPORT_ROUTE_MAX_LENGTH or not route.startswith("/"):
         return False
@@ -56,6 +82,8 @@ def _is_url_pathname(route: str) -> bool:
 def _import_row_error(route: str, key: str, source: str, text: str) -> str | None:
     if not key:
         return "missing_key"
+    if len(key) > IMPORT_KEY_MAX_LENGTH:
+        return "key_too_long"
     if not route:
         return "missing_route"
     if not _is_url_pathname(route):
@@ -114,10 +142,13 @@ class TranslationService:
         await self._ensure_site_owned_by_tenant(doc["site_id"], tenant_id)
         return doc
 
-    async def _ensure_lang_enabled(self, site_id: str, lang: str) -> None:
+    async def _ensure_lang_enabled(
+        self, site_id: str, lang: str, website: dict[str, Any] | None = None
+    ) -> None:
         if not self._enforce_lang_validation:
             return
-        website = await self._website_repo.find_by_site_id(site_id)
+        if website is None:
+            website = await self._website_repo.find_by_site_id(site_id)
         codes = {entry["code"] for entry in (website or {}).get("languages") or [] if entry.get("enabled")}
         if lang not in codes:
             raise ValidationError(f"lang {lang!r} is not an enabled language for this site")
@@ -517,14 +548,14 @@ class TranslationService:
         tenant_id: str,
         actor: str,
         lang: str,
-        rows: list[dict[str, str]],
+        rows: list[TranslationImportRow],
         overwrite_blank: bool = False,
-        state: str = "pending",
+        state: ImportState = "pending",
     ) -> dict[str, Any]:
         website = await self._ensure_site_owned_by_tenant(site_id, tenant_id)
         if website.get("status") != "Active":
             raise NotFoundError("website", site_id)
-        await self._ensure_lang_enabled(site_id, lang)
+        await self._ensure_lang_enabled(site_id, lang, website)
 
         counts = {"updated": 0, "created": 0, "unchanged": 0, "skipped_blank": 0}
         errors: list[dict[str, Any]] = []
@@ -534,11 +565,12 @@ class TranslationService:
 
         parsed: list[tuple[int, str, str, str, str]] = []
         seen: set[tuple[str, str]] = set()
-        for row_no, row in enumerate(rows, start=1):
-            route = row.get("route") or ""
-            key = (row.get("key") or "").strip()
-            source = _canonical_source(row.get("source") or "")
-            text = _normalize_newlines(row.get("text") or "")
+        for index, row in enumerate(rows, start=1):
+            row_no = row.row or index
+            route = row.route
+            key = row.key.strip()
+            source = _canonical_source(row.source)
+            text = _normalize_newlines(row.text)
             reason = _import_row_error(route, key, source, text)
             if reason is None and (route, key) in seen:
                 reason = "duplicate_row"
@@ -588,17 +620,7 @@ class TranslationService:
                             },
                         )
                     )
-                    cleared_audit = {
-                        "site_id": site_id,
-                        "route": route,
-                        "key": key,
-                        "lang": lang,
-                        "action": "cleared",
-                        "actor": actor,
-                        "provider": None,
-                        "detail": "",
-                        "at": now,
-                    }
+                    cleared_audit = _import_audit_doc(site_id, route, key, lang, "cleared", actor, None, "", now)
                     planned.append(
                         {"row": row_no, "route": route, "key": key, "kind": "updated", "audits": [cleared_audit]}
                     )
@@ -672,22 +694,16 @@ class TranslationService:
 
             log_entries = [{"action": "imported", "actor": actor, "detail": f"lang={lang};state={state}", "at": now}]
             audits = [
-                {
-                    "site_id": site_id,
-                    "route": route,
-                    "key": key,
-                    "lang": lang,
-                    "action": "imported",
-                    "actor": actor,
-                    "provider": IMPORT_PROVIDER,
-                    "detail": f"state={state}",
-                    "at": now,
-                }
+                _import_audit_doc(
+                    site_id, route, key, lang, "imported", actor, IMPORT_PROVIDER, f"state={state}", now
+                )
             ]
             version_doc = None
             if approving:
                 log_entries.append({"action": "approved", "actor": actor, "detail": f"version={version}", "at": now})
-                audits.append({**audits[0], "action": "approved", "provider": None, "detail": f"version={version}"})
+                audits.append(
+                    _import_audit_doc(site_id, route, key, lang, "approved", actor, None, f"version={version}", now)
+                )
                 version_doc = {
                     "version": version,
                     "translations": {
@@ -725,7 +741,9 @@ class TranslationService:
             except BulkWriteError as exc:
                 failed_ops = {err["index"] for err in exc.details.get("writeErrors", [])}
                 logger.warning(
-                    "import_translations: %d row(s) failed to write", len(failed_ops), extra={"site_id": site_id}
+                    "import_translations: %d row(s) failed to write",
+                    len(failed_ops),
+                    extra={"site_id": site_id, "failed_rows": sorted(planned[i]["row"] for i in failed_ops)},
                 )
 
         written = []
@@ -750,13 +768,38 @@ class TranslationService:
             if p.get("version_doc")
         ]
         audit_docs = [audit for p in written for audit in p["audits"]]
+        warnings: list[dict[str, Any]] = []
         if version_docs:
-            await self._version_repo.add_versions_bulk(version_docs)
+            try:
+                await self._version_repo.add_versions_bulk(version_docs)
+            except PyMongoError:
+                versioned = [p for p in written if p.get("version_doc")]
+                logger.error(
+                    "import_translations: rows were saved but their versions were not recorded",
+                    extra={"site_id": site_id, "rows": [p["row"] for p in versioned]},
+                    exc_info=True,
+                )
+                warnings.extend(
+                    {"row": p["row"], "route": p["route"], "key": p["key"], "reason": "version_not_recorded"}
+                    for p in versioned
+                )
         if audit_docs:
-            await self._audit_repo.record_bulk(audit_docs)
+            try:
+                await self._audit_repo.record_bulk(audit_docs)
+            except PyMongoError:
+                logger.error(
+                    "import_translations: rows were saved but their audit entries were not recorded",
+                    extra={"site_id": site_id, "rows": [p["row"] for p in written]},
+                    exc_info=True,
+                )
+                warnings.extend(
+                    {"row": p["row"], "route": p["route"], "key": p["key"], "reason": "audit_not_recorded"}
+                    for p in written
+                )
 
         errors.sort(key=lambda e: e["row"])
-        return {**counts, "failed": len(errors), "errors": errors}
+        warnings.sort(key=lambda w: w["row"])
+        return {**counts, "failed": len(errors), "errors": errors, "warnings": warnings}
 
     async def get_translation(self, translation_id: str, tenant_id: str) -> dict[str, Any]:
         return await self._get_translation_owned_by_tenant(translation_id, tenant_id)

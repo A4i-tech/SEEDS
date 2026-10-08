@@ -27,7 +27,8 @@ const REASONS = {
   missing_key: "Asset ID is missing",
   missing_route: "Route is missing",
   invalid_route:
-    "Route is not a valid page path (it must start with / and cannot contain spaces, ? or #)",
+    "Route must start with / and use only plain ASCII page-path characters. No spaces, quotes, < > ^ ` { } \\ ? #, no . or .. segments, and at most 2048 characters.",
+  key_too_long: "Asset ID is too long",
   missing_source: "Source text is missing",
   source_too_long: "Source text is too long",
   text_too_long: "Translation is too long",
@@ -37,9 +38,14 @@ const REASONS = {
   write_failed: "The update failed",
 };
 
+const WARNINGS = {
+  version_not_recorded: "version history",
+  audit_not_recorded: "audit entry",
+};
+
 const MAX_LISTED_ERRORS = 100;
 
-export function TranslationImportDialog({ siteId, languages, defaultLang, onClose, onImported }) {
+function TranslationImportDialog({ siteId, languages, defaultLang, onClose, onImported }) {
   const [fileName, setFileName] = useState("");
   const [table, setTable] = useState(null);
   const [lang, setLang] = useState(defaultLang || "");
@@ -68,7 +74,7 @@ export function TranslationImportDialog({ siteId, languages, defaultLang, onClos
     (tooManyRows && `The CSV has more than ${MAX_IMPORT_ROWS} rows.`) ||
     (questionMarks > 0 && questionMarkError(questionMarks));
   const canImport = Boolean(importRows && importRows.length && !problem && !busy);
-  const detected =
+  const targetCodes =
     table && !table.error ? table.targets.map((t) => t.code || t.label).join(", ") : "";
 
   const chooseFile = async (event) => {
@@ -99,6 +105,7 @@ export function TranslationImportDialog({ siteId, languages, defaultLang, onClos
       onImported(res);
     } catch (e) {
       setFailure(e.message);
+      onImported();
     } finally {
       setBusy(false);
     }
@@ -119,12 +126,15 @@ export function TranslationImportDialog({ siteId, languages, defaultLang, onClos
         />
         {fileName && table && !table.error && (
           <p className="placeholder-text">
-            {fileName}: {table.rows.length} rows, language column: {detected}
+            {fileName}: {table.rows.length} rows, language column: {targetCodes}
           </p>
         )}
 
-        <label className="label">Target language</label>
+        <label className="label" htmlFor="import-target-lang">
+          Target language
+        </label>
         <Select
+          id="import-target-lang"
           value={lang}
           onChange={setLang}
           placeholder="Select language"
@@ -146,22 +156,24 @@ export function TranslationImportDialog({ siteId, languages, defaultLang, onClos
             : "Blank cells are skipped and existing translations are kept."}
         </p>
 
-        <label className="label">Imported translations are</label>
-        <div className="checkbox-list">
-          {STATE_OPTIONS.map((option) => (
-            <label key={option.value} className="checkbox-item">
-              <input
-                type="radio"
-                name="import-state"
-                value={option.value}
-                checked={state === option.value}
-                onChange={() => setState(option.value)}
-                disabled={Boolean(result)}
-              />
-              {option.label}
-            </label>
-          ))}
-        </div>
+        <fieldset>
+          <legend className="label">Imported translations are</legend>
+          <div className="checkbox-list">
+            {STATE_OPTIONS.map((option) => (
+              <label key={option.value} className="checkbox-item">
+                <input
+                  type="radio"
+                  name="import-state"
+                  value={option.value}
+                  checked={state === option.value}
+                  onChange={() => setState(option.value)}
+                  disabled={Boolean(result)}
+                />
+                {option.label}
+              </label>
+            ))}
+          </div>
+        </fieldset>
 
         {problem && <p className="error-message">{problem}</p>}
         {target?.warning && <p className="status-message">{target.warning}</p>}
@@ -172,6 +184,11 @@ export function TranslationImportDialog({ siteId, languages, defaultLang, onClos
             <p className={result.failed ? "error-message" : "success-message"}>
               {`Updated ${result.updated}, created ${result.created}, unchanged ${result.unchanged}, skipped blank ${result.skippedBlank}, failed ${result.failed}`}
             </p>
+            {result.warnings?.length > 0 && (
+              <p className="status-message">
+                {`These rows were saved, but their ${[...new Set(result.warnings.map((w) => WARNINGS[w.reason] || w.reason))].join(" and ")} could not be recorded: row ${result.warnings.map((w) => w.row).join(", ")}.`}
+              </p>
+            )}
             {result.errors.length > 0 && (
               <div
                 className="table-wrapper import-dialog-errors"
@@ -190,9 +207,15 @@ export function TranslationImportDialog({ siteId, languages, defaultLang, onClos
                     {result.errors.slice(0, MAX_LISTED_ERRORS).map((err) => (
                       <tr key={`${err.row}-${err.reason}`} className="table-row-white">
                         <td className="table-cell">{err.row}</td>
-                        <td className="table-cell">{err.route}</td>
-                        <td className="table-cell">{err.key}</td>
-                        <td className="table-cell">{REASONS[err.reason] || err.reason}</td>
+                        <td className="table-cell" title={err.route}>
+                          {err.route}
+                        </td>
+                        <td className="table-cell" title={err.key}>
+                          {err.key}
+                        </td>
+                        <td className="table-cell" title={REASONS[err.reason] || err.reason}>
+                          {REASONS[err.reason] || err.reason}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
