@@ -9,11 +9,16 @@ from pathlib import Path
 from typing import IO
 
 from bson import ObjectId
+from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.remediation_job import (
     ARTIFACTS,
     STAGES,
     ArtifactName,
+    JobMetrics,
+    JobModels,
+    JobProgress,
+    JobStage,
     JobStatus,
     RemediationJob,
     artifact_filename,
@@ -42,6 +47,43 @@ _TERMINAL: tuple[JobStatus, ...] = (
 )
 
 
+class TextbookRemediationService:
+    def __init__(self, db: AsyncDatabase) -> None:
+        self._repo = TextbookRemediationRepository(db)
+
+    async def claim_next_pending(self) -> RemediationJob | None:
+        return await self._repo.claim_next_pending()
+
+    async def update_progress(self, job_id: str, progress: JobProgress) -> RemediationJob | None:
+        return await self._repo.update_progress(job_id, progress)
+
+    async def update_source_page_count(self, job_id: str, page_count: int) -> RemediationJob | None:
+        return await self._repo.update_source_page_count(job_id, page_count)
+
+    async def update_models(self, job_id: str, models: JobModels) -> RemediationJob | None:
+        return await self._repo.update_models(job_id, models)
+
+    async def set_stage(self, job_id: str, stage: JobStage) -> RemediationJob | None:
+        return await self._repo.set_stage(job_id, stage)
+
+    async def update_language(self, job_id: str, language: str) -> RemediationJob | None:
+        return await self._repo.update_language(job_id, language)
+
+    async def record_artifacts(
+        self, job_id: str, artifacts: dict[ArtifactName, str], counts: dict[str, int]
+    ) -> RemediationJob | None:
+        return await self._repo.record_artifacts(job_id, artifacts, counts)
+
+    async def update_metrics(self, job_id: str, metrics: JobMetrics) -> RemediationJob | None:
+        return await self._repo.update_metrics(job_id, metrics)
+
+    async def set_translation_error(self, job_id: str, message: str | None) -> RemediationJob | None:
+        return await self._repo.set_translation_error(job_id, message)
+
+    async def finish(self, job_id: str, status: JobStatus, *, error: str | None = None) -> RemediationJob | None:
+        return await self._repo.finish(job_id, status, error=error)
+
+
 def serialize_job(job: RemediationJob) -> dict[str, object]:
     return RemediationJobResponse(
         job_id=job.job_id,
@@ -55,6 +97,7 @@ def serialize_job(job: RemediationJob) -> dict[str, object]:
         artifacts=job.artifacts,
         counts=job.counts,
         metrics=job.metrics,
+        models=job.models,
         progress=job.progress,
         draft_remediated_md=job.draft_remediated_md,
         verified_at=job.verified_at,
@@ -65,6 +108,7 @@ def serialize_job(job: RemediationJob) -> dict[str, object]:
         finished_at=job.finished_at,
         target_language=job.target_language,
         translation_error=job.translation_error,
+        source_page_count=job.source_page_count,
     ).model_dump(mode="json")
 
 
@@ -73,7 +117,7 @@ async def subscribe(
 ) -> AsyncIterator[dict[str, object]]:
     previous: dict[str, object] | None = None
     while True:
-        job = await repo.get(tenant_id, job_id)
+        job = await repo.get(tenant_id, job_id, include_draft=False)
         if job is None:
             return
         payload = serialize_job(job)
@@ -110,28 +154,64 @@ async def create_job(
     )
 
 
-async def artifact_bytes(
-    job: RemediationJob, name: str, blob_provider: BlobStorageProvider
-) -> tuple[bytes, str]:
+def _resolve_artifact(job: RemediationJob, name: str) -> tuple[ArtifactName, str]:
     try:
         artifact = ArtifactName(name)
     except ValueError as exc:
         expected = sorted(a.value for a in ArtifactName)
         raise ValidationError(f"Unknown artifact {name!r}; expected one of {expected}") from exc
-    url = job.artifacts.get(artifact)
+    url = job.source_url if artifact == ArtifactName.SOURCE else job.artifacts.get(artifact)
     if url is None:
         raise NotFoundError("Artifact", f"{job.job_id}/{name}")
+    return artifact, url
+
+
+async def artifact_bytes(
+    job: RemediationJob, name: str, blob_provider: BlobStorageProvider
+) -> tuple[bytes, str]:
+    artifact, url = _resolve_artifact(job, name)
     return await blob_provider.download_from_url(url), ARTIFACTS[artifact][1]
+
+
+async def artifact_chunks(
+    job: RemediationJob, name: str, blob_provider: BlobStorageProvider
+) -> tuple[AsyncIterator[bytes], str]:
+    artifact, url = _resolve_artifact(job, name)
+    chunks = await blob_provider.download_chunks_from_url(url)
+    return chunks, ARTIFACTS[artifact][1]
+
+
+async def _iter_jsonl_lines(chunks: AsyncIterator[bytes]) -> AsyncIterator[str]:
+    buffer = b""
+    async for chunk in chunks:
+        *lines, buffer = (buffer + chunk).split(b"\n")
+        for line in lines:
+            if line.strip():
+                yield line.decode("utf-8")
+    if buffer.strip():
+        yield buffer.decode("utf-8")
+
+
+async def _iter_artifact_jsonl(
+    job: RemediationJob, name: str, blob_provider: BlobStorageProvider
+) -> AsyncIterator[dict[str, object]]:
+    _artifact, url = _resolve_artifact(job, name)
+    chunks = await blob_provider.download_chunks_from_url(url)
+    async for line in _iter_jsonl_lines(chunks):
+        yield json.loads(line)
 
 
 async def findings_page(
     job: RemediationJob, name: str, blob_provider: BlobStorageProvider, *, limit: int, offset: int
 ) -> dict[str, object]:
-    data, _ = await artifact_bytes(job, name, blob_provider)
-    lines = [line for line in data.decode("utf-8").splitlines() if line.strip()]
-    page = [json.loads(line) for line in lines[offset:offset + limit]]
+    page: list[dict[str, object]] = []
+    total = 0
+    async for item in _iter_artifact_jsonl(job, name, blob_provider):
+        if offset <= total < offset + limit:
+            page.append(item)
+        total += 1
     return FindingsPageResponse(
-        findings=page, total=len(lines), offset=offset, has_more=offset + limit < len(lines)
+        findings=page, total=total, offset=offset, has_more=offset + limit < total
     ).model_dump(mode="json")
 
 
@@ -167,8 +247,15 @@ async def verify_job(
     *,
     title: str,
     verified_by: str,
+    edited_by: str | None = None,
 ) -> RemediationJob:
     if job.draft_remediated_md:
+        if ArtifactName.REMEDIATED in job.artifacts:
+            remediated_bytes, _ = await artifact_bytes(job, ArtifactName.REMEDIATED, blob_provider)
+            previous_md = remediated_bytes.decode("utf-8")
+        else:
+            previous_md = ""
+        await repo.record_edit(job.job_id, previous_md, job.draft_remediated_md, edited_by)
         with tempfile.TemporaryDirectory() as tmpdir:
             out_dir = Path(tmpdir)
             try:
@@ -185,12 +272,13 @@ async def verify_job(
                 (ArtifactName.PDF, out_pdf),
             ):
                 if out_path and out_path.exists():
-                    verified[name] = await blob_provider.upload_file(
-                        container,
-                        f"textbook-remediation/{job.job_id}/verified/{ARTIFACTS[name][0]}",
-                        out_path.read_bytes(),
-                        ARTIFACTS[name][1],
-                    )
+                    with out_path.open("rb") as fh:
+                        verified[name] = await blob_provider.upload_file(
+                            container,
+                            f"textbook-remediation/{job.job_id}/verified/{ARTIFACTS[name][0]}",
+                            fh,
+                            ARTIFACTS[name][1],
+                        )
             if verified:
                 await repo.record_artifacts(job.job_id, verified, {})
 
@@ -212,11 +300,17 @@ async def translate_job(
 ) -> RemediationJob:
     remediated_bytes, _ = await artifact_bytes(job, ArtifactName.REMEDIATED, blob_provider)
     try:
-        translated_urls = await run_translation(
-            job.job_id, remediated_bytes, target_language, job.language, blob_provider
-        )
+        with tempfile.TemporaryDirectory() as workspace:
+            remediated_path = Path(workspace) / "remediated.md"
+            remediated_path.write_bytes(remediated_bytes)
+            translated_urls = await run_translation(
+                job.job_id, remediated_path, target_language, job.language, blob_provider
+            )
         if not translated_urls:
             raise ValidationError("Translation produced no downloadable file. Try again, or pick a different target language.")
+    except ValueError as exc:
+        await repo.set_translation_error(job.job_id, str(exc))
+        raise ValidationError(str(exc)) from exc
     except Exception as exc:
         await repo.set_translation_error(job.job_id, str(exc))
         raise
@@ -227,17 +321,12 @@ async def translate_job(
     return updated
 
 
-def _parse_jsonl(data: bytes) -> list[dict[str, object]]:
-    return [json.loads(line) for line in data.decode("utf-8").splitlines() if line.strip()]
-
-
 async def review_summary(job: RemediationJob, blob_provider: BlobStorageProvider) -> dict[str, object]:
     incomplete = False
     diagrams: list[DiagramResponse] = []
     if ArtifactName.ALT in job.artifacts:
         try:
-            data, _ = await artifact_bytes(job, ArtifactName.ALT, blob_provider)
-            for item in _parse_jsonl(data):
+            async for item in _iter_artifact_jsonl(job, ArtifactName.ALT, blob_provider):
                 diagrams.append(
                     DiagramResponse(
                         id=str(item.get("id") or item.get("image_name") or f"diag_{len(diagrams) + 1}"),
@@ -255,8 +344,7 @@ async def review_summary(job: RemediationJob, blob_provider: BlobStorageProvider
     flagged_items: list[FlaggedItemResponse] = []
     if ArtifactName.UNRESOLVED in job.artifacts:
         try:
-            data, _ = await artifact_bytes(job, ArtifactName.UNRESOLVED, blob_provider)
-            for item in _parse_jsonl(data):
+            async for item in _iter_artifact_jsonl(job, ArtifactName.UNRESOLVED, blob_provider):
                 flagged_items.append(
                     FlaggedItemResponse(
                         id=str(item.get("id") or f"flag_{len(flagged_items) + 1}"),
@@ -274,8 +362,7 @@ async def review_summary(job: RemediationJob, blob_provider: BlobStorageProvider
     tables: list[dict[str, object]] = []
     if ArtifactName.REMEDIATION in job.artifacts:
         try:
-            data, _ = await artifact_bytes(job, ArtifactName.REMEDIATION, blob_provider)
-            for item in _parse_jsonl(data):
+            async for item in _iter_artifact_jsonl(job, ArtifactName.REMEDIATION, blob_provider):
                 rule = str(item.get("rule") or "")
                 if rule == "table_summary" or "table" in rule:
                     tables.append(item)
