@@ -1,0 +1,33 @@
+.paginationControl.paginationControl {
+  padding-inline: 12px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.table.table {
+  --table-border-color: var(--seeds-table-border);
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.table.table th {
+  color: var(--seeds-table-header-text);
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-size: 12px;
+  padding-block: 14px;
+}
+
+.table.table th,
+.table.table td {
+  border-bottom: 1px solid var(--table-border-color);
+  padding-inline: 16px;
+}
+
+.table.table td {
+  padding-block: 16px;
+}
+
+.table.table tbody tr:last-child td {
+  border-bottom: none;
+}

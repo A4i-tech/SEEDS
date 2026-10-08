@@ -1,0 +1,163 @@
+import {
+  AppShell as MantineAppShell,
+  Burger,
+  Group,
+  Image,
+  Menu,
+  NavLink,
+  Text,
+  UnstyledButton,
+  useComputedColorScheme,
+  useMantineColorScheme,
+} from '@mantine/core';
+import { useDisclosure } from '@mantine/hooks';
+import {
+  BarChart3,
+  BookOpen,
+  Briefcase,
+  Home,
+  Languages,
+  Microscope,
+  Moon,
+  PlusSquare,
+  ScanEye,
+  Sun,
+  User,
+  Users,
+} from 'lucide-react';
+import { useEffect, useRef } from 'react';
+import { Link, Outlet, useLocation, useMatchRoute, useNavigate } from '@tanstack/react-router';
+import { useTranslation } from 'react-i18next';
+import { useAnalyticsRole } from '@features/analytics/hooks/useAnalytics';
+import { useAuthStore } from '@features/auth/store/useAuthStore';
+import { openConfirmDialog } from '@shared/components/ConfirmDialog';
+
+const destinations = [
+  { to: '/home', key: 'nav.home', Icon: Home },
+  { to: '/library', key: 'nav.library', Icon: BookOpen },
+  { to: '/jobs', key: 'nav.jobs', Icon: Briefcase },
+  { to: '/registration', key: 'nav.registration', Icon: Users },
+  { to: '/analytics', key: 'nav.analytics', Icon: BarChart3 },
+  { to: '/create', key: 'nav.create', Icon: PlusSquare },
+  { to: '/make-accessible', key: 'nav.makeAccessible', Icon: ScanEye },
+  { to: '/localize', key: 'nav.localize', Icon: Languages },
+  { to: '/review', key: 'nav.review', Icon: Microscope },
+] as const;
+
+export function Shell() {
+  const { t } = useTranslation();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const matchRoute = useMatchRoute();
+  const logout = useAuthStore((s) => s.logout);
+  const analyticsRole = useAnalyticsRole();
+  const [mobileOpened, { toggle: toggleMobile, close: closeMobile }] = useDisclosure(false);
+  const [collapsed, { toggle: toggleRail }] = useDisclosure(false);
+  const mainRef = useRef<HTMLElement>(null);
+  const { setColorScheme } = useMantineColorScheme();
+  const computedColorScheme = useComputedColorScheme('light');
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+    mainRef.current?.focus();
+  }, [location.pathname]);
+
+  const confirmSignOut = () => {
+    openConfirmDialog({
+      title: t('account.signOutTitle'),
+      body: t('account.signOutBody'),
+      confirmLabel: t('account.signOutConfirm'),
+      cancelLabel: t('dialog.cancel'),
+      onConfirm: () => {
+        logout();
+        void navigate({ to: '/' });
+      },
+    });
+  };
+
+  return (
+    <MantineAppShell
+      header={{ height: 56 }}
+      navbar={{ width: 240, breakpoint: 'sm', collapsed: { mobile: !mobileOpened, desktop: collapsed } }}
+      padding="xl"
+    >
+      <MantineAppShell.Header>
+        <Group h="100%" px="md" justify="space-between" wrap="nowrap">
+          <Group wrap="nowrap" miw={0}>
+            <Burger
+              hiddenFrom="sm"
+              opened={mobileOpened}
+              onClick={toggleMobile}
+              aria-label={t('nav.menu')}
+              aria-expanded={mobileOpened}
+              size="md"
+            />
+            <Burger
+              visibleFrom="sm"
+              opened={!collapsed}
+              onClick={toggleRail}
+              aria-label={t('nav.menu')}
+              aria-expanded={!collapsed}
+              size="md"
+            />
+            <Group gap="md" wrap="nowrap" miw={0}>
+              <Image src="/seeds-logo.png" alt="SEEDS" h={36} w={36} radius="md" />
+              <Text fw={700} size="md" truncate>
+                SEEDS Content Studio
+              </Text>
+            </Group>
+          </Group>
+          <Menu position="bottom-end">
+            <Menu.Target>
+              <UnstyledButton aria-label={t('account.menu')} p="xs">
+                <User size={20} aria-hidden />
+              </UnstyledButton>
+            </Menu.Target>
+            <Menu.Dropdown>
+              <Menu.Item onClick={() => void navigate({ to: '/account/profile' })}>
+                {t('account.profile')}
+              </Menu.Item>
+              <Menu.Item onClick={() => void navigate({ to: '/account/settings' })}>
+                {t('account.settings')}
+              </Menu.Item>
+              <Menu.Item
+                leftSection={
+                  computedColorScheme === 'dark' ? <Sun size={16} aria-hidden /> : <Moon size={16} aria-hidden />
+                }
+                onClick={() => setColorScheme(computedColorScheme === 'dark' ? 'light' : 'dark')}
+              >
+                {t('account.theme')}
+              </Menu.Item>
+              <Menu.Divider />
+              <Menu.Item onClick={confirmSignOut}>{t('account.signOut')}</Menu.Item>
+            </Menu.Dropdown>
+          </Menu>
+        </Group>
+      </MantineAppShell.Header>
+
+      <MantineAppShell.Navbar p="xs" aria-label="Primary">
+        {destinations
+          .filter(({ to }) => to !== '/analytics' || analyticsRole !== undefined)
+          .map(({ to, key, Icon }) => {
+          const label = t(key);
+          return (
+            <NavLink
+              key={to}
+              label={label}
+              leftSection={<Icon size={20} aria-hidden />}
+              active={Boolean(matchRoute({ to, fuzzy: true }))}
+              aria-label={label}
+              component={Link}
+              to={to}
+              onClick={closeMobile}
+            />
+          );
+        })}
+      </MantineAppShell.Navbar>
+
+      <MantineAppShell.Main ref={mainRef} tabIndex={-1}>
+        <Outlet />
+      </MantineAppShell.Main>
+    </MantineAppShell>
+  );
+}
