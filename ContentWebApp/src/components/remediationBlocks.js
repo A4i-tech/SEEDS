@@ -56,7 +56,7 @@ export function parseImage(raw) {
 }
 
 export function buildImage({ alt, src, description }) {
-  const title = description ? ` "${description.replace(/"/g, "'")}"` : "";
+  const title = description ? ` "${description.replace(/"/g, "'").replace(/\s*\n\s*/g, " ")}"` : "";
   return `![${alt}](${src}${title})`;
 }
 

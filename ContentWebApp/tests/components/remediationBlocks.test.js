@@ -89,6 +89,12 @@ describe("split -> edit one block -> rebuild", () => {
     const editedRaw = buildImage({ ...parsed, description: "A green plant in a clay pot" });
     expect(editedRaw).toBe("![A plant](images/plant.png \"A green plant in a clay pot\")");
   });
+
+  test("buildImage keeps a multi-line description on one line so the image title still parses", () => {
+    const raw = buildImage({ alt: "A", src: "images/a.png", description: "line one\n  line two" });
+    expect(raw).toBe("![A](images/a.png \"line one line two\")");
+    expect(parseImage(raw).description).toBe("line one line two");
+  });
 });
 
 describe("replacePageInDocument", () => {

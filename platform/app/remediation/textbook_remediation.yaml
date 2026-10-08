@@ -157,9 +157,9 @@ steps:
   - agent: safe_extract
     description: "Write alt text and a long description for every figure"
     config:
-      foreach: '(.metadata.book.language // "") as $lang | ([.items[] | select(.metadata.kind != "image") | {(.id): (.metadata.verified.markdown // "")}] | add // {}) as $pages | .items[] | select(.metadata.kind == "image") | . + {book_language: $lang, page_text: ($pages[(.metadata.parent_id // "" | tostring)] // "")}'
+      foreach: '(.metadata.book.language // "") as $lang | .items[] | select(.metadata.kind == "image") | . + {book_language: $lang}'
       input: "[.id]"
-      context: '"Book language: " + (if .book_language == "" then "unknown" else .book_language end) + (if (.page_text // "") == "" then "" else "\nPage text: " + ((.page_text | if length > 1500 then .[0:1500] + "…" else . end)) end)'
+      context: '"Book language: " + (if .book_language == "" then "unknown" else .book_language end)'
       path: ".metadata.accessibility"
       model: ${.config.verify_model}
       concurrency: ${.config.page_concurrency}
@@ -174,11 +174,10 @@ steps:
            description, because a blind student will trust it as fact.
         2. Report the observable result, not only the apparatus. Name every colour change, flame, precipitate, bubble, deposit, glow, and relative volume.
         3. Keep every scientific qualifier exact. Dilute is not concentrated. A solid is not a solution.
-        4. Mark a figure decorative only when it carries no teaching content, such as a border, rule, QR code, barcode, government seal, state emblem, or publisher logo. Set kind to decorative with empty alt_text.
+        4. Mark a figure decorative only when it carries no teaching content, such as a border, rule, QR code, barcode, government seal, state emblem, publisher logo, or a small pictogram beside a heading (a notebook, pencil, or bulb icon). Set kind to decorative with empty alt_text.
         5. When the crop holds only printed caption text and no drawing, set kind to decorative
            with empty alt_text and set review_needed, with review_reason "caption-only crop".
-        6. Use the page text given with this request only to identify labels and subject. Never
-           describe what is not visible in the image.
+        6. Describe only this one image. Never describe what is not visible in it.
 
         Write alt_text and long_description in the book language given with this request. When it is
         unknown, use the language of the text printed in the figure.

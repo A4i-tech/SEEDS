@@ -421,13 +421,6 @@ const RemediationDetails = () => {
                       </button>
                     );
                   }
-                  if (entry.key === "pdf" && job.artifacts.docx && job.status === JOB_STATUS.VERIFIED) {
-                    return (
-                      <span key={entry.key} className="remediation-pdf-unavailable">
-                        PDF unavailable
-                      </span>
-                    );
-                  }
                   return null;
                 })}
               </div>

@@ -39,7 +39,7 @@ function buildRawFromDraft(block, draft) {
   return draft.text;
 }
 
-function AutoGrowTextarea({ value, onChange, className }) {
+function AutoGrowTextarea({ value, onChange, className, autoFocus = true }) {
   const ref = useRef(null);
   useEffect(() => {
     ref.current.style.height = "auto";
@@ -48,7 +48,7 @@ function AutoGrowTextarea({ value, onChange, className }) {
   return (
     <textarea
       ref={ref}
-      autoFocus
+      autoFocus={autoFocus}
       className={className}
       value={value}
       onChange={(e) => onChange(e.target.value)}
@@ -86,7 +86,12 @@ function BlockEditor({ block, onCommit, onCancel }) {
           </label>
           <label className="remediation-block-field">
             Description
-            <input value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} />
+            <AutoGrowTextarea
+              autoFocus={false}
+              className="remediation-block-textarea"
+              value={draft.description}
+              onChange={(description) => setDraft({ ...draft, description })}
+            />
           </label>
         </>
       ) : (

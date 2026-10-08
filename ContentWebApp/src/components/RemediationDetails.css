@@ -164,14 +164,6 @@
 .remediation-verified-badge {
   padding: 6px 12px;
 }
-.remediation-pdf-unavailable {
-  background: var(--color-warning-bg);
-  color: var(--color-warning-fg);
-  border-radius: 999px;
-  padding: 4px 10px;
-  font-size: 12px;
-  font-weight: 600;
-}
 .remediation-error-card {
   border-color: var(--color-danger-bg);
   background: color-mix(in srgb, var(--color-danger-bg) 35%, var(--color-on-accent));
