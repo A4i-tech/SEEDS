@@ -1,4 +1,4 @@
-import { Alert, AppShell, Breadcrumbs, Burger, Chip, createTheme, MultiSelect, Paper, Progress, Select, Tabs, Text } from '@mantine/core';
+import { Alert, AppShell, Breadcrumbs, Burger, Chip, createTheme, MultiSelect, NavLink, Paper, Progress, Select, Tabs, Text } from '@mantine/core';
 import i18n from '../../shared/i18n';
 import classes from './seedsComponents.module.css';
 import { seedsTokens } from './seedsTokens';
@@ -23,6 +23,7 @@ export const seedsTheme = createTheme({
       },
     }),
     Text: Text.extend({ classNames: { root: classes.text } }),
+    NavLink: NavLink.extend({ classNames: { root: classes.navLink, label: classes.navLinkLabel } }),
     Paper: Paper.extend({ defaultProps: { withBorder: true }, classNames: { root: classes.paper } }),
     Alert: Alert.extend({ defaultProps: { color: 'red', variant: 'light' } }),
     Tabs: Tabs.extend({ classNames: { list: classes.tabList, tab: classes.tab } }),
@@ -43,7 +44,7 @@ export const seedsTheme = createTheme({
     sm: `${seedsTokens.textBody}px`,
     md: `${seedsTokens.textH4}px`,
     lg: `${seedsTokens.textH2}px`,
-    xl: '40px',
+    xl: '48px',
   },
   spacing: {
     xs: `${seedsTokens.space1}px`,

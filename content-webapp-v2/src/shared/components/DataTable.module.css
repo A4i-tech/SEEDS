@@ -8,28 +8,24 @@
   --table-border-color: var(--seeds-table-border);
   border-collapse: separate;
   border-spacing: 0;
-  border-radius: 8px;
 }
 
 .table.table th {
-  background-color: var(--seeds-table-header-bg);
   color: var(--seeds-table-header-text);
   text-transform: uppercase;
-  letter-spacing: 2px;
+  letter-spacing: 1px;
   font-size: 12px;
+  padding-block: 14px;
 }
 
 .table.table th,
 .table.table td {
   border-bottom: 1px solid var(--table-border-color);
+  padding-inline: 16px;
 }
 
-.table.table th:first-child {
-  border-top-left-radius: 8px;
-}
-
-.table.table th:last-child {
-  border-top-right-radius: 8px;
+.table.table td {
+  padding-block: 16px;
 }
 
 .table.table tbody tr:last-child td {

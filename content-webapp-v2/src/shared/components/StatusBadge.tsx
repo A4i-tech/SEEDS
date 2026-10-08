@@ -11,7 +11,7 @@ const TONES: Record<StatusTone, { bg: string; c: string }> = {
 
 export function StatusBadge({ tone, label }: { tone: StatusTone; label: string }) {
   return (
-    <Badge {...TONES[tone]} lts={2} radius="xl" size="md">
+    <Badge {...TONES[tone]} lts={2} radius="xl" size="md" style={{ minWidth: 'max-content' }}>
       {label}
     </Badge>
   );

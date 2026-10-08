@@ -146,7 +146,6 @@ export function Shell() {
               label={label}
               leftSection={<Icon size={20} aria-hidden />}
               active={Boolean(matchRoute({ to, fuzzy: true }))}
-              variant="light"
               aria-label={label}
               component={Link}
               to={to}

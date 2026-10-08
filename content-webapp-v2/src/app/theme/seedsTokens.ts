@@ -1,7 +1,7 @@
 export const seedsTokens = {
   fontBody: 'Atkinson Hyperlegible',
-  textH2: 32,
-  textH3: 24,
+  textH2: 40,
+  textH3: 26,
   textH4: 20,
   textBody: 16,
   textCaption: 14,

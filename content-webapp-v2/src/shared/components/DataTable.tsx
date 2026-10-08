@@ -68,7 +68,6 @@ export function DataTable<T>({
       <Table.ScrollContainer minWidth={600}>
         <Table
           highlightOnHover
-          withTableBorder
           withRowBorders={false}
           aria-busy={loading || undefined}
           className={classes.table}

@@ -20,18 +20,41 @@
 .tabList.tabList {
   flex-wrap: nowrap;
   overflow-x: auto;
+  gap: var(--mantine-spacing-lg);
 }
 
 .tab.tab {
-  color: var(--seeds-text-primary);
+  color: var(--mantine-color-dimmed);
   font-size: var(--mantine-font-size-sm);
-  font-weight: 700;
+  font-weight: 500;
   white-space: nowrap;
 }
 
 .tab.tab[data-active] {
   color: var(--seeds-subnav-text-active);
+  font-weight: 700;
   border-bottom-color: var(--seeds-brandmark-bg);
+}
+
+.navLink.navLink {
+  border-radius: var(--mantine-radius-md);
+  padding-block: var(--mantine-spacing-sm);
+  color: var(--seeds-text-primary);
+  margin-block-end: var(--mantine-spacing-xs);
+}
+
+.navLink.navLink[data-active] {
+  background-color: var(--seeds-subnav-bg-active);
+  color: var(--seeds-subnav-text-active);
+}
+
+.navLink.navLink[data-active]:hover {
+  background-color: var(--seeds-subnav-bg-active);
+}
+
+.navLinkLabel.navLinkLabel {
+  font-size: var(--mantine-font-size-sm);
+  font-weight: 700;
 }
 
 .chipLabel.chipLabel {
