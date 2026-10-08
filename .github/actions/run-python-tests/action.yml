@@ -4,11 +4,20 @@ inputs:
   directory:
     description: "Directory of the Python project"
     required: true
+  coverage_threshold:
+    description: "Optional minimum total coverage percentage required (fails the build below this, via pytest-cov --cov-fail-under)"
+    required: false
+    default: ""
 runs:
   using: composite
   steps:
     - name: Run tests with coverage
       run: |
         cd ${{ inputs.directory }}
-        poetry run pytest --ignore=tests/e2e --cov=. --cov-report=html --cov-report=xml --cov-report=json --cov-report=term
+        THRESHOLD="${{ inputs.coverage_threshold }}"
+        if [ -n "$THRESHOLD" ]; then
+          poetry run pytest --ignore=tests/e2e --cov=. --cov-report=html --cov-report=xml --cov-report=json --cov-report=term --cov-fail-under="$THRESHOLD"
+        else
+          poetry run pytest --ignore=tests/e2e --cov=. --cov-report=html --cov-report=xml --cov-report=json --cov-report=term
+        fi
       shell: bash

@@ -67,6 +67,7 @@ jobs:
         uses: ./.github/actions/run-python-tests
         with:
           directory: ${{ matrix.service.context }}
+          coverage_threshold: ${{ matrix.service.name == 'platform' && '80' || '' }}
 
       - name: Test (Node.js)
         if: matrix.service.lang == 'node'
