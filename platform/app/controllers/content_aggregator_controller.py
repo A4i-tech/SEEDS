@@ -9,30 +9,68 @@ JSON responses are snake_case.
 
 from __future__ import annotations
 
-import json
 import logging
+from collections.abc import AsyncIterator, Callable
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
+from pymongo.asynchronous.database import AsyncDatabase
 
-from app.models.user import UserRole
-from app.platform.auth.dependencies import get_current_user
-from app.platform.error_handling import (
-    ConflictError,
-    ForbiddenError,
-    NotFoundError,
-    ValidationError,
+from app.aggregators.models import SourceType
+from app.aggregators.sync_job_models import SyncOptions, SyncScope
+from app.models.requests.content_aggregator_sync_requests import (
+    ProblemBlockEditRequest,
+    SyncAllRequest,
+    SyncCourseRequest,
 )
+from app.models.responses.content_aggregator import (
+    CourseListResponse,
+    DeletedCountResponse,
+    ModifiedCountResponse,
+    SyncAllJobsResponse,
+    SyncJobIdResponse,
+    SyncJobItemsPageResponse,
+    SyncJobListResponse,
+    SyncJobResponse,
+)
+from app.models.user import UserRole
+from app.platform.auth.dependencies import get_current_user, get_db
+from app.platform.error_handling import ConflictError, ForbiddenError, NotFoundError
 from app.providers.service_bus import service_bus_provider
+from app.serializers.subodha_serializer import LegacyCourseDoc
+from app.services.content_aggregator_source_service import (
+    ContentAggregatorSourceService,
+    CourseDiffResult,
+    LiveCourse,
+)
 from app.services.content_aggregator_sync_jobs import SyncJobService, get_sync_job_service
-from app.services.subodha_service import CourseDiffResult, SubodhaService, get_subodha_service
+from app.services.hexis_service import get_hexis_service
+from app.services.subodha_service import get_subodha_service
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/content-aggregators", tags=["Content Aggregators"])
 
-SOURCE_TYPE = "subodha"
+_SERVICE_FACTORIES: dict[SourceType, Callable[[AsyncDatabase], ContentAggregatorSourceService]] = {
+    SourceType.SUBODHA: get_subodha_service,
+    SourceType.HEXIS: get_hexis_service,
+}
+# HEXIS is a one-time pull; sync-all only fans out over push sources.
+_SYNC_ALL_SOURCES = (SourceType.SUBODHA,)
+
+
+def _valid_source(source: str) -> SourceType:
+    try:
+        return SourceType(source)
+    except ValueError:
+        raise NotFoundError("content aggregator source", source) from None
+
+
+def _source_service(
+    source: SourceType = Depends(_valid_source), db: AsyncDatabase = Depends(get_db)
+) -> ContentAggregatorSourceService:
+    return _SERVICE_FACTORIES[source](db)
 
 
 async def _wake_sync_job_consumer(job_id: str) -> None:
@@ -59,109 +97,123 @@ async def _require_aggregator_access(user: dict[str, Any] = Depends(get_current_
     return user
 
 
-@router.get("/diff", summary="Diff live Subodha courses against stored courses")
-async def get_diff(
-    user: dict[str, Any] = Depends(_require_tenant),
-    service: SubodhaService = Depends(get_subodha_service),
-) -> CourseDiffResult:
-    return await service.get_course_diff(user.get("tenant_id", ""))
+async def _assert_no_active_all_sync(sync_jobs: SyncJobService, tenant_id: str, source: SourceType) -> None:
+    if await sync_jobs.has_active_all_sync(tenant_id, source):
+        raise ConflictError(f"A {source} sync-all job")
 
 
-@router.post("/sync", status_code=202, summary="Start a full (or new-only) course sync")
-async def start_sync(
-    body: dict[str, Any] | None = None,
-    user: dict[str, Any] = Depends(_require_tenant),
-    sync_jobs: SyncJobService = Depends(get_sync_job_service),
-) -> dict[str, str]:
-    body = body or {}
-    tenant_id = user.get("tenant_id", "")
-    if await sync_jobs.has_active_all_sync(tenant_id, SOURCE_TYPE):
-        raise ConflictError("A Subodha sync-all job")
-    limit = body.get("limit")
-    if limit is not None and not isinstance(limit, int):
-        raise ValidationError("limit must be an integer")
-    options = {"only_new": bool(body.get("onlyNew", False)), "dry_run": bool(body.get("dryRun", False)), "limit": limit}
+async def _enqueue_all_sync(
+    sync_jobs: SyncJobService, tenant_id: str, source: SourceType, body: SyncAllRequest
+) -> str:
     job = await sync_jobs.create_job(
-        tenant_id=tenant_id, source_type=SOURCE_TYPE, scope="all", source_id=None, total_items=0, options=options,
+        tenant_id=tenant_id, source_type=source, scope=SyncScope.ALL, source_id="", total_items=0,
+        options=SyncOptions(only_new=body.only_new, dry_run=body.dry_run, limit=body.limit),
     )
     await _wake_sync_job_consumer(job.job_id)
-    return {"job_id": job.job_id}
+    return job.job_id
 
 
-@router.get("/courses", summary="List synced courses (cursor pagination)")
+@router.get("/{source}/diff", summary="Diff live courses against stored courses for a source")
+async def get_diff(
+    user: dict[str, Any] = Depends(_require_tenant),
+    service: ContentAggregatorSourceService = Depends(_source_service),
+) -> CourseDiffResult[LiveCourse]:
+    return await service.get_course_diff(user["tenant_id"])
+
+
+@router.post("/sync", status_code=202, summary="Start a full (or new-only) sync on every source")
+async def start_sync_all_sources(
+    body: SyncAllRequest,
+    user: dict[str, Any] = Depends(_require_tenant),
+    sync_jobs: SyncJobService = Depends(get_sync_job_service),
+) -> SyncAllJobsResponse:
+    tenant_id = user["tenant_id"]
+    for source in _SYNC_ALL_SOURCES:
+        await _assert_no_active_all_sync(sync_jobs, tenant_id, source)
+    return SyncAllJobsResponse(
+        job_ids={source: await _enqueue_all_sync(sync_jobs, tenant_id, source, body) for source in _SYNC_ALL_SOURCES}
+    )
+
+
+@router.post("/{source}/sync", status_code=202, summary="Start a full (or new-only) course sync for a source")
+async def start_sync(
+    body: SyncAllRequest,
+    source: SourceType = Depends(_valid_source),
+    user: dict[str, Any] = Depends(_require_tenant),
+    sync_jobs: SyncJobService = Depends(get_sync_job_service),
+) -> SyncJobIdResponse:
+    tenant_id = user["tenant_id"]
+    await _assert_no_active_all_sync(sync_jobs, tenant_id, source)
+    return SyncJobIdResponse(job_id=await _enqueue_all_sync(sync_jobs, tenant_id, source, body))
+
+
+@router.get("/{source}/courses", summary="List synced courses for a source (cursor pagination)")
 async def list_courses(
     limit: int = Query(20, ge=1, le=200),
-    cursor: str | None = None,
+    cursor: str = "",
     user: dict[str, Any] = Depends(_require_aggregator_access),
-    service: SubodhaService = Depends(get_subodha_service),
-) -> dict[str, Any]:
-    all_courses = await service.get_content_list(user.get("tenant_id", ""), cursor=cursor, limit=limit)
+    service: ContentAggregatorSourceService = Depends(_source_service),
+) -> CourseListResponse:
+    all_courses = await service.get_content_list(user["tenant_id"], cursor=cursor, limit=limit)
     has_more = len(all_courses) > limit
     courses = all_courses[:limit]
-    next_cursor = courses[-1]["id"] if has_more and courses else None
-    return {"courses": courses, "next_cursor": next_cursor, "has_more": has_more}
+    return CourseListResponse(
+        courses=courses, next_cursor=courses[-1].id if has_more else "", has_more=has_more
+    )
 
 
-@router.get("/courses/{course_id}", summary="Get a synced course's full content (blocks) for viewing")
+@router.get("/{source}/courses/{course_id}", summary="Get a synced course's full content (blocks) for viewing")
 async def get_course(
     course_id: str,
     user: dict[str, Any] = Depends(_require_aggregator_access),
-    service: SubodhaService = Depends(get_subodha_service),
-) -> dict[str, Any]:
-    doc = await service.get_course(user.get("tenant_id", ""), course_id)
-    if doc is None:
-        raise NotFoundError("Subodha course", course_id)
-    return doc.to_dict()
+    service: ContentAggregatorSourceService = Depends(_source_service),
+) -> LegacyCourseDoc:
+    return await service.get_course(user["tenant_id"], course_id)
 
 
-@router.delete("/courses/{course_id}", summary="Delete a synced course's local copy (does not touch Subodha)")
+@router.delete("/{source}/courses/{course_id}", summary="Delete a synced course's local copy (does not touch the source)")
 async def delete_course(
     course_id: str,
     user: dict[str, Any] = Depends(_require_tenant),
-    service: SubodhaService = Depends(get_subodha_service),
-) -> dict[str, int]:
-    deleted = await service.delete_course(user.get("tenant_id", ""), course_id)
-    if not deleted:
-        raise NotFoundError("Subodha course", course_id)
-    return {"deleted": deleted}
+    service: ContentAggregatorSourceService = Depends(_source_service),
+) -> DeletedCountResponse:
+    return DeletedCountResponse(deleted=await service.delete_course(user["tenant_id"], course_id))
 
 
 @router.patch(
-    "/courses/{course_id}/blocks/{block_id}",
+    "/{source}/courses/{course_id}/blocks/{block_id}",
     summary="Edit a problem block's question/choices in place (overwritten by the next sync)",
 )
 async def update_problem_block(
     course_id: str,
     block_id: str,
-    body: dict[str, Any],
+    body: ProblemBlockEditRequest,
     user: dict[str, Any] = Depends(_require_tenant),
-    service: SubodhaService = Depends(get_subodha_service),
-) -> dict[str, int]:
-    modified = await service.update_problem_block(
-        user.get("tenant_id", ""), course_id, block_id, body.get("question", ""), body.get("choices", [])
+    service: ContentAggregatorSourceService = Depends(_source_service),
+) -> ModifiedCountResponse:
+    await service.update_problem_block(
+        user["tenant_id"], course_id, block_id, body.question, [choice.model_dump() for choice in body.choices]
     )
-    if not modified:
-        raise NotFoundError("Subodha block", block_id)
-    return {"modified": modified}
+    return ModifiedCountResponse(modified=1)
 
 
-@router.post("/sync/course/{course_id}", status_code=202, summary="Sync a single course")
+@router.post("/{source}/sync/course/{course_id}", status_code=202, summary="Sync a single course")
 async def sync_course(
     course_id: str,
-    body: dict[str, Any] | None = None,
+    body: SyncCourseRequest,
+    source: SourceType = Depends(_valid_source),
     user: dict[str, Any] = Depends(_require_aggregator_access),
     sync_jobs: SyncJobService = Depends(get_sync_job_service),
-) -> dict[str, str]:
-    body = body or {}
-    tenant_id = user.get("tenant_id", "")
-    if await sync_jobs.has_active_course_sync(tenant_id, SOURCE_TYPE, course_id):
+) -> SyncJobIdResponse:
+    tenant_id = user["tenant_id"]
+    if await sync_jobs.has_active_course_sync(tenant_id, source, course_id):
         raise ConflictError(f'A sync for course "{course_id}"')
-    options = {"dry_run": bool(body.get("dryRun", False))}
     job = await sync_jobs.create_job(
-        tenant_id=tenant_id, source_type=SOURCE_TYPE, scope="course", source_id=course_id, total_items=1, options=options,
+        tenant_id=tenant_id, source_type=source, scope=SyncScope.COURSE, source_id=course_id, total_items=1,
+        options=SyncOptions(dry_run=body.dry_run),
     )
     await _wake_sync_job_consumer(job.job_id)
-    return {"job_id": job.job_id}
+    return SyncJobIdResponse(job_id=job.job_id)
 
 
 @router.get("/sync/status/{job_id}", summary="Get sync job status")
@@ -169,53 +221,42 @@ async def get_sync_status(
     job_id: str,
     user: dict[str, Any] = Depends(_require_aggregator_access),
     sync_jobs: SyncJobService = Depends(get_sync_job_service),
-) -> dict[str, Any]:
-    tenant_id = user.get("tenant_id", "")
-    status = await sync_jobs.get_job_status(tenant_id, job_id)
-    if status is None:
-        raise NotFoundError("Job", job_id)
-    return status
+) -> SyncJobResponse:
+    return await sync_jobs.get_job_status(user["tenant_id"], job_id)
 
 
 @router.get("/sync/status/{job_id}/items", summary="Paginated per-item sync results for a job")
 async def get_sync_job_items(
     job_id: str,
     limit: int = Query(20, ge=1, le=200),
-    after: str | None = None,
+    after: str = "",
     user: dict[str, Any] = Depends(_require_aggregator_access),
     sync_jobs: SyncJobService = Depends(get_sync_job_service),
-) -> dict[str, Any]:
-    tenant_id = user.get("tenant_id", "")
-    page = await sync_jobs.get_job_items_page(tenant_id, job_id, limit=limit, after=after)
-    if page is None:
-        raise NotFoundError("Job", job_id)
-    items, next_cursor, total = page
-    return {"items": [i.to_doc() for i in items], "next_cursor": next_cursor, "total": total}
+) -> SyncJobItemsPageResponse:
+    items, next_cursor, total = await sync_jobs.get_job_items_page(user["tenant_id"], job_id, limit=limit, after=after)
+    return SyncJobItemsPageResponse(items=items, next_cursor=next_cursor, total=total)
 
 
 @router.get("/sync/jobs", summary="List past sync jobs (history)")
 async def get_sync_jobs(
     limit: int = Query(20, ge=1, le=200),
-    scope: str | None = None,
-    course_id: str | None = None,
+    scope: SyncScope | None = None,
+    course_id: str = "",
     user: dict[str, Any] = Depends(_require_tenant),
     sync_jobs: SyncJobService = Depends(get_sync_job_service),
-) -> dict[str, Any]:
-    tenant_id = user.get("tenant_id", "")
-    payloads = await sync_jobs.list_jobs_with_stats(
-        tenant_id, SOURCE_TYPE, limit=limit, scope=scope, source_id=course_id,
+) -> SyncJobListResponse:
+    jobs = await sync_jobs.list_jobs_with_stats(
+        user["tenant_id"], None, limit=limit, scope=scope, source_id=course_id,
     )
-    return {"jobs": payloads}
+    return SyncJobListResponse(jobs=jobs)
 
 
 @router.get("/sync/jobs/active", summary="List currently-running sync jobs (for resume after logout/login)")
 async def get_active_jobs(
     user: dict[str, Any] = Depends(_require_tenant),
     sync_jobs: SyncJobService = Depends(get_sync_job_service),
-) -> dict[str, Any]:
-    tenant_id = user.get("tenant_id", "")
-    payloads = await sync_jobs.get_active_jobs_with_stats(tenant_id, SOURCE_TYPE)
-    return {"jobs": payloads}
+) -> SyncJobListResponse:
+    return SyncJobListResponse(jobs=await sync_jobs.get_active_jobs_with_stats(user["tenant_id"], None))
 
 
 @router.get("/sync/stream/{job_id}", summary="SSE stream of live job progress")
@@ -224,10 +265,10 @@ async def stream_job(
     user: dict[str, Any] = Depends(_require_aggregator_access),
     sync_jobs: SyncJobService = Depends(get_sync_job_service),
 ) -> StreamingResponse:
-    tenant_id = user.get("tenant_id", "")
+    tenant_id = user["tenant_id"]
 
-    async def _format() -> Any:
+    async def _format() -> AsyncIterator[str]:
         async for event in sync_jobs.subscribe(tenant_id, job_id):
-            yield f"data: {json.dumps(event, default=str)}\n\n"
+            yield f"data: {event.model_dump_json()}\n\n"
 
     return StreamingResponse(_format(), media_type="text/event-stream")

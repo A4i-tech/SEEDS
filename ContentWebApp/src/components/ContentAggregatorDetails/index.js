@@ -6,7 +6,7 @@ import { FlatBlockNavigator } from "./FlatBlockNavigator";
 import { OutlineNavigator } from "./OutlineNavigator";
 import "./ContentAggregatorDetails.css";
 
-const ContentAggregatorDetails = ({ courseId, onBack }) => {
+const ContentAggregatorDetails = ({ courseId, source, onBack }) => {
   const [course, setCourse] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -15,14 +15,14 @@ const ContentAggregatorDetails = ({ courseId, onBack }) => {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await contentAggregatorService.getCourse(courseId);
+      const data = await contentAggregatorService.getCourse(courseId, source);
       setCourse(data);
     } catch (err) {
       setError(err.message);
     } finally {
       setIsLoading(false);
     }
-  }, [courseId]);
+  }, [courseId, source]);
 
   useEffect(() => {
     load();
@@ -71,6 +71,7 @@ const ContentAggregatorDetails = ({ courseId, onBack }) => {
           outline={course.outline}
           blockMap={blockMap}
           courseId={courseId}
+          source={source}
           courseTitle={course.title}
           onBlockChange={handleBlockChange}
           onBackToContent={onBack}
@@ -80,6 +81,7 @@ const ContentAggregatorDetails = ({ courseId, onBack }) => {
           <FlatBlockNavigator
             blocks={course.blocks}
             courseId={courseId}
+            source={source}
             courseTitle={course.title}
             onBlockChange={handleBlockChange}
             onBack={onBack}

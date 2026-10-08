@@ -12,12 +12,12 @@ from collections.abc import Callable
 from typing import ClassVar
 
 from app.aggregators.content_strategies import STRATEGY_REGISTRY
-from app.aggregators.models import BlobContext, CanonicalNode, NodeKind, RawItemPayload
+from app.aggregators.models import BlobContext, CanonicalNode, NodeKind, SourceType
 from app.providers.blob_storage import BlobStorageProvider
 
 
 class SourceAdapter(abc.ABC):
-    source_type: ClassVar[str]
+    source_type: ClassVar[SourceType]
 
     @abc.abstractmethod
     def build_canonical_nodes(
@@ -36,16 +36,15 @@ class SourceAdapter(abc.ABC):
         processed: list[CanonicalNode] = []
         for node in nodes:
             if node.node_kind == NodeKind.ITEM:
-                raw: RawItemPayload = getattr(node, "raw", None)
                 strategy = STRATEGY_REGISTRY[node.item_type]
-                node.content = await strategy.process(raw, ctx_factory(node), blob)
+                node.content = await strategy.process(node.raw, ctx_factory(node), blob)
             processed.append(node)
         return processed
 
     def compute_content_hash(self, nodes: list[CanonicalNode]) -> str:
         items = sorted(
             (
-                {"source_id": n.source_id, "item_type": n.item_type.value, "raw": getattr(n, "raw", None)}
+                {"source_id": n.source_id, "item_type": n.item_type.value, "raw": n.raw}
                 for n in nodes
                 if n.node_kind == NodeKind.ITEM
             ),

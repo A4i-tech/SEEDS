@@ -127,7 +127,7 @@ const SyncHistoryPage = () => {
         <div className="card-header">
           <div>
             <div className="card-title">Sync History</div>
-            <div className="card-description">Past and in-progress Subodha sync runs</div>
+            <div className="card-description">Past and in-progress content sync runs</div>
           </div>
         </div>
 

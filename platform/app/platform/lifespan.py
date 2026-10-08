@@ -12,22 +12,38 @@ Shutdown:
 from __future__ import annotations
 
 import asyncio
+import base64
 import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from fastapi import FastAPI
 
+from app.consumers.audio_analysis_consumer import AudioAnalysisConsumer
+from app.consumers.audio_recording_consumer import AudioRecordingConsumer
+from app.consumers.call_event_consumer import CallEventConsumer
+from app.consumers.call_webhook_consumer import CallWebhookConsumer
+from app.consumers.content_job_consumer import ContentJobConsumer
+from app.consumers.dtmf_consumer import DtmfConsumer
+from app.consumers.sync_job_consumer import SyncJobConsumer
 from app.platform.database import close_database, get_database, init_database
 from app.platform.settings import get_settings
+from app.providers.hexis_client import close_hexis_client
+from app.providers.smartphone_connection import SmartphoneConnectionManagerFactory
 from app.providers.subodha_client import close_subodha_client
+from app.providers.vonage_api import VonageAPIProvider
+from app.providers.websocket_client import WebsocketClientProvider
 from app.repositories.content_aggregator_sync_job_repository import (
     ContentAggregatorSyncJobRepository,
 )
-
-if TYPE_CHECKING:
-    from app.services.conference_service import ConferenceCallManager
+from app.repositories.integration_client_repository import IntegrationClientRepository
+from app.repositories.integration_token_repository import IntegrationTokenRepository
+from app.repositories.user_refresh_token_repository import UserRefreshTokenRepository
+from app.repositories.website_repository import WebsiteRepository
+from app.services.conference_service import ConferenceCallManager
+from app.services.hexis_service import get_hexis_service
+from app.services.subodha_service import get_subodha_service
 
 logger = logging.getLogger(__name__)
 
@@ -54,21 +70,14 @@ def _init_conference_manager() -> ConferenceCallManager:
 
     settings = get_settings()
 
-    import base64
-
-    from app.providers.smartphone_connection import (
-        SmartphoneConnectionManagerFactory,  # noqa: PLC0415
-    )
-    from app.providers.vonage_api import VonageAPIProvider  # noqa: PLC0415
-    from app.services.conference_service import ConferenceCallManager  # noqa: PLC0415
-
     # Decode base64 private key if set
     private_key_raw = settings.vonage_conference_application_private_key64
     private_key: str
     if private_key_raw:
         try:
             private_key = base64.b64decode(private_key_raw).decode()
-        except Exception:
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Conference private key is not base64; using raw value: %s", exc)
             private_key = private_key_raw  # Already PEM
     else:
         private_key = ""
@@ -107,47 +116,42 @@ def _make_consumer_tasks(conference_manager: Any) -> list[asyncio.Task]:  # type
     Each consumer is wrapped in its own try/except so a single failed import
     or constructor does not prevent the remaining consumers from starting.
     """
-    from app.platform.database import get_database  # noqa: PLC0415
-
     db = get_database()
 
     consumer_specs: list[tuple[str, Any]] = []
 
     try:
-        from app.consumers.audio_recording_consumer import AudioRecordingConsumer  # noqa: PLC0415
         consumer_specs.append(("AudioRecordingConsumer", AudioRecordingConsumer()))
     except Exception as exc:  # noqa: BLE001
         logger.error("Failed to initialise AudioRecordingConsumer: %s", exc)
 
     try:
-        from app.consumers.audio_analysis_consumer import AudioAnalysisConsumer  # noqa: PLC0415
         consumer_specs.append(("AudioAnalysisConsumer", AudioAnalysisConsumer(conference_manager=conference_manager)))
     except Exception as exc:  # noqa: BLE001
         logger.error("Failed to initialise AudioAnalysisConsumer: %s", exc)
 
     try:
-        from app.consumers.call_event_consumer import CallEventConsumer  # noqa: PLC0415
         consumer_specs.append(("CallEventConsumer", CallEventConsumer()))
     except Exception as exc:  # noqa: BLE001
         logger.error("Failed to initialise CallEventConsumer: %s", exc)
 
     try:
-        from app.consumers.dtmf_consumer import DtmfConsumer  # noqa: PLC0415
         consumer_specs.append(("DtmfConsumer", DtmfConsumer()))
     except Exception as exc:  # noqa: BLE001
         logger.error("Failed to initialise DtmfConsumer: %s", exc)
 
     try:
-        from app.consumers.call_webhook_consumer import CallWebhookConsumer  # noqa: PLC0415
         consumer_specs.append(("CallWebhookConsumer", CallWebhookConsumer()))
     except Exception as exc:  # noqa: BLE001
         logger.error("Failed to initialise CallWebhookConsumer: %s", exc)
 
     try:
-        from app.consumers.content_job_consumer import ContentJobConsumer  # noqa: PLC0415
         consumer_specs.append(("ContentJobConsumer", ContentJobConsumer(db)))
     except Exception as exc:  # noqa: BLE001
         logger.error("Failed to initialise ContentJobConsumer: %s", exc)
+
+    consumer_specs.append(("SubodhaSyncJobConsumer", SyncJobConsumer(get_subodha_service(db))))
+    consumer_specs.append(("HexisSyncJobConsumer", SyncJobConsumer(get_hexis_service(db))))
 
     tasks: list[asyncio.Task] = []  # type: ignore[type-arg]
     for name, consumer in consumer_specs:
@@ -174,17 +178,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     reconciled = await ContentAggregatorSyncJobRepository(get_database()).reconcile_interrupted_jobs()
     if reconciled:
         logger.info("Reconciled %d interrupted content aggregator sync jobs", reconciled)
-
-    from app.repositories.integration_client_repository import (  # noqa: PLC0415
-        IntegrationClientRepository,
-    )
-    from app.repositories.integration_token_repository import (  # noqa: PLC0415
-        IntegrationTokenRepository,
-    )
-    from app.repositories.user_refresh_token_repository import (  # noqa: PLC0415
-        UserRefreshTokenRepository,
-    )
-    from app.repositories.website_repository import WebsiteRepository  # noqa: PLC0415
 
     await WebsiteRepository.ensure_indexes(get_database())
     await IntegrationClientRepository.ensure_indexes(get_database())
@@ -213,7 +206,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     ws_client = None
     if conf_mgr is not None:
         try:
-            from app.providers.websocket_client import WebsocketClientProvider  # noqa: PLC0415
             ws_client = WebsocketClientProvider()
             await ws_client.initialize(conf_mgr)
         except Exception as exc:  # noqa: BLE001
@@ -252,6 +244,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     try:
         await close_subodha_client()
+        await close_hexis_client()
     except Exception as exc:
         logger.warning("Subodha client close failed: %s", exc)
 
