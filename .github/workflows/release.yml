@@ -1,0 +1,91 @@
+name: Release
+
+on:
+  push:
+    branches: [a4i/main]
+
+jobs:
+  tag-and-release:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: tag
+        name: CalVer tag, suffixed with short SHA on same-day repeat release
+        run: |
+          existing=$(git tag --points-at HEAD)
+          if [ -n "$existing" ]; then
+            echo "tag=$existing" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          tag="v$(date +%Y.%m.%d)"
+          if git rev-parse "$tag" >/dev/null 2>&1; then
+            tag="${tag}-$(git rev-parse --short HEAD)"
+          fi
+          git tag "$tag"
+          git push origin "$tag"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+      - env:
+          GH_TOKEN: ${{ secrets.RELEASE_BOT_PAT }}
+        run: gh release create "${{ steps.tag.outputs.tag }}" --target "${{ github.sha }}" --generate-notes
+
+  smoke-test:
+    needs: tag-and-release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for prod to report the new tag
+        env:
+          TAG: ${{ needs.tag-and-release.outputs.tag }}
+          SMOKE_TEST_URL: ${{ vars.SMOKE_TEST_URL }}
+        run: |
+          if [ -z "$SMOKE_TEST_URL" ]; then
+            echo "SMOKE_TEST_URL repo variable not set, skipping smoke test." >&2
+            exit 0
+          fi
+          for _ in $(seq 1 30); do
+            live=$(curl -fsS "$SMOKE_TEST_URL" 2>/dev/null || true)
+            [ "$live" = "$TAG" ] && exit 0
+            sleep 30
+          done
+          echo "prod still not reporting $TAG after 15m" >&2
+          exit 1
+
+  back-sync:
+    needs: tag-and-release
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_BOT_PAT }}
+      - name: Sync main back onto staging (opens PR, never pushes to staging directly)
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_BOT_PAT }}
+        run: |
+          git fetch origin a4i/staging a4i/main
+          pending=$(git rev-list --no-merges origin/a4i/staging..origin/a4i/main)
+          if [ -z "$pending" ]; then
+            exit 0
+          fi
+          git config user.email "release-bot@a4i-lab.in"
+          git config user.name "a4i-release-bot"
+          branch="sync/main-$(git rev-parse --short origin/a4i/main)"
+          git checkout -b "$branch" origin/a4i/staging
+          if git merge origin/a4i/main --no-edit; then
+            git push origin "$branch"
+            gh pr create --base a4i/staging --head "$branch" \
+              --title "Sync: a4i/main -> a4i/staging" \
+              --body "Automatic back-sync after a push to a4i/main. Merge via Create a merge commit, do not squash."
+          else
+            git merge --abort
+            git checkout -B "$branch" origin/a4i/main
+            git push origin "$branch" --force
+            gh pr create --base a4i/staging --head "$branch" \
+              --title "Sync: a4i/main -> a4i/staging (conflict)" \
+              --label needs-resolution \
+              --body "This branch is origin/a4i/main as-is, a plain merge into staging conflicted. Pull this branch, run \`git merge origin/a4i/staging\`, resolve, push, then merge via Create a merge commit. Do not force-push staging or main."
+          fi

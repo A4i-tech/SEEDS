@@ -1,0 +1,54 @@
+name: Ancestry Watch
+
+on:
+  push:
+    branches: [a4i/main, a4i/staging]
+  schedule:
+    - cron: "0 * * * *"
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Confirm a4i/main's own merge rule hasn't been loosened
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_BOT_PAT }}
+        run: |
+          bypass=$(gh api "repos/${{ github.repository }}/rulesets/7400719" --jq 'if .bypass_actors == null then "missing" else (.bypass_actors | length | tostring) end')
+          methods=$(gh api "repos/${{ github.repository }}/rulesets/7400719" --jq '[.rules[] | select(.type=="pull_request") | .parameters.allowed_merge_methods[]] | sort | join(",")')
+          if [ "$bypass" != "0" ]; then
+            echo "a4i/main ruleset bypass_actors is non-empty." >&2
+            exit 1
+          fi
+          if [ "$methods" != "merge" ]; then
+            echo "a4i/main ruleset allows merge methods beyond merge-commit: $methods" >&2
+            exit 1
+          fi
+      - name: Confirm commits unique to main are all merge commits (no squash/rebase/direct push)
+        env:
+          # Tip of a4i/main right after the 2026-10-08 staging/main resync (#540 incident fix).
+          # Merge-commit-only enforcement starts from here; history before it predates the rule.
+          BASELINE: 4c2cf9c085ad5ddeafb3bbe9af302b5ce8afc541
+        run: |
+          git fetch origin a4i/main
+          bad=$(git rev-list --first-parent --no-merges "$BASELINE..origin/a4i/main")
+          if [ -n "$bad" ]; then
+            echo "Non-merge commit(s) found on a4i/main's first-parent chain: $bad" >&2
+            exit 1
+          fi
+      - name: File or update an issue on failure
+        if: failure()
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_BOT_PAT }}
+        run: |
+          title="Ancestry watch is failing"
+          run_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          number=$(gh issue list --state open --search "in:title $title" --json number,title --jq ".[] | select(.title==\"$title\") | .number" | head -1)
+          if [ -n "$number" ]; then
+            gh issue comment "$number" --body "Still failing: $run_url"
+          else
+            gh issue create --title "$title" --body "Run: $run_url"
+          fi
