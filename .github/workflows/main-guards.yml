@@ -1,0 +1,38 @@
+name: Main Guards
+
+on:
+  pull_request:
+    branches: [a4i/main]
+
+jobs:
+  source-guard:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Only staging or hotfix branches may target main
+        env:
+          REF: ${{ github.head_ref }}
+        run: |
+          case "$REF" in
+            a4i/staging|hotfix/*|sync/*) exit 0 ;;
+            *) echo "PRs into a4i/main must come from a4i/staging, hotfix/*, or sync/* (back-sync), got: $REF" >&2; exit 1 ;;
+          esac
+
+  ancestry-gate:
+    # Content check not --is-ancestor: a release merge commit is never reachable from
+    # staging by hash, so ancestry would false-block every release, not just hotfixes.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Block release until any hotfix on main is synced back to staging
+        if: github.head_ref == 'a4i/staging'
+        run: |
+          git fetch origin a4i/staging a4i/main
+          pending=$(git rev-list --no-merges origin/a4i/staging..origin/a4i/main)
+          if [ -z "$pending" ]; then
+            exit 0
+          fi
+          echo "a4i/main has commits not yet reflected on a4i/staging: $pending" >&2
+          echo "Merge the pending back-sync PR first." >&2
+          exit 1
