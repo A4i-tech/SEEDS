@@ -57,6 +57,7 @@ export function useLibrary() {
     mutationFn: updateIvr,
     onSuccess: (data) => {
       notifications.show({ message: data.message || t('library.ivrUpdated') });
+      void queryClient.invalidateQueries({ queryKey: ['ivr'] });
     },
     onError: notifyApiError,
   });

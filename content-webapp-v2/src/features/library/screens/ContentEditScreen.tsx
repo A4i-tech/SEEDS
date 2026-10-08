@@ -3,7 +3,7 @@ import { useForm } from '@mantine/form';
 import { zodResolver } from 'mantine-form-zod-resolver';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@features/auth/store/useAuthStore';
 import { useLanguages } from '@shared/hooks/useLanguages';
 import { toApiState } from '@shared/utils/apiState';
@@ -25,6 +25,7 @@ type EditValues = {
 function EditForm({ item }: { item: ContentItem }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { state: languagesState, options } = useLanguages();
 
 
@@ -56,6 +57,7 @@ function EditForm({ item }: { item: ContentItem }) {
         audioUploaded,
       ),
     onSuccess: (updated) => {
+      void queryClient.invalidateQueries({ queryKey: libraryKeys.contentDetail(updated.id) });
       void navigate({ to: '/library/$kind/$id', params: { kind: updated.type, id: updated.id } });
     },
   });
