@@ -2,11 +2,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from '@tanstack/react-router';
-import { routePaths } from '@app/navigation/routePaths';
 import { useAuthStore } from '@features/auth/store/useAuthStore';
 import { approveReview, getArtifactMarkdown, saveReviewDraft, reviewKeys } from '../api/review';
 import { jobKeys } from '@features/jobs/types/job.types';
-import { toApiErrorMessage } from '@shared/utils/apiErrors';
+import { combineStates, toApiState } from '@shared/utils/apiState';
 import { notifyApiError } from '@shared/utils/notifyApiError';
 
 export function useReviewText(jobId: string) {
@@ -37,17 +36,12 @@ export function useReviewText(jobId: string) {
     onSuccess: () => {
       notifications.show({ message: t('review.approved') });
       void queryClient.invalidateQueries({ queryKey: jobKeys.all });
-      void navigate({ to: routePaths.review });
+      void navigate({ to: '/review' });
     },
     onError: notifyApiError,
   });
 
-  return {
-    raw: raw.data ?? '',
-    corrected: corrected.data ?? '',
-    isLoading: raw.isLoading || corrected.isLoading,
-    loadError: toApiErrorMessage(raw.error ?? corrected.error),
-    save,
-    approve,
-  };
+  const state = combineStates({ raw: toApiState(raw), corrected: toApiState(corrected) });
+
+  return { state, save, approve };
 }

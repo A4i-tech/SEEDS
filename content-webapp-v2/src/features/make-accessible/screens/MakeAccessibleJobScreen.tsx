@@ -2,8 +2,7 @@ import { Alert, Breadcrumbs, Button, Group, Paper, Progress, Stack, Text, Title 
 import { useMutation } from '@tanstack/react-query';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
-import { routePaths } from '@app/navigation/routePaths';
-import { toApiErrorMessage } from '@shared/utils/apiErrors';
+import { toApiState } from '@shared/utils/apiState';
 import { notifyApiError } from '@shared/utils/notifyApiError';
 import { downloadRemediationArtifact } from '../api/remediation';
 import { RemediationSteps } from '../components/RemediationSteps';
@@ -37,7 +36,7 @@ function RunningView({ job }: { job: RemediationJobDetail }) {
         <Stack gap="xs" align="flex-start">
           <Text fw={700}>{t('makeAccessible.leaveTitle')}</Text>
           <Text size="sm">{t('makeAccessible.leaveBody')}</Text>
-          <Button variant="outline" onClick={() => void navigate({ to: routePaths.jobs })}>
+          <Button variant="outline" onClick={() => void navigate({ to: '/jobs' })}>
             {t('makeAccessible.goToJobs')}
           </Button>
         </Stack>
@@ -72,7 +71,7 @@ function DoneView({ job, jobId }: { job: RemediationJobDetail; jobId: string }) 
         <Button variant="outline" loading={download.isPending} onClick={() => download.mutate()}>
           {t('makeAccessible.download')}
         </Button>
-        <Button onClick={() => void navigate({ to: routePaths.review })}>
+        <Button onClick={() => void navigate({ to: '/review' })}>
           {t('makeAccessible.startReview')}
         </Button>
       </Group>
@@ -84,29 +83,32 @@ export function MakeAccessibleJobScreen() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { jobId = '' } = useParams({ strict: false });
-  const { data: job, isLoading, error } = useRemediationJob(jobId);
-  const loadError = toApiErrorMessage(error);
+  const jobState = toApiState(useRemediationJob(jobId));
 
   return (
     <Stack gap="md">
       <Breadcrumbs aria-label="Breadcrumb">
         <Text>{t('makeAccessible.title')}</Text>
-        <Text>{job?.source_name ?? jobId}</Text>
+        <Text>{jobState.status === 'done' ? jobState.data.source_name : jobId}</Text>
       </Breadcrumbs>
 
-      <RemediationSteps activeStep={job === undefined ? 0 : REMEDIATION_UI[job.status].step} />
-
-      {isLoading && <Text c="dimmed">{t('common.loading')}</Text>}
-      {loadError && <Alert>{loadError}</Alert>}
-      {job?.status === 'failed' && (job.error || job.translation_error) && (
-        <Alert>{job.error || job.translation_error}</Alert>
+      {jobState.status === 'loading' && <Text c="dimmed">{t('common.loading')}</Text>}
+      {jobState.status === 'error' && <Alert>{jobState.error.message}</Alert>}
+      {jobState.status === 'done' && (
+        <>
+          <RemediationSteps activeStep={REMEDIATION_UI[jobState.data.status].step} />
+          {jobState.data.status === 'failed' && (jobState.data.error || jobState.data.translation_error) && (
+            <Alert>{jobState.data.error || jobState.data.translation_error}</Alert>
+          )}
+          {REMEDIATION_UI[jobState.data.status].view === 'running' && <RunningView job={jobState.data} />}
+          {REMEDIATION_UI[jobState.data.status].view === 'done' && (
+            <DoneView job={jobState.data} jobId={jobId} />
+          )}
+        </>
       )}
 
-      {job && REMEDIATION_UI[job.status].view === 'running' && <RunningView job={job} />}
-      {job && REMEDIATION_UI[job.status].view === 'done' && <DoneView job={job} jobId={jobId} />}
-
       <Group gap="md">
-        <Button variant="subtle" onClick={() => void navigate({ to: routePaths.home })}>
+        <Button variant="subtle" onClick={() => void navigate({ to: '/home' })}>
           {t('makeAccessible.backHome')}
         </Button>
       </Group>

@@ -2,10 +2,10 @@ import { Alert, Breadcrumbs, Button, Group, Paper, Progress, Stack, Text, Title 
 import type { TFunction } from 'i18next';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
-import { routePaths } from '@app/navigation/routePaths';
 import { StatusBadge } from '@shared/components/StatusBadge';
 import { LoadError } from '@shared/components/LoadError';
 import { formatRelativeTime } from '@shared/utils/format';
+import { toApiState } from '@shared/utils/apiState';
 import type { JobRow, JobStatus, SyncJob } from '../types/job.types';
 import { syncTitle } from '../types/job.types';
 import { SyncJobItemsTable } from '../components/SyncJobItemsTable';
@@ -31,10 +31,11 @@ export function JobDetailScreen() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { jobId = '' } = useParams({ strict: false });
-  const { rows } = useJobs();
-  const row = rows.find((r) => r.id === jobId);
+  const rowsState = useJobs();
+  const row = rowsState.status === 'done' ? rowsState.data.find((r) => r.id === jobId) : undefined;
   const isRemediation = row?.type === 'make-accessible';
-  const { data: job, isLoading, error } = useSyncJob(jobId, !isRemediation);
+  const jobState = toApiState(useSyncJob(jobId, !isRemediation));
+  const job = jobState.status === 'done' ? jobState.data : undefined;
 
   const finished = job !== undefined && terminalStatuses.has(job.status);
   const percent = job ? Math.round((job.processed / job.total_courses) * 100) : 0;
@@ -54,8 +55,8 @@ export function JobDetailScreen() {
         {view.updated && <Text c="dimmed">{formatRelativeTime(view.updated)}</Text>}
       </Group>
 
-      {isLoading && <Text c="dimmed">{t('common.loading')}</Text>}
-      <LoadError error={error} />
+      {jobState.status === 'loading' && <Text c="dimmed">{t('common.loading')}</Text>}
+      {jobState.status === 'error' && <LoadError error={jobState.error} />}
 
       {isRemediation && (
         <Paper p="lg" radius="md">
@@ -98,7 +99,7 @@ export function JobDetailScreen() {
       {finished && <SyncJobItemsTable jobId={jobId} />}
 
       <Group gap="md">
-        <Button variant="subtle" onClick={() => void navigate({ to: routePaths.jobs })}>
+        <Button variant="subtle" onClick={() => void navigate({ to: '/jobs' })}>
           {t('jobs.detail.back')}
         </Button>
       </Group>

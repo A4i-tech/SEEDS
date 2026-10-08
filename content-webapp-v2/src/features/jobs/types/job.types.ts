@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { routePaths } from '@app/navigation/routePaths';
 import { text } from '@shared/utils/schema';
 
 export const remediationStatusSchema = z.enum([
@@ -61,10 +60,10 @@ export interface JobRow {
 }
 
 export const flowRoute: Record<JobType, string> = {
-  'make-accessible': routePaths.makeAccessible,
-  'course-sync': routePaths.library,
-  localize: routePaths.localize,
-  create: routePaths.create,
+  'make-accessible': '/make-accessible',
+  'course-sync': '/library',
+  localize: '/localize',
+  create: '/create',
 };
 
 const remediationStatusMap: Record<z.infer<typeof remediationStatusSchema>, JobStatus> = {

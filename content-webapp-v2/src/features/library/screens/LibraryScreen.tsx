@@ -3,11 +3,9 @@ import { Plus } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
-import { routePaths } from '@app/navigation/routePaths';
 import type { DataTableColumn } from '@shared/components/DataTable';
 import { DataTable } from '@shared/components/DataTable';
 import { openConfirmDialog } from '@shared/components/ConfirmDialog';
-import { toApiErrorMessage } from '@shared/utils/apiErrors';
 import { CONTENT_UI } from '../types/content.types';
 import type { ContentItem } from '../types/content.types';
 import type { Course } from '../api/library';
@@ -72,12 +70,12 @@ function courseRow(course: Course): LibraryRow {
 export function LibraryScreen() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { content, courses, isLoading, error, reload, removeContent, removeCourse, syncAll, syncingAll, refreshIvr } =
+  const { state, content, courses, reload, removeContent, removeCourse, syncAll, syncingAll, refreshIvr } =
     useLibrary();
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<string[]>([]);
   const [page, setPage] = useState(1);
-  const loadError = toApiErrorMessage(error);
+  const isLoading = state.status === 'loading';
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -165,13 +163,13 @@ export function LibraryScreen() {
           <Button variant="subtle" onClick={() => void refreshIvr()}>
             {t('library.updateIvr')}
           </Button>
-          <Button variant="subtle" component={Link} to={routePaths.ivrView}>
+          <Button variant="subtle" component={Link} to={'/ivr-view'}>
             {t('library.viewIvr')}
           </Button>
           <Button variant="outline" loading={syncingAll} onClick={() => void syncAll()}>
             {t('library.syncAll')}
           </Button>
-          <Button leftSection={<Plus size={16} aria-hidden />} component={Link} to={routePaths.create}>
+          <Button leftSection={<Plus size={16} aria-hidden />} component={Link} to={'/create'}>
             {t('library.addContent')}
           </Button>
         </Group>
@@ -196,10 +194,10 @@ export function LibraryScreen() {
           ))}
         </Chip.Group>
       </Group>
-      {loadError && (
+      {state.status === 'error' && (
         <Alert>
           <Group gap="xs">
-            {loadError}
+            {state.error.message}
             <Button variant="subtle" size="xs" onClick={() => reload()}>
               {t('library.retry')}
             </Button>

@@ -1,5 +1,6 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@features/auth/store/useAuthStore';
+import { toApiState } from '@shared/utils/apiState';
 import { createStudent, deleteStudent, getStudents, updateStudent } from '../api/students';
 import { registrationKeys, type StudentUpdate } from '../types/registration.types';
 import { useRegistrationRefresh } from './useRegistrationRefresh';
@@ -21,10 +22,11 @@ export function useStudents() {
   });
   const remove = useMutation({ mutationFn: deleteStudent, onSuccess: invalidate });
 
+  const state = toApiState(students);
+
   return {
-    students: students.data ?? [],
-    isLoading: students.isLoading,
-    error: students.error,
+    state,
+    students: state.status === 'done' ? state.data : [],
     reload: () => void students.refetch(),
     create,
     update,

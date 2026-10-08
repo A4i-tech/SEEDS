@@ -24,7 +24,7 @@ export function ConferencePanel({
 }) {
   const { t } = useTranslation();
   const [page, setPage] = useState(1);
-  const [expanded, setExpanded] = useState<ConferenceExpanded | undefined>(undefined);
+  const [expanded, setExpanded] = useState<ConferenceExpanded | 'closed'>('closed');
 
   const cards: StatCard[] = [
     { label: t('analytics.conference.totalConferences'), value: String(stats.totalCalls) },
@@ -98,10 +98,10 @@ export function ConferencePanel({
           emptyMessage={t('analytics.noData')}
         />
       </div>
-      {expanded !== undefined && (
+      {expanded !== 'closed' && (
         <Modal
           opened
-          onClose={() => setExpanded(undefined)}
+          onClose={() => setExpanded('closed')}
           title={t(`analytics.conference.${expanded}`)}
           size="lg"
           centered

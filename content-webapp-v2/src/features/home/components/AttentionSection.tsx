@@ -1,7 +1,6 @@
 import { Anchor, Group, SimpleGrid, Stack, Text } from '@mantine/core';
 import { Link } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
-import { routePaths } from '@app/navigation/routePaths';
 import { flowRoute, type JobRow } from '@features/jobs/types/job.types';
 import { StatusBadge } from '@shared/components/StatusBadge';
 import { RowCard, TextLink } from './RowCard';
@@ -20,7 +19,7 @@ function AttentionLink({ row }: { row: JobRow }) {
     );
   }
   if (row.status === 'failed') return <TextLink to={flowRoute[row.type]} label={t('home.openEdit')} />;
-  return <TextLink to={routePaths.review} label={t('home.tiles.review.cta')} />;
+  return <TextLink to={'/review'} label={t('home.tiles.review.cta')} />;
 }
 
 export function AttentionSection({ rows }: { rows: JobRow[] }) {
@@ -32,7 +31,7 @@ export function AttentionSection({ rows }: { rows: JobRow[] }) {
       <Group justify="space-between">
         <Text variant="eyebrow">{t('home.needsAttention')}</Text>
         {attention.length > 0 && (
-          <TextLink to={routePaths.jobs} label={t('home.seeAll', { count: attention.length })} />
+          <TextLink to={'/jobs'} label={t('home.seeAll', { count: attention.length })} />
         )}
       </Group>
       {attention.length === 0 && <Text>{t('home.attentionEmpty')}</Text>}

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@features/auth/store/useAuthStore';
 import { LoadError } from '@shared/components/LoadError';
+import { toApiState } from '@shared/utils/apiState';
 import { getIvrStructure, type Fsm } from '../api/ivr';
 
 function IvrStructure({ fsm }: { fsm: Fsm }) {
@@ -45,6 +46,7 @@ export function ViewIvrScreen() {
     queryFn: getIvrStructure,
     enabled: status === 'authenticated',
   });
+  const fsmState = toApiState(fsm);
 
   return (
     <Stack gap="md">
@@ -53,9 +55,9 @@ export function ViewIvrScreen() {
         <Text>{t('ivr.viewTitle')}</Text>
       </Breadcrumbs>
       <Title order={2}>{t('ivr.viewTitle')}</Title>
-      {fsm.isLoading && <Text c="dimmed">{t('common.loading')}</Text>}
-      <LoadError error={fsm.error} />
-      {fsm.data && <IvrStructure fsm={fsm.data} />}
+      {fsmState.status === 'loading' && <Text c="dimmed">{t('common.loading')}</Text>}
+      {fsmState.status === 'error' && <LoadError error={fsmState.error} />}
+      {fsmState.status === 'done' && <IvrStructure fsm={fsmState.data} />}
     </Stack>
   );
 }

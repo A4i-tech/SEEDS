@@ -1,12 +1,11 @@
 import { Alert, Anchor, Group, Stack, Tabs, Text, TextInput, Title } from '@mantine/core';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { z } from 'zod';
 import { useNavigate } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
-import { routePaths } from '@app/navigation/routePaths';
 import type { DataTableColumn } from '@shared/components/DataTable';
 import { DataTable } from '@shared/components/DataTable';
-import { toApiErrorMessage } from '@shared/utils/apiErrors';
+import { toApiState } from '@shared/utils/apiState';
 import { selectValue } from '@shared/utils/select';
 import { failureSubtitle, type RemediationJob } from '@features/jobs/types/job.types';
 import { getRemediationJobs } from '@features/jobs/api/remediationJobs';
@@ -53,18 +52,15 @@ export function ReviewQueueScreen() {
     queryFn: () => getRemediationJobs(50),
     enabled: status === 'authenticated',
   });
-  const loadError = toApiErrorMessage(queue.error);
-
-  const { data: jobs = [] } = queue;
+  const queueState = toApiState(queue);
+  const jobs = queueState.status === 'done' ? queueState.data : [];
   const pendingCount = jobs.filter((job) => pendingStatuses.has(job.status)).length;
 
-  const rows = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return jobs
-      .filter(TAB_FILTER[tab])
-      .map(toRow)
-      .filter((row) => !q || row.title.toLowerCase().includes(q));
-  }, [jobs, tab, query]);
+  const q = query.trim().toLowerCase();
+  const rows = jobs
+    .filter(TAB_FILTER[tab])
+    .map(toRow)
+    .filter((row) => !q || row.title.toLowerCase().includes(q));
 
   const columns: DataTableColumn<QueueRow>[] = [
     {
@@ -103,12 +99,12 @@ export function ReviewQueueScreen() {
           w={{ base: '100%', sm: 240 }}
         />
       </Group>
-      {loadError && <Alert>{loadError}</Alert>}
+      {queueState.status === 'error' && <Alert>{queueState.error.message}</Alert>}
       <DataTable<QueueRow>
         columns={columns}
         rows={rows}
         getRowId={(row) => row.id}
-        loading={queue.isLoading}
+        loading={queueState.status === 'loading'}
         page={page}
         pageSize={10}
         onPageChange={setPage}
@@ -118,7 +114,7 @@ export function ReviewQueueScreen() {
             component="button"
             type="button"
             fw={700}
-            onClick={() => void navigate({ to: `${routePaths.review}/text/$jobId`, params: { jobId: row.id } })}
+            onClick={() => void navigate({ to: `/review/text/$jobId`, params: { jobId: row.id } })}
           >
             {t('review.open')}
           </Anchor>

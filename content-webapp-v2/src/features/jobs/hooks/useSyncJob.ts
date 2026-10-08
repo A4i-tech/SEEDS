@@ -38,7 +38,7 @@ export function useSyncJob(jobId: string, enabled: boolean) {
         }
       },
       controller.signal,
-    ).catch((err: unknown) => {
+    ).catch((err: Error) => {
       if (!controller.signal.aborted) notifyApiError(err);
     });
     return () => controller.abort();

@@ -2,7 +2,6 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from '@tanstack/react-router';
-import { routePaths } from '@app/navigation/routePaths';
 import { createRemediationJob } from '../api/remediation';
 import { useLanguages } from '@shared/hooks/useLanguages';
 import { jobKeys } from '@features/jobs/types/job.types';
@@ -12,7 +11,8 @@ export function useRemediationUpload() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const { options: languageOptions, error: languagesError } = useLanguages();
+  const { state: languagesState, options: languageOptions } = useLanguages();
+  const languagesError = languagesState.status === 'error' ? languagesState.error.message : '';
 
   const upload = useMutation({
     mutationFn: ({ file, targetLanguage }: { file: File; targetLanguage: string }) =>
@@ -20,7 +20,7 @@ export function useRemediationUpload() {
     onSuccess: (_jobId, { file }) => {
       void queryClient.invalidateQueries({ queryKey: jobKeys.all });
       notifications.show({ message: t('makeAccessible.uploaded', { name: file.name }) });
-      void navigate({ to: routePaths.jobs });
+      void navigate({ to: '/jobs' });
     },
     onError: notifyApiError,
   });

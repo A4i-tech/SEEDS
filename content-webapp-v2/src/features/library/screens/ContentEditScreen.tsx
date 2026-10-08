@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@features/auth/store/useAuthStore';
 import { useLanguages } from '@shared/hooks/useLanguages';
-import { toApiErrorMessage } from '@shared/utils/apiErrors';
+import { toApiState } from '@shared/utils/apiState';
 import { getContentById, updateContent } from '../api/library';
 import { CONTENT_UI, contentUpdateSchema, libraryKeys } from '../types/content.types';
 import type { ContentItem } from '../types/content.types';
@@ -25,8 +25,8 @@ type EditValues = {
 function EditForm({ item }: { item: ContentItem }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { options, error: languagesLoadError } = useLanguages();
-  const languagesError = toApiErrorMessage(languagesLoadError);
+  const { state: languagesState, options } = useLanguages();
+
 
   const form = useForm<EditValues>({
     initialValues: {
@@ -59,7 +59,7 @@ function EditForm({ item }: { item: ContentItem }) {
       void navigate({ to: '/library/$kind/$id', params: { kind: updated.type, id: updated.id } });
     },
   });
-  const error = toApiErrorMessage(save.error);
+
   const ui = CONTENT_UI[item.type];
 
   return (
@@ -74,13 +74,13 @@ function EditForm({ item }: { item: ContentItem }) {
       )}
       {ui.preview === 'quiz' && <Text c="dimmed">{t('library.quizLocked')}</Text>}
       <Select label={t('library.languageLabel')} data={options} {...form.getInputProps('language')} />
-      {languagesError && <Alert>{languagesError}</Alert>}
+      {languagesState.status === 'error' && <Alert>{languagesState.error.message}</Alert>}
       <Checkbox label={t('library.pullModel')} {...form.getInputProps('is_pull_model', { type: 'checkbox' })} />
       <Checkbox label={t('library.teacherApp')} {...form.getInputProps('is_teacher_app', { type: 'checkbox' })} />
       {ui.hasAudioUpload && (
         <Checkbox label={t('library.audioUploaded')} {...form.getInputProps('audioUploaded', { type: 'checkbox' })} />
       )}
-      {error && <Alert>{error}</Alert>}
+      {save.error && <Alert>{save.error.message}</Alert>}
       <Group gap="md">
         <Button type="submit" loading={save.isPending}>
           {t('library.save')}
@@ -108,26 +108,27 @@ export function ContentEditScreen() {
     enabled: status === 'authenticated' && kind !== 'course' && id !== '',
   });
 
-  const item = detail.data;
-  const loadError = toApiErrorMessage(detail.error);
-  const processing = item && item.type !== 'quiz' && !item.is_processed;
-  const mismatch = item && item.type !== kind;
+  const detailState = toApiState(detail);
 
   return (
     <Stack gap="md" maw={640}>
       <Breadcrumbs aria-label="Breadcrumb">
         <Text>{t('library.title')}</Text>
-        <Text>{item?.title.english || id}</Text>
+        <Text>{detailState.status === 'done' ? detailState.data.title.english || id : id}</Text>
       </Breadcrumbs>
       <Title order={2}>{t('library.editTitle')}</Title>
       <Text c="dimmed">{t('library.editHint')}</Text>
 
-      {detail.isLoading && <Text c="dimmed">{t('common.loading')}</Text>}
-      {loadError && <Alert>{loadError}</Alert>}
-      {mismatch && <Alert>{t('library.wrongItem')}</Alert>}
-      {processing && <Text c="dimmed">{t('library.processing')}</Text>}
-
-      {item && !processing && !mismatch && <EditForm key={item.id} item={item} />}
+      {detailState.status === 'loading' && <Text c="dimmed">{t('common.loading')}</Text>}
+      {detailState.status === 'error' && <Alert>{detailState.error.message}</Alert>}
+      {detailState.status === 'done' && detailState.data.type !== kind && <Alert>{t('library.wrongItem')}</Alert>}
+      {detailState.status === 'done' && detailState.data.type !== 'quiz' && !detailState.data.is_processed && (
+        <Text c="dimmed">{t('library.processing')}</Text>
+      )}
+      {detailState.status === 'done' && detailState.data.type === kind &&
+        (detailState.data.type === 'quiz' || detailState.data.is_processed) && (
+          <EditForm key={detailState.data.id} item={detailState.data} />
+        )}
     </Stack>
   );
 }

@@ -7,7 +7,6 @@ import { useTranslation } from 'react-i18next';
 import { RemediationSteps } from '../components/RemediationSteps';
 import { useRemediationUpload } from '../hooks/useRemediationUpload';
 import { selectValue } from '@shared/utils/select';
-import { toApiErrorMessage } from '@shared/utils/apiErrors';
 import { notifyApiError } from '@shared/utils/notifyApiError';
 import classes from './MakeAccessibleScreen.module.css';
 
@@ -33,23 +32,23 @@ export function MakeAccessibleScreen() {
 
   const handleUpload = async () => {
     let succeeded = 0;
-    let firstError: unknown;
+    let notified = false;
     for (const file of files) {
       try {
         await upload({ file, targetLanguage });
         succeeded += 1;
       } catch (err) {
-        if (firstError === undefined) firstError = err;
+        if (!notified) {
+          notified = true;
+          notifyApiError(err as Error);
+        }
       }
     }
     notifications.show({ message: `uploaded ${succeeded}/${files.length}` });
-    if (firstError !== undefined) {
-      notifyApiError(firstError);
-      return;
-    }
+    if (notified) return;
     setFiles([]);
   };
-  const languagesErrorMessage = toApiErrorMessage(languagesError);
+
 
   return (
     <Stack gap="md">
@@ -120,7 +119,7 @@ export function MakeAccessibleScreen() {
           {isUploading ? t('makeAccessible.uploading') : t('makeAccessible.upload')}
         </Button>
       </Group>
-      {languagesErrorMessage && <Alert>{languagesErrorMessage}</Alert>}
+      {languagesError && <Alert>{languagesError}</Alert>}
 
       <Stack gap="xs">
         <Text variant="eyebrow" size="sm">{t('makeAccessible.supported')}</Text>

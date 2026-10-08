@@ -15,7 +15,7 @@ type IvrExpanded = 'callsByDate' | 'stepDepth' | 'content' | 'teacher';
 export function IvrPanel({ stats, loading, error }: { stats: CallSummary; loading: boolean; error: string }) {
   const { t } = useTranslation();
   const [page, setPage] = useState(1);
-  const [expanded, setExpanded] = useState<IvrExpanded | undefined>(undefined);
+  const [expanded, setExpanded] = useState<IvrExpanded | 'closed'>('closed');
 
   const cards: StatCard[] = [
     { label: t('analytics.kpi.totalCalls'), value: String(stats.totalCalls) },
@@ -109,8 +109,8 @@ export function IvrPanel({ stats, loading, error }: { stats: CallSummary; loadin
           emptyMessage={t('analytics.noData')}
         />
       </div>
-      {expanded !== undefined && (
-        <Modal opened onClose={() => setExpanded(undefined)} title={expandedTitles[expanded]} size="lg" centered>
+      {expanded !== 'closed' && (
+        <Modal opened onClose={() => setExpanded('closed')} title={expandedTitles[expanded]} size="lg" centered>
           {expandedCharts[expanded]}
           <NameCountTable rows={expandedRows[expanded]} />
         </Modal>

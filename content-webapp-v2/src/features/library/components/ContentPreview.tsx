@@ -1,7 +1,7 @@
 import { Alert, Box, Stack, Text } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
-import { toApiErrorMessage } from '@shared/utils/apiErrors';
+import { toApiState } from '@shared/utils/apiState';
 import { getContentSasUrl } from '../api/library';
 import { libraryKeys } from '../types/content.types';
 import type { AudioContentItem, ContentItem } from '../types/content.types';
@@ -15,13 +15,14 @@ export function AudioPreview({ item }: { item: AudioContentItem }) {
     queryFn: () => getContentSasUrl(audioUrl),
     enabled: audioUrl !== '',
   });
-  const audioError = toApiErrorMessage(audio.error);
+  const audioState = toApiState(audio);
+  const audioError = audioState.status === 'error' ? audioState.error.message : '';
   return (
     <Stack gap="xs">
       <Text fw={700}>{t('library.audio')}</Text>
-      {item.is_processed && audioUrl !== '' && (
+      {audioState.status === 'done' && item.is_processed && audioUrl !== '' && (
         // eslint-disable-next-line jsx-a11y/media-has-caption
-        <Box component="audio" controls src={audio.data} w="100%" />
+        <Box component="audio" controls src={audioState.data} w="100%" />
       )}
       {audioUrl === '' && <Text c="dimmed">{t('library.audioMissing')}</Text>}
       {audioError && <Alert>{audioError}</Alert>}

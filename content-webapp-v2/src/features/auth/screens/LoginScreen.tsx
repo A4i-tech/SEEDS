@@ -4,8 +4,6 @@ import { zodResolver } from 'mantine-form-zod-resolver';
 import { useLinkProps, useRouter, useSearch } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { z } from 'zod';
-import { routePaths } from '@app/navigation/routePaths';
-import { toApiErrorMessage } from '@shared/utils/apiErrors';
 import { useLogin } from '../hooks/useLogin';
 
 const loginSchema = z.object({
@@ -19,9 +17,9 @@ export function LoginScreen() {
   const { t } = useTranslation();
   const router = useRouter();
   const { redirect: returnTo } = useSearch({ from: '/' });
-  const signupLink = useLinkProps({ to: routePaths.register, search: { redirect: returnTo } });
+  const signupLink = useLinkProps({ to: '/register', search: { redirect: returnTo } });
   const { mutate: login, isPending, error } = useLogin();
-  const errorMessage = toApiErrorMessage(error);
+
 
   const form = useForm<LoginValues>({
     initialValues: { identifier: '', password: '' },
@@ -50,7 +48,7 @@ export function LoginScreen() {
               required
               {...form.getInputProps('password')}
             />
-            {errorMessage && <Alert>{errorMessage}</Alert>}
+            {error && <Alert>{error.message}</Alert>}
             <Button type="submit" fullWidth loading={isPending}>
               {t('login.submit')}
             </Button>

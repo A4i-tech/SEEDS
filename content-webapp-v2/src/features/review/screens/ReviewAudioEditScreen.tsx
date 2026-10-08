@@ -2,7 +2,6 @@ import { Alert, Box, Breadcrumbs, Button, Group, Paper, Stack, Text, Textarea, T
 import { useState } from 'react';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
-import { routePaths } from '@app/navigation/routePaths';
 import type { AudioContentItem } from '@features/library/types/content.types';
 import { useReviewAudio } from '../hooks/useReviewAudio';
 
@@ -52,7 +51,7 @@ function AudioEditor({ item, audioSrc, save, approve }: AudioEditorProps) {
         <Button loading={approve.isPending} onClick={() => approve.mutate(transcript || undefined)}>
           {t('review.approve')}
         </Button>
-        <Button variant="subtle" onClick={() => void navigate({ to: `${routePaths.review}/audio/$id`, params: { id: item.id } })}>
+        <Button variant="subtle" onClick={() => void navigate({ to: `/review/audio/$id`, params: { id: item.id } })}>
           {t('review.backListen')}
         </Button>
       </Group>
@@ -63,24 +62,28 @@ function AudioEditor({ item, audioSrc, save, approve }: AudioEditorProps) {
 export function ReviewAudioEditScreen() {
   const { t } = useTranslation();
   const { id = '' } = useParams({ strict: false });
-  const { item, audioSrc, isLoading, loadError, save, approve } = useReviewAudio(id);
-
-  const title = item?.title.english || id;
+  const { state, save, approve } = useReviewAudio(id);
 
   return (
     <Stack gap="md">
       <Breadcrumbs aria-label="Breadcrumb">
         <Text>{t('review.title')}</Text>
-        <Text>{title}</Text>
+        <Text>{state.status === 'done' ? state.data.content.title.english || id : id}</Text>
       </Breadcrumbs>
       <Text variant="eyebrow">{t('review.audioEyebrow')}</Text>
       <Title order={2}>{t('review.editAudioTitle')}</Title>
       <Text c="dimmed">{t('review.editAudioHint')}</Text>
-      {isLoading && <Text c="dimmed">{t('common.loading')}</Text>}
-      {loadError && <Alert>{loadError}</Alert>}
-      {item?.type === 'quiz' && <Alert>{t('review.wrongItem')}</Alert>}
-      {item && item.type !== 'quiz' && (
-        <AudioEditor key={item.id} item={item} audioSrc={audioSrc} save={save} approve={approve} />
+      {state.status === 'loading' && <Text c="dimmed">{t('common.loading')}</Text>}
+      {state.status === 'error' && <Alert>{state.error.message}</Alert>}
+      {state.status === 'done' && state.data.content.type === 'quiz' && <Alert>{t('review.wrongItem')}</Alert>}
+      {state.status === 'done' && state.data.content.type !== 'quiz' && (
+        <AudioEditor
+          key={state.data.content.id}
+          item={state.data.content}
+          audioSrc={state.data.audio}
+          save={save}
+          approve={approve}
+        />
       )}
     </Stack>
   );

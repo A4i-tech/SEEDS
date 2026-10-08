@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
-import { useMemo } from 'react';
 import { useAuthStore } from '@features/auth/store/useAuthStore';
 import { getSchoolDashboard, getTenantDashboard, postAnalytics } from '../api/analytics';
+import { toApiState } from '@shared/utils/apiState';
 import type { AnalyticsRole } from '../types/analytics.types';
 import { analyticsKeys, analyticsRoleSchema } from '../types/analytics.types';
 import type { DateRange } from '../utils/analyticsDates';
@@ -26,12 +26,12 @@ export function useAnalyticsRange(role: AnalyticsRole, range: DateRange) {
     queryFn: () => postAnalytics(role, { start_date: startISO, end_date: endISO }),
   });
 
-  const summary = useMemo(() => {
-    const logs = query.data?.data ?? [];
-    return { stats: summarizeCalls(logs), conference: summarizeConferences(logs) };
-  }, [query.data]);
+  const state = toApiState(query);
+  const logs = state.status === 'done' ? state.data.data : [];
+  const stats = summarizeCalls(logs);
+  const conference = summarizeConferences(logs);
 
-  return { stats: summary.stats, conference: summary.conference, isLoading: query.isLoading, error: query.error };
+  return { state, stats, conference };
 }
 
 export function useAnalyticsDashboard(role: AnalyticsRole) {
@@ -46,5 +46,5 @@ export function useAnalyticsDashboard(role: AnalyticsRole) {
     enabled: role === 'school_admin',
   });
 
-  return { tenant, school };
+  return { tenant: toApiState(tenant), school: toApiState(school) };
 }

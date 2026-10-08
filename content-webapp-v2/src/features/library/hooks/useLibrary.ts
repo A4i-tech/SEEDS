@@ -11,6 +11,7 @@ import {
   updateIvr,
 } from '../api/library';
 import { libraryKeys } from '../types/content.types';
+import { combineStates, toApiState } from '@shared/utils/apiState';
 import { notifyApiError } from '@shared/utils/notifyApiError';
 
 export function useLibrary() {
@@ -60,11 +61,12 @@ export function useLibrary() {
     onError: notifyApiError,
   });
 
+  const state = combineStates({ content: toApiState(content), courses: toApiState(courses) });
+
   return {
-    content: content.data?.data ?? [],
-    courses: courses.data?.courses ?? [],
-    isLoading: content.isLoading || courses.isLoading,
-    error: content.error ?? courses.error,
+    state,
+    content: state.status === 'done' ? state.data.content.data : [],
+    courses: state.status === 'done' ? state.data.courses.courses : [],
     reload: () => {
       void content.refetch();
       void courses.refetch();

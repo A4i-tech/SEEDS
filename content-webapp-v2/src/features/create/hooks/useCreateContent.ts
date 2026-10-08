@@ -1,5 +1,4 @@
 import { useMutation } from '@tanstack/react-query';
-import { routePaths } from '@app/navigation/routePaths';
 import type { ContentCreate } from '../../library/types/content.types';
 import { createContent, getUploadSasUrl, uploadMp3ToSasUrl } from '../api/content';
 import { useCreateMutationOptions } from './useCreateMutationOptions';
@@ -12,7 +11,7 @@ interface AudioUploadInput {
 export function useCreateContentText() {
   return useMutation({
     mutationFn: createContent,
-    ...useCreateMutationOptions('create.aiSaved', routePaths.library),
+    ...useCreateMutationOptions('create.aiSaved', '/library'),
   });
 }
 
@@ -23,6 +22,6 @@ export function useCreateContentAudio() {
       await uploadMp3ToSasUrl(sasUrl, file);
       return createContent({ ...payload, audio_content: [{ audio_url: sasUrl.split('?')[0] }] });
     },
-    ...useCreateMutationOptions('create.contentSaved', routePaths.jobs),
+    ...useCreateMutationOptions('create.contentSaved', '/jobs'),
   });
 }

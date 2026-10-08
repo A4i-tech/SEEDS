@@ -1,7 +1,5 @@
 import { notifications } from '@mantine/notifications';
-import { toApiErrorMessage } from './apiErrors';
 
-export function notifyApiError(err: unknown) {
-  const message = toApiErrorMessage(err);
-  if (message) notifications.show({ color: 'red', message });
+export function notifyApiError(error: Error) {
+  if (error.message) notifications.show({ color: 'red', message: error.message });
 }

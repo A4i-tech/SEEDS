@@ -5,6 +5,7 @@ import { useAuthStore } from '@features/auth/store/useAuthStore';
 import { useLanguages } from '@shared/hooks/useLanguages';
 import { createSite, deleteSite, listSites, updateSite } from '../api/sites';
 import { localizeKeys, type WebsiteFields } from '../types/localize.types';
+import { combineStates, toApiState } from '@shared/utils/apiState';
 import { notifyApiError } from '@shared/utils/notifyApiError';
 
 export function useLocalizeSites() {
@@ -14,8 +15,9 @@ export function useLocalizeSites() {
   const enabled = authStatus === 'authenticated';
 
   const sites = useQuery({ queryKey: localizeKeys.sites, queryFn: listSites, enabled });
-  const { languages, isLoading: languagesLoading, error: languagesError } = useLanguages();
+  const { state: languagesState, languages } = useLanguages();
 
+  const state = combineStates({ sites: toApiState(sites), languages: languagesState });
   const languageName = (code: string) => languages.find((l) => l.code === code)?.name ?? code;
 
   const invalidate = () => {
@@ -46,11 +48,10 @@ export function useLocalizeSites() {
   });
 
   return {
-    sites: sites.data ?? [],
+    state,
+    sites: state.status === 'done' ? state.data.sites : [],
     languages,
     languageName,
-    isLoading: sites.isLoading || languagesLoading,
-    error: sites.error ?? languagesError,
     create: create.mutate,
     creating: create.isPending,
     update: update.mutate,

@@ -3,7 +3,6 @@ import { useForm } from '@mantine/form';
 import { zodResolver } from 'mantine-form-zod-resolver';
 import { useTranslation } from 'react-i18next';
 import { z } from 'zod';
-import { toApiErrorMessage } from '@shared/utils/apiErrors';
 import { useChangePassword } from '../hooks/useAccount';
 
 const passwordSchema = z.object({
@@ -16,7 +15,7 @@ type PasswordValues = z.infer<typeof passwordSchema>;
 export function AccountSettingsScreen() {
   const { t } = useTranslation();
   const { mutate: changePassword, isPending, isSuccess, error } = useChangePassword();
-  const errorMessage = toApiErrorMessage(error);
+
 
   const form = useForm<PasswordValues>({
     initialValues: { current_password: '', new_password: '' },
@@ -42,7 +41,7 @@ export function AccountSettingsScreen() {
               required
               {...form.getInputProps('new_password')}
             />
-            {errorMessage && <Alert>{errorMessage}</Alert>}
+            {error && <Alert>{error.message}</Alert>}
             {isSuccess && <Text c="green">{t('account.passwordSaved')}</Text>}
             <Button type="submit" fullWidth loading={isPending}>
               {t('account.savePassword')}

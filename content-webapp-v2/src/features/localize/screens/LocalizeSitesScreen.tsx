@@ -16,12 +16,10 @@ import { Plus, Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
-import { routePaths } from '@app/navigation/routePaths';
 import type { DataTableColumn } from '@shared/components/DataTable';
 import { DataTable } from '@shared/components/DataTable';
 import { StatusBadge } from '@shared/components/StatusBadge';
 import { openConfirmDialog } from '@shared/components/ConfirmDialog';
-import { toApiErrorMessage } from '@shared/utils/apiErrors';
 import { formatRelativeTime } from '@shared/utils/format';
 import { selectValue } from '@shared/utils/select';
 import type { Website } from '../types/localize.types';
@@ -45,13 +43,13 @@ function LanguageBadge({ enabled }: { enabled: boolean }) {
 export function LocalizeSitesScreen() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { sites, languages, languageName, isLoading, error, remove } = useLocalizeSites();
+  const { state, sites, languages, languageName, remove } = useLocalizeSites();
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<SiteStatusFilter>('all');
   const [languageFilter, setLanguageFilter] = useState('all');
   const [page, setPage] = useState(1);
   const [snippetId, setSnippetId] = useState('');
-  const loadError = toApiErrorMessage(error);
+  const isLoading = state.status === 'loading';
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -157,12 +155,12 @@ export function LocalizeSitesScreen() {
           </Text>
         </Stack>
         <Group gap="md">
-          <Button variant="outline" onClick={() => void navigate({ to: routePaths.localizeReview })}>
+          <Button variant="outline" onClick={() => void navigate({ to: '/localize/review' })}>
             {t('localize.reviewTranslations')}
           </Button>
           <Button
             leftSection={<Plus size={16} aria-hidden />}
-            onClick={() => void navigate({ to: routePaths.localizeAdd })}
+            onClick={() => void navigate({ to: '/localize/add' })}
           >
             {t('localize.addSite')}
           </Button>
@@ -191,7 +189,7 @@ export function LocalizeSitesScreen() {
           miw="min(240px, 100%)"
         />
       </Flex>
-      {loadError && <Alert>{loadError}</Alert>}
+      {state.status === 'error' && <Alert>{state.error.message}</Alert>}
       <DataTable<Website>
         columns={columns}
         rows={rows}
@@ -221,7 +219,7 @@ export function LocalizeSitesScreen() {
         fullWidth
         h={48}
         className={classes.addButton}
-        onClick={() => void navigate({ to: routePaths.localizeAdd })}
+        onClick={() => void navigate({ to: '/localize/add' })}
       >
         + {t('localize.addSite')}
       </Button>

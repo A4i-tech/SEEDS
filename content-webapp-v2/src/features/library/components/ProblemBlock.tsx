@@ -3,7 +3,6 @@ import { useForm } from '@mantine/form';
 import { useDisclosure } from '@mantine/hooks';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { toApiErrorMessage } from '@shared/utils/apiErrors';
 import { updateProblemBlock } from '../api/library';
 import type { CourseBlock, CourseDetail } from '../api/library';
 import { libraryKeys } from '../types/content.types';
@@ -35,7 +34,7 @@ export function ProblemBlock({ block, courseId }: { block: CourseBlock; courseId
       stopEditing();
     },
   });
-  const saveError = toApiErrorMessage(save.error);
+
 
   if (!block.question || !block.choices.length) {
     return <Text c="dimmed">{t('library.blockNoPreview')}</Text>;
@@ -78,7 +77,7 @@ export function ProblemBlock({ block, courseId }: { block: CourseBlock; courseId
           {...form.getInputProps(`choices.${i}`)}
         />
       ))}
-      {saveError && <Alert>{saveError}</Alert>}
+      {save.error && <Alert>{save.error.message}</Alert>}
       <Group gap="xs">
         <Button loading={save.isPending} onClick={() => save.mutate(form.values)}>
           {t('library.save')}

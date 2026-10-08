@@ -2,12 +2,11 @@ import { useQueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from '@tanstack/react-router';
-import { routePaths } from '@app/navigation/routePaths';
 import { jobKeys } from '@features/jobs/types/job.types';
 import { libraryKeys } from '../../library/types/content.types';
 import { notifyApiError } from '@shared/utils/notifyApiError';
 
-export function useCreateMutationOptions(successKey: string, target: typeof routePaths.library | typeof routePaths.jobs) {
+export function useCreateMutationOptions(successKey: string, target: '/library' | '/jobs') {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const queryClient = useQueryClient();

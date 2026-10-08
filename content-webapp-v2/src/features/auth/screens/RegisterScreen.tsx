@@ -5,8 +5,6 @@ import { useMutation } from '@tanstack/react-query';
 import { useLinkProps, useNavigate, useSearch } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { z } from 'zod';
-import { routePaths } from '@app/navigation/routePaths';
-import { toApiErrorMessage } from '@shared/utils/apiErrors';
 import { registerTenant } from '../api/register';
 
 function passwordChecks(password: string) {
@@ -43,12 +41,12 @@ export function RegisterScreen() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { redirect } = useSearch({ from: '/register' });
-  const loginLink = useLinkProps({ to: routePaths.login, search: { redirect } });
+  const loginLink = useLinkProps({ to: '/', search: { redirect } });
   const { mutate: register, isPending, error } = useMutation({
     mutationFn: registerTenant,
-    onSuccess: () => navigate({ to: routePaths.login, search: { redirect } }),
+    onSuccess: () => navigate({ to: '/', search: { redirect } }),
   });
-  const errorMessage = toApiErrorMessage(error);
+
 
   const form = useForm<RegisterValues>({
     initialValues: { tenantName: '', email: '', password: '', confirmPassword: '' },
@@ -79,7 +77,7 @@ export function RegisterScreen() {
               required
               {...form.getInputProps('confirmPassword')}
             />
-            {errorMessage && <Alert>{errorMessage}</Alert>}
+            {error && <Alert>{error.message}</Alert>}
             <Button type="submit" fullWidth loading={isPending}>
               {t('register.submit')}
             </Button>

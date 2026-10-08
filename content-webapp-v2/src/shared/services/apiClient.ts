@@ -54,6 +54,25 @@ async function parseBody(response: Response): Promise<unknown> {
   return response.text();
 }
 
+async function fetchResponse(
+  path: string,
+  params: RequestOptions['params'],
+  init: RequestInit,
+  timeoutMs: number,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const response = await fetch(buildUrl(path, params), { ...init, signal: controller.signal });
+  clearTimeout(timer);
+  if (!response.ok) {
+    if (response.status === 401 && authToken && path !== '/auth/login') {
+      onSessionExpired();
+    }
+    throw new ApiError(response.status, await response.text());
+  }
+  return response;
+}
+
 async function request<T>(
   method: string,
   path: string,
@@ -61,56 +80,27 @@ async function request<T>(
   options: RequestOptions = {},
 ): Promise<{ data: T }> {
   const { params, timeoutMs = DEFAULT_TIMEOUT_MS } = options;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const init: RequestInit = {
-      method,
-      headers: authHeaders(),
-      signal: controller.signal,
-    };
-    if (body instanceof FormData) {
-      init.body = body;
-    } else if (body !== undefined) {
-      init.headers = { ...init.headers, 'Content-Type': 'application/json' };
-      init.body = JSON.stringify(body);
-    }
-    const response = await fetch(buildUrl(path, params), init);
-    if (!response.ok) {
-      if (response.status === 401 && authToken && path !== '/auth/login') {
-        onSessionExpired();
-      }
-      throw new ApiError(response.status, await response.text());
-    }
-    const data = await parseBody(response);
-    return { data: data as T };
-  } catch (error) {
-    if (error instanceof ApiError) throw error;
-    if (error instanceof DOMException && error.name === 'AbortError') {
-      throw new ApiError(0, 'Request timed out');
-    }
-    if (error instanceof Error) throw new ApiError(0, error.message);
-    throw new ApiError(0, String(error));
-  } finally {
-    clearTimeout(timer);
+  const init: RequestInit = { method, headers: authHeaders() };
+  if (body !== undefined) {
+    init.headers = { ...init.headers, 'Content-Type': 'application/json' };
+    init.body = JSON.stringify(body);
   }
+  const response = await fetchResponse(path, params, init, timeoutMs);
+  return { data: (await parseBody(response)) as T };
+}
+
+async function requestForm<T>(path: string, form: FormData, options: RequestOptions = {}): Promise<T> {
+  const { params, timeoutMs = DEFAULT_TIMEOUT_MS } = options;
+  const init: RequestInit = { method: 'POST', headers: authHeaders(), body: form };
+  const response = await fetchResponse(path, params, init, timeoutMs);
+  return parseBody(response) as Promise<T>;
 }
 
 async function requestBlob(path: string, options: RequestOptions = {}): Promise<Blob> {
   const { params, timeoutMs = DEFAULT_TIMEOUT_MS } = options;
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    const response = await fetch(buildUrl(path, params), {
-      method: 'GET',
-      headers: authHeaders(),
-      signal: controller.signal,
-    });
-    if (!response.ok) throw new ApiError(response.status, await response.text());
-    return response.blob();
-  } finally {
-    clearTimeout(timer);
-  }
+  const init: RequestInit = { method: 'GET', headers: authHeaders() };
+  const response = await fetchResponse(path, params, init, timeoutMs);
+  return response.blob();
 }
 
 export const apiClient = {
@@ -120,5 +110,6 @@ export const apiClient = {
   patch: <T>(path: string, body?: unknown, options?: RequestOptions) =>
     request<T>('PATCH', path, body, options),
   delete: <T>(path: string, options?: RequestOptions) => request<T>('DELETE', path, undefined, options),
+  postForm: <T>(path: string, form: FormData, options?: RequestOptions) => requestForm<T>(path, form, options),
   getBlob: (path: string, options?: RequestOptions) => requestBlob(path, options),
 };

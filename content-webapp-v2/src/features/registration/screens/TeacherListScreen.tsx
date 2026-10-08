@@ -20,7 +20,7 @@ const SORT_VALUES = {
 
 export function TeacherListScreen() {
   const { t } = useTranslation();
-  const { teachers, isLoading, error, reload, remove } = useTeachers();
+  const { state, teachers, reload, remove } = useTeachers();
   const confirmRemove = useConfirmRemove();
   const { sort, toggleSort } = useTableSort();
   const [page, setPage] = useState(1);
@@ -60,12 +60,12 @@ export function TeacherListScreen() {
         <Title order={3}>{t('registration.tabs.teachers')}</Title>
         <Button onClick={openRegister}>{t('registration.addTeacher')}</Button>
       </Group>
-      <LoadError error={error} onRetry={reload} />
+      {state.status === 'error' && <LoadError error={state.error} onRetry={reload} />}
       <DataTable<SchoolTeacher>
         columns={columns}
         rows={rows}
         getRowId={(row) => row.id}
-        loading={isLoading}
+        loading={state.status === 'loading'}
         sort={sort}
         onSortChange={toggleSort}
         page={page}

@@ -1,6 +1,7 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
 import { useAuthStore } from '@features/auth/store/useAuthStore';
+import { toApiState } from '@shared/utils/apiState';
 import {
   deleteTeacher,
   getTeachers,
@@ -35,10 +36,11 @@ export function useTeachers() {
     },
   });
 
+  const state = toApiState(teachers);
+
   return {
-    teachers: teachers.data ?? [],
-    isLoading: teachers.isLoading,
-    error: teachers.error,
+    state,
+    teachers: state.status === 'done' ? state.data : [],
     reload: () => void teachers.refetch(),
     register,
     update,

@@ -11,6 +11,7 @@ import {
 } from '../api/review';
 import { toSegment } from '../utils/segments';
 import { localizeKeys } from '../types/localize.types';
+import { toApiState } from '@shared/utils/apiState';
 import { notifyApiError } from '@shared/utils/notifyApiError';
 
 export interface LocalizeReviewScope {
@@ -69,10 +70,11 @@ export function useLocalizeReview({ siteId, route, lang }: LocalizeReviewScope) 
     onError: notifyApiError,
   });
 
+  const state = toApiState(list);
+
   return {
-    segments: (list.data ?? []).map((item) => toSegment(item, lang)),
-    isLoading: list.isLoading,
-    error: list.error,
+    state,
+    segments: (state.status === 'done' ? state.data : []).map((item) => toSegment(item, lang)),
     generate: generate.mutate,
     generating: generate.isPending,
     saveEdit: saveEdit.mutate,

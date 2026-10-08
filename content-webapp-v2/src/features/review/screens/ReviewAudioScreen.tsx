@@ -1,7 +1,6 @@
 import { Alert, Box, Breadcrumbs, Button, Group, Paper, ScrollArea, Stack, Text, Title } from '@mantine/core';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
-import { routePaths } from '@app/navigation/routePaths';
 import { useReviewAudio } from '../hooks/useReviewAudio';
 import classes from './ReviewAudioScreen.module.css';
 
@@ -9,35 +8,31 @@ export function ReviewAudioScreen() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { id = '' } = useParams({ strict: false });
-  const { item, audioUrl, audioSrc, isLoading, loadError, approve } = useReviewAudio(id);
-
-  const isAudio = item && item.type !== 'quiz';
-  const title = item?.title.english || id;
+  const { state, audioUrl, approve } = useReviewAudio(id);
 
   return (
     <Stack gap="md">
       <Breadcrumbs aria-label="Breadcrumb">
         <Text>{t('review.title')}</Text>
-        <Text>{title}</Text>
+        <Text>{state.status === 'done' ? state.data.content.title.english || id : id}</Text>
       </Breadcrumbs>
       <Text variant="eyebrow">{t('review.audioEyebrow')}</Text>
       <Title order={2}>{t('review.audioTitle')}</Title>
       <Text c="dimmed">{t('review.audioHint')}</Text>
-      {isLoading && <Text c="dimmed">{t('common.loading')}</Text>}
-      {loadError && <Alert>{loadError}</Alert>}
-      {item && !isAudio && <Alert>{t('review.wrongItem')}</Alert>}
-      {isAudio && !isLoading && !audioUrl && <Alert>{t('review.audioMissing')}</Alert>}
-
-      {isAudio && (
+      {state.status === 'loading' && <Text c="dimmed">{t('common.loading')}</Text>}
+      {state.status === 'error' && <Alert>{state.error.message}</Alert>}
+      {state.status === 'done' && state.data.content.type === 'quiz' && <Alert>{t('review.wrongItem')}</Alert>}
+      {state.status === 'done' && state.data.content.type !== 'quiz' && (
         <>
+          {!audioUrl && <Alert>{t('review.audioMissing')}</Alert>}
           <Paper p="lg" radius="md">
             <Stack gap="xs">
               <Text fw={700}>{t('review.playback')}</Text>
-              {item.is_processed && audioUrl && (
+              {state.data.content.is_processed && audioUrl && (
                 // eslint-disable-next-line jsx-a11y/media-has-caption
-                <Box component="audio" controls src={audioSrc} w="100%" />
+                <Box component="audio" controls src={state.data.audio} w="100%" />
               )}
-              {!item.is_processed && <Text c="dimmed">{t('library.audioProcessing')}</Text>}
+              {!state.data.content.is_processed && <Text c="dimmed">{t('library.audioProcessing')}</Text>}
             </Stack>
           </Paper>
 
@@ -45,7 +40,7 @@ export function ReviewAudioScreen() {
             <Stack gap="xs">
               <Text fw={700}>{t('review.script')}</Text>
               <ScrollArea.Autosize mah="40vh" role="document" aria-label={t('review.script')} aria-readonly="true">
-                <Text className={classes.script}>{item.description}</Text>
+                <Text className={classes.script}>{state.data.content.description}</Text>
               </ScrollArea.Autosize>
               <Text size="sm" c="dimmed">
                 {t('review.scriptLocked')}
@@ -68,14 +63,17 @@ export function ReviewAudioScreen() {
           <Group gap="md">
             <Button
               variant="outline"
-              onClick={() => void navigate({ to: `${routePaths.review}/audio/$id/edit`, params: { id } })}
+              onClick={() => void navigate({ to: '/review/audio/$id/edit', params: { id } })}
             >
               {t('review.editAudio')}
             </Button>
-            <Button loading={approve.isPending} onClick={() => approve.mutate(item.description || undefined)}>
+            <Button
+              loading={approve.isPending}
+              onClick={() => approve.mutate(state.data.content.description || undefined)}
+            >
               {t('review.approve')}
             </Button>
-            <Button variant="subtle" onClick={() => void navigate({ to: routePaths.review })}>
+            <Button variant="subtle" onClick={() => void navigate({ to: '/review' })}>
               {t('review.backQueue')}
             </Button>
           </Group>

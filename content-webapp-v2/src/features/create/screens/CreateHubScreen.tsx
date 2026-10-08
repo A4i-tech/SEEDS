@@ -2,19 +2,18 @@ import { Button, Group, Paper, SimpleGrid, Stack, Text, Title } from '@mantine/c
 import { useTranslation } from 'react-i18next';
 import { z } from 'zod';
 import { useNavigate } from '@tanstack/react-router';
-import { routePaths } from '@app/navigation/routePaths';
 
 const cards = ['ai', 'upload', 'source', 'quiz'] as const;
 
 type ChipTarget = '/create/ai' | '/create/quiz' | '/create/upload';
 
 const chips: { key: string; target: ChipTarget; search?: { experience: string } }[] = [
-  { key: 'poem', target: `${routePaths.create}/ai`, search: { experience: 'poem' } },
-  { key: 'story', target: `${routePaths.create}/ai`, search: { experience: 'story' } },
-  { key: 'quiz', target: `${routePaths.create}/quiz` },
-  { key: 'song', target: `${routePaths.create}/ai`, search: { experience: 'song' } },
-  { key: 'audio', target: `${routePaths.create}/upload` },
-  { key: 'activity', target: `${routePaths.create}/ai`, search: { experience: 'snippet' } },
+  { key: 'poem', target: `/create/ai`, search: { experience: 'poem' } },
+  { key: 'story', target: `/create/ai`, search: { experience: 'story' } },
+  { key: 'quiz', target: `/create/quiz` },
+  { key: 'song', target: `/create/ai`, search: { experience: 'song' } },
+  { key: 'audio', target: `/create/upload` },
+  { key: 'activity', target: `/create/ai`, search: { experience: 'snippet' } },
 ];
 
 export function CreateHubScreen() {
@@ -43,7 +42,7 @@ export function CreateHubScreen() {
                   ))}
                 </Stack>
                 <Group>
-                  <Button onClick={() => void navigate({ to: `${routePaths.create}/${card}` })}>
+                  <Button onClick={() => void navigate({ to: `/create/${card}` })}>
                     {t(`create.cards.${card}.action`)}
                   </Button>
                 </Group>

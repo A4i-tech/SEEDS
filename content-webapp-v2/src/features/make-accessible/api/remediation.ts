@@ -9,7 +9,7 @@ export async function createRemediationJob(file: File, targetLanguage = '') {
   body.append('file', file);
   body.append('language', 'auto');
   body.append('target_language', targetLanguage);
-  const { data } = await apiClient.post('/textbook-remediation/jobs', body);
+  const data = await apiClient.postForm('/textbook-remediation/jobs', body);
   return createJobResponseSchema.parse(data).job_id;
 }
 

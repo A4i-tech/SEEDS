@@ -1,8 +1,7 @@
 import { Button, Group, Modal, Stack, Tabs, Text, Title } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { toApiErrorMessage } from '@shared/utils/apiErrors';
 import { FiltersPanel } from '../components/FiltersPanel';
 import type { FiltersValue } from '../components/FiltersPanel';
 import type { DateRange } from '../hooks/useAnalytics';
@@ -47,13 +46,13 @@ function AnalyticsWorkspace({ role }: { role: AnalyticsRole }) {
 
   const analytics = useAnalyticsRange(role, range);
   const dashboards = useAnalyticsDashboard(role);
-  const analyticsError = toApiErrorMessage(analytics.error);
+  const analyticsError = analytics.state.status === 'error' ? analytics.state.error.message : '';
+  const analyticsLoading = analytics.state.status === 'loading';
 
-  const schoolOptions = useMemo(() => {
-    const dashboard = dashboards.tenant.data;
-    if (dashboard === undefined) return [];
-    return dashboard.schools.map((s) => ({ value: s.id, label: s.name }));
-  }, [dashboards.tenant.data]);
+  const schoolOptions =
+    dashboards.tenant.status === 'done'
+      ? dashboards.tenant.data.schools.map((s) => ({ value: s.id, label: s.name }))
+      : [];
 
   const filtersInitial: FiltersValue = {
     branch,
@@ -91,13 +90,13 @@ function AnalyticsWorkspace({ role }: { role: AnalyticsRole }) {
         </Tabs.List>
 
         <Tabs.Panel value="ivr" pt="md">
-          <IvrPanel stats={analytics.stats} loading={analytics.isLoading} error={analyticsError} />
+          <IvrPanel stats={analytics.stats} loading={analyticsLoading} error={analyticsError} />
         </Tabs.Panel>
         <Tabs.Panel value="conference" pt="md">
           <ConferencePanel
             stats={analytics.stats}
             conference={analytics.conference}
-            loading={analytics.isLoading}
+            loading={analyticsLoading}
             error={analyticsError}
           />
         </Tabs.Panel>
@@ -116,7 +115,7 @@ function AnalyticsWorkspace({ role }: { role: AnalyticsRole }) {
           schools={schoolOptions}
           showBranch={role === 'tenant'}
           initial={filtersInitial}
-          loading={analytics.isLoading}
+          loading={analyticsLoading}
           onApply={applyFilters}
         />
       </Modal>

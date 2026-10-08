@@ -1,10 +1,10 @@
 import { Button, Stack, Text, Title } from '@mantine/core';
 import { useNavigate } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
-import { routePaths } from '@app/navigation/routePaths';
 import { useAuthStore } from '@features/auth/store/useAuthStore';
 import { openConfirmDialog } from '@shared/components/ConfirmDialog';
 import { LoadError } from '@shared/components/LoadError';
+import { toApiState } from '@shared/utils/apiState';
 import { useTenantMe } from '../hooks/useAccount';
 
 export function AccountProfileScreen() {
@@ -12,7 +12,7 @@ export function AccountProfileScreen() {
   const navigate = useNavigate();
   const logout = useAuthStore((s) => s.logout);
   const sessionRole = useAuthStore((s) => s.role);
-  const { data, error } = useTenantMe();
+  const state = toApiState(useTenantMe());
 
   const confirmSignOut = () => {
     openConfirmDialog({
@@ -22,7 +22,7 @@ export function AccountProfileScreen() {
       cancelLabel: t('dialog.cancel'),
       onConfirm: () => {
         logout();
-        void navigate({ to: routePaths.login });
+        void navigate({ to: '/' });
       },
     });
   };
@@ -31,26 +31,26 @@ export function AccountProfileScreen() {
     <Stack gap="md">
       <Title order={2}>{t('account.profileTitle')}</Title>
       {sessionRole && <Text c="dimmed">{t('account.sessionRole', { role: sessionRole })}</Text>}
-      <LoadError error={error} />
-      {data && (
+      {state.status === 'error' && <LoadError error={state.error} />}
+      {state.status === 'done' && (
         <Stack gap="xs">
           <Text>
-            {t('account.fieldName')}: {data.name}
+            {t('account.fieldName')}: {state.data.name}
           </Text>
           <Text>
-            {t('account.fieldEmail')}: {data.email}
+            {t('account.fieldEmail')}: {state.data.email}
           </Text>
-          {data.phone_number && (
+          {state.data.phone_number && (
             <Text>
-              {t('account.fieldPhone')}: {data.phone_number}
+              {t('account.fieldPhone')}: {state.data.phone_number}
             </Text>
           )}
           <Text>
-            {t('account.fieldTenant')}: {data.tenant_name}
+            {t('account.fieldTenant')}: {state.data.tenant_name}
           </Text>
-          {data.organisation && (
+          {state.data.organisation && (
             <Text>
-              {t('account.fieldOrganisation')}: {data.organisation}
+              {t('account.fieldOrganisation')}: {state.data.organisation}
             </Text>
           )}
         </Stack>

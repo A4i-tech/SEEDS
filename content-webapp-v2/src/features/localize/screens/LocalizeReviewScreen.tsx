@@ -5,7 +5,6 @@ import { useTranslation } from 'react-i18next';
 import type { DataTableColumn } from '@shared/components/DataTable';
 import { DataTable } from '@shared/components/DataTable';
 import { StatusBadge } from '@shared/components/StatusBadge';
-import { toApiErrorMessage } from '@shared/utils/apiErrors';
 import { selectValue } from '@shared/utils/select';
 import { useLocalizeSites } from '../hooks/useLocalizeSites';
 import { useLocalizeReview } from '../hooks/useLocalizeReview';
@@ -57,9 +56,8 @@ export function LocalizeReviewScreen() {
   const langCodes = siteLangCodes.length > 0 ? siteLangCodes : languages.map((l) => l.code);
 
   const {
+    state,
     segments,
-    isLoading,
-    error,
     generate,
     generating,
     saveEdit,
@@ -68,7 +66,7 @@ export function LocalizeReviewScreen() {
     approvingAll,
   } = useLocalizeReview({ siteId, route: route.trim(), lang });
 
-  const loadError = toApiErrorMessage(error);
+  const isLoading = state.status === 'loading';
   const ready = siteId !== '' && route.trim() !== '' && lang !== '';
 
   const q = query.trim().toLowerCase();
@@ -175,9 +173,9 @@ export function LocalizeReviewScreen() {
           {t('localize.approveAll')}
         </Button>
       </Group>
-      {loadError && <Alert>{loadError}</Alert>}
+      {state.status === 'error' && <Alert>{state.error.message}</Alert>}
       {!siteId && !isLoading && <Text c="dimmed">{t('localize.pickSiteFirst')}</Text>}
-      {ready && !isLoading && segments.length === 0 && !loadError && (
+      {ready && !isLoading && segments.length === 0 && state.status !== 'error' && (
         <Text c="dimmed">{t('localize.generateHint')}</Text>
       )}
       <DataTable<Segment>

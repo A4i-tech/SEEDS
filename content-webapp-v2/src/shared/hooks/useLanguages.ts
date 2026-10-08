@@ -1,14 +1,17 @@
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@features/auth/store/useAuthStore';
 import { getLanguages } from '@shared/services/languages';
+import { toApiState } from '@shared/utils/apiState';
 
 export function useLanguages() {
   const status = useAuthStore((s) => s.status);
-  const { data: languages = [], error, isLoading } = useQuery({
+  const query = useQuery({
     queryKey: ['languages'],
     queryFn: getLanguages,
     enabled: status === 'authenticated',
   });
+  const state = toApiState(query);
+  const languages = state.status === 'done' ? state.data : [];
   const options = languages.map((l) => ({ value: l.code, label: l.name }));
-  return { languages, options, error, isLoading };
+  return { state, languages, options };
 }

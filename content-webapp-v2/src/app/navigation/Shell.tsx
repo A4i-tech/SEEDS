@@ -27,18 +27,17 @@ import { useTranslation } from 'react-i18next';
 import { useAnalyticsRole } from '@features/analytics/hooks/useAnalytics';
 import { useAuthStore } from '@features/auth/store/useAuthStore';
 import { openConfirmDialog } from '@shared/components/ConfirmDialog';
-import { routePaths } from './routePaths';
 
 const destinations = [
-  { to: routePaths.home, key: 'nav.home', Icon: Home },
-  { to: routePaths.library, key: 'nav.library', Icon: BookOpen },
-  { to: routePaths.jobs, key: 'nav.jobs', Icon: Briefcase },
-  { to: routePaths.registration, key: 'nav.registration', Icon: Users },
-  { to: routePaths.analytics, key: 'nav.analytics', Icon: BarChart3 },
-  { to: routePaths.create, key: 'nav.create', Icon: PlusSquare },
-  { to: routePaths.makeAccessible, key: 'nav.makeAccessible', Icon: ScanEye },
-  { to: routePaths.localize, key: 'nav.localize', Icon: Languages },
-  { to: routePaths.review, key: 'nav.review', Icon: Microscope },
+  { to: '/home', key: 'nav.home', Icon: Home },
+  { to: '/library', key: 'nav.library', Icon: BookOpen },
+  { to: '/jobs', key: 'nav.jobs', Icon: Briefcase },
+  { to: '/registration', key: 'nav.registration', Icon: Users },
+  { to: '/analytics', key: 'nav.analytics', Icon: BarChart3 },
+  { to: '/create', key: 'nav.create', Icon: PlusSquare },
+  { to: '/make-accessible', key: 'nav.makeAccessible', Icon: ScanEye },
+  { to: '/localize', key: 'nav.localize', Icon: Languages },
+  { to: '/review', key: 'nav.review', Icon: Microscope },
 ] as const;
 
 export function Shell() {
@@ -67,7 +66,7 @@ export function Shell() {
       cancelLabel: t('dialog.cancel'),
       onConfirm: () => {
         logout();
-        void navigate({ to: routePaths.login });
+        void navigate({ to: '/' });
       },
     });
   };
@@ -126,7 +125,7 @@ export function Shell() {
 
       <MantineAppShell.Navbar p="xs" aria-label="Primary">
         {destinations
-          .filter(({ to }) => to !== routePaths.analytics || analyticsRole !== undefined)
+          .filter(({ to }) => to !== '/analytics' || analyticsRole !== undefined)
           .map(({ to, key, Icon }) => {
           const label = t(key);
           return (

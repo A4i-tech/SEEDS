@@ -62,7 +62,7 @@ function StudentFormModal({ student, onClose }: { student?: Student; onClose: ()
 
 export function StudentListScreen() {
   const { t } = useTranslation();
-  const { students, isLoading, error, reload, remove } = useStudents();
+  const { state, students, reload, remove } = useStudents();
   const confirmRemove = useConfirmRemove();
   const { sort, toggleSort } = useTableSort();
   const [page, setPage] = useState(1);
@@ -93,12 +93,12 @@ export function StudentListScreen() {
         <Title order={3}>{t('registration.tabs.students')}</Title>
         <Button onClick={openCreate}>{t('registration.addStudent')}</Button>
       </Group>
-      <LoadError error={error} onRetry={reload} />
+      {state.status === 'error' && <LoadError error={state.error} onRetry={reload} />}
       <DataTable<Student>
         columns={columns}
         rows={rows}
         getRowId={(row) => row.id}
-        loading={isLoading}
+        loading={state.status === 'loading'}
         sort={sort}
         onSortChange={toggleSort}
         page={page}

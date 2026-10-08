@@ -4,10 +4,9 @@ import { Link, useNavigate, useParams } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
-import { routePaths } from '@app/navigation/routePaths';
 import { useAuthStore } from '@features/auth/store/useAuthStore';
 import { openConfirmDialog } from '@shared/components/ConfirmDialog';
-import { toApiErrorMessage } from '@shared/utils/apiErrors';
+import { toApiState } from '@shared/utils/apiState';
 import { deleteCourse, getCourse, syncCourse } from '../api/library';
 import type { CourseDetail } from '../api/library';
 import { libraryKeys } from '../types/content.types';
@@ -25,7 +24,7 @@ function CourseContent({ course, id }: { course: CourseDetail; id: string }) {
     mutationFn: () => deleteCourse(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: libraryKeys.all });
-      void navigate({ to: routePaths.library });
+      void navigate({ to: '/library' });
     },
     onError: notifyApiError,
   });
@@ -60,7 +59,7 @@ function CourseContent({ course, id }: { course: CourseDetail; id: string }) {
         <Button variant="outline" onClick={confirmRemove}>
           {t('library.delete')}
         </Button>
-        <Button component={Link} to={routePaths.library}>
+        <Button component={Link} to={'/library'}>
           {t('library.done')}
         </Button>
       </Group>
@@ -93,23 +92,18 @@ export function CourseViewScreen() {
     queryFn: () => getCourse(id),
     enabled: status === 'authenticated' && id !== '',
   });
-  const loadError = toApiErrorMessage(detail.error);
-  const course = detail.data;
+  const detailState = toApiState(detail);
 
   return (
     <Stack gap="md">
       <Breadcrumbs aria-label="Breadcrumb">
         <Text>{t('library.title')}</Text>
-        <Text>{course?.title || course?.name || id}</Text>
+        <Text>{detailState.status === 'done' ? detailState.data.title || detailState.data.name || id : id}</Text>
       </Breadcrumbs>
 
-      {detail.isLoading && <Text c="dimmed">{t('common.loading')}</Text>}
-      {loadError && <Alert>{loadError}</Alert>}
-      {!detail.isLoading && !course && !loadError && (
-        <Text c="dimmed">{t('library.courseNotFound')}</Text>
-      )}
-
-      {course && <CourseContent course={course} id={id} />}
+      {detailState.status === 'loading' && <Text c="dimmed">{t('common.loading')}</Text>}
+      {detailState.status === 'error' && <Alert>{detailState.error.message}</Alert>}
+      {detailState.status === 'done' && <CourseContent course={detailState.data} id={id} />}
     </Stack>
   );
 }

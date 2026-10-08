@@ -2,28 +2,26 @@ import { Alert, Button, Group, Paper, SimpleGrid, Stack, Text, Title } from '@ma
 import { Plus } from 'lucide-react';
 import { Link } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
-import { routePaths } from '@app/navigation/routePaths';
 import { useLibrary } from '@features/library/hooks/useLibrary';
 import { useJobs } from '@features/jobs/hooks/useJobs';
-import { toApiErrorMessage } from '@shared/utils/apiErrors';
 import { TextLink } from '../components/RowCard';
 import { AttentionSection } from '../components/AttentionSection';
 import { RecentContentSection } from '../components/RecentContentSection';
 
 const tiles = [
-  { key: 'create', to: routePaths.create },
-  { key: 'makeAccessible', to: routePaths.makeAccessible },
-  { key: 'localize', to: routePaths.localize },
-  { key: 'review', to: routePaths.review },
-  { key: 'library', to: routePaths.library },
-  { key: 'jobs', to: routePaths.jobs },
+  { key: 'create', to: '/create' },
+  { key: 'makeAccessible', to: '/make-accessible' },
+  { key: 'localize', to: '/localize' },
+  { key: 'review', to: '/review' },
+  { key: 'library', to: '/library' },
+  { key: 'jobs', to: '/jobs' },
 ] as const;
 
 export function HomeScreen() {
   const { t } = useTranslation();
-  const { rows, error: jobsError } = useJobs();
-  const { content, syncAll, syncingAll, error: libraryError } = useLibrary();
-  const loadError = toApiErrorMessage(jobsError ?? libraryError);
+  const jobsState = useJobs();
+  const { state: libraryState, content, syncAll, syncingAll } = useLibrary();
+  const rows = jobsState.status === 'done' ? jobsState.data : [];
 
   return (
     <Stack gap="xl">
@@ -43,13 +41,14 @@ export function HomeScreen() {
           <Button
             leftSection={<Plus size={16} aria-hidden />}
             component={Link}
-            to={routePaths.create}
+            to={'/create'}
           >
             {t('library.addContent')}
           </Button>
         </Group>
       </Group>
-      {loadError && <Alert>{loadError}</Alert>}
+      {jobsState.status === 'error' && <Alert>{jobsState.error.message}</Alert>}
+      {libraryState.status === 'error' && <Alert>{libraryState.error.message}</Alert>}
       <Stack gap="md">
         <Text variant="eyebrow">{t('home.whatYouCanDo')}</Text>
         <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">

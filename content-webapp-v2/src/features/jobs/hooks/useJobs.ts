@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@features/auth/store/useAuthStore';
+import { combineStates, toApiState } from '@shared/utils/apiState';
 import { getRemediationJobs } from '../api/remediationJobs';
 import { getActiveSyncJobs, getSyncJobs } from '../api/syncJobs';
 import { jobKeys, toJobRows, type JobRow } from '../types/job.types';
@@ -17,18 +18,14 @@ export function useJobs() {
     refetchInterval: 5000,
   });
 
-  const { data: remediationJobs = [] } = remediation;
-  const { data: syncJobs = [] } = sync;
-  const { data: activeSyncJobs = [] } = activeSync;
-  const activeIds = new Set(activeSyncJobs.map((job) => job.job_id));
-  const rows = toJobRows(remediationJobs, syncJobs).map((row): JobRow => {
+  const state = combineStates({ remediation: toApiState(remediation), sync: toApiState(sync) });
+  if (state.status !== 'done') return state;
+
+  const activeIds = new Set((activeSync.data ?? []).map((job) => job.job_id));
+  const rows = toJobRows(state.data.remediation, state.data.sync).map((row): JobRow => {
     if (!activeIds.has(row.id) || row.status === 'failed') return row;
     return { ...row, status: 'running' };
   });
 
-  return {
-    rows,
-    isLoading: remediation.isLoading || sync.isLoading,
-    error: remediation.error ?? sync.error,
-  };
+  return { status: 'done' as const, data: rows };
 }

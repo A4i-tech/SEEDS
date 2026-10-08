@@ -4,6 +4,7 @@ import { useTranslation } from 'react-i18next';
 import type { DataTableColumn } from '@shared/components/DataTable';
 import { DataTable } from '@shared/components/DataTable';
 import { LoadError } from '@shared/components/LoadError';
+import { toApiState } from '@shared/utils/apiState';
 import type { SyncJobItem } from '../api/syncJobs';
 import { useSyncJobItems } from '../hooks/useSyncJobItems';
 
@@ -11,7 +12,8 @@ export function SyncJobItemsTable({ jobId }: { jobId: string }) {
   const { t } = useTranslation();
   const [expanded, { toggle }] = useDisclosure(false);
   const items = useSyncJobItems(jobId, expanded);
-  const rows = items.data ? items.data.pages.flatMap((page) => page.items) : [];
+  const state = toApiState(items);
+  const rows = state.status === 'done' ? state.data.pages.flatMap((page) => page.items) : [];
 
   const columns: DataTableColumn<SyncJobItem>[] = [
     { key: 'course', header: t('jobs.detail.columns.course'), render: (row) => row.source_id },
@@ -42,10 +44,10 @@ export function SyncJobItemsTable({ jobId }: { jobId: string }) {
       </Button>
       {expanded && (
         <>
-          {items.isLoading && <Text c="dimmed">{t('common.loading')}</Text>}
-          <LoadError error={items.error} />
-          {items.isSuccess && rows.length === 0 && <Text c="dimmed">{t('jobs.detail.emptyItems')}</Text>}
-          {items.isSuccess && rows.length > 0 && (
+          {state.status === 'loading' && <Text c="dimmed">{t('common.loading')}</Text>}
+          {state.status === 'error' && <LoadError error={state.error} />}
+          {state.status === 'done' && rows.length === 0 && <Text c="dimmed">{t('jobs.detail.emptyItems')}</Text>}
+          {state.status === 'done' && rows.length > 0 && (
             <DataTable<SyncJobItem>
               columns={columns}
               rows={rows}

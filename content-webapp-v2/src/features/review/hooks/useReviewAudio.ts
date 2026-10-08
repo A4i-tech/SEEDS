@@ -2,10 +2,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from '@tanstack/react-router';
-import { routePaths } from '@app/navigation/routePaths';
 import { useAuthStore } from '@features/auth/store/useAuthStore';
 import { getContentById, getContentSasUrl } from '@features/library/api/library';
-import { toApiErrorMessage } from '@shared/utils/apiErrors';
+import { combineStates, toApiState } from '@shared/utils/apiState';
 import type { ContentItem } from '@features/library/types/content.types';
 import { reviewKeys, updateReviewContent } from '../api/review';
 import { notifyApiError } from '@shared/utils/notifyApiError';
@@ -50,18 +49,13 @@ export function useReviewAudio(id: string) {
     mutationFn: (description?: string) => updateReviewContent(id, { description }),
     onSuccess: () => {
       notifications.show({ message: t('review.approved') });
-      void navigate({ to: `${routePaths.review}/approved`, state: { title: item?.title.english || id } });
+      void navigate({ to: `/review/approved`, state: { title: item?.title.english || id } });
     },
     onError: notifyApiError,
   });
 
-  return {
-    item,
-    audioUrl,
-    audioSrc: audio.data ?? '',
-    isLoading: content.isLoading || audio.isLoading,
-    loadError: toApiErrorMessage(content.error) || toApiErrorMessage(audio.error),
-    save,
-    approve,
-  };
+  const audioState = audioUrl === '' ? { status: 'done' as const, data: '' } : toApiState(audio);
+  const state = combineStates({ content: toApiState(content), audio: audioState });
+
+  return { state, audioUrl, save, approve };
 }

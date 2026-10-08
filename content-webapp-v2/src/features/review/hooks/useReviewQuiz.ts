@@ -2,10 +2,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from '@tanstack/react-router';
-import { routePaths } from '@app/navigation/routePaths';
 import { useAuthStore } from '@features/auth/store/useAuthStore';
 import { getContentById } from '@features/library/api/library';
-import { toApiErrorMessage } from '@shared/utils/apiErrors';
+import { toApiState } from '@shared/utils/apiState';
 import { reviewKeys, updateReviewContent } from '../api/review';
 import { notifyApiError } from '@shared/utils/notifyApiError';
 
@@ -27,15 +26,10 @@ export function useReviewQuiz(id: string) {
       notifications.show({ message: t('review.approved') });
       void queryClient.invalidateQueries({ queryKey: reviewKeys.quiz(id) });
       const item = content.data;
-      void navigate({ to: `${routePaths.review}/approved`, state: { title: item?.title.english || id } });
+      void navigate({ to: `/review/approved`, state: { title: item?.title.english || id } });
     },
     onError: notifyApiError,
   });
 
-  return {
-    item: content.data,
-    isLoading: content.isLoading,
-    loadError: toApiErrorMessage(content.error),
-    approve,
-  };
+  return { state: toApiState(content), approve };
 }

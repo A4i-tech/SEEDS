@@ -2,7 +2,6 @@ import { Alert, Button, Chip, Group, Select, Stack, Text, TextInput, Title } fro
 import { useForm } from '@mantine/form';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
-import { routePaths } from '@app/navigation/routePaths';
 import { LoadError } from '@shared/components/LoadError';
 import { useLocalizeSites } from '../hooks/useLocalizeSites';
 import type { Website } from '../types/localize.types';
@@ -40,7 +39,7 @@ function SiteForm({ site }: { site: SiteDraft }) {
       status,
       languages: codes.map((code) => ({ code, enabled: true })),
     };
-    const onSuccess = () => void navigate({ to: routePaths.localize });
+    const onSuccess = () => void navigate({ to: '/localize' });
     if (edit) update({ id: site.id, fields }, { onSuccess });
     else create(fields, { onSuccess });
   });
@@ -76,7 +75,7 @@ function SiteForm({ site }: { site: SiteDraft }) {
           <Button type="submit" loading={creating || updating}>
             {t(edit ? 'localize.update' : 'localize.submit')}
           </Button>
-          <Button variant="subtle" onClick={() => void navigate({ to: routePaths.localize })}>
+          <Button variant="subtle" onClick={() => void navigate({ to: '/localize' })}>
             {t('localize.backSites')}
           </Button>
         </Group>
@@ -88,12 +87,12 @@ function SiteForm({ site }: { site: SiteDraft }) {
 export function LocalizeAddScreen() {
   const { t } = useTranslation();
   const { siteId } = useParams({ strict: false });
-  const { sites, isLoading, error } = useLocalizeSites();
+  const { state, sites } = useLocalizeSites();
   const site = sites.find((s) => s.id === siteId);
 
   if (!siteId) return <SiteForm key="new" site={NEW_SITE} />;
-  if (isLoading) return <Text c="dimmed">{t('common.loading')}</Text>;
-  if (error) return <LoadError error={error} />;
+  if (state.status === 'loading') return <Text c="dimmed">{t('common.loading')}</Text>;
+  if (state.status === 'error') return <LoadError error={state.error} />;
   if (!site) return <Alert>{t('localize.notFound')}</Alert>;
   return <SiteForm key={siteId} site={site} />;
 }

@@ -3,7 +3,6 @@ import { Search } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
-import { routePaths } from '@app/navigation/routePaths';
 import type { DataTableColumn } from '@shared/components/DataTable';
 import { DataTable } from '@shared/components/DataTable';
 import { StatusBadge } from '@shared/components/StatusBadge';
@@ -20,7 +19,7 @@ function RowAction({ row }: { row: JobRow }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const go = () => {
-    if (row.status === 'needs-review') return navigate({ to: routePaths.review });
+    if (row.status === 'needs-review') return navigate({ to: '/review' });
     if (row.type === 'make-accessible') return navigate({ to: '/make-accessible/$jobId', params: { jobId: row.id } });
     return navigate({ to: flowRoute[row.type] });
   };
@@ -38,13 +37,13 @@ function RowAction({ row }: { row: JobRow }) {
 
 export function JobsScreen() {
   const { t } = useTranslation();
-  const { rows, isLoading, error } = useJobs();
+  const state = useJobs();
   const [query, setQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<(typeof typeOptions)[number]>('all');
   const [statusFilter, setStatusFilter] = useState<(typeof statusOptions)[number]>('all');
   const [page, setPage] = useState(1);
 
-
+  const rows = state.status === 'done' ? state.data : [];
   const q = query.trim().toLowerCase();
   const filtered = rows.filter(
     (row) =>
@@ -116,12 +115,13 @@ export function JobsScreen() {
           miw="min(240px, 100%)"
         />
       </Flex>
-      <LoadError error={error} />
+      {state.status === 'loading' && <Text c="dimmed">{t('common.loading')}</Text>}
+      {state.status === 'error' && <LoadError error={state.error} />}
       <DataTable<JobRow>
         columns={columns}
         rows={filtered}
         getRowId={(row) => `${row.type}:${row.id}`}
-        loading={isLoading}
+        loading={state.status === 'loading'}
         page={page}
         pageSize={10}
         onPageChange={setPage}

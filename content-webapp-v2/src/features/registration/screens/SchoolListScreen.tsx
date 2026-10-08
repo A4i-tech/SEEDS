@@ -91,7 +91,7 @@ function SchoolFormModal({ school, onClose }: { school?: School; onClose: () => 
 
 export function SchoolListScreen() {
   const { t } = useTranslation();
-  const { schools, isLoading, error, reload, remove } = useSchools();
+  const { state, schools, reload, remove } = useSchools();
   const confirmRemove = useConfirmRemove();
   const { sort, toggleSort } = useTableSort();
   const [page, setPage] = useState(1);
@@ -122,12 +122,12 @@ export function SchoolListScreen() {
         <Title order={3}>{t('registration.tabs.schools')}</Title>
         <Button onClick={openCreate}>{t('registration.createSchool')}</Button>
       </Group>
-      <LoadError error={error} onRetry={reload} />
+      {state.status === 'error' && <LoadError error={state.error} onRetry={reload} />}
       <DataTable<School>
         columns={columns}
         rows={rows}
         getRowId={(row) => row.id}
-        loading={isLoading}
+        loading={state.status === 'loading'}
         sort={sort}
         onSortChange={toggleSort}
         page={page}

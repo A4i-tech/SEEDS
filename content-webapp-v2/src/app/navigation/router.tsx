@@ -38,18 +38,17 @@ import { MakeAccessibleScreen } from '@features/make-accessible/screens/MakeAcce
 import { MakeAccessibleJobScreen } from '@features/make-accessible/screens/MakeAccessibleJobScreen';
 import { HomeScreen } from '@features/home/screens/HomeScreen';
 import { Shell } from './Shell';
-import { routePaths } from './routePaths';
 
 function requireAuth({ location }: { location: { href: string } }) {
   if (useAuthStore.getState().status !== 'authenticated') {
-    throw redirect({ to: routePaths.login, search: { redirect: location.href } });
+    throw redirect({ to: '/', search: { redirect: location.href } });
   }
 }
 
 function redirectSearch(search: Record<string, unknown>): { redirect: string } {
   const redirect = search.redirect;
   if (typeof redirect !== 'string' || !redirect.startsWith('/') || redirect.startsWith('//')) {
-    return { redirect: routePaths.home };
+    return { redirect: '/home' };
   }
   return { redirect };
 }
@@ -63,7 +62,7 @@ const loginRoute = createRoute({
   component: LoginScreen,
   beforeLoad: () => {
     if (useAuthStore.getState().status === 'authenticated') {
-      throw redirect({ to: routePaths.home });
+      throw redirect({ to: '/home' });
     }
   },
 });
@@ -98,7 +97,7 @@ const notFoundRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: '$',
   beforeLoad: () => {
-    throw redirect({ to: routePaths.home, replace: true });
+    throw redirect({ to: '/home', replace: true });
   },
 });
 
