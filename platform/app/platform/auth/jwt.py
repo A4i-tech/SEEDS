@@ -32,7 +32,7 @@ _ISSUER = "platform"
 # ---------------------------------------------------------------------------
 
 
-def _parse_expires_delta(value: str) -> timedelta:
+def parse_expires_delta(value: str) -> timedelta:
     """
     Parse *value* into a timedelta.
 
@@ -88,7 +88,7 @@ def create_access_token(
     settings = get_settings()
 
     if expires_delta is None:
-        expires_delta = _parse_expires_delta(settings.jwt_expires_in)
+        expires_delta = parse_expires_delta(settings.jwt_expires_in)
 
     now = datetime.now(tz=UTC)
     expire = now + expires_delta

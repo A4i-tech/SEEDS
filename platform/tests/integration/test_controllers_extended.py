@@ -8,6 +8,7 @@ Covers: auth_controller (tenant), school/classroom endpoints,
 from __future__ import annotations
 
 import os
+from datetime import UTC, datetime, timedelta
 
 os.environ.setdefault("SECRET_KEY", "test-secret-key-for-integration-tests-32ch")
 os.environ.setdefault("APP_MODE", "api")
@@ -167,9 +168,25 @@ class TestTenantAuth:
         assert "tenant_name" in data
 
     @pytest.mark.asyncio
-    async def test_tenant_logout_requires_auth(self, client, mock_db):
+    async def test_tenant_logout_without_refresh_cookie_is_safe(self, client, mock_db):
         resp = await client.post("/tenant/logout")
-        assert resp.status_code == 401
+        assert resp.status_code == 200
+        assert "refresh_token=" in resp.headers.get("set-cookie", "")
+
+    @pytest.mark.asyncio
+    async def test_tenant_logout_revokes_refresh_session(self, client, mock_db):
+        await _seed_tenant(mock_db, email="tenantlogout@ext.com")
+        login_resp = await client.post("/auth/login", json={
+            "identifier": "tenantlogout@ext.com",
+            "password": "tenantpass",
+        })
+        assert login_resp.status_code == 200
+
+        resp = await client.post("/tenant/logout")
+        assert resp.status_code == 200
+
+        refresh_resp = await client.post("/auth/token/refresh")
+        assert refresh_resp.status_code == 401
 
     @pytest.mark.asyncio
     async def test_tenant_names_public(self, client, mock_db):
@@ -194,6 +211,38 @@ class TestTenantAuth:
         token = _teacher_token(teacher["_id"])
         resp = await client.post("/teacher/logout", headers={"Authorization": f"Bearer {token}"})
         assert resp.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_teacher_logout_with_expired_access_token_still_revokes_session(self, client, mock_db):
+        teacher = await _seed_teacher(mock_db, email="expired@ext.com")
+        await mock_db["users"].update_one(
+            {"_id": ObjectId(teacher["_id"])}, {"$set": {"phone": "expired@ext.com"}}
+        )
+        login_resp = await client.post("/teacher/login", json={
+            "phone_number": "expired@ext.com",
+            "password": "pass1234",
+        })
+        assert login_resp.status_code == 200
+
+        expired_token = create_access_token(
+            {"sub": login_resp.json()["user"]["id"], "role": "teacher", "tenant_id": _TENANT_ID},
+            expires_delta=timedelta(seconds=-60),
+        )
+        resp = await client.post(
+            "/teacher/logout", headers={"Authorization": f"Bearer {expired_token}"}
+        )
+        assert resp.status_code == 200
+
+        refresh_resp = await client.post("/auth/token/refresh")
+        assert refresh_resp.status_code == 401
+
+    @pytest.mark.asyncio
+    async def test_teacher_logout_without_refresh_cookie_is_safe(self, client, mock_db):
+        teacher = await _seed_teacher(mock_db, email="nocookie@ext.com")
+        token = _teacher_token(teacher["_id"])
+        resp = await client.post("/teacher/logout", headers={"Authorization": f"Bearer {token}"})
+        assert resp.status_code == 200
+        assert "refresh_token=" in resp.headers.get("set-cookie", "")
 
     @pytest.mark.asyncio
     async def test_school_admin_login(self, client, mock_db):
@@ -221,6 +270,114 @@ class TestTenantAuth:
         data = resp.json()
         assert "email" in data
         assert "name" in data
+
+
+# ---------------------------------------------------------------------------
+# Content aggregator token endpoints
+# ---------------------------------------------------------------------------
+
+
+class TestContentAggregatorAuth:
+    @pytest.mark.asyncio
+    async def test_issue_token_sets_no_store_headers(self, client, mock_db):
+        await mock_db["integrationClients"].insert_one(
+            {
+                "client_id": "partner-1",
+                "client_secret_hash": hash_password("super-secret"),
+                "name": "Partner One",
+                "tenant_ids": ["tenant-a"],
+                "allowed_scopes": ["content:read"],
+                "status": "active",
+                "created_at": datetime.now(tz=UTC),
+            }
+        )
+        resp = await client.post(
+            "/v1/auth/token",
+            json={
+                "client_id": "partner-1",
+                "client_secret": "super-secret",
+                "scope": "content:read",
+            },
+        )
+        assert resp.status_code == 200
+        assert resp.headers["cache-control"] == "no-store"
+        assert resp.headers["pragma"] == "no-cache"
+
+    @pytest.mark.asyncio
+    async def test_refresh_token_sets_no_store_headers(self, client, mock_db):
+        await mock_db["integrationClients"].insert_one(
+            {
+                "client_id": "partner-1",
+                "client_secret_hash": hash_password("super-secret"),
+                "name": "Partner One",
+                "tenant_ids": ["tenant-a"],
+                "allowed_scopes": ["content:read"],
+                "status": "active",
+                "created_at": datetime.now(tz=UTC),
+            }
+        )
+        issued = await client.post(
+            "/v1/auth/token",
+            json={
+                "client_id": "partner-1",
+                "client_secret": "super-secret",
+                "scope": "content:read",
+            },
+        )
+        resp = await client.post(
+            "/v1/auth/token/refresh",
+            json={"refresh_token": issued.json()["refresh_token"]},
+        )
+        assert resp.status_code == 200
+        assert resp.headers["cache-control"] == "no-store"
+        assert resp.headers["pragma"] == "no-cache"
+
+    @pytest.mark.asyncio
+    async def test_issue_token_rejects_missing_client_secret(self, client, mock_db):
+        resp = await client.post(
+            "/v1/auth/token",
+            json={
+                "client_id": "partner-1",
+                "scope": "content:read",
+            },
+        )
+        assert resp.status_code == 422
+
+    @pytest.mark.asyncio
+    async def test_issue_token_invalid_client_returns_oauth_error(self, client, mock_db):
+        resp = await client.post(
+            "/v1/auth/token",
+            json={
+                "client_id": "does-not-exist",
+                "client_secret": "whatever",
+                "scope": "content:read",
+            },
+        )
+        assert resp.status_code == 401
+        assert resp.headers["www-authenticate"] == "Bearer"
+        assert resp.headers["cache-control"] == "no-store"
+        assert resp.json()["error"] == "invalid_client"
+
+    @pytest.mark.asyncio
+    async def test_refresh_token_invalid_grant_returns_oauth_error(self, client, mock_db):
+        await mock_db["integrationClients"].insert_one(
+            {
+                "client_id": "partner-1",
+                "client_secret_hash": hash_password("super-secret"),
+                "name": "Partner One",
+                "tenant_ids": ["tenant-a"],
+                "allowed_scopes": ["content:read"],
+                "status": "active",
+                "created_at": datetime.now(tz=UTC),
+            }
+        )
+        resp = await client.post(
+            "/v1/auth/token/refresh",
+            json={"refresh_token": "does-not-exist"},
+        )
+        assert resp.status_code == 401
+        assert resp.headers["www-authenticate"] == "Bearer"
+        assert resp.json()["error"] == "invalid_grant"
 
 
 # ---------------------------------------------------------------------------
