@@ -183,16 +183,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # ------------------------------------------------------------------
     await init_database()
 
-    from app.repositories.content_aggregator_sync_job_repository import (  # noqa: PLC0415
-        ContentAggregatorSyncJobRepository,
-    )
     from app.repositories.textbook_remediation_repository import (  # noqa: PLC0415
         TextbookRemediationRepository,
     )
-
-    reconciled = await ContentAggregatorSyncJobRepository(get_database()).reconcile_interrupted_jobs()
-    if reconciled:
-        logger.info("Reconciled %d interrupted content aggregator sync jobs", reconciled)
 
     if settings.app_mode in ("consumer", "all"):
         reconciled = await TextbookRemediationRepository(get_database()).reconcile_interrupted_jobs()
