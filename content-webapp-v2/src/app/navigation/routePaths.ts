@@ -10,9 +10,7 @@ export const routePaths = {
   makeAccessible: '/make-accessible',
   localize: '/localize',
   localizeAdd: '/localize/add',
-  localizeEdit: '/localize/sites/:siteId/edit',
   localizeReview: '/localize/review',
   review: '/review',
   ivrView: '/ivr-view',
-  syncHistory: '/content/sync-history',
 } as const;

@@ -7,10 +7,6 @@ export function setAuthToken(token: string) {
   authToken = token;
 }
 
-export function clearAuthToken() {
-  authToken = '';
-}
-
 export function setSessionExpiredHandler(handler: () => void) {
   onSessionExpired = handler;
 }

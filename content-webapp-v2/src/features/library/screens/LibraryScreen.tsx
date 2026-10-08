@@ -225,6 +225,7 @@ export function LibraryScreen() {
         </Group>
       )}
       <DataTable<LibraryRow>
+        footerLayout="pages"
         columns={columns}
         rows={rows}
         getRowId={(row) => row.rowKey}

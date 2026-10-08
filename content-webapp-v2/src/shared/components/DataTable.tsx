@@ -42,7 +42,7 @@ export function DataTable<T>({
   page,
   pageSize,
   onPageChange,
-  footerLayout = 'pages',
+  footerLayout = 'range',
   actions,
   actionsLabel = 'Actions',
   emptyMessage,

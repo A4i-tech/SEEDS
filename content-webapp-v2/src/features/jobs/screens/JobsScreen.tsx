@@ -1,6 +1,6 @@
 import { Button, Group, Select, Stack, Text, TextInput, Title } from '@mantine/core';
 import { Search } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { routePaths } from '@app/navigation/routePaths';
@@ -17,6 +17,8 @@ import classes from './JobsScreen.module.css';
 const typeOptions: Array<'all' | JobType> = ['all', 'make-accessible', 'course-sync', 'localize', 'create'];
 const statusOptions: Array<'all' | JobStatus> = ['all', 'failed', 'needs-review', 'running', 'done'];
 
+const OUTLINED_LABELS: Partial<Record<JobStatus, string>> = { failed: 'jobs.fix', 'needs-review': 'jobs.continue' };
+
 function RowAction({ row }: { row: JobRow }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -25,30 +27,15 @@ function RowAction({ row }: { row: JobRow }) {
     if (row.type === 'make-accessible') return navigate({ to: '/make-accessible/$jobId', params: { jobId: row.id } });
     return navigate({ to: flowRoute[row.type] });
   };
-  if (row.status === 'failed') {
-    return (
-      <Button variant="outline" size="sm" className={classes.outlineAction} onClick={() => void go()}>
-        {t('jobs.fix')}
-      </Button>
-    );
-  }
-  if (row.status === 'needs-review') {
-    return (
-      <Button variant="outline" size="sm" className={classes.outlineAction} onClick={() => void go()}>
-        {t('jobs.continue')}
-      </Button>
-    );
-  }
-  if (row.type === 'create') {
-    return (
-      <Button variant="transparent" size="sm" className={classes.textAction} onClick={() => void go()}>
-        {t('jobs.open')}
-      </Button>
-    );
-  }
+  const outlinedLabel = OUTLINED_LABELS[row.status];
   return (
-    <Button variant="transparent" size="sm" className={classes.textAction} onClick={() => void go()}>
-      {t('jobs.view')}
+    <Button
+      variant={outlinedLabel ? 'outline' : 'transparent'}
+      size="sm"
+      className={outlinedLabel ? classes.outlineAction : classes.textAction}
+      onClick={() => void go()}
+    >
+      {t(outlinedLabel ?? 'jobs.view')}
     </Button>
   );
 }
@@ -62,15 +49,13 @@ export function JobsScreen() {
   const [page, setPage] = useState(1);
   const loadError = toApiErrorMessage(error);
 
-  const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return rows.filter(
-      (row) =>
-        (typeFilter === 'all' || row.type === typeFilter) &&
-        (statusFilter === 'all' || row.status === statusFilter) &&
-        (!q || row.title.toLowerCase().includes(q)),
-    );
-  }, [rows, query, typeFilter, statusFilter]);
+  const q = query.trim().toLowerCase();
+  const filtered = rows.filter(
+    (row) =>
+      (typeFilter === 'all' || row.type === typeFilter) &&
+      (statusFilter === 'all' || row.status === statusFilter) &&
+      (!q || row.title.toLowerCase().includes(q)),
+  );
 
   const columns: DataTableColumn<JobRow>[] = [
     {
@@ -147,7 +132,6 @@ export function JobsScreen() {
         page={page}
         pageSize={10}
         onPageChange={setPage}
-        footerLayout="range"
         emptyMessage={t('jobs.empty')}
         actions={(row) => <RowAction row={row} />}
         actionsLabel={t('jobs.columns.action')}

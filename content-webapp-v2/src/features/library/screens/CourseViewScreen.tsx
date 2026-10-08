@@ -11,6 +11,7 @@ import { toApiErrorMessage } from '@shared/utils/apiErrors';
 import { deleteCourse, getCourse, syncCourse, updateProblemBlock } from '../api/library';
 import type { CourseBlock, CourseDetail } from '../api/library';
 import classes from './CourseViewScreen.module.css';
+import { notifyApiError } from '@shared/utils/notifyApiError';
 
 function blockLabel(block: CourseBlock): string {
   return block.display_name || block.type;
@@ -194,19 +195,13 @@ function CourseContent({ course, id }: { course: CourseDetail; id: string }) {
       void queryClient.invalidateQueries({ queryKey: ['library'] });
       void navigate({ to: routePaths.library });
     },
-    onError: (err) => {
-      const message = toApiErrorMessage(err);
-      if (message) notifications.show({ color: 'red', message });
-    },
+    onError: notifyApiError,
   });
 
   const sync = useMutation({
     mutationFn: () => syncCourse(id),
     onSuccess: () => notifications.show({ message: t('library.syncStarted') }),
-    onError: (err) => {
-      const message = toApiErrorMessage(err);
-      if (message) notifications.show({ color: 'red', message });
-    },
+    onError: notifyApiError,
   });
 
   const confirmRemove = () => {

@@ -7,6 +7,7 @@ import { useAuthStore } from '@features/auth/store/useAuthStore';
 import { getContentById } from '@features/library/api/library';
 import { toApiErrorMessage } from '@shared/utils/apiErrors';
 import { updateReviewContent } from '../api/review';
+import { notifyApiError } from '@shared/utils/notifyApiError';
 
 export function useReviewQuiz(id: string) {
   const { t } = useTranslation();
@@ -28,10 +29,7 @@ export function useReviewQuiz(id: string) {
       const item = content.data;
       void navigate({ to: `${routePaths.review}/approved`, state: { title: item?.title.english || id } });
     },
-    onError: (err) => {
-      const message = toApiErrorMessage(err);
-      if (message) notifications.show({ color: 'red', message });
-    },
+    onError: notifyApiError,
   });
 
   return {

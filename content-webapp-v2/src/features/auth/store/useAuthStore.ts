@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { queryClient } from '@app/store/queryClient';
-import { clearAuthToken, setAuthToken, setSessionExpiredHandler } from '@shared/services/apiClient';
+import { setAuthToken, setSessionExpiredHandler } from '@shared/services/apiClient';
 import { decodeJwtRole, isJwtExpired } from '@shared/utils/jwt';
 import { login as loginRequest } from '../api/login';
 
@@ -34,7 +34,6 @@ export const useAuthStore = create<AuthState>((set) => ({
   hydrate: () => {
     const token = readStoredToken();
     if (!token) {
-      clearAuthToken();
       set({ status: 'unauthenticated', role: '' });
       return;
     }
@@ -51,7 +50,7 @@ export const useAuthStore = create<AuthState>((set) => ({
 
   logout: () => {
     localStorage.removeItem(TOKEN_KEY);
-    clearAuthToken();
+    setAuthToken('');
     set({ status: 'unauthenticated', role: '' });
     queryClient.clear();
   },

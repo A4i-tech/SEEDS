@@ -2,7 +2,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '@features/auth/store/useAuthStore';
-import { toApiErrorMessage } from '@shared/utils/apiErrors';
 import { generateForReview } from '../api/scripts';
 import {
   approveTranslation,
@@ -11,6 +10,7 @@ import {
   updateTranslation,
 } from '../api/review';
 import { toSegment } from '../utils/segments';
+import { notifyApiError } from '@shared/utils/notifyApiError';
 
 export interface LocalizeReviewScope {
   siteId: string;
@@ -34,18 +34,13 @@ export function useLocalizeReview({ siteId, route, lang }: LocalizeReviewScope) 
     void queryClient.invalidateQueries({ queryKey: ['localize'] });
   };
 
-  const notifyError = (err: unknown) => {
-    const message = toApiErrorMessage(err);
-    if (message) notifications.show({ color: 'red', message });
-  };
-
   const generate = useMutation({
     mutationFn: () => generateForReview(siteId, route, lang),
     onSuccess: () => {
       notifications.show({ message: t('localize.generated') });
       invalidate();
     },
-    onError: notifyError,
+    onError: notifyApiError,
   });
 
   const saveEdit = useMutation({
@@ -55,7 +50,7 @@ export function useLocalizeReview({ siteId, route, lang }: LocalizeReviewScope) 
       notifications.show({ message: t('localize.saved') });
       invalidate();
     },
-    onError: notifyError,
+    onError: notifyApiError,
   });
 
   const approve = useMutation({
@@ -64,7 +59,7 @@ export function useLocalizeReview({ siteId, route, lang }: LocalizeReviewScope) 
       notifications.show({ message: t('localize.approved') });
       invalidate();
     },
-    onError: notifyError,
+    onError: notifyApiError,
   });
 
   const approveAll = useMutation({
@@ -74,7 +69,7 @@ export function useLocalizeReview({ siteId, route, lang }: LocalizeReviewScope) 
       notifications.show({ message: t('localize.approvedCount', { count: result.approved }) });
       invalidate();
     },
-    onError: notifyError,
+    onError: notifyApiError,
   });
 
   return {

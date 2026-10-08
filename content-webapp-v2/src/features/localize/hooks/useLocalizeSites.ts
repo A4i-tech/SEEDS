@@ -2,10 +2,10 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '@features/auth/store/useAuthStore';
-import { toApiErrorMessage } from '@shared/utils/apiErrors';
 import { useLanguages } from '@shared/hooks/useLanguages';
 import { createSite, deleteSite, listSites, updateSite } from '../api/sites';
 import type { WebsiteUpdate } from '../types/localize.types';
+import { notifyApiError } from '@shared/utils/notifyApiError';
 
 export function useLocalizeSites() {
   const { t } = useTranslation();
@@ -20,18 +20,13 @@ export function useLocalizeSites() {
     void queryClient.invalidateQueries({ queryKey: ['localize'] });
   };
 
-  const notifyError = (err: unknown) => {
-    const message = toApiErrorMessage(err);
-    if (message) notifications.show({ color: 'red', message });
-  };
-
   const create = useMutation({
     mutationFn: createSite,
     onSuccess: () => {
       notifications.show({ message: t('localize.siteCreated') });
       invalidate();
     },
-    onError: notifyError,
+    onError: notifyApiError,
   });
 
   const update = useMutation({
@@ -40,7 +35,7 @@ export function useLocalizeSites() {
       notifications.show({ message: t('localize.siteUpdated') });
       invalidate();
     },
-    onError: notifyError,
+    onError: notifyApiError,
   });
 
   const remove = useMutation({
@@ -49,7 +44,7 @@ export function useLocalizeSites() {
       notifications.show({ message: t('localize.siteDeleted') });
       invalidate();
     },
-    onError: notifyError,
+    onError: notifyApiError,
   });
 
   return {

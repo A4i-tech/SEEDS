@@ -9,13 +9,11 @@ export function useSchools() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const status = useAuthStore((s) => s.status);
-  const role = useAuthStore((s) => s.role);
-  const enabled = status === 'authenticated' && role === 'tenant';
 
   const schools = useQuery({
     queryKey: ['registration', 'schools'],
     queryFn: getSchools,
-    enabled,
+    enabled: status === 'authenticated',
   });
 
   const invalidate = () => {

@@ -1,3 +1,4 @@
+import { BarChart, BarsList } from '@mantine/charts';
 import { Text } from '@mantine/core';
 import { SquareArrowOutUpRight } from 'lucide-react';
 import type { KeyboardEvent, ReactNode } from 'react';
@@ -13,11 +14,6 @@ const SERIES_FILLS = [
 
 const formatDay = (isoDate: string) =>
   new Date(isoDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
-
-function barHeight(count: number, max: number): number {
-  if (max === 0) return 0;
-  return Math.max(4, Math.round((count / max) * 96));
-}
 
 export function ChartCard({
   title,
@@ -59,110 +55,49 @@ export function ChartCard({
 }
 
 export function TrendChart({ bins, hideAxis = false }: { bins: CountBin[]; hideAxis?: boolean }) {
-  if (bins.length === 0) return <></>;
-  const max = Math.max(...bins.map((b) => b.count));
-  const width = bins.length * 26;
+  if (bins.length === 0) return null;
   return (
-    <div className={classes.trend}>
-      <svg viewBox={`0 0 ${width} 100`} className={classes.trendSvg} role="img" aria-hidden>
-        {bins.map((bin, i) => {
-          const h = barHeight(bin.count, max);
-          return (
-            <rect
-              key={bin.label}
-              x={i * 26 + 4}
-              y={100 - h}
-              width={18}
-              height={h}
-              rx={3}
-              fill="var(--seeds-brandmark-bg)"
-            />
-          );
-        })}
-      </svg>
-      {!hideAxis && (
-        <div className={classes.axis}>
-          <Text size="sm" c="dimmed">
-            {formatDay(bins[0].label)}
-          </Text>
-          {bins.length > 1 && (
-            <Text size="sm" c="dimmed">
-              {formatDay(bins[bins.length - 1].label)}
-            </Text>
-          )}
-        </div>
-      )}
-    </div>
+    <BarChart
+      h={120}
+      data={bins}
+      dataKey="label"
+      series={[{ name: 'count', color: 'var(--seeds-brandmark-bg)' }]}
+      withXAxis={!hideAxis}
+      withYAxis={false}
+      gridAxis="none"
+      tickLine="none"
+      xAxisProps={{ tickFormatter: formatDay, interval: 'preserveStartEnd' }}
+    />
   );
 }
 
-function visibleBins(bins: CountBin[], compact: boolean): CountBin[] {
-  if (!compact) return bins;
-  return bins.slice(0, 4);
-}
-
 export function BarList({ bins, compact }: { bins: CountBin[]; compact: boolean }) {
-  if (bins.length === 0) return <></>;
-  const max = Math.max(...bins.map((b) => b.count));
-  const visible = visibleBins(bins, compact);
+  if (bins.length === 0) return null;
+  const visible = compact ? bins.slice(0, 4) : bins;
   return (
-    <div className={classes.bars}>
-      {visible.map((bin, i) => (
-        <div key={bin.label} className={classes.barRow}>
-          <Text size="sm" c="dimmed" className={classes.barLabel}>
-            {bin.label}
-          </Text>
-          <svg viewBox="0 0 100 12" preserveAspectRatio="none" className={classes.track} aria-hidden>
-            {max > 0 && (
-              <rect
-                x={0}
-                y={0}
-                width={Math.max(2, (bin.count / max) * 100)}
-                height={12}
-                rx={3}
-                fill={SERIES_FILLS[i % SERIES_FILLS.length]}
-              />
-            )}
-          </svg>
-          {!compact && (
-            <Text size="sm" className={classes.barCount}>
-              {bin.count}
-            </Text>
-          )}
-        </div>
-      ))}
-    </div>
+    <BarsList
+      data={visible.map((bin, i) => ({ name: bin.label, value: bin.count, color: SERIES_FILLS[i % SERIES_FILLS.length] }))}
+      barHeight={24}
+      minBarSize={120}
+    />
   );
 }
 
 export function StackedBar({ bins }: { bins: CountBin[] }) {
-  const total = bins.reduce((sum, b) => sum + b.count, 0);
-  if (total === 0) return <></>;
-  const starts = bins.map((_, i) => (bins.slice(0, i).reduce((sum, b) => sum + b.count, 0) / total) * 100);
+  if (bins.every((bin) => bin.count === 0)) return null;
   return (
-    <div className={classes.stacked}>
-      <svg viewBox="0 0 100 12" preserveAspectRatio="none" className={classes.stackedTrack} aria-hidden>
-        {bins.map((bin, i) => {
-          return (
-            <rect
-              key={bin.label}
-              x={starts[i]}
-              y={0}
-              width={(bin.count / total) * 100}
-              height={12}
-              fill={SERIES_FILLS[i % SERIES_FILLS.length]}
-            />
-          );
-        })}
-      </svg>
-      <div className={classes.legend}>
-        {bins.map((bin, i) => (
-          <Text key={bin.label} size="sm" className={classes.legendItem}>
-            <span className={classes.dot} style={{ backgroundColor: SERIES_FILLS[i % SERIES_FILLS.length] }} />
-            {bin.label} · {Math.round((bin.count / total) * 100)}%
-          </Text>
-        ))}
-      </div>
-    </div>
+    <BarChart
+      h={96}
+      type="percent"
+      orientation="vertical"
+      data={[Object.fromEntries([['name', ''], ...bins.map((bin, i) => [`s${i}`, bin.count])])]}
+      dataKey="name"
+      series={bins.map((bin, i) => ({ name: `s${i}`, label: bin.label, color: SERIES_FILLS[i % SERIES_FILLS.length] }))}
+      withXAxis={false}
+      withYAxis={false}
+      gridAxis="none"
+      tickLine="none"
+      withLegend
+    />
   );
 }

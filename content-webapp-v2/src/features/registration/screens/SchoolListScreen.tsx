@@ -12,7 +12,6 @@ import { useForm } from '@mantine/form';
 import { zodResolver } from 'mantine-form-zod-resolver';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { notifications } from '@mantine/notifications';
 import type { DataTableColumn } from '@shared/components/DataTable';
 import { DataTable } from '@shared/components/DataTable';
 import { openConfirmDialog } from '@shared/components/ConfirmDialog';
@@ -21,6 +20,7 @@ import { useSchools } from '../hooks/useSchools';
 import { sortRows, useTableSort } from '../hooks/useTableSort';
 import { schoolCreateSchema, schoolUpdateSchema, type School } from '../types/registration.types';
 import classes from './SchoolListScreen.module.css';
+import { notifyApiError } from '@shared/utils/notifyApiError';
 
 type SchoolFormValues = {
   name: string;
@@ -131,10 +131,7 @@ export function SchoolListScreen() {
       confirmLabel: t('registration.delete'),
       cancelLabel: t('dialog.cancel'),
       onConfirm: () => {
-        void deleteSchool(school.id).catch((err: unknown) => {
-          const message = toApiErrorMessage(err);
-          if (message) notifications.show({ color: 'red', message });
-        });
+        void deleteSchool(school.id).catch(notifyApiError);
       },
     });
   };
@@ -182,7 +179,6 @@ export function SchoolListScreen() {
         page={page}
         pageSize={10}
         onPageChange={setPage}
-        footerLayout="range"
         emptyMessage={t('registration.emptySchools')}
         actions={(row) => (
           <Group gap="xs">

@@ -15,13 +15,11 @@ export function useTeachers() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const status = useAuthStore((s) => s.status);
-  const role = useAuthStore((s) => s.role);
-  const enabled = status === 'authenticated' && role !== '' && role !== 'tenant';
 
   const teachers = useQuery({
     queryKey: ['registration', 'teachers'],
     queryFn: getTeachers,
-    enabled,
+    enabled: status === 'authenticated',
   });
 
   const invalidate = () => {

@@ -20,10 +20,6 @@ function passwordChecks(password: string) {
   };
 }
 
-function passwordValid(password: string) {
-  return Object.values(passwordChecks(password)).every(Boolean);
-}
-
 const registerSchema = z
   .object({
     tenantName: z.string().min(1, 'Required'),
@@ -32,19 +28,14 @@ const registerSchema = z
     confirmPassword: z.string().min(1, 'Required'),
   })
   .refine((v) => v.password === v.confirmPassword, { message: 'Passwords do not match', path: ['confirmPassword'] })
-  .refine((v) => passwordValid(v.password), { message: 'Password policy', path: ['password'] });
+  .refine((v) => Object.values(passwordChecks(v.password)).every(Boolean), { message: 'Password policy', path: ['password'] });
 
 type RegisterValues = z.infer<typeof registerSchema>;
-
-function policyTone(met: boolean) {
-  if (met) return 'green';
-  return 'dimmed';
-}
 
 function PolicyItem({ met, label }: { met: boolean; label: string }) {
   return (
     <List.Item>
-      <Text c={policyTone(met)}>{label}</Text>
+      <Text c={met ? 'green' : 'dimmed'}>{label}</Text>
     </List.Item>
   );
 }

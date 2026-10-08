@@ -3,9 +3,9 @@ import { notifications } from '@mantine/notifications';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from '@tanstack/react-router';
 import { routePaths } from '@app/navigation/routePaths';
-import { toApiErrorMessage } from '@shared/utils/apiErrors';
 import { createRemediationJob } from '../api/remediation';
 import { useLanguages } from '@shared/hooks/useLanguages';
+import { notifyApiError } from '@shared/utils/notifyApiError';
 
 export function useRemediationUpload() {
   const { t } = useTranslation();
@@ -21,10 +21,7 @@ export function useRemediationUpload() {
       notifications.show({ message: t('makeAccessible.uploaded', { name: file.name }) });
       void navigate({ to: routePaths.jobs });
     },
-    onError: (err) => {
-      const message = toApiErrorMessage(err);
-      if (message) notifications.show({ color: 'red', message });
-    },
+    onError: notifyApiError,
   });
 
   return { languageOptions, upload: upload.mutateAsync, isUploading: upload.isPending };

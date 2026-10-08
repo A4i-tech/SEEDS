@@ -22,30 +22,11 @@ function toInputDate(date: Date): string {
 
 const TODAY = toInputDate(new Date());
 
-const QUICK_DAYS = { last7: 7, last30: 30 } as const;
-
-function datesForQuick(quick: QuickRange): { start: string; end: string } {
-  if (quick === 'month') {
-    const range = monthToDate();
-    return { start: toInputDate(range.start), end: toInputDate(range.end) };
-  }
-  if (quick === 'custom') {
-    const today = toInputDate(new Date());
-    return { start: today, end: today };
-  }
-  const range = lastNDays(QUICK_DAYS[quick]);
-  return { start: toInputDate(range.start), end: toInputDate(range.end) };
-}
-
-function quickVariant(isActive: boolean) {
-  if (isActive) return 'filled';
-  return 'outline';
-}
-
-function quickClass(isActive: boolean): string {
-  if (isActive) return classes.activeQuick;
-  return classes.quick;
-}
+const QUICK_RANGES: Record<Exclude<QuickRange, 'custom'>, () => { start: Date; end: Date }> = {
+  last7: () => lastNDays(7),
+  last30: () => lastNDays(30),
+  month: monthToDate,
+};
 
 export function FiltersPanel({
   schools,
@@ -68,16 +49,11 @@ export function FiltersPanel({
       setDraft((d) => ({ ...d, quick }));
       return;
     }
-    const dates = datesForQuick(quick);
-    setDraft((d) => ({ ...d, quick, ...dates }));
+    const { start, end } = QUICK_RANGES[quick]();
+    setDraft((d) => ({ ...d, quick, start: toInputDate(start), end: toInputDate(end) }));
   };
 
   const canApply = draft.start.length > 0 && draft.end.length > 0 && !loading;
-
-  const applyLabel = (): string => {
-    if (loading) return t('analytics.states.loading');
-    return t('analytics.filtersPanel.apply');
-  };
 
   return (
     <Stack gap="md">
@@ -103,9 +79,9 @@ export function FiltersPanel({
           {QUICKS.map((quick) => (
             <Button
               key={quick}
-              variant={quickVariant(draft.quick === quick)}
+              variant={draft.quick === quick ? 'filled' : 'outline'}
               size="sm"
-              className={quickClass(draft.quick === quick)}
+              className={draft.quick === quick ? classes.activeQuick : classes.quick}
               onClick={() => pickQuick(quick)}
             >
               {t(`analytics.filtersPanel.${quick}`)}
@@ -136,7 +112,7 @@ export function FiltersPanel({
         onClick={() => onApply(draft)}
         aria-label={t('analytics.filtersPanel.apply')}
       >
-        {applyLabel()}
+        {loading ? t('analytics.states.loading') : t('analytics.filtersPanel.apply')}
       </Button>
     </Stack>
   );

@@ -15,7 +15,6 @@ import { AccountProfileScreen } from '@features/account/screens/AccountProfileSc
 import { AccountSettingsScreen } from '@features/account/screens/AccountSettingsScreen';
 import { LibraryScreen } from '@features/library/screens/LibraryScreen';
 import { LibraryDetailScreen } from '@features/library/screens/LibraryDetailScreen';
-import { LibraryViewScreen } from '@features/library/screens/LibraryViewScreen';
 import { CourseViewScreen } from '@features/library/screens/CourseViewScreen';
 import { ContentEditScreen } from '@features/library/screens/ContentEditScreen';
 import { CreateHubScreen } from '@features/create/screens/CreateHubScreen';
@@ -77,38 +76,6 @@ function protectedRoute<const TPath extends string>(path: TPath, component: Func
   return createRoute({ getParentRoute: () => shellRoute, path, component });
 }
 
-const homeRoute = protectedRoute('/home', HomeScreen);
-const libraryRoute = protectedRoute('/library', LibraryScreen);
-const libraryDetailRoute = protectedRoute('/library/$kind/$id', LibraryDetailScreen);
-const courseViewRoute = protectedRoute('/library/course/$id', CourseViewScreen);
-const contentEditRoute = protectedRoute('/library/$kind/$id/edit', ContentEditScreen);
-const libraryViewRoute = protectedRoute('/library/$kind/$id/view', LibraryViewScreen);
-const jobsRoute = protectedRoute('/jobs', JobsScreen);
-const jobDetailRoute = protectedRoute('/jobs/$jobId', JobDetailScreen);
-const ivrViewRoute = protectedRoute('/ivr-view', ViewIvrScreen);
-const registrationRoute = protectedRoute('/registration', RegistrationScreen);
-const analyticsRoute = protectedRoute('/analytics', AnalyticsScreen);
-const createHubRoute = protectedRoute('/create', CreateHubScreen);
-const quizBuilderRoute = protectedRoute('/create/quiz', QuizBuilderScreen);
-const createAiRoute = protectedRoute('/create/ai', CreateAiScreen);
-const createUploadRoute = protectedRoute('/create/upload', CreateUploadScreen);
-const createSourceRoute = protectedRoute('/create/source', CreateSourceScreen);
-const makeAccessibleRoute = protectedRoute('/make-accessible', MakeAccessibleScreen);
-const makeAccessibleJobRoute = protectedRoute('/make-accessible/$jobId', MakeAccessibleJobScreen);
-const localizeRoute = protectedRoute('/localize', LocalizeSitesScreen);
-const localizeAddRoute = protectedRoute('/localize/add', LocalizeAddScreen);
-const localizeEditRoute = protectedRoute('/localize/sites/$siteId/edit', LocalizeAddScreen);
-const localizeReviewRoute = protectedRoute('/localize/review', LocalizeReviewScreen);
-const reviewRoute = protectedRoute('/review', ReviewQueueScreen);
-const reviewTextRoute = protectedRoute('/review/text/$jobId', ReviewTextScreen);
-const reviewAudioRoute = protectedRoute('/review/audio/$id', ReviewAudioScreen);
-const reviewAudioEditRoute = protectedRoute('/review/audio/$id/edit', ReviewAudioEditScreen);
-const reviewQuizRoute = protectedRoute('/review/quiz/$id', ReviewQuizScreen);
-const reviewRemediateRoute = protectedRoute('/review/remediate/$jobId', ReviewRemediateScreen);
-const reviewApprovedRoute = protectedRoute('/review/approved', ReviewApprovedScreen);
-const accountProfileRoute = protectedRoute('/account/profile', AccountProfileScreen);
-const accountSettingsRoute = protectedRoute('/account/settings', AccountSettingsScreen);
-
 const syncHistoryRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: '/content/sync-history',
@@ -129,37 +96,36 @@ const routeTree = rootRoute.addChildren([
   loginRoute,
   registerRoute,
   shellRoute.addChildren([
-    homeRoute,
-    libraryRoute,
-    libraryDetailRoute,
-    courseViewRoute,
-    contentEditRoute,
-    libraryViewRoute,
-    jobsRoute,
-    jobDetailRoute,
-    ivrViewRoute,
-    registrationRoute,
-    analyticsRoute,
-    createHubRoute,
-    quizBuilderRoute,
-    createAiRoute,
-    createUploadRoute,
-    createSourceRoute,
-    makeAccessibleRoute,
-    makeAccessibleJobRoute,
-    localizeRoute,
-    localizeAddRoute,
-    localizeEditRoute,
-    localizeReviewRoute,
-    reviewRoute,
-    reviewTextRoute,
-    reviewAudioRoute,
-    reviewAudioEditRoute,
-    reviewQuizRoute,
-    reviewRemediateRoute,
-    reviewApprovedRoute,
-    accountProfileRoute,
-    accountSettingsRoute,
+    protectedRoute('/home', HomeScreen),
+    protectedRoute('/library', LibraryScreen),
+    protectedRoute('/library/$kind/$id', LibraryDetailScreen),
+    protectedRoute('/library/course/$id', CourseViewScreen),
+    protectedRoute('/library/$kind/$id/edit', ContentEditScreen),
+    protectedRoute('/jobs', JobsScreen),
+    protectedRoute('/jobs/$jobId', JobDetailScreen),
+    protectedRoute('/ivr-view', ViewIvrScreen),
+    protectedRoute('/registration', RegistrationScreen),
+    protectedRoute('/analytics', AnalyticsScreen),
+    protectedRoute('/create', CreateHubScreen),
+    protectedRoute('/create/quiz', QuizBuilderScreen),
+    protectedRoute('/create/ai', CreateAiScreen),
+    protectedRoute('/create/upload', CreateUploadScreen),
+    protectedRoute('/create/source', CreateSourceScreen),
+    protectedRoute('/make-accessible', MakeAccessibleScreen),
+    protectedRoute('/make-accessible/$jobId', MakeAccessibleJobScreen),
+    protectedRoute('/localize', LocalizeSitesScreen),
+    protectedRoute('/localize/add', LocalizeAddScreen),
+    protectedRoute('/localize/sites/$siteId/edit', LocalizeAddScreen),
+    protectedRoute('/localize/review', LocalizeReviewScreen),
+    protectedRoute('/review', ReviewQueueScreen),
+    protectedRoute('/review/text/$jobId', ReviewTextScreen),
+    protectedRoute('/review/audio/$id', ReviewAudioScreen),
+    protectedRoute('/review/audio/$id/edit', ReviewAudioEditScreen),
+    protectedRoute('/review/quiz/$id', ReviewQuizScreen),
+    protectedRoute('/review/remediate/$jobId', ReviewRemediateScreen),
+    protectedRoute('/review/approved', ReviewApprovedScreen),
+    protectedRoute('/account/profile', AccountProfileScreen),
+    protectedRoute('/account/settings', AccountSettingsScreen),
     syncHistoryRoute,
     notFoundRoute,
   ]),

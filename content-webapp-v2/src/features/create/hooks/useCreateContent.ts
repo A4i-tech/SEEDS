@@ -3,9 +3,9 @@ import { notifications } from '@mantine/notifications';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from '@tanstack/react-router';
 import { routePaths } from '@app/navigation/routePaths';
-import { toApiErrorMessage } from '@shared/utils/apiErrors';
 import type { ContentCreate } from '../../library/types/content.types';
 import { createContent, getUploadSasUrl, uploadMp3ToSasUrl } from '../api/content';
+import { notifyApiError } from '@shared/utils/notifyApiError';
 
 function useCreateBase(target: typeof routePaths.library | typeof routePaths.jobs, successKey: string) {
   const { t } = useTranslation();
@@ -24,10 +24,7 @@ export function useCreateContentText() {
       void queryClient.invalidateQueries({ queryKey: ['jobs'] });
       void navigate({ to: target });
     },
-    onError: (err) => {
-      const message = toApiErrorMessage(err);
-      if (message) notifications.show({ color: 'red', message });
-    },
+    onError: notifyApiError,
   });
 }
 
@@ -50,9 +47,6 @@ export function useCreateContentAudio() {
       void queryClient.invalidateQueries({ queryKey: ['jobs'] });
       void navigate({ to: routePaths.jobs });
     },
-    onError: (err) => {
-      const message = toApiErrorMessage(err);
-      if (message) notifications.show({ color: 'red', message });
-    },
+    onError: notifyApiError,
   });
 }

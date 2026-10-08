@@ -6,9 +6,6 @@ export async function getTenantMe(): Promise<TenantMe> {
   return tenantMeSchema.parse(data);
 }
 
-export async function changeTenantPassword(
-  current_password: string,
-  new_password: string,
-): Promise<void> {
-  await apiClient.post('/tenant/change-password', { current_password, new_password });
+export async function changeTenantPassword(body: { current_password: string; new_password: string }): Promise<void> {
+  await apiClient.post('/tenant/change-password', body);
 }

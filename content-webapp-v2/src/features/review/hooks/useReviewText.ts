@@ -4,8 +4,8 @@ import { useTranslation } from 'react-i18next';
 import { useNavigate } from '@tanstack/react-router';
 import { routePaths } from '@app/navigation/routePaths';
 import { useAuthStore } from '@features/auth/store/useAuthStore';
-import { toApiErrorMessage } from '@shared/utils/apiErrors';
 import { approveReview, getArtifactMarkdown, saveReviewDraft } from '../api/review';
+import { notifyApiError } from '@shared/utils/notifyApiError';
 
 export function useReviewText(jobId: string) {
   const { t } = useTranslation();
@@ -27,10 +27,7 @@ export function useReviewText(jobId: string) {
       notifications.show({ message: t('review.saved') });
       void queryClient.invalidateQueries({ queryKey: ['review', jobId] });
     },
-    onError: (err) => {
-      const message = toApiErrorMessage(err);
-      if (message) notifications.show({ color: 'red', message });
-    },
+    onError: notifyApiError,
   });
 
   const approve = useMutation({
@@ -40,10 +37,7 @@ export function useReviewText(jobId: string) {
       void queryClient.invalidateQueries({ queryKey: ['jobs'] });
       void navigate({ to: routePaths.review });
     },
-    onError: (err) => {
-      const message = toApiErrorMessage(err);
-      if (message) notifications.show({ color: 'red', message });
-    },
+    onError: notifyApiError,
   });
 
   return { raw: raw.data ?? '', corrected: corrected.data ?? '', isLoading: raw.isLoading || corrected.isLoading, save, approve };

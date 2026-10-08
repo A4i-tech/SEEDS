@@ -2,7 +2,6 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '@features/auth/store/useAuthStore';
-import { toApiErrorMessage } from '@shared/utils/apiErrors';
 import {
   deleteContent,
   deleteCourse,
@@ -11,6 +10,7 @@ import {
   syncAllCourses,
   updateIvr,
 } from '../api/library';
+import { notifyApiError } from '@shared/utils/notifyApiError';
 
 export function useLibrary() {
   const { t } = useTranslation();
@@ -33,20 +33,15 @@ export function useLibrary() {
     void queryClient.invalidateQueries({ queryKey: ['library'] });
   };
 
-  const notifyError = (err: unknown) => {
-    const message = toApiErrorMessage(err);
-    if (message) notifications.show({ color: 'red', message });
-  };
-
   const removeContent = useMutation({
     mutationFn: deleteContent,
     onSuccess: invalidate,
-    onError: notifyError,
+    onError: notifyApiError,
   });
   const removeCourse = useMutation({
     mutationFn: deleteCourse,
     onSuccess: invalidate,
-    onError: notifyError,
+    onError: notifyApiError,
   });
   const syncAll = useMutation({
     mutationFn: syncAllCourses,
@@ -54,14 +49,14 @@ export function useLibrary() {
       notifications.show({ message: t('library.syncStarted') });
       invalidate();
     },
-    onError: notifyError,
+    onError: notifyApiError,
   });
   const refreshIvr = useMutation({
     mutationFn: updateIvr,
     onSuccess: (data) => {
       notifications.show({ message: data.message || t('library.ivrUpdated') });
     },
-    onError: notifyError,
+    onError: notifyApiError,
   });
 
   return {

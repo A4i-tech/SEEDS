@@ -8,6 +8,7 @@ import { getContentById, getContentSasUrl } from '@features/library/api/library'
 import { toApiErrorMessage } from '@shared/utils/apiErrors';
 import type { ContentItem } from '@features/library/types/content.types';
 import { updateReviewContent } from '../api/review';
+import { notifyApiError } from '@shared/utils/notifyApiError';
 
 function audioUrlOf(item: ContentItem | undefined): string {
   if (!item || item.type === 'quiz') return '';
@@ -42,10 +43,7 @@ export function useReviewAudio(id: string) {
       notifications.show({ message: t('review.saved') });
       void queryClient.invalidateQueries({ queryKey: ['review', 'audio', id] });
     },
-    onError: (err) => {
-      const message = toApiErrorMessage(err);
-      if (message) notifications.show({ color: 'red', message });
-    },
+    onError: notifyApiError,
   });
 
   const approve = useMutation({
@@ -54,10 +52,7 @@ export function useReviewAudio(id: string) {
       notifications.show({ message: t('review.approved') });
       void navigate({ to: `${routePaths.review}/approved`, state: { title: item?.title.english || id } });
     },
-    onError: (err) => {
-      const message = toApiErrorMessage(err);
-      if (message) notifications.show({ color: 'red', message });
-    },
+    onError: notifyApiError,
   });
 
   return {

@@ -21,7 +21,7 @@
   color: var(--seeds-nav-topbar-text);
 }
 
-.active.active {
+.navLink[data-active] {
   background-color: var(--seeds-subnav-bg-active);
   color: var(--seeds-subnav-text-active);
 }

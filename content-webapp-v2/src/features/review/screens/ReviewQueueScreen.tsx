@@ -146,7 +146,6 @@ export function ReviewQueueScreen() {
         page={page}
         pageSize={10}
         onPageChange={setPage}
-        footerLayout="range"
         emptyMessage={t('review.empty')}
         actions={(row) => (
           <button

@@ -12,6 +12,7 @@ import {
   getReviewSummary,
   saveReviewDraft,
 } from '../api/review';
+import { notifyApiError } from '@shared/utils/notifyApiError';
 
 export function useReviewRemediate(jobId: string) {
   const { t } = useTranslation();
@@ -38,10 +39,7 @@ export function useReviewRemediate(jobId: string) {
       notifications.show({ message: t('review.saved') });
       void queryClient.invalidateQueries({ queryKey: ['review', jobId] });
     },
-    onError: (err) => {
-      const message = toApiErrorMessage(err);
-      if (message) notifications.show({ color: 'red', message });
-    },
+    onError: notifyApiError,
   });
 
   const approve = useMutation({
@@ -51,10 +49,7 @@ export function useReviewRemediate(jobId: string) {
       void queryClient.invalidateQueries({ queryKey: ['jobs'] });
       void navigate({ to: `${routePaths.review}/approved`, state: { title: job.data?.source_name ?? jobId } });
     },
-    onError: (err) => {
-      const message = toApiErrorMessage(err);
-      if (message) notifications.show({ color: 'red', message });
-    },
+    onError: notifyApiError,
   });
 
   return {

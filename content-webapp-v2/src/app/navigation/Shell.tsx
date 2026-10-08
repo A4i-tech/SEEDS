@@ -119,8 +119,7 @@ export function Shell() {
       <MantineAppShell.Navbar p="xs" aria-label="Primary">
         {destinations.map(({ to, key, Icon }) => {
           const label = t(key);
-          const active =
-            location.pathname === to || (to !== routePaths.home && location.pathname.startsWith(to));
+          const active = to === routePaths.home ? location.pathname === to : location.pathname.startsWith(to);
           return (
             <NavLink
               key={to}
@@ -132,7 +131,7 @@ export function Shell() {
               component={Link}
               to={to}
               onClick={closeMobile}
-              className={active ? classes.active : undefined}
+              className={classes.navLink}
             />
           );
         })}

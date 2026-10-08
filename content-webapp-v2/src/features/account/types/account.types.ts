@@ -5,9 +5,9 @@ export const tenantMeSchema = z.object({
   id: text,
   role: z.string(),
   name: z.string(),
-  email: text,
+  email: z.string(),
   phone_number: text,
-  tenant_name: text,
+  tenant_name: z.string(),
   organisation: text,
 });
 

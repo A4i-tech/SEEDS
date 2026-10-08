@@ -6,10 +6,7 @@ export interface StatCard {
   value: string;
 }
 
-function gridCols(count: number) {
-  if (count % 3 === 0) return { base: 2, sm: 3, lg: count };
-  return { base: 2, sm: 2, lg: count };
-}
+const gridCols = (count: number) => ({ base: 2, sm: count % 3 === 0 ? 3 : 2, lg: count });
 
 export function StatCards({ cards, loading }: { cards: StatCard[]; loading: boolean }) {
   if (loading) {

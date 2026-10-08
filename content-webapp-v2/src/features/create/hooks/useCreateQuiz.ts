@@ -3,9 +3,9 @@ import { notifications } from '@mantine/notifications';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from '@tanstack/react-router';
 import { routePaths } from '@app/navigation/routePaths';
-import { toApiErrorMessage } from '@shared/utils/apiErrors';
 import type { QuizCreate } from '../../library/types/content.types';
 import { createQuiz } from '../api/quiz';
+import { notifyApiError } from '@shared/utils/notifyApiError';
 
 export function useCreateQuiz() {
   const { t } = useTranslation();
@@ -20,9 +20,6 @@ export function useCreateQuiz() {
       void queryClient.invalidateQueries({ queryKey: ['jobs'] });
       void navigate({ to: routePaths.library });
     },
-    onError: (err) => {
-      const message = toApiErrorMessage(err);
-      if (message) notifications.show({ color: 'red', message });
-    },
+    onError: notifyApiError,
   });
 }

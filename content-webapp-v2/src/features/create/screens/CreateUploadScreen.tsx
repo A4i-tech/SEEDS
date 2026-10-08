@@ -3,7 +3,6 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { openConfirmDialog } from '@shared/components/ConfirmDialog';
 import { toApiErrorMessage } from '@shared/utils/apiErrors';
-import { fileFromInput } from '@shared/utils/fileInput';
 import { selectValue } from '@shared/utils/select';
 import { useLanguages } from '@shared/hooks/useLanguages';
 import type { ContentCreate } from '../../library/types/content.types';
@@ -63,7 +62,7 @@ export function CreateUploadScreen() {
       <Stack gap="xs" className={classes.panel}>
         <FileInput
           label={t('create.audioFile')}
-          onChange={(f) => setFile(fileFromInput(f))}
+          onChange={(f) => setFile(f ?? undefined)}
           accept=".mp3,audio/mpeg"
           required
         />

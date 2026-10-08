@@ -1,10 +1,11 @@
-import { RootNavigator } from '@app/navigation/RootNavigator';
+import { RouterProvider } from '@tanstack/react-router';
+import { router } from '@app/navigation/router';
 import { AppProviders } from '@app/providers/AppProviders';
 
 export default function App() {
   return (
     <AppProviders>
-      <RootNavigator />
+      <RouterProvider router={router} />
     </AppProviders>
   );
 }

@@ -21,7 +21,7 @@ const looseText = z.string().catch('');
 export const callLogSchema = z.object({
   phone_number: text,
   duration: z.union([z.string(), z.number()]).nullish().transform(toSeconds),
-  created_at: text,
+  created_at: z.coerce.date(),
   user_actions: list(z.unknown()),
   content_id: looseText,
   audio_id: looseText,
@@ -77,9 +77,9 @@ export const schoolDashboardSchema = z.object({
 
 export type SchoolDashboard = z.infer<typeof schoolDashboardSchema>;
 
-export const analyticsRoleSchema = z.enum(['tenant', 'school_admin']);
+export const analyticsRoleSchema = z.enum(['tenant', 'school_admin', '']).catch('');
 
-export type AnalyticsRole = z.infer<typeof analyticsRoleSchema>;
+export type AnalyticsRole = Exclude<z.infer<typeof analyticsRoleSchema>, ''>;
 
 const ANALYTICS_ENDPOINT: Record<AnalyticsRole, string> = {
   tenant: '/tenant/analytics',

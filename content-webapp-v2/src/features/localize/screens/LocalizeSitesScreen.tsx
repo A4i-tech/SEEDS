@@ -232,7 +232,6 @@ export function LocalizeSitesScreen() {
         page={page}
         pageSize={10}
         onPageChange={setPage}
-        footerLayout="range"
         emptyMessage={t('localize.empty')}
         actions={(row) => (
           <Group gap="md" wrap="nowrap">

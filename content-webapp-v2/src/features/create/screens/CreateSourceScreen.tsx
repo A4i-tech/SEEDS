@@ -4,7 +4,6 @@ import { useTranslation } from 'react-i18next';
 import type { DataTableColumn } from '@shared/components/DataTable';
 import { DataTable } from '@shared/components/DataTable';
 import { toApiErrorMessage } from '@shared/utils/apiErrors';
-import { fileFromInput } from '@shared/utils/fileInput';
 import { selectValue } from '@shared/utils/select';
 import { useLanguages } from '@shared/hooks/useLanguages';
 import type { QuizCreate } from '../../library/types/content.types';
@@ -80,7 +79,7 @@ export function CreateSourceScreen() {
       <Stack gap="xs" className={classes.panel}>
         <FileInput
           label={t('create.sourceFile')}
-          onChange={(f) => setFile(fileFromInput(f))}
+          onChange={(f) => setFile(f ?? undefined)}
           accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
           required
         />
@@ -177,7 +176,6 @@ export function CreateSourceScreen() {
             page={page}
             pageSize={10}
             onPageChange={setPage}
-            footerLayout="range"
             emptyMessage={t('create.sourceIncomplete')}
             actions={(row) => (
               <Button

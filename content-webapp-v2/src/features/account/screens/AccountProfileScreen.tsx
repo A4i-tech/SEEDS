@@ -42,21 +42,17 @@ export function AccountProfileScreen() {
           <Text>
             {t('account.fieldName')}: {data.name}
           </Text>
-          {data.email && (
-            <Text>
-              {t('account.fieldEmail')}: {data.email}
-            </Text>
-          )}
+          <Text>
+            {t('account.fieldEmail')}: {data.email}
+          </Text>
           {data.phone_number && (
             <Text>
               {t('account.fieldPhone')}: {data.phone_number}
             </Text>
           )}
-          {data.tenant_name && (
-            <Text>
-              {t('account.fieldTenant')}: {data.tenant_name}
-            </Text>
-          )}
+          <Text>
+            {t('account.fieldTenant')}: {data.tenant_name}
+          </Text>
           {data.organisation && (
             <Text>
               {t('account.fieldOrganisation')}: {data.organisation}

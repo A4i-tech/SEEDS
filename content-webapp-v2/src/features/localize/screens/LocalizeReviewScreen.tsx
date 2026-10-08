@@ -213,7 +213,6 @@ export function LocalizeReviewScreen() {
         page={page}
         pageSize={10}
         onPageChange={setPage}
-        footerLayout="range"
         emptyMessage={t('localize.reviewEmpty')}
         actions={(row) => (
           <>

@@ -1,26 +1,22 @@
 .running.running {
-  text-transform: uppercase;
   letter-spacing: 2px;
   background-color: var(--seeds-badge-subject-bg);
   color: var(--seeds-badge-subject-text);
 }
 
 .needsReview.needsReview {
-  text-transform: uppercase;
   letter-spacing: 2px;
   background-color: var(--seeds-badge-warning-bg);
   color: var(--seeds-badge-warning-text);
 }
 
 .done.done {
-  text-transform: uppercase;
   letter-spacing: 2px;
   background-color: var(--seeds-badge-easy-bg);
   color: var(--seeds-badge-easy-text);
 }
 
 .failed.failed {
-  text-transform: uppercase;
   letter-spacing: 2px;
   background-color: var(--seeds-badge-hard-bg);
   color: var(--seeds-badge-hard-text);

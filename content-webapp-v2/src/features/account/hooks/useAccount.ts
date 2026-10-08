@@ -6,13 +6,5 @@ export function useTenantMe() {
 }
 
 export function useChangePassword() {
-  return useMutation({
-    mutationFn: ({
-      current_password,
-      new_password,
-    }: {
-      current_password: string;
-      new_password: string;
-    }) => changeTenantPassword(current_password, new_password),
-  });
+  return useMutation({ mutationFn: changeTenantPassword });
 }

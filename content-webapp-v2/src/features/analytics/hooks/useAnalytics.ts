@@ -23,21 +23,11 @@ export interface DateRow {
   dropPercent: string;
 }
 
-interface AnalyticsStats {
-  totalCalls: number;
-  uniqueUsers: number;
-  avgDuration: string;
-  medianDuration: string;
-  totalDuration: string;
-  dropFailPercent: string;
-  callsByDate: CountBin[];
-  dateRows: DateRow[];
-  stepDepth: CountBin[];
-  contentUsage: CountBin[];
-  callsByTeacher: CountBin[];
-}
+export type RecentConference = ReturnType<typeof summarizeConferences>['recent'][number];
 
 const CONTENT_KEYS = ['content_id', 'audio_id', 'content_name', 'audio_name'] as const;
+
+const DEPTH_LABELS = ['0–1 acts', '2–3 acts', '4–5 acts', '6+ acts'];
 
 export function formatClock(totalSeconds: number): string {
   const minutes = Math.floor(totalSeconds / 60);
@@ -45,190 +35,123 @@ export function formatClock(totalSeconds: number): string {
   return `${minutes}m ${seconds}s`;
 }
 
-function contentKeyOf(log: CallLog): string {
-  for (const key of CONTENT_KEYS) {
-    const value: string = log[key];
-    if (value.length > 0) return value;
-  }
-  return '';
+const sum = (values: number[]) => values.reduce((total, value) => total + value, 0);
+
+const percent = (part: number, whole: number) => `${Math.round((part / Math.max(whole, 1)) * 100)}%`;
+
+const contentKeyOf = (log: CallLog) => CONTENT_KEYS.map((key) => log[key]).find((value) => value !== '');
+
+const phonesOf = (logs: CallLog[]) => logs.map((log) => log.phone_number).filter(Boolean);
+
+const callDurations = (logs: CallLog[]) => logs.map((log) => log.duration).filter((d) => d > 0);
+
+const countDropped = (logs: CallLog[]) => logs.filter((log) => log.duration === 0 || log.user_actions.length <= 1).length;
+
+const averageDuration = (durations: number[]) =>
+  durations.length === 0 ? 0 : Math.floor(sum(durations) / durations.length);
+
+const medianDuration = (durations: number[]) =>
+  durations.length === 0 ? 0 : [...durations].sort((a, b) => a - b)[Math.floor(durations.length / 2)];
+
+const topCounts = (keys: string[], limit: number): CountBin[] =>
+  [...Map.groupBy(keys, (key) => key)]
+    .map(([label, group]) => ({ label, count: group.length }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, limit);
+
+const dayOf = (log: CallLog) => log.created_at.toISOString().slice(0, 10);
+
+const groupByDate = (logs: CallLog[]) => [...Map.groupBy(logs, dayOf)].sort(([a], [b]) => a.localeCompare(b));
+
+function summarizeConferences(logs: CallLog[]) {
+  const newestFirst = [...logs].sort((a, b) => b.created_at.getTime() - a.created_at.getTime());
+  const durationTrend = groupByDate(newestFirst.filter((log) => log.duration > 0)).map(([label, dayLogs]) => ({
+    label,
+    count: averageDuration(dayLogs.map((log) => log.duration)),
+  }));
+  const recent = newestFirst.slice(0, 10).map((log, index) => ({
+    id: `${index}-${log.created_at.toISOString()}`,
+    date: `${log.created_at.getUTCMonth() + 1}/${log.created_at.getUTCDate()}`,
+    teacher: log.phone_number || '—',
+    duration: formatClock(log.duration),
+  }));
+  return { durationTrend, recent };
 }
 
-function appendLog(byDate: Map<string, CallLog[]>, key: string, log: CallLog): void {
-  const existing = byDate.get(key);
-  if (existing === undefined) {
-    byDate.set(key, [log]);
-    return;
-  }
-  existing.push(log);
-}
+const summarizeDate = (date: string, logs: CallLog[]): DateRow => ({
+  date,
+  calls: logs.length,
+  uniqueUsers: new Set(phonesOf(logs)).size,
+  avgDuration: formatClock(averageDuration(callDurations(logs))),
+  dropPercent: percent(countDropped(logs), logs.length),
+});
 
-function incrementCount(counts: Map<string, number>, key: string): void {
-  const existing = counts.get(key);
-  if (existing === undefined) {
-    counts.set(key, 1);
-    return;
-  }
-  counts.set(key, existing + 1);
-}
-
-function bucketStepDepth(actions: number): string {
-  if (actions <= 1) return '0–1 acts';
-  if (actions <= 3) return '2–3 acts';
-  if (actions <= 5) return '4–5 acts';
-  return '6+ acts';
-}
-
-function topCounts(entries: Array<[string, number]>, limit: number): CountBin[] {
-  return entries
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, limit)
-    .map(([label, count]) => ({ label, count }));
-}
-
-function isDropped(log: CallLog): boolean {
-  return log.duration === 0 || log.user_actions.length <= 1;
-}
-
-function averageDuration(total: number, count: number): number {
-  if (count === 0) return 0;
-  return Math.floor(total / count);
-}
-
-function medianOfSorted(sorted: number[]): number {
-  if (sorted.length === 0) return 0;
-  return sorted[Math.floor(sorted.length / 2)];
-}
-
-function summarizeDate(date: string, logs: CallLog[]): DateRow {
-  const durations = logs.map((log) => log.duration).filter((d) => d > 0);
-  const total = durations.reduce((sum, d) => sum + d, 0);
-  return {
-    date,
-    calls: logs.length,
-    uniqueUsers: new Set(logs.map((log) => log.phone_number).filter(Boolean)).size,
-    avgDuration: formatClock(averageDuration(total, durations.length)),
-    dropPercent: `${Math.round((logs.filter(isDropped).length / logs.length) * 100)}%`,
-  };
-}
-
-export function summarizeCalls(logs: CallLog[]): AnalyticsStats {
-  const empty: AnalyticsStats = {
-    totalCalls: 0,
-    uniqueUsers: 0,
-    avgDuration: '0m 0s',
-    medianDuration: '0m 0s',
-    totalDuration: '0m',
-    dropFailPercent: '0%',
-    callsByDate: [],
-    dateRows: [],
-    stepDepth: [],
-    contentUsage: [],
-    callsByTeacher: [],
-  };
-  if (logs.length === 0) return empty;
-
-  const durations = logs.map((log) => log.duration).filter((d) => d > 0);
-  const totalSeconds = durations.reduce((sum, d) => sum + d, 0);
-  const sorted = [...durations].sort((a, b) => a - b);
-  const median = medianOfSorted(sorted);
-  const dropped = logs.filter(isDropped).length;
-
-  const byDate = new Map<string, CallLog[]>();
-  for (const log of logs) {
-    if (!log.created_at) continue;
-    const day = new Date(log.created_at);
-    if (Number.isNaN(day.getTime())) continue;
-    const key = day.toISOString().slice(0, 10);
-    appendLog(byDate, key, log);
-  }
-  const sortedDates = [...byDate.entries()].sort(([a], [b]) => a.localeCompare(b));
-
-  const depthOrder = ['0–1 acts', '2–3 acts', '4–5 acts', '6+ acts'];
-  const depthCounts = new Map<string, number>(depthOrder.map((label) => [label, 0]));
-  for (const log of logs) {
-    incrementCount(depthCounts, bucketStepDepth(log.user_actions.length));
-  }
-
-  const contentCounts = new Map<string, number>();
-  for (const log of logs) {
-    const key = contentKeyOf(log);
-    if (key) incrementCount(contentCounts, key);
-  }
-
-  const teacherCounts = new Map<string, number>();
-  for (const log of logs) {
-    if (log.phone_number) incrementCount(teacherCounts, log.phone_number);
-  }
+function summarizeCalls(logs: CallLog[]) {
+  const durations = callDurations(logs);
+  const byDate = groupByDate(logs);
+  const byDepth = Map.groupBy(logs, (log) => Math.min(Math.floor(log.user_actions.length / 2), 3));
 
   return {
     totalCalls: logs.length,
-    uniqueUsers: new Set(logs.map((log) => log.phone_number).filter(Boolean)).size,
-    avgDuration: formatClock(averageDuration(totalSeconds, durations.length)),
-    medianDuration: formatClock(median),
-    totalDuration: `${Math.round(totalSeconds / 60)}m`,
-    dropFailPercent: `${Math.round((dropped / logs.length) * 100)}%`,
-    callsByDate: sortedDates.map(([label, dayLogs]) => ({ label, count: dayLogs.length })),
-    dateRows: sortedDates.map(([date, dayLogs]) => summarizeDate(date, dayLogs)),
-    stepDepth: [...depthCounts].map(([label, count]) => ({ label, count })),
-    contentUsage: topCounts([...contentCounts.entries()], 5),
-    callsByTeacher: topCounts([...teacherCounts.entries()], 8),
+    uniqueUsers: new Set(phonesOf(logs)).size,
+    avgDuration: formatClock(averageDuration(durations)),
+    medianDuration: formatClock(medianDuration(durations)),
+    totalDuration: `${Math.round(sum(durations) / 60)}m`,
+    dropFailPercent: percent(countDropped(logs), logs.length),
+    callsByDate: byDate.map(([label, dayLogs]) => ({ label, count: dayLogs.length })),
+    dateRows: byDate.map(([date, dayLogs]) => summarizeDate(date, dayLogs)),
+    stepDepth: logs.length === 0 ? [] : DEPTH_LABELS.map((label, depth) => ({ label, count: byDepth.get(depth)?.length ?? 0 })),
+    contentUsage: topCounts(logs.map(contentKeyOf).filter((key) => key !== undefined), 5),
+    callsByTeacher: topCounts(phonesOf(logs), 8),
   };
 }
 
-export function lastNDays(days: number, now: Date = new Date()): { start: Date; end: Date } {
-  const end = new Date(now);
-  const start = new Date(now);
+export function lastNDays(days: number): DateRange {
+  const start = new Date();
   start.setDate(start.getDate() - days);
-  return { start, end };
+  return { start, end: new Date() };
 }
 
-export function monthToDate(now: Date = new Date()): { start: Date; end: Date } {
-  return { start: new Date(now.getFullYear(), now.getMonth(), 1), end: new Date(now) };
+export function monthToDate(): DateRange {
+  const now = new Date();
+  return { start: new Date(now.getFullYear(), now.getMonth(), 1), end: now };
 }
 
-export function useAnalyticsRole(): AnalyticsRole | undefined {
-  const raw = useAuthStore((s) => s.role);
-  const parsed = analyticsRoleSchema.safeParse(raw);
-  if (!parsed.success) return undefined;
-  return parsed.data;
+export function useAnalyticsRole(): AnalyticsRole | '' {
+  return analyticsRoleSchema.parse(useAuthStore((s) => s.role));
 }
 
-export function useAnalyticsRange(role: AnalyticsRole | undefined, range: DateRange) {
-  const status = useAuthStore((s) => s.status);
+export function useAnalyticsRange(role: AnalyticsRole | '', range: DateRange) {
   const startISO = range.start.toISOString();
   const endISO = range.end.toISOString();
-  const enabled = status === 'authenticated' && role !== undefined;
 
   const query = useQuery({
     queryKey: ['analytics', role, startISO, endISO],
     queryFn: () => {
-      if (role === undefined) throw new Error('Analytics query ran without role');
-      return postAnalytics(role, {
-        start_date: startISO,
-        end_date: endISO,
-      });
+      if (role === '') throw new Error('Analytics query ran without role');
+      return postAnalytics(role, { start_date: startISO, end_date: endISO });
     },
-    enabled,
+    enabled: role !== '',
   });
 
-  const stats = useMemo(() => summarizeCalls(query.data?.data ?? []), [query.data]);
+  const summary = useMemo(() => {
+    const logs = query.data?.data ?? [];
+    return { stats: summarizeCalls(logs), conference: summarizeConferences(logs) };
+  }, [query.data]);
 
-  return { ...query, stats };
+  return { ...query, ...summary };
 }
 
-export function useAnalyticsDashboard(role: AnalyticsRole | undefined) {
-  const status = useAuthStore((s) => s.status);
-  const enabled = status === 'authenticated' && role !== undefined;
-
+export function useAnalyticsDashboard(role: AnalyticsRole | '') {
   const tenant = useQuery({
     queryKey: ['analytics', 'tenant-dashboard'],
     queryFn: getTenantDashboard,
-    enabled: enabled && role === 'tenant',
+    enabled: role === 'tenant',
   });
   const school = useQuery({
     queryKey: ['analytics', 'school-dashboard'],
     queryFn: getSchoolDashboard,
-    enabled: enabled && role === 'school_admin',
+    enabled: role === 'school_admin',
   });
 
   return { tenant, school };

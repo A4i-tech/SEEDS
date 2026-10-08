@@ -13,7 +13,6 @@ import { useForm } from '@mantine/form';
 import { zodResolver } from 'mantine-form-zod-resolver';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { notifications } from '@mantine/notifications';
 import type { DataTableColumn } from '@shared/components/DataTable';
 import { DataTable } from '@shared/components/DataTable';
 import { openConfirmDialog } from '@shared/components/ConfirmDialog';
@@ -28,6 +27,7 @@ import {
   type SchoolTeacher,
 } from '../types/registration.types';
 import classes from './TeacherListScreen.module.css';
+import { notifyApiError } from '@shared/utils/notifyApiError';
 
 type TeacherFormValues = {
   name: string;
@@ -219,10 +219,7 @@ export function TeacherListScreen() {
       confirmLabel: t('registration.remove'),
       cancelLabel: t('dialog.cancel'),
       onConfirm: () => {
-        void deleteTeacher(teacher.id).catch((err: unknown) => {
-          const message = toApiErrorMessage(err);
-          if (message) notifications.show({ color: 'red', message });
-        });
+        void deleteTeacher(teacher.id).catch(notifyApiError);
       },
     });
   };
@@ -277,7 +274,6 @@ export function TeacherListScreen() {
         page={page}
         pageSize={10}
         onPageChange={setPage}
-        footerLayout="range"
         emptyMessage={t('registration.emptyTeachers')}
         actions={(row) => (
           <Group gap="xs">

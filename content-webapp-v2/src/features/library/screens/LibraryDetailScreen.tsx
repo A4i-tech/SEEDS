@@ -3,7 +3,6 @@ import { useState } from 'react';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { notifications } from '@mantine/notifications';
 import { routePaths } from '@app/navigation/routePaths';
 import { useAuthStore } from '@features/auth/store/useAuthStore';
 import { openConfirmDialog } from '@shared/components/ConfirmDialog';
@@ -11,6 +10,7 @@ import { toApiErrorMessage } from '@shared/utils/apiErrors';
 import { deleteContent, getContentById } from '../api/library';
 import { AudioPreview, QuizPreview } from '../components/ContentPreview';
 import classes from './LibraryDetailScreen.module.css';
+import { notifyApiError } from '@shared/utils/notifyApiError';
 
 export function LibraryDetailScreen() {
   const { t } = useTranslation();
@@ -32,10 +32,7 @@ export function LibraryDetailScreen() {
       void queryClient.invalidateQueries({ queryKey: ['library'] });
       void navigate({ to: routePaths.library });
     },
-    onError: (err) => {
-      const message = toApiErrorMessage(err);
-      if (message) notifications.show({ color: 'red', message });
-    },
+    onError: notifyApiError,
   });
 
   const confirmRemove = () => {

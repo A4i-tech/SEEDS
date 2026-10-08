@@ -9,9 +9,7 @@ import { FiltersPanel } from '../components/FiltersPanel';
 import type { FiltersValue } from '../components/FiltersPanel';
 import { StatCards } from '../components/StatCards';
 import type { StatCard } from '../components/StatCards';
-import type { DateRange, DateRow } from '../hooks/useAnalytics';
-import { useConferenceStats } from '../hooks/useConferenceStats';
-import type { RecentConference } from '../hooks/useConferenceStats';
+import type { DateRange, DateRow, RecentConference } from '../hooks/useAnalytics';
 import { lastNDays, useAnalyticsDashboard, useAnalyticsRange, useAnalyticsRole } from '../hooks/useAnalytics';
 import classes from './AnalyticsScreen.module.css';
 
@@ -78,8 +76,7 @@ export function AnalyticsScreen() {
 
   const analytics = useAnalyticsRange(role, range);
   const dashboards = useAnalyticsDashboard(role);
-  const { stats } = analytics;
-  const conference = useConferenceStats(analytics.data?.data);
+  const { stats, conference } = analytics;
 
   const tenantDashboard = dashboards.tenant.data;
   const schoolDashboard = dashboards.school.data;
@@ -324,7 +321,6 @@ export function AnalyticsScreen() {
               page={page}
               pageSize={10}
               onPageChange={setPage}
-              footerLayout="range"
               emptyMessage={t('analytics.noData')}
             />
           </div>
@@ -375,7 +371,6 @@ export function AnalyticsScreen() {
               page={page}
               pageSize={10}
               onPageChange={setPage}
-              footerLayout="range"
               emptyMessage={t('analytics.noData')}
             />
           </div>
@@ -411,7 +406,6 @@ export function AnalyticsScreen() {
               loading={dashboards.tenant.isLoading}
               page={1}
               pageSize={Math.max(schools.length, 1)}
-              footerLayout="range"
               emptyMessage={t('analytics.noData')}
             />
           </div>
@@ -463,7 +457,6 @@ export function AnalyticsScreen() {
           page={page}
           pageSize={10}
           onPageChange={setPage}
-          footerLayout="range"
           emptyMessage={t('analytics.noData')}
         />
       </Modal>
