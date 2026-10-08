@@ -23,7 +23,7 @@
 .import-dialog-scroll .import-dialog-errors .table-header,
 .import-dialog-scroll .import-dialog-errors .table-cell {
   white-space: normal;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   text-align: left;
   vertical-align: top;
 }
