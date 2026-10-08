@@ -43,7 +43,7 @@ export function BlockViewer({
         <Text>{labels[index]}</Text>
       </Breadcrumbs>
       <Group gap="xs">
-        <Button variant="subtle" size="xs" disabled={index === 0} onClick={() => onSelect(index - 1)}>
+        <Button variant="subtle" size="sm" disabled={index === 0} onClick={() => onSelect(index - 1)}>
           {t('common.previous')}
         </Button>
         <Text size="sm" c="dimmed">
@@ -51,7 +51,7 @@ export function BlockViewer({
         </Text>
         <Button
           variant="subtle"
-          size="xs"
+          size="sm"
           disabled={index === course.blocks.length - 1}
           onClick={() => onSelect(index + 1)}
         >

@@ -1,0 +1,12 @@
+{
+  "name": "SEEDS Content Studio",
+  "short_name": "SEEDS",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#153341",
+  "theme_color": "#153341",
+  "icons": [
+    { "src": "/seeds-logo.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/seeds-logo.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

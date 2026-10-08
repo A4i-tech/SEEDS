@@ -93,12 +93,12 @@ export function ReviewTextScreen() {
               <Stack gap="xs">
                 <Text fw={700}>{t('review.edit')}</Text>
                 <Group gap="xs" role="toolbar" aria-label={t('review.edit')}>
-                  <Button variant="subtle" size="xs" fw={700} onClick={() => applyTool('**', '**', '')} aria-label="Bold">
+                  <Button variant="subtle" size="sm" fw={700} onClick={() => applyTool('**', '**', '')} aria-label="Bold">
                     B
                   </Button>
                   <Button
                     variant="subtle"
-                    size="xs"
+                    size="sm"
                     fs="italic"
                     onClick={() => applyTool('*', '*', '')}
                     aria-label="Italic"
@@ -107,14 +107,14 @@ export function ReviewTextScreen() {
                   </Button>
                   <Button
                     variant="subtle"
-                    size="xs"
+                    size="sm"
                     td="underline"
                     onClick={() => applyTool('<u>', '</u>', '')}
                     aria-label="Underline"
                   >
                     U
                   </Button>
-                  <Button variant="subtle" size="xs" onClick={() => applyTool('', '', '# ')} aria-label="Heading">
+                  <Button variant="subtle" size="sm" onClick={() => applyTool('', '', '# ')} aria-label="Heading">
                     H1
                   </Button>
                 </Group>

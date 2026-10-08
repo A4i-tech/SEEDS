@@ -8,7 +8,7 @@ function SnippetBlock({ code }: { code: string }) {
       <Code block>{code}</Code>
       <CopyButton value={code}>
         {({ copied, copy }) => (
-          <Button variant="subtle" size="xs" onClick={copy}>
+          <Button variant="subtle" size="sm" onClick={copy}>
             {copied ? t('localize.copied') : t('localize.copy')}
           </Button>
         )}

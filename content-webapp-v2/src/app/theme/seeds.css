@@ -43,3 +43,25 @@ html body {
   background-color: var(--seeds-bg-page);
   color: var(--seeds-text-primary);
 }
+
+[data-mantine-color-scheme='dark'] {
+  --seeds-bg-page: var(--mantine-color-body);
+  --seeds-bg-surface: var(--mantine-color-default);
+  --seeds-text-primary: var(--mantine-color-text);
+  --seeds-text-secondary: var(--mantine-color-dimmed);
+  --seeds-border-default: var(--mantine-color-default-border);
+  --seeds-card-border: var(--mantine-color-default-border);
+  --seeds-table-border: var(--mantine-color-default-border);
+  --seeds-table-header-bg: var(--mantine-color-default);
+  --seeds-table-header-text: var(--mantine-color-text);
+  --seeds-subnav-text-active: var(--mantine-color-text);
+  --seeds-subnav-bg-active: var(--mantine-color-default-hover);
+  --seeds-btn-secondary-border: var(--mantine-color-default-border);
+  --seeds-btn-secondary-text: var(--mantine-color-text);
+  --seeds-btn-tertiary-text: var(--mantine-color-text);
+  --seeds-eyebrow-text: var(--mantine-color-dimmed);
+}
+
+.topbar.topbar {
+  padding-top: env(safe-area-inset-top);
+}

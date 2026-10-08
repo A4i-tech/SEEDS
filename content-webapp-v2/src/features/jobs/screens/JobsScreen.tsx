@@ -1,4 +1,4 @@
-import { Button, Flex, Select, Stack, Text, TextInput, Title } from '@mantine/core';
+import { Anchor, Flex, Select, Stack, Text, TextInput, Title } from '@mantine/core';
 import { Search } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
@@ -25,13 +25,9 @@ function RowAction({ row }: { row: JobRow }) {
   };
   const action = JOB_ACTION[row.status];
   return (
-    <Button
-      variant={action.variant}
-      size="sm"
-      onClick={() => void go()}
-    >
+    <Anchor component="button" type="button" fw={700} onClick={() => void go()}>
       {t(action.labelKey)}
-    </Button>
+    </Anchor>
   );
 }
 

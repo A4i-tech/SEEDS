@@ -131,11 +131,11 @@ export const jobKeys = {
   syncItems: (jobId: string) => ['jobs', 'sync', 'items', jobId] as const,
 };
 
-export const JOB_ACTION: Record<JobStatus, { labelKey: string; variant: 'outline' | 'transparent' }> = {
-  failed: { labelKey: 'jobs.fix', variant: 'outline' },
-  'needs-review': { labelKey: 'jobs.continue', variant: 'outline' },
-  running: { labelKey: 'jobs.view', variant: 'transparent' },
-  done: { labelKey: 'jobs.view', variant: 'transparent' },
+export const JOB_ACTION: Record<JobStatus, { labelKey: string }> = {
+  failed: { labelKey: 'jobs.fix' },
+  'needs-review': { labelKey: 'jobs.continue' },
+  running: { labelKey: 'jobs.view' },
+  done: { labelKey: 'jobs.view' },
 };
 
 export const REMEDIATION_UI: Record<

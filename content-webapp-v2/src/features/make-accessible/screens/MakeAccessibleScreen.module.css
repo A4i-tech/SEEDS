@@ -15,10 +15,6 @@
   border-color: var(--seeds-btn-secondary-border);
 }
 
-.samplePreview.samplePreview {
-  background-color: var(--seeds-bg-page);
-}
-
 @media (min-width: 48em) {
   .dropzone {
     padding: var(--mantine-spacing-xl);

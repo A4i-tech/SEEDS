@@ -12,7 +12,7 @@ export const seedsTheme = createTheme({
   primaryColor: 'seeds',
   primaryShade: 6,
   components: {
-    AppShell: AppShell.extend({ classNames: { header: classes.topbar } }),
+    AppShell: AppShell.extend({ classNames: { header: classes.topbar, navbar: classes.navbar, main: classes.main } }),
     Burger: Burger.extend({ defaultProps: { color: 'var(--seeds-nav-topbar-text)' } }),
     Select: Select.extend({ defaultProps: searchableDefaults }),
     MultiSelect: MultiSelect.extend({ defaultProps: searchableDefaults }),

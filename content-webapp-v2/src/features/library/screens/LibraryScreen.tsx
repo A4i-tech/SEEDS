@@ -198,7 +198,7 @@ export function LibraryScreen() {
         <Alert>
           <Group gap="xs">
             {state.error.message}
-            <Button variant="subtle" size="xs" onClick={() => reload()}>
+            <Button variant="subtle" size="sm" onClick={() => reload()}>
               {t('library.retry')}
             </Button>
           </Group>

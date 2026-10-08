@@ -136,12 +136,12 @@ export function DataTable<T>({
         {pageCount > 1 && onPageChange &&
           (footerLayout === 'range' ? (
             <Group gap="xs">
-              <Button variant="subtle" size="xs" disabled={page <= 1} onClick={() => onPageChange?.(page - 1)}>
+              <Button variant="subtle" size="sm" disabled={page <= 1} onClick={() => onPageChange?.(page - 1)}>
                 {t('common.previous')}
               </Button>
               <Button
                 variant="subtle"
-                size="xs"
+                size="sm"
                 disabled={page >= pageCount}
                 onClick={() => onPageChange?.(page + 1)}
               >

@@ -7,7 +7,7 @@ export function LoadError({ error, onRetry }: { error: Error; onRetry?: () => vo
     <Group gap="xs">
       <Alert>{error.message}</Alert>
       {onRetry && (
-        <Button variant="subtle" size="xs" onClick={onRetry}>
+        <Button variant="subtle" size="sm" onClick={onRetry}>
           {t('common.retry')}
         </Button>
       )}

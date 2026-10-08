@@ -13,7 +13,7 @@ import { seedsTheme } from '@app/theme/seedsTheme';
 
 export function AppProviders({ children }: { children: ReactNode }) {
   return (
-    <MantineProvider theme={seedsTheme}>
+    <MantineProvider theme={seedsTheme} defaultColorScheme="auto">
       <ModalsProvider>
         <Notifications position="top-right" />
         <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>

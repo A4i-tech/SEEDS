@@ -7,8 +7,10 @@ import {
   NavLink,
   Text,
   UnstyledButton,
+  useComputedColorScheme,
+  useMantineColorScheme,
 } from '@mantine/core';
-import { useDisclosure, useMediaQuery } from '@mantine/hooks';
+import { useDisclosure } from '@mantine/hooks';
 import {
   BarChart3,
   BookOpen,
@@ -16,8 +18,10 @@ import {
   Home,
   Languages,
   Microscope,
+  Moon,
   PlusSquare,
   ScanEye,
+  Sun,
   User,
   Users,
 } from 'lucide-react';
@@ -49,9 +53,9 @@ export function Shell() {
   const analyticsRole = useAnalyticsRole();
   const [mobileOpened, { toggle: toggleMobile, close: closeMobile }] = useDisclosure(false);
   const [collapsed, { toggle: toggleRail }] = useDisclosure(false);
-  const isMobile = useMediaQuery('(max-width: 47.99em)');
-  const railCollapsed = collapsed && !isMobile;
   const mainRef = useRef<HTMLElement>(null);
+  const { setColorScheme } = useMantineColorScheme();
+  const computedColorScheme = useComputedColorScheme('light');
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -74,7 +78,7 @@ export function Shell() {
   return (
     <MantineAppShell
       header={{ height: 56 }}
-      navbar={{ width: railCollapsed ? 72 : 240, breakpoint: 'sm', collapsed: { mobile: !mobileOpened } }}
+      navbar={{ width: 240, breakpoint: 'sm', collapsed: { mobile: !mobileOpened, desktop: collapsed } }}
       padding="md"
     >
       <MantineAppShell.Header>
@@ -86,7 +90,7 @@ export function Shell() {
               onClick={toggleMobile}
               aria-label={t('nav.menu')}
               aria-expanded={mobileOpened}
-              size="sm"
+              size="md"
             />
             <Burger
               visibleFrom="sm"
@@ -94,7 +98,7 @@ export function Shell() {
               onClick={toggleRail}
               aria-label={t('nav.menu')}
               aria-expanded={!collapsed}
-              size="sm"
+              size="md"
             />
             <Group gap="md" wrap="nowrap" miw={0}>
               <Image src="/seeds-logo.png" alt="SEEDS" h={36} w={36} radius="md" />
@@ -105,7 +109,7 @@ export function Shell() {
           </Group>
           <Menu position="bottom-end">
             <Menu.Target>
-              <UnstyledButton aria-label={t('account.menu')}>
+              <UnstyledButton aria-label={t('account.menu')} p="xs">
                 <User size={20} aria-hidden />
               </UnstyledButton>
             </Menu.Target>
@@ -115,6 +119,14 @@ export function Shell() {
               </Menu.Item>
               <Menu.Item onClick={() => void navigate({ to: '/account/settings' })}>
                 {t('account.settings')}
+              </Menu.Item>
+              <Menu.Item
+                leftSection={
+                  computedColorScheme === 'dark' ? <Sun size={16} aria-hidden /> : <Moon size={16} aria-hidden />
+                }
+                onClick={() => setColorScheme(computedColorScheme === 'dark' ? 'light' : 'dark')}
+              >
+                {t('account.theme')}
               </Menu.Item>
               <Menu.Divider />
               <Menu.Item onClick={confirmSignOut}>{t('account.signOut')}</Menu.Item>
@@ -131,12 +143,11 @@ export function Shell() {
           return (
             <NavLink
               key={to}
-              label={!railCollapsed && label}
+              label={label}
               leftSection={<Icon size={20} aria-hidden />}
               active={Boolean(matchRoute({ to, fuzzy: true }))}
               variant="light"
               aria-label={label}
-              title={railCollapsed ? label : undefined}
               component={Link}
               to={to}
               onClick={closeMobile}
