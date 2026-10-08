@@ -113,9 +113,17 @@ const Profile = () => {
           onTabChange={handleTabChange}
           currentUser={currentUser}
           onLogout={logout}
-          showContent={Boolean(profile)}
-          showRegistration={profile && profile.role !== USER_ROLES.CONTENT_CREATOR}
-          showAnalytics={profile && profile.role !== USER_ROLES.CONTENT_CREATOR}
+          showContent={profile && profile.role !== USER_ROLES.TEXTBOOK_REMEDIATION_VOLUNTEER}
+          showRegistration={
+            profile &&
+            profile.role !== USER_ROLES.CONTENT_CREATOR &&
+            profile.role !== USER_ROLES.TEXTBOOK_REMEDIATION_VOLUNTEER
+          }
+          showAnalytics={
+            profile &&
+            profile.role !== USER_ROLES.CONTENT_CREATOR &&
+            profile.role !== USER_ROLES.TEXTBOOK_REMEDIATION_VOLUNTEER
+          }
           showLocalization={profile && profile.role === USER_ROLES.TENANT}
         />
 

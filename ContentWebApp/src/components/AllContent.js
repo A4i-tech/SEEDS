@@ -6,6 +6,7 @@ import { useContentAggregatorSync } from "../hooks/useContentAggregatorSync";
 import { useContentFilters } from "../hooks/useContentFilters";
 import { useTeachers } from "../hooks/useTeachers";
 import { useSchools } from "../hooks/useSchools";
+import { useVolunteers } from "../hooks/useVolunteers";
 import { ivrService } from "../services/ivrService";
 import { getRole } from "../utils/authHelpers";
 import AppHeader from "./AllContent/Header/AppHeader";
@@ -29,7 +30,9 @@ const AllContent = () => {
 
   const navigate = useNavigate();
   const { getAuthHeaders, logout, getCurrentUser } = useAuth();
-  const canViewContent = currentUserRole !== null;
+  const isVolunteer = currentUserRole === USER_ROLES.TEXTBOOK_REMEDIATION_VOLUNTEER;
+  const canViewContent = currentUserRole !== null && !isVolunteer;
+  const canViewRemediation = currentUserRole !== null;
   const {
     content,
     allContent,
@@ -78,6 +81,14 @@ const AllContent = () => {
     deleteSchool,
   } = useSchools(activeTab);
 
+  const {
+    volunteers,
+    isLoading: isVolunteersLoading,
+    message: volunteerMessage,
+    messageType: volunteerMessageType,
+    createVolunteer,
+  } = useVolunteers(activeTab);
+
   const ivrURL = process.env.REACT_APP_API_BASE_URL;
   const canViewRegistration =
     currentUserRole === USER_ROLES.TENANT || currentUserRole === USER_ROLES.SCHOOL_ADMIN;
@@ -102,6 +113,10 @@ const AllContent = () => {
   }, [getCurrentUser]);
 
   useEffect(() => {
+    if (isVolunteer) {
+      if (activeTab !== "remediation") setActiveTab("remediation");
+      return;
+    }
     if (!canViewContent && activeTab === "content") {
       setActiveTab(canViewRegistration ? "registration" : canViewAnalytics ? "analytics" : "content");
       return;
@@ -113,7 +128,7 @@ const AllContent = () => {
     ) {
       setActiveTab("content");
     }
-  }, [activeTab, canViewAnalytics, canViewContent, canViewLocalization, canViewRegistration]);
+  }, [activeTab, canViewAnalytics, canViewContent, canViewLocalization, canViewRegistration, isVolunteer]);
 
   const handleUpdateIVR = useCallback(async () => {
     setIsUpdatingIVR(true);
@@ -157,7 +172,7 @@ const AllContent = () => {
           showRegistration={canViewRegistration}
           showAnalytics={canViewAnalytics}
           showLocalization={canViewLocalization}
-          showRemediation={false}
+          showRemediation={isVolunteer}
         />
 
         {updateIVRStatus && <div className="status-message">{updateIVRStatus}</div>}
@@ -211,7 +226,7 @@ const AllContent = () => {
 
         {canViewContent && activeTab === "ivr" && <IVRTab />}
 
-        {canViewContent && activeTab === "remediation" && <RemediationTab />}
+        {canViewRemediation && activeTab === "remediation" && <RemediationTab />}
 
         {canViewAnalytics && activeTab === "analytics" && <AnalyticsTab />}
 
@@ -238,6 +253,11 @@ const AllContent = () => {
             onDeleteSchool={deleteSchool}
             schoolMessage={schoolMessage}
             schoolMessageType={schoolMessageType}
+            volunteers={volunteers}
+            isVolunteersLoading={isVolunteersLoading}
+            onCreateVolunteer={createVolunteer}
+            volunteerMessage={volunteerMessage}
+            volunteerMessageType={volunteerMessageType}
           />
         )}
       </div>

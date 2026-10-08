@@ -46,6 +46,12 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/textbook-remediation", tags=["Textbook Remediation"])
 
 require_remediation_access = require_role(
+    UserRole.TENANT.value,
+    UserRole.SCHOOL_ADMIN.value,
+    UserRole.CONTENT_CREATOR.value,
+    UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER.value,
+)
+require_remediation_delete_access = require_role(
     UserRole.TENANT.value, UserRole.SCHOOL_ADMIN.value, UserRole.CONTENT_CREATOR.value
 )
 
@@ -126,7 +132,7 @@ async def list_remediation_jobs(
 @router.delete("/jobs/{job_id}", status_code=204, summary="Soft-delete a remediation job")
 async def delete_remediation_job(
     job_id: str,
-    user: dict[str, object] = Depends(require_remediation_access),
+    user: dict[str, object] = Depends(require_remediation_delete_access),
     repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
 ) -> None:
     deleted = await repo.soft_delete(str(user["tenant_id"]), job_id)

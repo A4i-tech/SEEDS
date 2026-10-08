@@ -10,7 +10,9 @@ from fastapi import APIRouter, Depends, status
 from app.models.requests.auth_requests import TeacherLoginRequest, TeacherRegisterRequest
 from app.models.responses.login import LoginResponse, MessageResponse
 from app.models.responses.user import UserPublicResponse
+from app.models.user import UserRole
 from app.platform.auth.dependencies import get_current_user, require_role
+from app.platform.error_handling import ForbiddenError
 from app.services.auth_service import AuthService, TeacherCreate, get_auth_service
 
 logger = logging.getLogger(__name__)
@@ -42,6 +44,8 @@ async def teacher_register(
     current_user: dict[str, Any] = Depends(get_current_user),
     service: AuthService = Depends(get_auth_service),
 ) -> UserPublicResponse:
+    if body.role == UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER.value:
+        raise ForbiddenError("Only a tenant can create a textbook remediation volunteer")
     data = TeacherCreate(
         name=body.name.strip(),
         email=body.phone_number,

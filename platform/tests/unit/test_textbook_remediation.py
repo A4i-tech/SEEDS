@@ -137,6 +137,7 @@ from app.controllers.textbook_remediation_controller import (  # noqa: E402
     get_remediation_image,
     get_review_summary,
     require_remediation_access,
+    require_remediation_delete_access,
     save_remediation_draft,
     verify_remediation_job,
 )
@@ -179,6 +180,24 @@ async def test_remediation_access_allows_the_content_roles_and_blocks_teachers()
         assert await require_remediation_access(user={"role": role}) == {"role": role}
     with pytest.raises(ForbiddenError):
         await require_remediation_access(user={"role": "teacher"})
+
+
+@pytest.mark.asyncio
+async def test_remediation_access_allows_the_textbook_remediation_volunteer():
+    user = {"role": "textbook_remediation_volunteer"}
+    assert await require_remediation_access(user=user) == user
+
+
+@pytest.mark.asyncio
+async def test_remediation_delete_access_blocks_the_textbook_remediation_volunteer():
+    with pytest.raises(ForbiddenError):
+        await require_remediation_delete_access(user={"role": "textbook_remediation_volunteer"})
+
+
+@pytest.mark.asyncio
+async def test_remediation_delete_access_allows_tenant_school_admin_and_content_creator():
+    for role in ("tenant", "school_admin", "content_creator"):
+        assert await require_remediation_delete_access(user={"role": role}) == {"role": role}
 
 
 @pytest.mark.asyncio
