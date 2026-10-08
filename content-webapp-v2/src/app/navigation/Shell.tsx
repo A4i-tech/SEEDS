@@ -79,7 +79,7 @@ export function Shell() {
     <MantineAppShell
       header={{ height: 56 }}
       navbar={{ width: 240, breakpoint: 'sm', collapsed: { mobile: !mobileOpened, desktop: collapsed } }}
-      padding="md"
+      padding="xl"
     >
       <MantineAppShell.Header>
         <Group h="100%" px="md" justify="space-between" wrap="nowrap">
