@@ -74,11 +74,9 @@ function handleControlMessage(controlMessage) {
         .catch((error) => logger.error(`Error seeking audio for ID ${websocketId}`, error));
       break;
     case MessageType.SET_SPEED:
-      try {
-        websocketService.setPlaybackSpeed(websocketId, parseFloat(content));
-      } catch (error) {
-        logger.error(`Error setting speed for ID ${websocketId}`, error);
-      }
+      websocketService
+        .setPlaybackSpeed(websocketId, parseFloat(content))
+        .catch((error) => logger.error(`Error setting speed for ID ${websocketId}`, error));
       break;
     case MessageType.DISCONNECT:
       websocketService.closeConnection(websocketId);
