@@ -1,6 +1,6 @@
 import React from "react";
 import { useState, useEffect } from "react";
-import { SEEDS_URL } from "../Constants";
+import { SEEDS_URL, AUDIO_STORAGE_BASE_URL } from "../Constants";
 import { getAuthHeaders } from "../utils/authHelpers";
 
 const StoryDetails = ({ type, story }) => {
@@ -30,9 +30,9 @@ const StoryDetails = ({ type, story }) => {
       }
     };
 
-    const defaultSrc = `https://seedsblob.blob.core.windows.net/output-container/${storyId}/1.0.wav`;
-    const defaultAnswerSrc = `https://seedsblob.blob.core.windows.net/output-container/${storyId}/answer/1.0.wav`;
-    const defaultQuestionSrc = `https://seedsblob.blob.core.windows.net/output-container/${storyId}/question/1.0.wav`;
+    const defaultSrc = `${AUDIO_STORAGE_BASE_URL}/output-container/${storyId}/1.0.wav`;
+    const defaultAnswerSrc = `${AUDIO_STORAGE_BASE_URL}/output-container/${storyId}/answer/1.0.wav`;
+    const defaultQuestionSrc = `${AUDIO_STORAGE_BASE_URL}/output-container/${storyId}/question/1.0.wav`;
 
     const resolvedPrimary = primaryAudio || defaultSrc;
 

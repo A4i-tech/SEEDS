@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
-import { BlockBlobClient } from "@azure/storage-blob";
 import { useNavigate } from "react-router-dom";
 import { v4 as uuidv4 } from "uuid";
 import { SEEDS_URL, AUDIO_BASE_URL } from "../Constants";
 import { getAuthHeaders } from "../utils/authHelpers";
 import { useAuth } from "../hooks/useAuth";
 import { isMp3File } from "../utils/fileValidators";
+import { uploadToStorage } from "../utils/blobUpload";
 import { contentService } from "../services/contentService";
 import { getLanguageLabel, LANGUAGE_OPTIONS } from "../utils/languageUtils";
 import Select from "./AllContent/shared/Select";
@@ -358,10 +358,9 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
     const tenantName = await getCurrentUser();
     newMetadata.createdBy = tenantName || newMetadata.createdBy;
 
-    // Upload files to Azure Blob Storage FIRST, before sending metadata to backend
+    // Upload files to storage FIRST, before sending metadata to backend
     // This ensures files are available when the background job starts processing
     if (metadata.audioFile && sasUrl) {
-      const client = new BlockBlobClient(sasUrl);
       const metadataProperties = {
         experience: contentType,
       };
@@ -373,18 +372,13 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
       if (contentType === "Riddle") {
         metadataProperties["Question"] = "true";
       }
-      await client.uploadBrowserData(file, {
-        metadata: metadataProperties,
-      });
+      await uploadToStorage(sasUrl, file, metadataProperties);
     }
     if (metadata.answerAudioFile && sasUrlAnswer) {
-      const clientAnswer = new BlockBlobClient(sasUrlAnswer);
-      await clientAnswer.uploadBrowserData(answerFile, {
-        metadata: {
-          experience: contentType,
-          Question: "false",
-          isfinalaudio: "true",
-        },
+      await uploadToStorage(sasUrlAnswer, answerFile, {
+        experience: contentType,
+        Question: "false",
+        isfinalaudio: "true",
       });
     }
 
