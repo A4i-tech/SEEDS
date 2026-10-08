@@ -1,17 +1,15 @@
-import { Breadcrumbs, Button, Group, Progress, Stack, Text, Title } from '@mantine/core';
-import { useState } from 'react';
+import { Alert, Breadcrumbs, Button, Group, Paper, Progress, Stack, Text, Title } from '@mantine/core';
+import { useMutation } from '@tanstack/react-query';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { routePaths } from '@app/navigation/routePaths';
 import { toApiErrorMessage } from '@shared/utils/apiErrors';
+import { notifyApiError } from '@shared/utils/notifyApiError';
 import { downloadRemediationArtifact } from '../api/remediation';
 import { RemediationSteps } from '../components/RemediationSteps';
 import { useRemediationJob } from '../hooks/useRemediationJob';
+import { REMEDIATION_UI } from '@features/jobs/types/job.types';
 import type { RemediationJobDetail } from '../types/remediation.types';
-import classes from './MakeAccessibleJobScreen.module.css';
-
-const RUNNING_STATUSES = ['pending', 'running'];
-const DONE_STATUSES = ['ready_to_review', 'in_review', 'verified'];
 
 const METRIC_LABELS = [
   ['diagrams_described', 'diagrams described'],
@@ -27,12 +25,6 @@ function metricsSummary(metrics: RemediationJobDetail['metrics']): string {
   }).join(' · ');
 }
 
-function activeStepFor(job: RemediationJobDetail | undefined): number {
-  if (!job) return 0;
-  if (DONE_STATUSES.includes(job.status)) return 2;
-  return 1;
-}
-
 function RunningView({ job }: { job: RemediationJobDetail }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
@@ -41,27 +33,19 @@ function RunningView({ job }: { job: RemediationJobDetail }) {
   return (
     <>
       <Title order={2}>{t('makeAccessible.making', { name: job.source_name })}</Title>
-      <Stack gap="xs" className={classes.notice}>
-        <Text fw={700}>{t('makeAccessible.leaveTitle')}</Text>
-        <Text size="sm">{t('makeAccessible.leaveBody')}</Text>
-        <Button
-          variant="outline"
-          className={classes.secondaryButton}
-          onClick={() => void navigate({ to: routePaths.jobs })}
-        >
-          {t('makeAccessible.goToJobs')}
-        </Button>
-      </Stack>
+      <Paper p="lg" radius="md">
+        <Stack gap="xs" align="flex-start">
+          <Text fw={700}>{t('makeAccessible.leaveTitle')}</Text>
+          <Text size="sm">{t('makeAccessible.leaveBody')}</Text>
+          <Button variant="outline" onClick={() => void navigate({ to: routePaths.jobs })}>
+            {t('makeAccessible.goToJobs')}
+          </Button>
+        </Stack>
+      </Paper>
       <Stack gap="xs">
         <Text fw={700}>{t('makeAccessible.progressTitle')}</Text>
         {job.progress.message && <Text>{job.progress.message}</Text>}
-        {percent !== undefined && (
-          <Progress
-            value={percent}
-            aria-label={t('makeAccessible.progressTitle')}
-            classNames={{ root: classes.progressTrack, section: classes.progressFill }}
-          />
-        )}
+        {percent !== undefined && <Progress value={percent} aria-label={t('makeAccessible.progressTitle')} />}
         {percent !== undefined && <Text size="sm">{t('makeAccessible.percent', { percent })}</Text>}
       </Stack>
     </>
@@ -71,18 +55,13 @@ function RunningView({ job }: { job: RemediationJobDetail }) {
 function DoneView({ job, jobId }: { job: RemediationJobDetail; jobId: string }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [downloading, setDownloading] = useState(false);
   const summary = metricsSummary(job.metrics);
 
-  const handleDownload = async () => {
-    setDownloading(true);
-    try {
-      const base = job.source_name.replace(/\.pdf$/i, '');
-      await downloadRemediationArtifact(jobId, 'docx', `${base}-accessible.docx`);
-    } finally {
-      setDownloading(false);
-    }
-  };
+  const download = useMutation({
+    mutationFn: () =>
+      downloadRemediationArtifact(jobId, 'docx', `${job.source_name.replace(/\.pdf$/i, '')}-accessible.docx`),
+    onError: notifyApiError,
+  });
 
   return (
     <>
@@ -90,15 +69,10 @@ function DoneView({ job, jobId }: { job: RemediationJobDetail; jobId: string }) 
       <Text c="dimmed">{t('makeAccessible.readyBody')}</Text>
       {summary && <Text size="sm">{summary}</Text>}
       <Group gap="md">
-        <Button
-          variant="outline"
-          className={classes.secondaryButton}
-          disabled={downloading}
-          onClick={() => void handleDownload()}
-        >
+        <Button variant="outline" loading={download.isPending} onClick={() => download.mutate()}>
           {t('makeAccessible.download')}
         </Button>
-        <Button className={classes.submitButton} onClick={() => void navigate({ to: routePaths.review })}>
+        <Button onClick={() => void navigate({ to: routePaths.review })}>
           {t('makeAccessible.startReview')}
         </Button>
       </Group>
@@ -120,17 +94,16 @@ export function MakeAccessibleJobScreen() {
         <Text>{job?.source_name ?? jobId}</Text>
       </Breadcrumbs>
 
-      <RemediationSteps activeStep={activeStepFor(job)} />
+      <RemediationSteps activeStep={job === undefined ? 0 : REMEDIATION_UI[job.status].step} />
 
       {isLoading && <Text c="dimmed">{t('common.loading')}</Text>}
-      {loadError && (
-        <Text c="red" role="alert">
-          {loadError}
-        </Text>
+      {loadError && <Alert>{loadError}</Alert>}
+      {job?.status === 'failed' && (job.error || job.translation_error) && (
+        <Alert>{job.error || job.translation_error}</Alert>
       )}
 
-      {job && RUNNING_STATUSES.includes(job.status) && <RunningView job={job} />}
-      {job && DONE_STATUSES.includes(job.status) && <DoneView job={job} jobId={jobId} />}
+      {job && REMEDIATION_UI[job.status].view === 'running' && <RunningView job={job} />}
+      {job && REMEDIATION_UI[job.status].view === 'done' && <DoneView job={job} jobId={jobId} />}
 
       <Group gap="md">
         <Button variant="subtle" onClick={() => void navigate({ to: routePaths.home })}>

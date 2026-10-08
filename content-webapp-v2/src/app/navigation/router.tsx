@@ -40,10 +40,18 @@ import { HomeScreen } from '@features/home/screens/HomeScreen';
 import { Shell } from './Shell';
 import { routePaths } from './routePaths';
 
-function requireAuth() {
+function requireAuth({ location }: { location: { href: string } }) {
   if (useAuthStore.getState().status !== 'authenticated') {
-    throw redirect({ to: routePaths.login });
+    throw redirect({ to: routePaths.login, search: { redirect: location.href } });
   }
+}
+
+function redirectSearch(search: Record<string, unknown>): { redirect: string } {
+  const redirect = search.redirect;
+  if (typeof redirect !== 'string' || !redirect.startsWith('/') || redirect.startsWith('//')) {
+    return { redirect: routePaths.home };
+  }
+  return { redirect };
 }
 
 const rootRoute = createRootRoute();
@@ -51,6 +59,7 @@ const rootRoute = createRootRoute();
 const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
+  validateSearch: redirectSearch,
   component: LoginScreen,
   beforeLoad: () => {
     if (useAuthStore.getState().status === 'authenticated') {
@@ -62,6 +71,7 @@ const loginRoute = createRoute({
 const registerRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/register',
+  validateSearch: redirectSearch,
   component: RegisterScreen,
 });
 

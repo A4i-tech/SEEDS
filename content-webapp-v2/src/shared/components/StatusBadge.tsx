@@ -1,18 +1,17 @@
 import { Badge } from '@mantine/core';
-import classes from './StatusBadge.module.css';
 
 export type StatusTone = 'running' | 'needs-review' | 'done' | 'failed';
 
-const toneClass: Record<StatusTone, string> = {
-  running: classes.running,
-  'needs-review': classes.needsReview,
-  done: classes.done,
-  failed: classes.failed,
+const TONES: Record<StatusTone, { bg: string; c: string }> = {
+  running: { bg: 'var(--seeds-badge-subject-bg)', c: 'var(--seeds-badge-subject-text)' },
+  'needs-review': { bg: 'var(--seeds-badge-warning-bg)', c: 'var(--seeds-badge-warning-text)' },
+  done: { bg: 'var(--seeds-badge-easy-bg)', c: 'var(--seeds-badge-easy-text)' },
+  failed: { bg: 'var(--seeds-badge-hard-bg)', c: 'var(--seeds-badge-hard-text)' },
 };
 
 export function StatusBadge({ tone, label }: { tone: StatusTone; label: string }) {
   return (
-    <Badge className={toneClass[tone]} radius="xl" size="md">
+    <Badge {...TONES[tone]} lts={2} radius="xl" size="md">
       {label}
     </Badge>
   );

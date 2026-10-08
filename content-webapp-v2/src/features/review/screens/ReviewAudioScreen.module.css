@@ -1,34 +1,3 @@
-.eyebrow {
-  text-transform: uppercase;
-  letter-spacing: 2px;
-  color: var(--seeds-eyebrow-text);
-  font-weight: 700;
-}
-
-.panel {
-  border: 1px solid var(--seeds-card-border);
-  border-radius: var(--mantine-radius-md);
-  background-color: var(--seeds-bg-surface);
-  padding: var(--mantine-spacing-lg);
-}
-
-.player {
-  width: 100%;
-}
-
-.scriptPane {
-  max-height: 40vh;
-  overflow-y: auto;
-  color: var(--seeds-text-primary);
+.script {
   white-space: pre-wrap;
-}
-
-.secondaryButton.secondaryButton {
-  border-color: var(--seeds-btn-secondary-border);
-  color: var(--seeds-btn-secondary-text);
-}
-
-.submitButton.submitButton {
-  background-color: var(--seeds-btn-primary-bg);
-  color: var(--seeds-btn-primary-text);
 }

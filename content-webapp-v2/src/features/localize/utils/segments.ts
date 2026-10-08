@@ -12,22 +12,15 @@ export interface Segment {
   lowConfidence: boolean;
 }
 
-const EMPTY_ENTRY = { text: '', status: '' };
-
-function stageOf(status: string): SegmentStage {
-  if (status === 'approved') return 'approved';
-  return 'pending';
-}
-
 export function toSegment(item: TranslationItem, lang: string): Segment {
-  const entry = item.translations[lang] ?? EMPTY_ENTRY;
+  const entry = item.translations[lang];
   return {
     id: item.id,
     key: item.key,
     route: item.route,
     sourceText: item.source_text || item.key,
-    translation: entry.text,
-    stage: stageOf(entry.status),
+    translation: entry?.text ?? '',
+    stage: entry?.status === 'approved' ? 'approved' : 'pending',
     lowConfidence: item.low_confidence,
   };
 }

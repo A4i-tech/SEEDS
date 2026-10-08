@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '@features/auth/store/useAuthStore';
 import { useLanguages } from '@shared/hooks/useLanguages';
 import { createSite, deleteSite, listSites, updateSite } from '../api/sites';
-import type { WebsiteUpdate } from '../types/localize.types';
+import { localizeKeys, type WebsiteFields } from '../types/localize.types';
 import { notifyApiError } from '@shared/utils/notifyApiError';
 
 export function useLocalizeSites() {
@@ -13,49 +13,48 @@ export function useLocalizeSites() {
   const authStatus = useAuthStore((s) => s.status);
   const enabled = authStatus === 'authenticated';
 
-  const sites = useQuery({ queryKey: ['localize', 'sites'], queryFn: () => listSites(), enabled });
+  const sites = useQuery({ queryKey: localizeKeys.sites, queryFn: listSites, enabled });
   const { languages, isLoading: languagesLoading, error: languagesError } = useLanguages();
 
+  const languageName = (code: string) => languages.find((l) => l.code === code)?.name ?? code;
+
   const invalidate = () => {
-    void queryClient.invalidateQueries({ queryKey: ['localize'] });
+    void queryClient.invalidateQueries({ queryKey: localizeKeys.all });
   };
 
-  const create = useMutation({
-    mutationFn: createSite,
+  const done = (key: string) => ({
     onSuccess: () => {
-      notifications.show({ message: t('localize.siteCreated') });
+      notifications.show({ message: t(key) });
       invalidate();
     },
     onError: notifyApiError,
   });
 
+  const create = useMutation({
+    mutationFn: createSite,
+    ...done('localize.siteCreated'),
+  });
+
   const update = useMutation({
-    mutationFn: ({ id, fields }: { id: string; fields: WebsiteUpdate }) => updateSite(id, fields),
-    onSuccess: () => {
-      notifications.show({ message: t('localize.siteUpdated') });
-      invalidate();
-    },
-    onError: notifyApiError,
+    mutationFn: ({ id, fields }: { id: string; fields: WebsiteFields }) => updateSite(id, fields),
+    ...done('localize.siteUpdated'),
   });
 
   const remove = useMutation({
     mutationFn: deleteSite,
-    onSuccess: () => {
-      notifications.show({ message: t('localize.siteDeleted') });
-      invalidate();
-    },
-    onError: notifyApiError,
+    ...done('localize.siteDeleted'),
   });
 
   return {
     sites: sites.data ?? [],
     languages,
+    languageName,
     isLoading: sites.isLoading || languagesLoading,
     error: sites.error ?? languagesError,
-    create: create.mutateAsync,
+    create: create.mutate,
     creating: create.isPending,
-    update: update.mutateAsync,
+    update: update.mutate,
     updating: update.isPending,
-    remove: remove.mutateAsync,
+    remove: remove.mutate,
   };
 }

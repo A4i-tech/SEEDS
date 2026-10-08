@@ -1,6 +1,5 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
-import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '@features/auth/store/useAuthStore';
 import {
   deleteTeacher,
@@ -9,27 +8,18 @@ import {
   transferTeacher,
   updateTeacher,
 } from '../api/teachers';
-import type { TeacherTransfer, TeacherUpdate } from '../types/registration.types';
+import { registrationKeys, type TeacherUpdate } from '../types/registration.types';
+import { useRegistrationRefresh } from './useRegistrationRefresh';
 
 export function useTeachers() {
-  const { t } = useTranslation();
-  const queryClient = useQueryClient();
+  const { invalidate, saved } = useRegistrationRefresh();
   const status = useAuthStore((s) => s.status);
 
   const teachers = useQuery({
-    queryKey: ['registration', 'teachers'],
+    queryKey: registrationKeys.teachers,
     queryFn: getTeachers,
     enabled: status === 'authenticated',
   });
-
-  const invalidate = () => {
-    void queryClient.invalidateQueries({ queryKey: ['registration'] });
-  };
-
-  const saved = () => {
-    notifications.show({ message: t('registration.saved') });
-    invalidate();
-  };
 
   const register = useMutation({ mutationFn: registerTeacher, onSuccess: saved });
   const update = useMutation({
@@ -38,7 +28,7 @@ export function useTeachers() {
   });
   const remove = useMutation({ mutationFn: deleteTeacher, onSuccess: invalidate });
   const transfer = useMutation({
-    mutationFn: (body: TeacherTransfer) => transferTeacher(body),
+    mutationFn: transferTeacher,
     onSuccess: (data) => {
       notifications.show({ message: data.message });
       invalidate();
@@ -50,12 +40,9 @@ export function useTeachers() {
     isLoading: teachers.isLoading,
     error: teachers.error,
     reload: () => void teachers.refetch(),
-    registerTeacher: register.mutateAsync,
-    registering: register.isPending,
-    updateTeacher: update.mutateAsync,
-    updating: update.isPending,
-    deleteTeacher: remove.mutateAsync,
-    transferTeacher: transfer.mutateAsync,
-    transferring: transfer.isPending,
+    register,
+    update,
+    remove,
+    transfer,
   };
 }

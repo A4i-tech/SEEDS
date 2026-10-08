@@ -1,86 +1,67 @@
-import { Button, Group, Select, Stack, Text, TextInput, Textarea, Title } from '@mantine/core';
-import { useState } from 'react';
+import { Button, Group, Paper, Stack, Textarea, Title } from '@mantine/core';
+import { useForm } from '@mantine/form';
+import { useDisclosure } from '@mantine/hooks';
+import { zodResolver } from 'mantine-form-zod-resolver';
 import { useTranslation } from 'react-i18next';
 import { useSearch } from '@tanstack/react-router';
 import { z } from 'zod';
 import { ComingSoon } from '@shared/components/ComingSoon';
 import { StatusBadge } from '@shared/components/StatusBadge';
-import { toApiErrorMessage } from '@shared/utils/apiErrors';
-import { selectValue } from '@shared/utils/select';
-import { useLanguages } from '@shared/hooks/useLanguages';
-import type { ContentCreate } from '../../library/types/content.types';
-import { toLocalized } from '../utils/localized';
+import { ExperienceSelect } from '../components/ExperienceSelect';
+import { LocalizedFields } from '../components/LocalizedFields';
 import { useCreateContentText } from '../hooks/useCreateContent';
-import classes from './CreateAiScreen.module.css';
-
-const experiences = ['story', 'song', 'poem', 'snippet'] as const;
+import { localizedFieldsSchema, requireLocal, toLocalizedFields } from '../utils/localized';
 
 const prefillSchema = z.object({ experience: z.string().default('') });
 
+const aiSchema = localizedFieldsSchema
+  .extend({
+    experience: z.string().min(1, 'Required'),
+    prompt: z.string(),
+    body: z.string(),
+  })
+  .superRefine(requireLocal);
+
 export function CreateAiScreen() {
   const { t } = useTranslation();
-  const prefill = prefillSchema.parse(useSearch({ strict: false }));
-  const [experience, setExperience] = useState(prefill.experience);
-  const [prompt, setPrompt] = useState('');
-  const [generated, setGenerated] = useState(false);
-  const [title, setTitle] = useState('');
-  const [localTitle, setLocalTitle] = useState('');
-  const [theme, setTheme] = useState('');
-  const [localTheme, setLocalTheme] = useState('');
-  const [language, setLanguage] = useState('');
-  const [body, setBody] = useState(prompt);
-  const [error, setError] = useState('');
+  const prefill = prefillSchema.safeParse(useSearch({ strict: false }));
+  const initialExperience = prefill.success ? prefill.data.experience : '';
+  const [generated, { open: showGenerated }] = useDisclosure(false);
   const save = useCreateContentText();
 
-  const { options: languageOptions } = useLanguages();
-
-  const handleSave = async () => {
-    setError('');
-    const needsLocal = language.toLowerCase() !== 'en';
-    if (!experience || !title.trim() || !theme.trim() || !language || (needsLocal && (!localTitle.trim() || !localTheme.trim()))) {
-      setError(t('create.aiIncomplete'));
-      return;
-    }
-    const payload: ContentCreate = {
-      type: experience,
-      language,
-      title: toLocalized(title, localTitle, needsLocal),
-      theme: toLocalized(theme, localTheme, needsLocal),
-      description: body,
-    };
-    try {
-      await save.mutateAsync(payload);
-    } catch (err) {
-      setError(toApiErrorMessage(err));
-    }
-  };
+  const form = useForm({
+    initialValues: {
+      experience: initialExperience,
+      prompt: '',
+      body: '',
+      title: '',
+      localTitle: '',
+      theme: '',
+      localTheme: '',
+      language: '',
+    },
+    validate: zodResolver(aiSchema),
+  });
 
   return (
+    <form
+      onSubmit={form.onSubmit(({ experience, body, ...localized }) =>
+        save.mutate({ type: experience, ...toLocalizedFields(localized), description: body }),
+      )}
+    >
     <Stack gap="md">
       <Title order={2}>{t('create.aiTitle')}</Title>
       <Group gap="md" grow>
-        <Select miw={200}
-          label={t('create.aiExperience')}
-          value={experience}
-          onChange={(v) => setExperience(selectValue(v))}
-          data={experiences.map((e) => ({ value: e, label: t(`library.experiences.${e}`) }))}
-          required
-        />
+        <ExperienceSelect label={t('create.aiExperience')} {...form.getInputProps('experience')} />
       </Group>
-      <Textarea
-        label={t('create.aiPrompt')}
-        value={prompt}
-        onChange={(e) => setPrompt(e.currentTarget.value)}
-        minRows={3}
-      />
+      <Textarea label={t('create.aiPrompt')} minRows={3} {...form.getInputProps('prompt')} />
       <Group gap="md">
         <Button
           variant="outline"
-          className={classes.secondaryButton}
-          disabled={!experience}
+          disabled={!form.values.experience}
           onClick={() => {
-            setBody(prompt);
-            setGenerated(true);
+            form.setFieldValue('body', form.values.prompt);
+            showGenerated();
           }}
         >
           {t('create.aiGenerate')}
@@ -90,63 +71,20 @@ export function CreateAiScreen() {
         <>
           <ComingSoon title={t('create.aiGenerateTitle')} />
           <StatusBadge tone="needs-review" label={t('create.aiDraftHint')} />
-          <Stack gap="xs" className={classes.panel}>
-            <Group gap="md" grow>
-              <TextInput miw={200}
-                label={t('create.name')}
-                value={title}
-                onChange={(e) => setTitle(e.currentTarget.value)}
-                required
-              />
-              {language.toLowerCase() !== 'en' && language !== '' && (
-                <TextInput miw={200}
-                  label={t('create.localName')}
-                  value={localTitle}
-                  onChange={(e) => setLocalTitle(e.currentTarget.value)}
-                  required
-                />
-              )}
-              <TextInput miw={200}
-                label={t('create.theme')}
-                value={theme}
-                onChange={(e) => setTheme(e.currentTarget.value)}
-                required
-              />
-              {language.toLowerCase() !== 'en' && language !== '' && (
-                <TextInput miw={200}
-                  label={t('create.localTheme')}
-                  value={localTheme}
-                  onChange={(e) => setLocalTheme(e.currentTarget.value)}
-                  required
-                />
-              )}
-              <Select miw={200}
-                label={t('create.language')}
-                value={language}
-                onChange={(v) => setLanguage(selectValue(v))}
-                data={languageOptions}
-                required
-              />
-            </Group>
-            <Textarea
-              label={t('create.aiBody')}
-              value={body}
-              onChange={(e) => setBody(e.currentTarget.value)}
-              minRows={5}
-            />
-          </Stack>
-          {error && (
-            <Text c="red" role="alert">
-              {error}
-            </Text>
-          )}
+          <Paper p="md" radius="md">
+            <Stack gap="xs">
+              <LocalizedFields form={form} />
+              <Textarea label={t('create.aiBody')} minRows={5} {...form.getInputProps('body')} />
+            </Stack>
+          </Paper>
           <Group gap="md">
-            <Button className={classes.submitButton} loading={save.isPending} onClick={() => void handleSave()}>
+            <Button type="submit" loading={save.isPending}>
               {t('create.saveLibrary')}
             </Button>
           </Group>
         </>
       )}
     </Stack>
+    </form>
   );
 }

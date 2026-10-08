@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { routePaths } from '@app/navigation/routePaths';
 import { useAuthStore } from '@features/auth/store/useAuthStore';
 import { openConfirmDialog } from '@shared/components/ConfirmDialog';
-import { toApiErrorMessage } from '@shared/utils/apiErrors';
+import { LoadError } from '@shared/components/LoadError';
 import { useTenantMe } from '../hooks/useAccount';
 
 export function AccountProfileScreen() {
@@ -13,7 +13,6 @@ export function AccountProfileScreen() {
   const logout = useAuthStore((s) => s.logout);
   const sessionRole = useAuthStore((s) => s.role);
   const { data, error } = useTenantMe();
-  const loadError = toApiErrorMessage(error);
 
   const confirmSignOut = () => {
     openConfirmDialog({
@@ -32,11 +31,7 @@ export function AccountProfileScreen() {
     <Stack gap="md">
       <Title order={2}>{t('account.profileTitle')}</Title>
       {sessionRole && <Text c="dimmed">{t('account.sessionRole', { role: sessionRole })}</Text>}
-      {loadError && (
-        <Text c="red" role="alert">
-          {loadError}
-        </Text>
-      )}
+      <LoadError error={error} />
       {data && (
         <Stack gap="xs">
           <Text>

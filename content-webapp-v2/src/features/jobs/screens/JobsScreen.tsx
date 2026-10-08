@@ -1,4 +1,4 @@
-import { Button, Group, Select, Stack, Text, TextInput, Title } from '@mantine/core';
+import { Button, Flex, Select, Stack, Text, TextInput, Title } from '@mantine/core';
 import { Search } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
@@ -7,17 +7,14 @@ import { routePaths } from '@app/navigation/routePaths';
 import type { DataTableColumn } from '@shared/components/DataTable';
 import { DataTable } from '@shared/components/DataTable';
 import { StatusBadge } from '@shared/components/StatusBadge';
-import { toApiErrorMessage } from '@shared/utils/apiErrors';
+import { LoadError } from '@shared/components/LoadError';
 import { selectValue } from '@shared/utils/select';
 import { formatRelativeTime } from '@shared/utils/format';
-import { flowRoute, type JobRow, type JobStatus, type JobType } from '../types/job.types';
+import { JOB_ACTION, flowRoute, type JobRow, type JobStatus, type JobType } from '../types/job.types';
 import { useJobs } from '../hooks/useJobs';
-import classes from './JobsScreen.module.css';
 
 const typeOptions: Array<'all' | JobType> = ['all', 'make-accessible', 'course-sync', 'localize', 'create'];
 const statusOptions: Array<'all' | JobStatus> = ['all', 'failed', 'needs-review', 'running', 'done'];
-
-const OUTLINED_LABELS: Partial<Record<JobStatus, string>> = { failed: 'jobs.fix', 'needs-review': 'jobs.continue' };
 
 function RowAction({ row }: { row: JobRow }) {
   const { t } = useTranslation();
@@ -27,15 +24,14 @@ function RowAction({ row }: { row: JobRow }) {
     if (row.type === 'make-accessible') return navigate({ to: '/make-accessible/$jobId', params: { jobId: row.id } });
     return navigate({ to: flowRoute[row.type] });
   };
-  const outlinedLabel = OUTLINED_LABELS[row.status];
+  const action = JOB_ACTION[row.status];
   return (
     <Button
-      variant={outlinedLabel ? 'outline' : 'transparent'}
+      variant={action.variant}
       size="sm"
-      className={outlinedLabel ? classes.outlineAction : classes.textAction}
       onClick={() => void go()}
     >
-      {t(outlinedLabel ?? 'jobs.view')}
+      {t(action.labelKey)}
     </Button>
   );
 }
@@ -47,7 +43,7 @@ export function JobsScreen() {
   const [typeFilter, setTypeFilter] = useState<(typeof typeOptions)[number]>('all');
   const [statusFilter, setStatusFilter] = useState<(typeof statusOptions)[number]>('all');
   const [page, setPage] = useState(1);
-  const loadError = toApiErrorMessage(error);
+
 
   const q = query.trim().toLowerCase();
   const filtered = rows.filter(
@@ -97,7 +93,7 @@ export function JobsScreen() {
       <Text size="sm" c="dimmed">
         {t('jobs.description')}
       </Text>
-      <Group gap="md" className={classes.filters}>
+      <Flex gap="md" direction={{ base: 'column', sm: 'row' }} align={{ base: 'stretch', sm: 'flex-end' }}>
         <Select
           aria-label={t('jobs.columns.type')}
           value={typeFilter}
@@ -116,14 +112,11 @@ export function JobsScreen() {
           leftSection={<Search size={16} aria-hidden />}
           value={query}
           onChange={(e) => setQuery(e.currentTarget.value)}
-          className={classes.search}
+          flex={1}
+          miw="min(240px, 100%)"
         />
-      </Group>
-      {loadError && (
-        <Text c="red" role="alert">
-          {loadError}
-        </Text>
-      )}
+      </Flex>
+      <LoadError error={error} />
       <DataTable<JobRow>
         columns={columns}
         rows={filtered}

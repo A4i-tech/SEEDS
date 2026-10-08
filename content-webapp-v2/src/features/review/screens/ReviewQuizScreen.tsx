@@ -1,10 +1,11 @@
-import { Breadcrumbs, Button, Group, Stack, Text, Title } from '@mantine/core';
+import { Alert, Breadcrumbs, Button, Group, Paper, Stack, Text, Title } from '@mantine/core';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { routePaths } from '@app/navigation/routePaths';
+import { CONTENT_UI } from '@features/library/types/content.types';
+import type { ContentItem } from '@features/library/types/content.types';
 import { QuizPreview } from '@features/library/components/ContentPreview';
 import { useReviewQuiz } from '../hooks/useReviewQuiz';
-import classes from './ReviewQuizScreen.module.css';
 
 export function ReviewQuizScreen() {
   const { t } = useTranslation();
@@ -12,6 +13,7 @@ export function ReviewQuizScreen() {
   const { id = '' } = useParams({ strict: false });
   const { item, isLoading, loadError, approve } = useReviewQuiz(id);
 
+  const ui = item ? CONTENT_UI[item.type] : undefined;
   const title = item?.title.english || id;
 
   return (
@@ -20,32 +22,20 @@ export function ReviewQuizScreen() {
         <Text>{t('review.title')}</Text>
         <Text>{title}</Text>
       </Breadcrumbs>
-      <Text className={classes.eyebrow}>{t('review.quizEyebrow')}</Text>
+      <Text variant="eyebrow">{t('review.quizEyebrow')}</Text>
       <Title order={2}>{t('review.quizTitle')}</Title>
       <Text c="dimmed">{t('review.quizHint')}</Text>
       {isLoading && <Text c="dimmed">{t('common.loading')}</Text>}
-      {loadError && (
-        <Text c="red" role="alert">
-          {loadError}
-        </Text>
-      )}
-      {item && item.type !== 'quiz' && (
-        <Text c="red" role="alert">
-          {t('review.wrongItem')}
-        </Text>
-      )}
+      {loadError && <Alert>{loadError}</Alert>}
+      {item && ui?.preview !== 'quiz' && <Alert>{t('review.wrongItem')}</Alert>}
 
-      {item?.type === 'quiz' && (
+      {ui?.preview === 'quiz' && item && (
         <>
-          <Stack gap="md" className={classes.panel}>
-            <QuizPreview item={item} />
-          </Stack>
+          <Paper p="lg" radius="md">
+            <QuizPreview item={item as Extract<ContentItem, { type: 'quiz' }>} />
+          </Paper>
           <Group gap="md">
-            <Button
-              className={classes.submitButton}
-              loading={approve.isPending}
-              onClick={() => void approve.mutateAsync()}
-            >
+            <Button loading={approve.isPending} onClick={() => approve.mutate()}>
               {t('review.approve')}
             </Button>
             <Button variant="subtle" onClick={() => void navigate({ to: routePaths.review })}>

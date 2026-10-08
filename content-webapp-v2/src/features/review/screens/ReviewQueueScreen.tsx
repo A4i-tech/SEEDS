@@ -1,4 +1,4 @@
-import { Chip, Group, Stack, Tabs, Text, TextInput, Title } from '@mantine/core';
+import { Alert, Anchor, Group, Stack, Tabs, Text, TextInput, Title } from '@mantine/core';
 import { useMemo, useState } from 'react';
 import { z } from 'zod';
 import { useNavigate } from '@tanstack/react-router';
@@ -12,21 +12,16 @@ import { failureSubtitle, type RemediationJob } from '@features/jobs/types/job.t
 import { getRemediationJobs } from '@features/jobs/api/remediationJobs';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@features/auth/store/useAuthStore';
-import classes from './ReviewQueueScreen.module.css';
+import { reviewKeys } from '../api/review';
 
 const queueTabSchema = z.enum(['pending', 'approved', 'all']);
 
 type QueueTab = z.infer<typeof queueTabSchema>;
 
-const modalities = ['text', 'audio', 'website'];
-
 interface QueueRow {
   id: string;
   title: string;
   subtitle: string;
-  modality: string;
-  kind: string;
-  from: string;
 }
 
 const pendingStatuses = new Set(['ready_to_review', 'in_review']);
@@ -42,9 +37,6 @@ function toRow(job: RemediationJob): QueueRow {
     id: job.job_id,
     title: job.source_name,
     subtitle: failureSubtitle(job),
-    modality: 'text',
-    kind: '—',
-    from: 'Make accessible',
   };
 }
 
@@ -55,10 +47,9 @@ export function ReviewQueueScreen() {
   const [tab, setTab] = useState<QueueTab>('pending');
   const [page, setPage] = useState(1);
   const [query, setQuery] = useState('');
-  const [selected, setSelected] = useState<string[]>([]);
 
   const queue = useQuery({
-    queryKey: ['review', 'queue'],
+    queryKey: reviewKeys.queue,
     queryFn: () => getRemediationJobs(50),
     enabled: status === 'authenticated',
   });
@@ -72,11 +63,8 @@ export function ReviewQueueScreen() {
     return jobs
       .filter(TAB_FILTER[tab])
       .map(toRow)
-      .filter(
-        (row) =>
-          (selected.length === 0 || selected.includes(row.modality)) && (!q || row.title.toLowerCase().includes(q)),
-      );
-  }, [jobs, tab, selected, query]);
+      .filter((row) => !q || row.title.toLowerCase().includes(q));
+  }, [jobs, tab, query]);
 
   const columns: DataTableColumn<QueueRow>[] = [
     {
@@ -93,23 +81,18 @@ export function ReviewQueueScreen() {
         </Stack>
       ),
     },
-    { key: 'modality', header: t('review.columns.modality'), render: (row) => t(`review.modalities.${row.modality}`) },
-    { key: 'kind', header: t('review.columns.kind'), render: (row) => row.kind },
-    { key: 'from', header: t('review.columns.from'), render: (row) => row.from },
   ];
 
   return (
     <Stack gap="md">
       <Title order={2}>{t('review.title')}</Title>
       <Text>{t('review.description')}</Text>
-      <Group justify="space-between" align="flex-end" gap="md" className={classes.toolbar}>
-        <Tabs value={tab} onChange={(v) => setTab(queueTabSchema.parse(selectValue(v, 'pending')))} className={classes.tabs}>
-          <Tabs.List className={classes.tabList}>
-            <Tabs.Tab value="pending" className={classes.tab}>
-              {t('review.tabs.pending', { count: pendingCount })}
-            </Tabs.Tab>
-            <Tabs.Tab value="approved" className={classes.tab}>{t('review.tabs.approved')}</Tabs.Tab>
-            <Tabs.Tab value="all" className={classes.tab}>{t('review.tabs.all')}</Tabs.Tab>
+      <Group justify="space-between" align="flex-end" gap="md">
+        <Tabs value={tab} onChange={(v) => setTab(queueTabSchema.parse(selectValue(v, 'pending')))} miw={0} flex={1}>
+          <Tabs.List>
+            <Tabs.Tab value="pending">{t('review.tabs.pending', { count: pendingCount })}</Tabs.Tab>
+            <Tabs.Tab value="approved">{t('review.tabs.approved')}</Tabs.Tab>
+            <Tabs.Tab value="all">{t('review.tabs.all')}</Tabs.Tab>
           </Tabs.List>
         </Tabs>
         <TextInput
@@ -117,27 +100,10 @@ export function ReviewQueueScreen() {
           placeholder={t('review.search')}
           value={query}
           onChange={(e) => setQuery(e.currentTarget.value)}
-          className={classes.search}
+          w={{ base: '100%', sm: 240 }}
         />
       </Group>
-      <Text className={classes.eyebrow}>{t('review.modality')}</Text>
-      <Chip.Group multiple value={selected} onChange={setSelected}>
-        <Group gap="xs" aria-label={t('review.modality')}>
-          {modalities.map((m) => (
-            <Chip key={m} value={m} classNames={{ label: classes.chip, iconWrapper: classes.chipIcon }}>
-              {t(`review.modalities.${m}`)}
-            </Chip>
-          ))}
-        </Group>
-      </Chip.Group>
-      <Text size="sm" c="dimmed">
-        {t('review.modalityNote')}
-      </Text>
-      {loadError && (
-        <Text c="red" role="alert">
-          {loadError}
-        </Text>
-      )}
+      {loadError && <Alert>{loadError}</Alert>}
       <DataTable<QueueRow>
         columns={columns}
         rows={rows}
@@ -148,13 +114,14 @@ export function ReviewQueueScreen() {
         onPageChange={setPage}
         emptyMessage={t('review.empty')}
         actions={(row) => (
-          <button
+          <Anchor
+            component="button"
             type="button"
-            className={classes.openAction}
+            fw={700}
             onClick={() => void navigate({ to: `${routePaths.review}/text/$jobId`, params: { jobId: row.id } })}
           >
             {t('review.open')}
-          </button>
+          </Anchor>
         )}
         actionsLabel={t('review.columns.open')}
       />

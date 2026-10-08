@@ -133,4 +133,21 @@ export const contentPageSchema = z.object({
   }),
 });
 
+export const libraryKeys = {
+  all: ['library'] as const,
+  content: ['library', 'content'] as const,
+  contentDetail: (id: string) => ['library', 'content', id] as const,
+  contentAudio: (id: string) => ['library', 'content', id, 'audio'] as const,
+  courses: ['library', 'courses'] as const,
+  courseDetail: (id: string) => ['library', 'course', id] as const,
+};
+
+export const CONTENT_UI: Record<ContentItem['type'], { preview: 'audio' | 'quiz'; hasDescription: boolean; hasAudioUpload: boolean }> = {
+  story: { preview: 'audio', hasDescription: true, hasAudioUpload: true },
+  song: { preview: 'audio', hasDescription: true, hasAudioUpload: true },
+  poem: { preview: 'audio', hasDescription: true, hasAudioUpload: true },
+  snippet: { preview: 'audio', hasDescription: true, hasAudioUpload: true },
+  quiz: { preview: 'quiz', hasDescription: false, hasAudioUpload: false },
+};
+
 

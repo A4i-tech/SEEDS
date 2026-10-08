@@ -1,4 +1,6 @@
+import { notifications } from '@mantine/notifications';
 import { create } from 'zustand';
+import i18n from '@shared/i18n';
 import { queryClient } from '@app/store/queryClient';
 import { setAuthToken, setSessionExpiredHandler } from '@shared/services/apiClient';
 import { decodeJwtRole, isJwtExpired } from '@shared/utils/jwt';
@@ -23,6 +25,7 @@ function readStoredToken(): string {
   } catch (err) {
     console.error(String(err));
     localStorage.removeItem(TOKEN_KEY);
+    notifications.show({ color: 'red', message: i18n.t('auth.sessionExpired') });
     return '';
   }
 }
@@ -57,5 +60,6 @@ export const useAuthStore = create<AuthState>((set) => ({
 }));
 
 setSessionExpiredHandler(() => {
+  notifications.show({ color: 'red', message: i18n.t('auth.sessionExpired') });
   useAuthStore.getState().logout();
 });

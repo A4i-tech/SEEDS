@@ -73,3 +73,17 @@ export async function updateReviewContent(id: string, patch: { description?: str
   const parsed = contentUpdateSchema.parse({ id, description: patch.description });
   await apiClient.patch(`/content/${encodeURIComponent(id)}`, parsed);
 }
+
+export const reviewKeys = {
+  all: ['review'] as const,
+  job: (jobId: string) => ['review', jobId] as const,
+  raw: (jobId: string) => ['review', jobId, 'raw'] as const,
+  corrected: (jobId: string) => ['review', jobId, 'corrected'] as const,
+  detail: (jobId: string) => ['review', jobId, 'job'] as const,
+  summary: (jobId: string) => ['review', jobId, 'summary'] as const,
+  audio: (id: string) => ['review', 'audio', id] as const,
+  audioSas: (id: string) => ['review', 'audio', id, 'sas'] as const,
+  quiz: (id: string) => ['review', 'quiz', id] as const,
+  queue: ['review', 'queue'] as const,
+  image: (jobId: string, imageName: string) => ['review', jobId, 'image', imageName] as const,
+};

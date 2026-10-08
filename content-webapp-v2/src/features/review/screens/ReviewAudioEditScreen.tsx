@@ -1,12 +1,10 @@
-import { Breadcrumbs, Button, Group, Stack, Text, Textarea, Title } from '@mantine/core';
+import { Alert, Box, Breadcrumbs, Button, Group, Paper, Stack, Text, Textarea, Title } from '@mantine/core';
 import { useState } from 'react';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { routePaths } from '@app/navigation/routePaths';
 import type { AudioContentItem } from '@features/library/types/content.types';
-import { toApiErrorMessage } from '@shared/utils/apiErrors';
 import { useReviewAudio } from '../hooks/useReviewAudio';
-import classes from './ReviewAudioEditScreen.module.css';
 
 type AudioReview = ReturnType<typeof useReviewAudio>;
 
@@ -21,32 +19,19 @@ function AudioEditor({ item, audioSrc, save, approve }: AudioEditorProps) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const [transcript, setTranscript] = useState(item.description);
-  const [error, setError] = useState('');
-
-  const handleSave = async () => {
-    setError('');
-    try {
-      await save.mutateAsync(transcript);
-    } catch (err) {
-      setError(toApiErrorMessage(err));
-    }
-  };
 
   return (
     <>
-      {error && (
-        <Text c="red" role="alert">
-          {error}
-        </Text>
-      )}
-      <Stack gap="xs" className={classes.panel}>
-        <Text fw={700}>{t('review.playback')}</Text>
-        {item.is_processed && (
-          // eslint-disable-next-line jsx-a11y/media-has-caption
-          <audio controls src={audioSrc} className={classes.player} />
-        )}
-        {!item.is_processed && <Text c="dimmed">{t('library.audioProcessing')}</Text>}
-      </Stack>
+      <Paper p="lg" radius="md">
+        <Stack gap="xs">
+          <Text fw={700}>{t('review.playback')}</Text>
+          {item.is_processed && (
+            // eslint-disable-next-line jsx-a11y/media-has-caption
+            <Box component="audio" controls src={audioSrc} w="100%" />
+          )}
+          {!item.is_processed && <Text c="dimmed">{t('library.audioProcessing')}</Text>}
+        </Stack>
+      </Paper>
 
       <Stack gap="xs">
         <Text fw={700}>{t('review.transcript')}</Text>
@@ -56,24 +41,15 @@ function AudioEditor({ item, audioSrc, save, approve }: AudioEditorProps) {
           autosize
           minRows={12}
           aria-label={t('review.transcript')}
-          className={classes.editPane}
+          styles={{ input: { fontFamily: 'monospace' } }}
         />
       </Stack>
 
       <Group gap="md">
-        <Button
-          variant="outline"
-          className={classes.secondaryButton}
-          loading={save.isPending}
-          onClick={() => void handleSave()}
-        >
+        <Button variant="outline" loading={save.isPending} onClick={() => save.mutate(transcript)}>
           {t('review.editAction')}
         </Button>
-        <Button
-          className={classes.submitButton}
-          loading={approve.isPending}
-          onClick={() => void approve.mutateAsync(transcript || undefined)}
-        >
+        <Button loading={approve.isPending} onClick={() => approve.mutate(transcript || undefined)}>
           {t('review.approve')}
         </Button>
         <Button variant="subtle" onClick={() => void navigate({ to: `${routePaths.review}/audio/$id`, params: { id: item.id } })}>
@@ -97,20 +73,12 @@ export function ReviewAudioEditScreen() {
         <Text>{t('review.title')}</Text>
         <Text>{title}</Text>
       </Breadcrumbs>
-      <Text className={classes.eyebrow}>{t('review.audioEyebrow')}</Text>
+      <Text variant="eyebrow">{t('review.audioEyebrow')}</Text>
       <Title order={2}>{t('review.editAudioTitle')}</Title>
       <Text c="dimmed">{t('review.editAudioHint')}</Text>
       {isLoading && <Text c="dimmed">{t('common.loading')}</Text>}
-      {loadError && (
-        <Text c="red" role="alert">
-          {loadError}
-        </Text>
-      )}
-      {item?.type === 'quiz' && (
-        <Text c="red" role="alert">
-          {t('review.wrongItem')}
-        </Text>
-      )}
+      {loadError && <Alert>{loadError}</Alert>}
+      {item?.type === 'quiz' && <Alert>{t('review.wrongItem')}</Alert>}
       {item && item.type !== 'quiz' && (
         <AudioEditor key={item.id} item={item} audioSrc={audioSrc} save={save} approve={approve} />
       )}

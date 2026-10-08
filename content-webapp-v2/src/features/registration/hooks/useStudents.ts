@@ -1,29 +1,18 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { notifications } from '@mantine/notifications';
-import { useTranslation } from 'react-i18next';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@features/auth/store/useAuthStore';
 import { createStudent, deleteStudent, getStudents, updateStudent } from '../api/students';
-import type { StudentUpdate } from '../types/registration.types';
+import { registrationKeys, type StudentUpdate } from '../types/registration.types';
+import { useRegistrationRefresh } from './useRegistrationRefresh';
 
 export function useStudents() {
-  const { t } = useTranslation();
-  const queryClient = useQueryClient();
+  const { invalidate, saved } = useRegistrationRefresh();
   const status = useAuthStore((s) => s.status);
 
   const students = useQuery({
-    queryKey: ['registration', 'students'],
+    queryKey: registrationKeys.students,
     queryFn: getStudents,
     enabled: status === 'authenticated',
   });
-
-  const invalidate = () => {
-    void queryClient.invalidateQueries({ queryKey: ['registration'] });
-  };
-
-  const saved = () => {
-    notifications.show({ message: t('registration.saved') });
-    invalidate();
-  };
 
   const create = useMutation({ mutationFn: createStudent, onSuccess: saved });
   const update = useMutation({
@@ -37,10 +26,8 @@ export function useStudents() {
     isLoading: students.isLoading,
     error: students.error,
     reload: () => void students.refetch(),
-    createStudent: create.mutateAsync,
-    creating: create.isPending,
-    updateStudent: update.mutateAsync,
-    updating: update.isPending,
-    deleteStudent: remove.mutateAsync,
+    create,
+    update,
+    remove,
   };
 }

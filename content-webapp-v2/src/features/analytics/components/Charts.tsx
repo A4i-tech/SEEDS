@@ -1,8 +1,9 @@
 import { BarChart, BarsList } from '@mantine/charts';
-import { Text } from '@mantine/core';
+import { Group, Paper, Stack, Text } from '@mantine/core';
 import { SquareArrowOutUpRight } from 'lucide-react';
 import type { KeyboardEvent, ReactNode } from 'react';
-import type { CountBin } from '../hooks/useAnalytics';
+import { useTranslation } from 'react-i18next';
+import type { CountBin } from '../utils/analyticsSummary';
 import classes from './Charts.module.css';
 
 const SERIES_FILLS = [
@@ -34,7 +35,8 @@ export function ChartCard({
   };
 
   return (
-    <div
+    <Paper
+      p="md"
       role="button"
       tabIndex={0}
       aria-label={`${title} — ${expandLabel}`}
@@ -42,20 +44,35 @@ export function ChartCard({
       onClick={onExpand}
       onKeyDown={onKeyDown}
     >
-      <div className={classes.head}>
-        <Text fw={700}>{title}</Text>
-        <Text size="sm" className={classes.expand}>
-          {expandLabel}
-          <SquareArrowOutUpRight size={14} aria-hidden />
-        </Text>
-      </div>
-      {children}
-    </div>
+      <Stack gap="sm">
+        <Group justify="space-between" gap="xs">
+          <Text fw={700}>{title}</Text>
+          <Group gap={4} wrap="nowrap" className={classes.expand}>
+            <Text size="sm">{expandLabel}</Text>
+            <SquareArrowOutUpRight size={14} aria-hidden />
+          </Group>
+        </Group>
+        {children}
+      </Stack>
+    </Paper>
+  );
+}
+
+export function ChartSectionHeading({ label }: { label: string }) {
+  const { t } = useTranslation();
+  return (
+    <Group gap="xs" align="center">
+      <Text variant="eyebrow" size="sm">
+        {label}
+      </Text>
+      <Text size="sm" c="dimmed">
+        {t('analytics.chartsHint')}
+      </Text>
+    </Group>
   );
 }
 
 export function TrendChart({ bins, hideAxis = false }: { bins: CountBin[]; hideAxis?: boolean }) {
-  if (bins.length === 0) return null;
   return (
     <BarChart
       h={120}
@@ -72,7 +89,6 @@ export function TrendChart({ bins, hideAxis = false }: { bins: CountBin[]; hideA
 }
 
 export function BarList({ bins, compact }: { bins: CountBin[]; compact: boolean }) {
-  if (bins.length === 0) return null;
   const visible = compact ? bins.slice(0, 4) : bins;
   return (
     <BarsList
@@ -84,7 +100,6 @@ export function BarList({ bins, compact }: { bins: CountBin[]; compact: boolean 
 }
 
 export function StackedBar({ bins }: { bins: CountBin[] }) {
-  if (bins.every((bin) => bin.count === 0)) return null;
   return (
     <BarChart
       h={96}

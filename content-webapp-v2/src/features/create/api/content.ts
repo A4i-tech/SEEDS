@@ -1,13 +1,8 @@
 import { z } from 'zod';
 import { ApiError, apiClient } from '@shared/services/apiClient';
-import { contentCreateSchema, type ContentCreate } from '../../library/types/content.types';
+import type { ContentCreate } from '../../library/types/content.types';
 
 const sasTokenSchema = z.object({ sas_token: z.string() });
-
-const jobScheduledSchema = z.object({
-  message: z.string(),
-  job_id: z.string(),
-});
 
 export async function getUploadSasUrl(blobName: string) {
   const { data } = await apiClient.get('/content/sasToken', { params: { blob_name: blobName } });
@@ -24,7 +19,5 @@ export async function uploadMp3ToSasUrl(sasUrl: string, file: File) {
 }
 
 export async function createContent(payload: ContentCreate) {
-  const parsed = contentCreateSchema.parse(payload);
-  const { data } = await apiClient.post('/content', parsed);
-  return jobScheduledSchema.parse(data);
+  await apiClient.post('/content', payload);
 }

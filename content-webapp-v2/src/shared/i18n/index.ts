@@ -15,6 +15,7 @@ void i18n.use(initReactI18next).init({
           rangeOf: '{{start}}–{{end}} of {{total}}',
           previous: 'Previous',
           next: 'Next',
+          retry: 'Retry',
         },
         dialog: { cancel: 'Cancel' },
         login: {
@@ -153,6 +154,7 @@ void i18n.use(initReactI18next).init({
           metaTheme: 'Theme',
           audio: 'Audio',
           audioProcessing: 'Audio is being processed',
+          audioMissing: 'No audio URL on this item.',
           questionN: 'Question {{n}}',
           correctAnswer: '(Correct Answer)',
           deleteTitle: 'Delete this content?',
@@ -546,6 +548,7 @@ void i18n.use(initReactI18next).init({
           fieldTenant: 'Tenant',
           fieldOrganisation: 'Organisation',
           signOut: 'Sign out',
+          sessionExpired: 'Your session has expired. Please log in again.',
           signOutTitle: 'Sign out?',
           signOutBody: 'You will be signed out of Content Studio on this device.',
           signOutConfirm: 'Sign out',

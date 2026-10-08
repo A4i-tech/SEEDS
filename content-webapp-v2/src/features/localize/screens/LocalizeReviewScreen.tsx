@@ -1,6 +1,6 @@
-import { Button, Group, Select, Stack, Text, Textarea, TextInput, Title } from '@mantine/core';
+import { Alert, Anchor, Button, Flex, Group, Select, Stack, Text, Textarea, TextInput, Title } from '@mantine/core';
 import { Search } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { DataTableColumn } from '@shared/components/DataTable';
 import { DataTable } from '@shared/components/DataTable';
@@ -10,7 +10,6 @@ import { selectValue } from '@shared/utils/select';
 import { useLocalizeSites } from '../hooks/useLocalizeSites';
 import { useLocalizeReview } from '../hooks/useLocalizeReview';
 import type { Segment } from '../utils/segments';
-import classes from './LocalizeReviewScreen.module.css';
 
 type StageFilter = 'all' | 'pending' | 'approved';
 
@@ -45,7 +44,7 @@ function TranslationCell({ seg, onSave }: { seg: Segment; onSave: (id: string, t
 
 export function LocalizeReviewScreen() {
   const { t } = useTranslation();
-  const { sites, languages } = useLocalizeSites();
+  const { sites, languages, languageName } = useLocalizeSites();
   const [siteId, setSiteId] = useState('');
   const [route, setRoute] = useState('');
   const [lang, setLang] = useState('');
@@ -55,11 +54,7 @@ export function LocalizeReviewScreen() {
 
   const site = sites.find((s) => s.id === siteId);
   const siteLangCodes = (site?.languages ?? []).filter((l) => l.enabled).map((l) => l.code);
-  const langCodes = (): string[] => {
-    if (siteLangCodes.length > 0) return siteLangCodes;
-    return languages.map((l) => l.code);
-  };
-  const langLabel = (code: string) => languages.find((l) => l.code === code)?.name ?? code;
+  const langCodes = siteLangCodes.length > 0 ? siteLangCodes : languages.map((l) => l.code);
 
   const {
     segments,
@@ -76,21 +71,12 @@ export function LocalizeReviewScreen() {
   const loadError = toApiErrorMessage(error);
   const ready = siteId !== '' && route.trim() !== '' && lang !== '';
 
-  const generateLabel = (): string => {
-    if (generating) return t('localize.generating');
-    return t('localize.generate');
-  };
-
-  const rows = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return segments.filter(
-      (seg) =>
-        (stage === 'all' || seg.stage === stage) &&
-        (!q ||
-          seg.sourceText.toLowerCase().includes(q) ||
-          seg.translation.toLowerCase().includes(q)),
-    );
-  }, [segments, stage, query]);
+  const q = query.trim().toLowerCase();
+  const rows = segments.filter(
+    (seg) =>
+      (stage === 'all' || seg.stage === stage) &&
+      (!q || seg.sourceText.toLowerCase().includes(q) || seg.translation.toLowerCase().includes(q)),
+  );
 
   const columns: DataTableColumn<Segment>[] = [
     {
@@ -105,7 +91,7 @@ export function LocalizeReviewScreen() {
         <TranslationCell
           key={`${row.id}:${lang}`}
           seg={row}
-          onSave={(id, text) => void saveEdit({ id, text })}
+          onSave={(id, text) => saveEdit({ id, text })}
         />
       ),
     },
@@ -125,7 +111,7 @@ export function LocalizeReviewScreen() {
     <Stack gap="md">
       <Title order={2}>{t('localize.reviewTitle')}</Title>
       <Text c="dimmed">{t('localize.reviewDescription')}</Text>
-      <Group gap="md" className={classes.filters}>
+      <Flex gap="md" direction={{ base: 'column', md: 'row' }} align={{ base: 'stretch', md: 'flex-end' }}>
         <Select
           aria-label={t('localize.site')}
           placeholder={t('localize.pickSite')}
@@ -145,7 +131,7 @@ export function LocalizeReviewScreen() {
             setRoute(e.currentTarget.value);
             setPage(1);
           }}
-          className={classes.route}
+          miw="min(220px, 100%)"
         />
         <Select
           aria-label={t('localize.language')}
@@ -155,7 +141,7 @@ export function LocalizeReviewScreen() {
             setLang(selectValue(v));
             setPage(1);
           }}
-          data={langCodes().map((code) => ({ value: code, label: langLabel(code) }))}
+          data={langCodes.map((code) => ({ value: code, label: languageName(code) }))}
         />
         <Select
           aria-label={t('localize.statusFilter')}
@@ -172,36 +158,25 @@ export function LocalizeReviewScreen() {
           leftSection={<Search size={16} aria-hidden />}
           value={query}
           onChange={(e) => setQuery(e.currentTarget.value)}
-          className={classes.search}
+          flex={1}
+          miw="min(240px, 100%)"
         />
-      </Group>
+      </Flex>
       <Group gap="md">
         <Button
           variant="outline"
-          className={classes.secondaryButton}
           disabled={!ready || generating}
           loading={generating}
-          onClick={() => void generate()}
+          onClick={() => generate()}
         >
-          {generateLabel()}
+          {generating ? t('localize.generating') : t('localize.generate')}
         </Button>
-        <Button
-          className={classes.submitButton}
-          disabled={!ready || approvingAll}
-          loading={approvingAll}
-          onClick={() => void approveAll()}
-        >
+        <Button disabled={!ready || approvingAll} loading={approvingAll} onClick={() => approveAll()}>
           {t('localize.approveAll')}
         </Button>
       </Group>
-      {loadError && (
-        <Text c="red" role="alert">
-          {loadError}
-        </Text>
-      )}
-      {!siteId && !isLoading && (
-        <Text c="dimmed">{t('localize.pickSiteFirst')}</Text>
-      )}
+      {loadError && <Alert>{loadError}</Alert>}
+      {!siteId && !isLoading && <Text c="dimmed">{t('localize.pickSiteFirst')}</Text>}
       {ready && !isLoading && segments.length === 0 && !loadError && (
         <Text c="dimmed">{t('localize.generateHint')}</Text>
       )}
@@ -214,15 +189,13 @@ export function LocalizeReviewScreen() {
         pageSize={10}
         onPageChange={setPage}
         emptyMessage={t('localize.reviewEmpty')}
-        actions={(row) => (
-          <>
-            {row.stage !== 'approved' && (
-              <button type="button" className={classes.rowAction} onClick={() => void approve(row.id)}>
-                {t('localize.approve')}
-              </button>
-            )}
-          </>
-        )}
+        actions={(row) =>
+          row.stage !== 'approved' && (
+            <Anchor component="button" type="button" fw={700} onClick={() => approve(row.id)}>
+              {t('localize.approve')}
+            </Anchor>
+          )
+        }
         actionsLabel={t('localize.columns.actions')}
       />
     </Stack>

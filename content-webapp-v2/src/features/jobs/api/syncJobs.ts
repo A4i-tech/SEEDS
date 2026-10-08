@@ -27,8 +27,7 @@ export type SyncJobItem = z.infer<typeof syncJobItemSchema>;
 
 const syncJobItemsPageSchema = z.object({
   items: z.array(syncJobItemSchema),
-  next_cursor: z.string().nullish().transform((value) => value ?? undefined),
-  total: z.number(),
+  next_cursor: z.string().nullable(),
 });
 
 export async function getSyncStatus(jobId: string) {

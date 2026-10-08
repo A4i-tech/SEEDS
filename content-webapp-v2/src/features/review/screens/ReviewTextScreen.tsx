@@ -1,9 +1,8 @@
-import { Breadcrumbs, Button, Grid, Group, Stack, Text, Textarea, Title } from '@mantine/core';
+import { Alert, Breadcrumbs, Button, ColorSwatch, Grid, Group, Paper, ScrollArea, Stack, Text, Textarea, Title } from '@mantine/core';
 import { useRef, useState } from 'react';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { routePaths } from '@app/navigation/routePaths';
-import { toApiErrorMessage } from '@shared/utils/apiErrors';
 import { diffLines } from '@shared/utils/diff';
 import { useReviewText } from '../hooks/useReviewText';
 import classes from './ReviewTextScreen.module.css';
@@ -32,9 +31,8 @@ export function ReviewTextScreen() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { jobId = '' } = useParams({ strict: false });
-  const { raw, corrected, isLoading, save, approve } = useReviewText(jobId);
+  const { raw, corrected, isLoading, loadError, save, approve } = useReviewText(jobId);
   const [edited, setEdited] = useState<string | undefined>(undefined);
-  const [error, setError] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const text = edited === undefined ? corrected : edited;
@@ -42,15 +40,6 @@ export function ReviewTextScreen() {
 
   const applyTool = (before: string, after: string, linePrefix: string) => {
     setEdited(wrapSelection(textareaRef.current, before, after, linePrefix));
-  };
-
-  const handleSave = async () => {
-    setError('');
-    try {
-      await save.mutateAsync(text);
-    } catch (err) {
-      setError(toApiErrorMessage(err));
-    }
   };
 
   return (
@@ -62,19 +51,15 @@ export function ReviewTextScreen() {
       <Title order={2}>{t('review.textTitle')}</Title>
       <Text c="dimmed">{t('review.textHint')}</Text>
       {isLoading && <Text c="dimmed">{t('common.loading')}</Text>}
-      {error && (
-        <Text c="red" role="alert">
-          {error}
-        </Text>
-      )}
+      {loadError && <Alert>{loadError}</Alert>}
 
       <Group gap="lg" aria-label={t('review.legend')}>
         <Group gap="xs">
-          <span className={`${classes.swatch} ${classes.removedSwatch}`} aria-hidden />
+          <ColorSwatch size={16} radius="sm" color="var(--seeds-badge-hard-bg)" withShadow={false} className={classes.removedSwatch} aria-hidden />
           <Text size="sm">{t('review.removed')}</Text>
         </Group>
         <Group gap="xs">
-          <span className={`${classes.swatch} ${classes.addedSwatch}`} aria-hidden />
+          <ColorSwatch size={16} radius="sm" color="var(--seeds-badge-easy-bg)" withShadow={false} className={classes.addedSwatch} aria-hidden />
           <Text size="sm">{t('review.added')}</Text>
         </Group>
         <Text size="sm" c="dimmed">
@@ -86,7 +71,8 @@ export function ReviewTextScreen() {
         <Grid.Col span={{ base: 12, md: 6 }}>
           <Stack gap="xs">
             <Text fw={700}>{t('review.source')}</Text>
-            <div className={classes.sourcePane} role="document" aria-label={t('review.source')} aria-readonly="true">
+            <Paper p="md" radius="md" ff="monospace">
+            <ScrollArea.Autosize mah="60vh" role="document" aria-label={t('review.source')} aria-readonly="true">
               {ops.map((op, index) => (
                 <div
                   // eslint-disable-next-line react/no-array-index-key
@@ -102,7 +88,8 @@ export function ReviewTextScreen() {
                   </span>
                 </div>
               ))}
-            </div>
+            </ScrollArea.Autosize>
+            </Paper>
           </Stack>
         </Grid.Col>
         <Grid.Col span={{ base: 12, md: 6 }}>
@@ -141,26 +128,17 @@ export function ReviewTextScreen() {
               autosize
               minRows={20}
               aria-label={t('review.edit')}
-              className={classes.editPane}
+              styles={{ input: { fontFamily: 'monospace' } }}
             />
           </Stack>
         </Grid.Col>
       </Grid>
 
       <Group gap="md">
-        <Button
-          variant="outline"
-          className={classes.secondaryButton}
-          loading={save.isPending}
-          onClick={() => void handleSave()}
-        >
+        <Button variant="outline" loading={save.isPending} disabled={loadError !== ''} onClick={() => save.mutate(text)}>
           {t('review.editAction')}
         </Button>
-        <Button
-          className={classes.submitButton}
-          loading={approve.isPending}
-          onClick={() => void approve.mutateAsync(undefined)}
-        >
+        <Button loading={approve.isPending} disabled={loadError !== ''} onClick={() => approve.mutate(undefined)}>
           {t('review.approve')}
         </Button>
         <Button variant="subtle" onClick={() => void navigate({ to: routePaths.review })}>

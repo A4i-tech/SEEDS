@@ -1,9 +1,8 @@
-import { Button, Group, Select, Stack, Text, TextInput } from '@mantine/core';
+import { Button, Group, Input, SegmentedControl, Select, Stack, Text, TextInput } from '@mantine/core';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { selectValue } from '@shared/utils/select';
-import { lastNDays, monthToDate } from '../hooks/useAnalytics';
-import classes from './FiltersPanel.module.css';
+import { lastNDays, monthToDate, toInputDate } from '../hooks/useAnalytics';
 
 type QuickRange = 'last7' | 'last30' | 'month' | 'custom';
 
@@ -15,10 +14,6 @@ export interface FiltersValue {
 }
 
 const QUICKS: QuickRange[] = ['last7', 'last30', 'month', 'custom'];
-
-function toInputDate(date: Date): string {
-  return date.toISOString().slice(0, 10);
-}
 
 const TODAY = toInputDate(new Date());
 
@@ -53,16 +48,16 @@ export function FiltersPanel({
     setDraft((d) => ({ ...d, quick, start: toInputDate(start), end: toInputDate(end) }));
   };
 
-  const canApply = draft.start.length > 0 && draft.end.length > 0 && !loading;
+  const canApply = draft.start.length > 0 && draft.end.length > 0;
 
   return (
     <Stack gap="md">
-      <div>
+      <Stack gap={0}>
         <Text fw={700}>{t('analytics.filtersPanel.title')}</Text>
         <Text size="sm" c="dimmed">
           {t('analytics.filtersPanel.subtitle')}
         </Text>
-      </div>
+      </Stack>
       {showBranch && (
         <Select
           label={t('analytics.filtersPanel.branch')}
@@ -71,48 +66,38 @@ export function FiltersPanel({
           data={[{ value: 'all', label: t('analytics.filtersPanel.branchAll') }, ...schools]}
         />
       )}
-      <div>
-        <Text size="sm" fw={700} className={classes.sectionLabel}>
-          {t('analytics.filtersPanel.quickRange')}
-        </Text>
-        <Group gap="xs">
-          {QUICKS.map((quick) => (
-            <Button
-              key={quick}
-              variant={draft.quick === quick ? 'filled' : 'outline'}
-              size="sm"
-              className={draft.quick === quick ? classes.activeQuick : classes.quick}
-              onClick={() => pickQuick(quick)}
-            >
-              {t(`analytics.filtersPanel.${quick}`)}
-            </Button>
-          ))}
-        </Group>
-      </div>
+      <Input.Wrapper label={t('analytics.filtersPanel.quickRange')}>
+        <SegmentedControl
+          fullWidth
+          value={draft.quick}
+          onChange={(v) => pickQuick(v as QuickRange)}
+          data={QUICKS.map((quick) => ({ value: quick, label: t(`analytics.filtersPanel.${quick}`) }))}
+        />
+      </Input.Wrapper>
       <Group gap="md" grow>
         <TextInput miw={200}
           label={t('analytics.filtersPanel.start')}
           type="date"
           value={draft.start}
-          max={draft.end || undefined}
+          max={draft.end}
           onChange={(e) => setDraft((d) => ({ ...d, quick: 'custom', start: e.currentTarget.value }))}
         />
         <TextInput miw={200}
           label={t('analytics.filtersPanel.end')}
           type="date"
           value={draft.end}
-          min={draft.start || undefined}
+          min={draft.start}
           max={TODAY}
           onChange={(e) => setDraft((d) => ({ ...d, quick: 'custom', end: e.currentTarget.value }))}
         />
       </Group>
       <Button
-        className={classes.apply}
+        loading={loading}
         disabled={!canApply}
         onClick={() => onApply(draft)}
         aria-label={t('analytics.filtersPanel.apply')}
       >
-        {loading ? t('analytics.states.loading') : t('analytics.filtersPanel.apply')}
+        {t('analytics.filtersPanel.apply')}
       </Button>
     </Stack>
   );

@@ -3,11 +3,8 @@ import { apiClient } from '@shared/services/apiClient';
 import {
   bulkApproveResultSchema,
   translationItemSchema,
-  type BulkApprove,
   type BulkApproveResult,
-  type TranslationApprove,
   type TranslationItem,
-  type TranslationUpdate,
 } from '../types/localize.types';
 
 const BULK_APPROVE_TIMEOUT_MS = 5 * 60 * 1000;
@@ -19,22 +16,19 @@ export async function listTranslations(siteId: string, route?: string): Promise<
   return z.array(translationItemSchema).parse(data);
 }
 
-export async function updateTranslation(id: string, update: TranslationUpdate): Promise<TranslationItem> {
+export async function updateTranslation(id: string, update: { lang: string; text: string }): Promise<TranslationItem> {
   const { data } = await apiClient.put(`/translations/${encodeURIComponent(id)}`, update);
   return translationItemSchema.parse(data);
 }
 
-export async function approveTranslation(
-  id: string,
-  approval: TranslationApprove,
-): Promise<TranslationItem> {
+export async function approveTranslation(id: string, approval: { lang: string }): Promise<TranslationItem> {
   const { data } = await apiClient.post(`/translations/${encodeURIComponent(id)}/approve`, approval);
   return translationItemSchema.parse(data);
 }
 
 export async function bulkApproveTranslations(
   siteId: string,
-  scope: BulkApprove,
+  scope: { route?: string; lang?: string },
 ): Promise<BulkApproveResult> {
   const { data } = await apiClient.post(
     '/translations/bulk-approve',

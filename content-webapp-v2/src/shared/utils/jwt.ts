@@ -1,7 +1,11 @@
+function payload(token: string) {
+  return JSON.parse(atob(token.split('.')[1]));
+}
+
 export function decodeJwtRole(token: string): string {
-  return JSON.parse(atob(token.split('.')[1])).role;
+  return payload(token).role;
 }
 
 export function isJwtExpired(token: string): boolean {
-  return JSON.parse(atob(token.split('.')[1])).exp * 1000 <= Date.now();
+  return payload(token).exp * 1000 <= Date.now();
 }

@@ -1,9 +1,7 @@
 import { z } from 'zod';
 import { apiClient } from '@shared/services/apiClient';
 import {
-  schoolCreateSchema,
   schoolSchema,
-  schoolUpdateSchema,
   type School,
   type SchoolCreate,
   type SchoolUpdate,
@@ -20,15 +18,12 @@ export async function getSchools(): Promise<School[]> {
 }
 
 export async function createSchool(body: SchoolCreate): Promise<School> {
-  const { data } = await apiClient.post('/school', schoolCreateSchema.parse(body));
+  const { data } = await apiClient.post('/school', body);
   return schoolResponseSchema.parse(data);
 }
 
 export async function updateSchool(id: string, body: SchoolUpdate): Promise<School> {
-  const { data } = await apiClient.patch(
-    `/school/${encodeURIComponent(id)}`,
-    schoolUpdateSchema.parse(body),
-  );
+  const { data } = await apiClient.patch(`/school/${encodeURIComponent(id)}`, body);
   return schoolResponseSchema.parse(data);
 }
 

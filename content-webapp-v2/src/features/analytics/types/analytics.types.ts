@@ -8,15 +8,13 @@ export const analyticsRequestSchema = z.object({
 
 export type AnalyticsRequest = z.infer<typeof analyticsRequestSchema>;
 
-function toSeconds(value: unknown): number {
-  if (typeof value === 'number') return value;
-  if (typeof value !== 'string' || value === '') return 0;
-  const seconds = parseInt(value, 10);
-  if (Number.isNaN(seconds)) return 0;
+function toSeconds(value: string | number | null | undefined): number {
+  const seconds = Number(value ?? 0);
+  if (Number.isNaN(seconds)) throw new Error(`Invalid call duration: ${value}`);
   return seconds;
 }
 
-const looseText = z.string().catch('');
+const looseText = z.string().nullish().transform((value) => value ?? '');
 
 export const callLogSchema = z.object({
   phone_number: text,
@@ -47,15 +45,13 @@ export const dashboardStatisticsSchema = z.object({
   total_classes: z.number(),
 });
 
-export const schoolDashboardRowSchema = z
-  .object({
-    id: text,
-    name: z.string(),
-    teacher_count: z.number(),
-    student_count: z.number(),
-    class_count: z.number(),
-  })
-  .transform((row) => ({ ...row, id: row.id || row.name }));
+export const schoolDashboardRowSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  teacher_count: z.number(),
+  student_count: z.number(),
+  class_count: z.number(),
+});
 
 export const tenantDashboardSchema = z.object({
   statistics: dashboardStatisticsSchema,
@@ -77,9 +73,9 @@ export const schoolDashboardSchema = z.object({
 
 export type SchoolDashboard = z.infer<typeof schoolDashboardSchema>;
 
-export const analyticsRoleSchema = z.enum(['tenant', 'school_admin', '']).catch('');
+export const analyticsRoleSchema = z.enum(['tenant', 'school_admin']);
 
-export type AnalyticsRole = Exclude<z.infer<typeof analyticsRoleSchema>, ''>;
+export type AnalyticsRole = z.infer<typeof analyticsRoleSchema>;
 
 const ANALYTICS_ENDPOINT: Record<AnalyticsRole, string> = {
   tenant: '/tenant/analytics',
@@ -89,3 +85,10 @@ const ANALYTICS_ENDPOINT: Record<AnalyticsRole, string> = {
 export function analyticsEndpointFor(role: AnalyticsRole): string {
   return ANALYTICS_ENDPOINT[role];
 }
+
+export const analyticsKeys = {
+  all: ['analytics'] as const,
+  range: (role: AnalyticsRole, startISO: string, endISO: string) => ['analytics', role, startISO, endISO] as const,
+  tenantDashboard: ['analytics', 'tenant-dashboard'] as const,
+  schoolDashboard: ['analytics', 'school-dashboard'] as const,
+};

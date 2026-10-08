@@ -1,6 +1,5 @@
-import { Text } from '@mantine/core';
+import { Stepper, Text } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
-import classes from './RemediationSteps.module.css';
 
 const steps = ['upload', 'remediating', 'review'] as const;
 
@@ -9,22 +8,14 @@ export function RemediationSteps({ activeStep }: { activeStep: number }) {
 
   return (
     <div>
-      <Text className={classes.label}>{t('makeAccessible.stepsLabel')}</Text>
-      <ol className={classes.steps} aria-label={t('makeAccessible.stepsLabel')}>
-        {steps.map((step, index) => (
-          <li
-            key={step}
-            className={index === activeStep ? `${classes.step} ${classes.active}` : classes.step}
-            aria-current={index === activeStep ? 'step' : undefined}
-          >
-            <span className={index <= activeStep ? `${classes.circle} ${classes.filled}` : classes.circle}>
-              {index + 1}
-            </span>
-            <span className={classes.name}>{t(`makeAccessible.steps.${step}`)}</span>
-            {index < steps.length - 1 && <span className={classes.line} aria-hidden />}
-          </li>
+      <Text variant="eyebrow" size="sm">
+        {t('makeAccessible.stepsLabel')}
+      </Text>
+      <Stepper active={activeStep} iconSize={28} aria-label={t('makeAccessible.stepsLabel')}>
+        {steps.map((step) => (
+          <Stepper.Step key={step} label={t(`makeAccessible.steps.${step}`)} />
         ))}
-      </ol>
+      </Stepper>
     </div>
   );
 }

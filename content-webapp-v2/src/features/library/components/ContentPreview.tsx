@@ -1,34 +1,30 @@
-import { Stack, Text } from '@mantine/core';
+import { Alert, Box, Stack, Text } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { toApiErrorMessage } from '@shared/utils/apiErrors';
 import { getContentSasUrl } from '../api/library';
+import { libraryKeys } from '../types/content.types';
 import type { AudioContentItem, ContentItem } from '../types/content.types';
-import classes from './ContentPreview.module.css';
-
-const DEFAULT_AUDIO_HOST = 'https://seedsblob.blob.core.windows.net/output-container';
 
 export function AudioPreview({ item }: { item: AudioContentItem }) {
   const { t } = useTranslation();
   const [track] = item.audio_content;
-  const audioUrl = item.primary_audio_url || track?.audio_url || `${DEFAULT_AUDIO_HOST}/${item.id}/1.0.wav`;
+  const audioUrl = item.primary_audio_url || track?.audio_url || '';
   const audio = useQuery({
-    queryKey: ['library', 'content', item.id, 'audio'],
+    queryKey: libraryKeys.contentAudio(item.id),
     queryFn: () => getContentSasUrl(audioUrl),
+    enabled: audioUrl !== '',
   });
   const audioError = toApiErrorMessage(audio.error);
   return (
     <Stack gap="xs">
       <Text fw={700}>{t('library.audio')}</Text>
-      {item.is_processed && (
+      {item.is_processed && audioUrl !== '' && (
         // eslint-disable-next-line jsx-a11y/media-has-caption
-        <audio controls src={audio.data} className={classes.player} />
+        <Box component="audio" controls src={audio.data} w="100%" />
       )}
-      {audioError && (
-        <Text c="red" role="alert">
-          {audioError}
-        </Text>
-      )}
+      {audioUrl === '' && <Text c="dimmed">{t('library.audioMissing')}</Text>}
+      {audioError && <Alert>{audioError}</Alert>}
       {!item.is_processed && <Text c="dimmed">{t('library.audioProcessing')}</Text>}
       {track?.description && (
         <Text size="sm" c="dimmed">
@@ -37,11 +33,6 @@ export function AudioPreview({ item }: { item: AudioContentItem }) {
       )}
     </Stack>
   );
-}
-
-function optionTone(isCorrect: boolean): string | undefined {
-  if (isCorrect) return undefined;
-  return 'dimmed';
 }
 
 export function QuizPreview({ item }: { item: Extract<ContentItem, { type: 'quiz' }> }) {
@@ -55,7 +46,7 @@ export function QuizPreview({ item }: { item: Extract<ContentItem, { type: 'quiz
             {t('library.questionN', { n: index + 1 })}: {q.question.text}
           </Text>
           {q.options.map((opt, optIdx) => (
-            <Text key={opt.id} size="sm" c={optionTone(opt.id === q.correct_option_id)}>
+            <Text key={opt.id} size="sm" c={opt.id === q.correct_option_id ? undefined : 'dimmed'}>
               {optionLabels[optIdx] ?? opt.id}. {opt.text}
               {opt.id === q.correct_option_id && ` ${t('library.correctAnswer')}`}
             </Text>

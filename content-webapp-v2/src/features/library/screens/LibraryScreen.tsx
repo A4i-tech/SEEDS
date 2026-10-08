@@ -1,17 +1,17 @@
-import { Button, Chip, Group, Stack, Text, TextInput, Title } from '@mantine/core';
+import { Alert, Anchor, Badge, Button, Chip, Group, Stack, Text, TextInput, Title } from '@mantine/core';
 import { Plus } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { useNavigate } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { routePaths } from '@app/navigation/routePaths';
 import type { DataTableColumn } from '@shared/components/DataTable';
 import { DataTable } from '@shared/components/DataTable';
 import { openConfirmDialog } from '@shared/components/ConfirmDialog';
 import { toApiErrorMessage } from '@shared/utils/apiErrors';
+import { CONTENT_UI } from '../types/content.types';
 import type { ContentItem } from '../types/content.types';
 import type { Course } from '../api/library';
 import { useLibrary } from '../hooks/useLibrary';
-import classes from './LibraryScreen.module.css';
 
 const experiences = ['poem', 'story', 'quiz', 'lesson', 'course', 'audio', 'song', 'textbook', 'webpage'];
 
@@ -37,7 +37,7 @@ function languageName(code: string): string {
 }
 
 function contentRow(item: ContentItem): LibraryRow {
-  const uploaded = [item.is_teacher_app && 'TA', (item.is_pull_model || item.type === 'quiz') && 'IVR']
+  const uploaded = [item.is_teacher_app && 'TA', (item.is_pull_model || CONTENT_UI[item.type].preview === 'quiz') && 'IVR']
     .filter(Boolean)
     .join(', ');
   return {
@@ -54,11 +54,6 @@ function contentRow(item: ContentItem): LibraryRow {
   };
 }
 
-function syncLabel(synced: boolean): string {
-  if (synced) return 'Synced';
-  return 'Never synced';
-}
-
 function courseRow(course: Course): LibraryRow {
   return {
     id: course.id,
@@ -66,7 +61,7 @@ function courseRow(course: Course): LibraryRow {
     subtitle: course.number,
     theme: course.org,
     themeSub: '',
-    uploaded: syncLabel(course.synced),
+    uploaded: course.synced ? 'Synced' : 'Never synced',
     language: languageName(course.language),
     kind: 'course',
     isCourse: true,
@@ -124,7 +119,7 @@ export function LibraryScreen() {
         <Stack gap={0}>
           <Text size="sm" fw={700}>{row.title}</Text>
           {row.subtitle && (
-            <Text size="xs" className={classes.subtle}>
+            <Text size="xs" c="dimmed">
               {row.subtitle}
             </Text>
           )}
@@ -149,7 +144,12 @@ export function LibraryScreen() {
     {
       key: 'language',
       header: t('library.columns.language'),
-      render: (row) => row.language && <span className={classes.languagePill}>{row.language}</span>,
+      render: (row) =>
+        row.language && (
+          <Badge variant="light" color="gray" radius="xl">
+            {row.language}
+          </Badge>
+        ),
     },
     { key: 'uploaded', header: t('library.columns.uploaded'), render: (row) => <Text size="sm">{row.uploaded}</Text> },
   ];
@@ -162,67 +162,49 @@ export function LibraryScreen() {
           <Text>{t('library.description')}</Text>
         </Stack>
         <Group gap="md">
-          <Button variant="subtle" className={classes.linkButton} onClick={() => void refreshIvr()}>
+          <Button variant="subtle" onClick={() => void refreshIvr()}>
             {t('library.updateIvr')}
           </Button>
-          <Button
-            variant="subtle"
-            className={classes.linkButton}
-            onClick={() => void navigate({ to: routePaths.ivrView })}
-          >
+          <Button variant="subtle" component={Link} to={routePaths.ivrView}>
             {t('library.viewIvr')}
           </Button>
-          <Button
-            variant="outline"
-            className={classes.secondaryButton}
-            loading={syncingAll}
-            onClick={() => void syncAll()}
-          >
+          <Button variant="outline" loading={syncingAll} onClick={() => void syncAll()}>
             {t('library.syncAll')}
           </Button>
-          <Button
-            className={classes.submitButton}
-            leftSection={<Plus size={16} aria-hidden />}
-            onClick={() => void navigate({ to: routePaths.create })}
-          >
+          <Button leftSection={<Plus size={16} aria-hidden />} component={Link} to={routePaths.create}>
             {t('library.addContent')}
           </Button>
         </Group>
       </Group>
-      <Text className={classes.eyebrow}>{t('library.filterContent')}</Text>
+      <Text variant="eyebrow">{t('library.filterContent')}</Text>
       <TextInput
         aria-label={t('library.search')}
         placeholder={t('library.search')}
         value={query}
         onChange={(e) => setQuery(e.currentTarget.value)}
-        className={classes.search}
       />
-      <Text className={classes.eyebrow}>{t('library.experience')}</Text>
+      <Text variant="eyebrow">{t('library.experience')}</Text>
       <Group gap="xs" aria-label={t('library.experience')}>
-        <Chip
-          checked={selected.length === 0}
-          onChange={() => setSelected([])}
-          classNames={{ label: classes.chip, iconWrapper: classes.chipIcon }}
-        >
+        <Chip checked={selected.length === 0} onChange={() => setSelected([])}>
           {t('library.all')}
         </Chip>
         <Chip.Group multiple value={selected} onChange={setSelected}>
           {experiences.map((exp) => (
-            <Chip key={exp} value={exp} classNames={{ label: classes.chip, iconWrapper: classes.chipIcon }}>
+            <Chip key={exp} value={exp}>
               {t(`library.experiences.${exp}`)}
             </Chip>
           ))}
         </Chip.Group>
       </Group>
       {loadError && (
-        <Group gap="xs">
-          <Text c="red" role="alert">
+        <Alert>
+          <Group gap="xs">
             {loadError}
-          </Text>
-          <Button variant="subtle" size="xs" onClick={() => reload()}>
-            {t('library.retry')}
-          </Button>
-        </Group>
+            <Button variant="subtle" size="xs" onClick={() => reload()}>
+              {t('library.retry')}
+            </Button>
+          </Group>
+        </Alert>
       )}
       <DataTable<LibraryRow>
         footerLayout="pages"
@@ -236,27 +218,24 @@ export function LibraryScreen() {
         emptyMessage={t('library.empty')}
         actions={(row) => (
           <Group gap="sm" wrap="nowrap">
-            <button
-              type="button"
-              className={classes.rowAction}
-              onClick={() => void openRow(row)}
-            >
+            <Anchor component="button" type="button" fw={700} onClick={() => void openRow(row)}>
               {t('library.view')}
-            </button>
+            </Anchor>
             {!row.isCourse && (
-              <button
+              <Anchor
+                component="button"
                 type="button"
-                className={classes.rowAction}
+                fw={700}
                 onClick={() =>
                   void navigate({ to: '/library/$kind/$id/edit', params: { kind: row.kind, id: row.id } })
                 }
               >
                 {t('library.edit')}
-              </button>
+              </Anchor>
             )}
-            <button type="button" className={`${classes.rowAction} ${classes.rowActionDanger}`} onClick={() => confirmRemove(row)}>
+            <Anchor component="button" type="button" fw={700} c="red" onClick={() => confirmRemove(row)}>
               {t('library.delete')}
-            </button>
+            </Anchor>
           </Group>
         )}
         actionsLabel={t('library.columns.actions')}

@@ -2,6 +2,7 @@ import {
   AppShell as MantineAppShell,
   Burger,
   Group,
+  Image,
   Menu,
   NavLink,
   Text,
@@ -21,13 +22,12 @@ import {
   Users,
 } from 'lucide-react';
 import { useEffect, useRef } from 'react';
-import { Link, Outlet, useLocation, useNavigate } from '@tanstack/react-router';
+import { Link, Outlet, useLocation, useMatchRoute, useNavigate } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
-import { useUiStore } from '@app/store/useUiStore';
+import { useAnalyticsRole } from '@features/analytics/hooks/useAnalytics';
 import { useAuthStore } from '@features/auth/store/useAuthStore';
 import { openConfirmDialog } from '@shared/components/ConfirmDialog';
 import { routePaths } from './routePaths';
-import classes from './Shell.module.css';
 
 const destinations = [
   { to: routePaths.home, key: 'nav.home', Icon: Home },
@@ -45,13 +45,13 @@ export function Shell() {
   const { t } = useTranslation();
   const location = useLocation();
   const navigate = useNavigate();
-  const collapsed = useUiStore((s) => s.railCollapsed);
-  const toggleRail = useUiStore((s) => s.toggleRail);
+  const matchRoute = useMatchRoute();
   const logout = useAuthStore((s) => s.logout);
+  const analyticsRole = useAnalyticsRole();
   const [mobileOpened, { toggle: toggleMobile, close: closeMobile }] = useDisclosure(false);
+  const [collapsed, { toggle: toggleRail }] = useDisclosure(false);
   const isMobile = useMediaQuery('(max-width: 47.99em)');
   const railCollapsed = collapsed && !isMobile;
-  const navOpened = isMobile ? mobileOpened : !collapsed;
   const mainRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -78,23 +78,31 @@ export function Shell() {
       navbar={{ width: railCollapsed ? 72 : 240, breakpoint: 'sm', collapsed: { mobile: !mobileOpened } }}
       padding="md"
     >
-      <MantineAppShell.Header className={classes.header}>
+      <MantineAppShell.Header>
         <Group h="100%" px="md" justify="space-between" wrap="nowrap">
           <Group wrap="nowrap" miw={0}>
             <Burger
-              opened={navOpened}
-              onClick={isMobile ? toggleMobile : toggleRail}
+              hiddenFrom="sm"
+              opened={mobileOpened}
+              onClick={toggleMobile}
               aria-label={t('nav.menu')}
-              aria-expanded={navOpened}
+              aria-expanded={mobileOpened}
               size="sm"
-              color="var(--seeds-nav-topbar-text)"
             />
-            <div className={classes.brand}>
-              <img src="/seeds-logo.png" alt="SEEDS" width={36} height={36} className={classes.brandmark} />
-              <Text fw={700} size="md" truncate className={classes.brandName}>
+            <Burger
+              visibleFrom="sm"
+              opened={!collapsed}
+              onClick={toggleRail}
+              aria-label={t('nav.menu')}
+              aria-expanded={!collapsed}
+              size="sm"
+            />
+            <Group gap="md" wrap="nowrap" miw={0}>
+              <Image src="/seeds-logo.png" alt="SEEDS" h={36} w={36} radius="md" />
+              <Text fw={700} size="md" truncate>
                 SEEDS Content Studio
               </Text>
-            </div>
+            </Group>
           </Group>
           <Menu position="bottom-end">
             <Menu.Target>
@@ -117,21 +125,22 @@ export function Shell() {
       </MantineAppShell.Header>
 
       <MantineAppShell.Navbar p="xs" aria-label="Primary">
-        {destinations.map(({ to, key, Icon }) => {
+        {destinations
+          .filter(({ to }) => to !== routePaths.analytics || analyticsRole !== undefined)
+          .map(({ to, key, Icon }) => {
           const label = t(key);
-          const active = to === routePaths.home ? location.pathname === to : location.pathname.startsWith(to);
           return (
             <NavLink
               key={to}
               label={!railCollapsed && label}
               leftSection={<Icon size={20} aria-hidden />}
-              active={active}
+              active={Boolean(matchRoute({ to, fuzzy: true }))}
+              variant="light"
               aria-label={label}
               title={railCollapsed ? label : undefined}
               component={Link}
               to={to}
               onClick={closeMobile}
-              className={classes.navLink}
             />
           );
         })}

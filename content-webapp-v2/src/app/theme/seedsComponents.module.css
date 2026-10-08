@@ -1,0 +1,66 @@
+.topbar.topbar {
+  background-color: var(--seeds-nav-topbar-bg);
+  color: var(--seeds-nav-topbar-text);
+  border: 1px solid var(--seeds-nav-topbar-bg);
+}
+
+.text[data-variant='eyebrow'] {
+  color: var(--seeds-eyebrow-text);
+  font-size: var(--mantine-font-size-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.paper {
+  background-color: var(--seeds-bg-surface);
+  border-color: var(--seeds-card-border);
+}
+
+.tabList.tabList {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+}
+
+.tab.tab {
+  color: var(--seeds-text-primary);
+  font-size: var(--mantine-font-size-sm);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.tab.tab[data-active] {
+  color: var(--seeds-subnav-text-active);
+  border-bottom-color: var(--seeds-brandmark-bg);
+}
+
+.chipLabel.chipLabel {
+  height: 44px;
+  padding-inline: 20px;
+  font-size: var(--mantine-font-size-xs);
+}
+
+.chipLabel.chipLabel:not([data-checked]) {
+  border: 1px solid var(--seeds-btn-secondary-border);
+  background-color: var(--seeds-bg-surface);
+  color: var(--seeds-btn-secondary-text);
+  font-weight: 700;
+}
+
+.chipLabel.chipLabel.chipLabel[data-checked] {
+  background-color: var(--seeds-btn-primary-bg);
+  border-color: var(--seeds-btn-primary-bg);
+  color: var(--seeds-btn-primary-text);
+}
+
+.chipIcon.chipIcon {
+  display: none;
+}
+
+.progressTrack.progressTrack {
+  background-color: var(--seeds-badge-neutral-bg);
+}
+
+.progressFill.progressFill {
+  background-color: var(--seeds-btn-primary-bg);
+}

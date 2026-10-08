@@ -7,7 +7,7 @@ import { useAuthStore } from '@features/auth/store/useAuthStore';
 import { getContentById, getContentSasUrl } from '@features/library/api/library';
 import { toApiErrorMessage } from '@shared/utils/apiErrors';
 import type { ContentItem } from '@features/library/types/content.types';
-import { updateReviewContent } from '../api/review';
+import { reviewKeys, updateReviewContent } from '../api/review';
 import { notifyApiError } from '@shared/utils/notifyApiError';
 
 function audioUrlOf(item: ContentItem | undefined): string {
@@ -23,7 +23,7 @@ export function useReviewAudio(id: string) {
   const enabled = status === 'authenticated' && id !== '';
 
   const content = useQuery({
-    queryKey: ['review', 'audio', id],
+    queryKey: reviewKeys.audio(id),
     queryFn: () => getContentById(id),
     enabled,
   });
@@ -32,7 +32,7 @@ export function useReviewAudio(id: string) {
   const audioUrl = audioUrlOf(item);
 
   const audio = useQuery({
-    queryKey: ['review', 'audio', id, 'sas'],
+    queryKey: reviewKeys.audioSas(id),
     queryFn: () => getContentSasUrl(audioUrl),
     enabled: enabled && audioUrl !== '',
   });
@@ -41,7 +41,7 @@ export function useReviewAudio(id: string) {
     mutationFn: (description: string) => updateReviewContent(id, { description }),
     onSuccess: () => {
       notifications.show({ message: t('review.saved') });
-      void queryClient.invalidateQueries({ queryKey: ['review', 'audio', id] });
+      void queryClient.invalidateQueries({ queryKey: reviewKeys.audio(id) });
     },
     onError: notifyApiError,
   });

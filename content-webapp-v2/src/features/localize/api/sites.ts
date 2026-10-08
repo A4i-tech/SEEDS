@@ -1,11 +1,6 @@
 import { z } from 'zod';
 import { apiClient } from '@shared/services/apiClient';
-import {
-  websiteSchema,
-  type Website,
-  type WebsiteCreate,
-  type WebsiteUpdate,
-} from '../types/localize.types';
+import { websiteSchema, type Website, type WebsiteFields } from '../types/localize.types';
 
 const websiteListSchema = z.array(websiteSchema);
 
@@ -14,12 +9,12 @@ export async function listSites(): Promise<Website[]> {
   return websiteListSchema.parse(data);
 }
 
-export async function createSite(input: WebsiteCreate): Promise<Website> {
+export async function createSite(input: WebsiteFields): Promise<Website> {
   const { data } = await apiClient.post('/websites', input);
   return websiteSchema.parse(data);
 }
 
-export async function updateSite(id: string, fields: WebsiteUpdate): Promise<Website> {
+export async function updateSite(id: string, fields: WebsiteFields): Promise<Website> {
   const { data } = await apiClient.put(`/websites/${encodeURIComponent(id)}`, fields);
   return websiteSchema.parse(data);
 }

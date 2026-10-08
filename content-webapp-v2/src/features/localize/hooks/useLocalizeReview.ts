@@ -10,6 +10,7 @@ import {
   updateTranslation,
 } from '../api/review';
 import { toSegment } from '../utils/segments';
+import { localizeKeys } from '../types/localize.types';
 import { notifyApiError } from '@shared/utils/notifyApiError';
 
 export interface LocalizeReviewScope {
@@ -25,41 +26,37 @@ export function useLocalizeReview({ siteId, route, lang }: LocalizeReviewScope) 
   const enabled = authStatus === 'authenticated' && siteId !== '';
 
   const list = useQuery({
-    queryKey: ['localize', 'review', siteId, route],
+    queryKey: localizeKeys.review(siteId, route),
     queryFn: () => listTranslations(siteId, route || undefined),
     enabled,
   });
 
   const invalidate = () => {
-    void queryClient.invalidateQueries({ queryKey: ['localize'] });
+    void queryClient.invalidateQueries({ queryKey: localizeKeys.all });
   };
 
-  const generate = useMutation({
-    mutationFn: () => generateForReview(siteId, route, lang),
+  const done = (key: string) => ({
     onSuccess: () => {
-      notifications.show({ message: t('localize.generated') });
+      notifications.show({ message: t(key) });
       invalidate();
     },
     onError: notifyApiError,
+  });
+
+  const generate = useMutation({
+    mutationFn: () => generateForReview(siteId, route, lang),
+    ...done('localize.generated'),
   });
 
   const saveEdit = useMutation({
     mutationFn: ({ id, text }: { id: string; text: string }) =>
       updateTranslation(id, { lang, text }),
-    onSuccess: () => {
-      notifications.show({ message: t('localize.saved') });
-      invalidate();
-    },
-    onError: notifyApiError,
+    ...done('localize.saved'),
   });
 
   const approve = useMutation({
     mutationFn: (id: string) => approveTranslation(id, { lang }),
-    onSuccess: () => {
-      notifications.show({ message: t('localize.approved') });
-      invalidate();
-    },
-    onError: notifyApiError,
+    ...done('localize.approved'),
   });
 
   const approveAll = useMutation({
@@ -76,11 +73,11 @@ export function useLocalizeReview({ siteId, route, lang }: LocalizeReviewScope) 
     segments: (list.data ?? []).map((item) => toSegment(item, lang)),
     isLoading: list.isLoading,
     error: list.error,
-    generate: generate.mutateAsync,
+    generate: generate.mutate,
     generating: generate.isPending,
-    saveEdit: saveEdit.mutateAsync,
-    approve: approve.mutateAsync,
-    approveAll: approveAll.mutateAsync,
+    saveEdit: saveEdit.mutate,
+    approve: approve.mutate,
+    approveAll: approveAll.mutate,
     approvingAll: approveAll.isPending,
   };
 }

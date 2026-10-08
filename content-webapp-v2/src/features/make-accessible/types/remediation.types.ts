@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { remediationStatusSchema } from '@features/jobs/types/job.types';
 import { text } from '@shared/utils/schema';
 
 function numberOrAbsent(value: unknown): number | undefined {
@@ -13,7 +14,7 @@ export const remediationJobDetailSchema = z.object({
   source_name: z.string(),
   language: z.string(),
   detected_language: text,
-  status: z.string(),
+  status: remediationStatusSchema,
   stage: text,
   stage_index: z.number(),
   stage_count: z.number(),

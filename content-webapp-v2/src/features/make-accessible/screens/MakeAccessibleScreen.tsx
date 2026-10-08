@@ -1,10 +1,14 @@
-import { Anchor, Button, Group, List, Select, SimpleGrid, Stack, Text, Title } from '@mantine/core';
+import { Alert, Anchor, Button, Card, Center, Group, List, Paper, Select, SimpleGrid, Stack, Text, Title } from '@mantine/core';
+import { notifications } from '@mantine/notifications';
+import { useDisclosure } from '@mantine/hooks';
 import { Upload } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { RemediationSteps } from '../components/RemediationSteps';
 import { useRemediationUpload } from '../hooks/useRemediationUpload';
 import { selectValue } from '@shared/utils/select';
+import { toApiErrorMessage } from '@shared/utils/apiErrors';
+import { notifyApiError } from '@shared/utils/notifyApiError';
 import classes from './MakeAccessibleScreen.module.css';
 
 const sampleKeys = ['diagrams', 'tables', 'scan', 'stem'] as const;
@@ -14,12 +18,12 @@ const accept = '.pdf,.docx,application/pdf,application/vnd.openxmlformats-office
 
 export function MakeAccessibleScreen() {
   const { t } = useTranslation();
-  const { languageOptions, upload, isUploading } = useRemediationUpload();
+  const { languageOptions, languagesError, upload, isUploading } = useRemediationUpload();
   const [files, setFiles] = useState<File[]>([]);
   const [targetLanguage, setTargetLanguage] = useState('');
   const [dragging, setDragging] = useState(false);
   const [category, setCategory] = useState('all');
-  const [showSamples, setShowSamples] = useState(true);
+  const [showSamples, { toggle: toggleSamples }] = useDisclosure(true);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const addFiles = (incoming: FileList | undefined) => {
@@ -28,30 +32,28 @@ export function MakeAccessibleScreen() {
   };
 
   const handleUpload = async () => {
+    let succeeded = 0;
+    let firstError: unknown;
     for (const file of files) {
-      await upload({ file, targetLanguage });
+      try {
+        await upload({ file, targetLanguage });
+        succeeded += 1;
+      } catch (err) {
+        if (firstError === undefined) firstError = err;
+      }
+    }
+    notifications.show({ message: `uploaded ${succeeded}/${files.length}` });
+    if (firstError !== undefined) {
+      notifyApiError(firstError);
+      return;
     }
     setFiles([]);
   };
-
-  const dropzoneClass = (): string => {
-    if (dragging) return `${classes.dropzone} ${classes.dragging}`;
-    return classes.dropzone;
-  };
-
-  const uploadLabel = (): string => {
-    if (isUploading) return t('makeAccessible.uploading');
-    return t('makeAccessible.upload');
-  };
-
-  const samplesLabel = (): string => {
-    if (showSamples) return t('makeAccessible.hideSamples');
-    return t('makeAccessible.showSamples');
-  };
+  const languagesErrorMessage = toApiErrorMessage(languagesError);
 
   return (
     <Stack gap="md">
-      <Text className={classes.eyebrow}>{t('makeAccessible.eyebrow')}</Text>
+      <Text variant="eyebrow">{t('makeAccessible.eyebrow')}</Text>
       <Title order={2}>{t('makeAccessible.title')}</Title>
       <Text c="dimmed">{t('makeAccessible.description')}</Text>
       <RemediationSteps activeStep={0} />
@@ -60,7 +62,7 @@ export function MakeAccessibleScreen() {
         role="button"
         tabIndex={0}
         aria-label={t('makeAccessible.dropzone')}
-        className={dropzoneClass()}
+        className={dragging ? `${classes.dropzone} ${classes.dragging}` : classes.dropzone}
         onDragOver={(e) => {
           e.preventDefault();
           setDragging(true);
@@ -93,7 +95,7 @@ export function MakeAccessibleScreen() {
             e.target.value = '';
           }}
         />
-        <Button variant="outline" size="md" className={classes.browseButton}>
+        <Button variant="outline" size="md">
           {t('makeAccessible.browse')}
         </Button>
       </div>
@@ -114,22 +116,19 @@ export function MakeAccessibleScreen() {
           onChange={(v) => setTargetLanguage(selectValue(v))}
           data={[{ value: '', label: t('makeAccessible.noTranslation') }, ...languageOptions]}
         />
-        <Button
-          className={classes.submitButton}
-          disabled={files.length === 0 || isUploading}
-          onClick={() => void handleUpload()}
-        >
-          {uploadLabel()}
+        <Button disabled={files.length === 0} loading={isUploading} onClick={() => void handleUpload()}>
+          {isUploading ? t('makeAccessible.uploading') : t('makeAccessible.upload')}
         </Button>
       </Group>
+      {languagesErrorMessage && <Alert>{languagesErrorMessage}</Alert>}
 
       <Stack gap="xs">
-        <Text className={classes.label}>{t('makeAccessible.supported')}</Text>
+        <Text variant="eyebrow" size="sm">{t('makeAccessible.supported')}</Text>
         <SimpleGrid cols={{ base: 1, sm: 3 }}>
           {supportedKeys.map((key) => (
-            <div key={key} className={classes.tile}>
-              {t(`makeAccessible.${key}`)}
-            </div>
+            <Paper key={key} p="sm" radius="sm" ta="center">
+              <Text size="sm">{t(`makeAccessible.${key}`)}</Text>
+            </Paper>
           ))}
         </SimpleGrid>
       </Stack>
@@ -148,8 +147,8 @@ export function MakeAccessibleScreen() {
             ]}
           />
         </Group>
-        <Anchor component="button" type="button" className={classes.link} onClick={() => setShowSamples((v) => !v)}>
-          {samplesLabel()}
+        <Anchor component="button" type="button" size="sm" fw={700} onClick={toggleSamples}>
+          {showSamples ? t('makeAccessible.hideSamples') : t('makeAccessible.showSamples')}
         </Anchor>
       </Group>
 
@@ -158,15 +157,19 @@ export function MakeAccessibleScreen() {
           {sampleKeys
             .filter((key) => category === 'all' || category === key)
             .map((key) => (
-              <div key={key} className={classes.sample}>
-                <div className={classes.preview}>{t(`makeAccessible.samples.${key}.preview`)}</div>
-                <Stack gap={4} className={classes.sampleBody}>
+              <Card key={key} p={0} radius="md">
+                <Card.Section>
+                  <Center h={72} c="dimmed" fz="sm" className={classes.samplePreview}>
+                    {t(`makeAccessible.samples.${key}.preview`)}
+                  </Center>
+                </Card.Section>
+                <Stack gap={4} p="md">
                   <Text fw={700}>{t(`makeAccessible.samples.${key}.title`)}</Text>
                   <Text size="sm" c="dimmed">
                     {t(`makeAccessible.samples.${key}.subtitle`)}
                   </Text>
                 </Stack>
-              </div>
+              </Card>
             ))}
         </SimpleGrid>
       )}

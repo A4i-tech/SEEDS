@@ -1,9 +1,7 @@
 import { z } from 'zod';
 import { apiClient } from '@shared/services/apiClient';
 import {
-  studentCreateSchema,
   studentSchema,
-  studentUpdateSchema,
   type Student,
   type StudentCreate,
   type StudentUpdate,
@@ -15,15 +13,12 @@ export async function getStudents(): Promise<Student[]> {
 }
 
 export async function createStudent(body: StudentCreate): Promise<Student> {
-  const { data } = await apiClient.post('/student', studentCreateSchema.parse(body));
+  const { data } = await apiClient.post('/student', body);
   return studentSchema.parse(data);
 }
 
 export async function updateStudent(id: string, body: StudentUpdate): Promise<Student> {
-  const { data } = await apiClient.patch(
-    `/student/${encodeURIComponent(id)}`,
-    studentUpdateSchema.parse(body),
-  );
+  const { data } = await apiClient.patch(`/student/${encodeURIComponent(id)}`, body);
   return studentSchema.parse(data);
 }
 

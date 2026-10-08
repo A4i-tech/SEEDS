@@ -10,8 +10,10 @@ import {
   getArtifactMarkdown,
   getReviewJob,
   getReviewSummary,
+  reviewKeys,
   saveReviewDraft,
 } from '../api/review';
+import { jobKeys } from '@features/jobs/types/job.types';
 import { notifyApiError } from '@shared/utils/notifyApiError';
 
 export function useReviewRemediate(jobId: string) {
@@ -21,14 +23,14 @@ export function useReviewRemediate(jobId: string) {
   const status = useAuthStore((s) => s.status);
   const enabled = status === 'authenticated' && jobId !== '';
 
-  const job = useQuery({ queryKey: ['review', jobId, 'job'], queryFn: () => getReviewJob(jobId), enabled });
+  const job = useQuery({ queryKey: reviewKeys.detail(jobId), queryFn: () => getReviewJob(jobId), enabled });
   const summary = useQuery({
-    queryKey: ['review', jobId, 'summary'],
+    queryKey: reviewKeys.summary(jobId),
     queryFn: () => getReviewSummary(jobId),
     enabled,
   });
   const corrected = useQuery({
-    queryKey: ['review', jobId, 'corrected'],
+    queryKey: reviewKeys.corrected(jobId),
     queryFn: () => getArtifactMarkdown(jobId, 'corrected'),
     enabled,
   });
@@ -37,7 +39,7 @@ export function useReviewRemediate(jobId: string) {
     mutationFn: (draftMd: string) => saveReviewDraft(jobId, draftMd),
     onSuccess: () => {
       notifications.show({ message: t('review.saved') });
-      void queryClient.invalidateQueries({ queryKey: ['review', jobId] });
+      void queryClient.invalidateQueries({ queryKey: reviewKeys.job(jobId) });
     },
     onError: notifyApiError,
   });
@@ -46,7 +48,7 @@ export function useReviewRemediate(jobId: string) {
     mutationFn: (title?: string) => approveReview(jobId, title),
     onSuccess: () => {
       notifications.show({ message: t('review.approved') });
-      void queryClient.invalidateQueries({ queryKey: ['jobs'] });
+      void queryClient.invalidateQueries({ queryKey: jobKeys.all });
       void navigate({ to: `${routePaths.review}/approved`, state: { title: job.data?.source_name ?? jobId } });
     },
     onError: notifyApiError,
@@ -55,8 +57,7 @@ export function useReviewRemediate(jobId: string) {
   return {
     job: job.data,
     summary: summary.data,
-    corrected: corrected.data ?? '',
-    draftSeed: job.data?.draft_remediated_md ?? corrected.data ?? '',
+    draftSeed: job.data?.draft_remediated_md || corrected.data || '',
     isLoading: job.isLoading || summary.isLoading || corrected.isLoading,
     loadError:
       toApiErrorMessage(job.error) ||

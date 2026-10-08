@@ -1,5 +1,4 @@
 export function formatRelativeTime(iso: string): string {
-  if (!iso) return '';
   const time = new Date(iso).getTime();
   if (Number.isNaN(time)) return iso;
   const now = new Date();

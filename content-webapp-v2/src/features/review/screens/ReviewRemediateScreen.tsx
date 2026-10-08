@@ -1,17 +1,17 @@
-import { Breadcrumbs, Button, Group, Stack, Text, Textarea, Title } from '@mantine/core';
+import { Alert, Breadcrumbs, Button, Group, Image, Paper, Stack, Text, Textarea, Title } from '@mantine/core';
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { routePaths } from '@app/navigation/routePaths';
+import { getRemediationImage, reviewKeys } from '../api/review';
 import { toApiErrorMessage } from '@shared/utils/apiErrors';
-import { getRemediationImage } from '../api/review';
 import { useReviewRemediate } from '../hooks/useReviewRemediate';
 import classes from './ReviewRemediateScreen.module.css';
 
 function FigureImage({ jobId, imageName, alt }: { jobId: string; imageName: string; alt: string }) {
   const image = useQuery({
-    queryKey: ['review', jobId, 'image', imageName],
+    queryKey: reviewKeys.image(jobId, imageName),
     queryFn: () => getRemediationImage(jobId, imageName),
   });
   useEffect(
@@ -20,8 +20,9 @@ function FigureImage({ jobId, imageName, alt }: { jobId: string; imageName: stri
     },
     [image.data],
   );
+  if (image.error) return <Text c="red" role="alert">{toApiErrorMessage(image.error)}</Text>;
   if (!image.data) return <></>;
-  return <img src={image.data} alt={alt} className={classes.figure} />;
+  return <Image src={image.data} alt={alt} radius="sm" />;
 }
 
 export function ReviewRemediateScreen() {
@@ -30,19 +31,9 @@ export function ReviewRemediateScreen() {
   const { jobId = '' } = useParams({ strict: false });
   const { job, summary, draftSeed, isLoading, loadError, save, approve } = useReviewRemediate(jobId);
   const [edited, setEdited] = useState<string | undefined>(undefined);
-  const [error, setError] = useState('');
 
   const draft = edited === undefined ? draftSeed : edited;
   const title = job?.source_name ?? jobId;
-
-  const handleSave = async () => {
-    setError('');
-    try {
-      await save.mutateAsync(draft);
-    } catch (err) {
-      setError(toApiErrorMessage(err));
-    }
-  };
 
   return (
     <Stack gap="md">
@@ -50,23 +41,15 @@ export function ReviewRemediateScreen() {
         <Text>{t('review.title')}</Text>
         <Text>{title}</Text>
       </Breadcrumbs>
-      <Text className={classes.eyebrow}>{t('review.remediateEyebrow')}</Text>
+      <Text variant="eyebrow">{t('review.remediateEyebrow')}</Text>
       <Title order={2}>{t('review.remediateTitle')}</Title>
       <Text c="dimmed">{t('review.remediateHint')}</Text>
       {isLoading && <Text c="dimmed">{t('common.loading')}</Text>}
-      {loadError && (
-        <Text c="red" role="alert">
-          {loadError}
-        </Text>
-      )}
-      {error && (
-        <Text c="red" role="alert">
-          {error}
-        </Text>
-      )}
+      {loadError && <Alert>{loadError}</Alert>}
 
       {summary && (
-        <Stack gap="xs" className={classes.panel}>
+        <Paper p="lg" radius="md">
+        <Stack gap="xs">
           <Text fw={700}>{t('review.diagrams')}</Text>
           {summary.diagrams.map((diagram) => (
             <Stack key={diagram.id} gap={0} className={classes.finding}>
@@ -77,10 +60,12 @@ export function ReviewRemediateScreen() {
             </Stack>
           ))}
         </Stack>
+        </Paper>
       )}
 
       {summary && (
-        <Stack gap="xs" className={classes.panel}>
+        <Paper p="lg" radius="md">
+        <Stack gap="xs">
           <Text fw={700}>{t('review.findings')}</Text>
           <Text size="sm" c="dimmed">
             {t('review.findingsMeta', {
@@ -105,6 +90,7 @@ export function ReviewRemediateScreen() {
             </Stack>
           ))}
         </Stack>
+        </Paper>
       )}
 
       {!isLoading && (
@@ -116,24 +102,18 @@ export function ReviewRemediateScreen() {
             autosize
             minRows={16}
             aria-label={t('review.draft')}
-            className={classes.editPane}
+            styles={{ input: { fontFamily: 'monospace' } }}
           />
         </Stack>
       )}
 
       <Group gap="md">
-        <Button
-          variant="outline"
-          className={classes.secondaryButton}
-          loading={save.isPending}
-          onClick={() => void handleSave()}
-        >
+        <Button variant="outline" loading={save.isPending} onClick={() => save.mutate(draft)}>
           {t('review.editAction')}
         </Button>
         <Button
-          className={classes.submitButton}
           loading={approve.isPending}
-          onClick={() => void approve.mutateAsync(job && job.source_name.replace(/\.pdf$/i, ' (Accessible)'))}
+          onClick={() => approve.mutate(job && job.source_name.replace(/\.pdf$/i, ' (Accessible)'))}
         >
           {t('review.approve')}
         </Button>

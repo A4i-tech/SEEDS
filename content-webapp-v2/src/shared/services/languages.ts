@@ -1,9 +1,8 @@
 import { z } from 'zod';
 import { apiClient } from '@shared/services/apiClient';
 
-export const languageSchema = z.object({
+const languageSchema = z.object({
   code: z.string(),
-  standard: z.string(),
   name: z.string(),
 });
 

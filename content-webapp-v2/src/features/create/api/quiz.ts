@@ -1,14 +1,6 @@
-import { z } from 'zod';
 import { apiClient } from '@shared/services/apiClient';
-import { quizCreateSchema, type QuizCreate } from '../../library/types/content.types';
-
-const jobScheduledSchema = z.object({
-  message: z.string(),
-  job_id: z.string(),
-});
+import type { QuizCreate } from '../../library/types/content.types';
 
 export async function createQuiz(payload: QuizCreate) {
-  const parsed = quizCreateSchema.parse(payload);
-  const { data } = await apiClient.post('/content/quiz', parsed);
-  return jobScheduledSchema.parse(data);
+  await apiClient.post('/content/quiz', payload);
 }

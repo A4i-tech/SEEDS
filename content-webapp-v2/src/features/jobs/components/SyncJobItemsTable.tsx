@@ -1,19 +1,17 @@
 import { Button, Stack, Text } from '@mantine/core';
-import { useState } from 'react';
+import { useDisclosure } from '@mantine/hooks';
 import { useTranslation } from 'react-i18next';
 import type { DataTableColumn } from '@shared/components/DataTable';
 import { DataTable } from '@shared/components/DataTable';
-import { toApiErrorMessage } from '@shared/utils/apiErrors';
+import { LoadError } from '@shared/components/LoadError';
 import type { SyncJobItem } from '../api/syncJobs';
 import { useSyncJobItems } from '../hooks/useSyncJobItems';
-import classes from '../screens/JobDetailScreen.module.css';
 
 export function SyncJobItemsTable({ jobId }: { jobId: string }) {
   const { t } = useTranslation();
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, { toggle }] = useDisclosure(false);
   const items = useSyncJobItems(jobId, expanded);
-  const rows = (items.data?.pages ?? []).flatMap((page) => page.items);
-  const loadError = toApiErrorMessage(items.error);
+  const rows = items.data ? items.data.pages.flatMap((page) => page.items) : [];
 
   const columns: DataTableColumn<SyncJobItem>[] = [
     { key: 'course', header: t('jobs.detail.columns.course'), render: (row) => row.source_id },
@@ -36,8 +34,8 @@ export function SyncJobItemsTable({ jobId }: { jobId: string }) {
       <Button
         variant="outline"
         size="sm"
-        className={classes.secondaryButton}
-        onClick={() => setExpanded((v) => !v)}
+        w="fit-content"
+        onClick={toggle}
         aria-expanded={expanded}
       >
         {expanded ? t('jobs.detail.hideItems') : t('jobs.detail.showItems')}
@@ -45,11 +43,7 @@ export function SyncJobItemsTable({ jobId }: { jobId: string }) {
       {expanded && (
         <>
           {items.isLoading && <Text c="dimmed">{t('common.loading')}</Text>}
-          {loadError && (
-            <Text c="red" role="alert">
-              {loadError}
-            </Text>
-          )}
+          <LoadError error={items.error} />
           {items.isSuccess && rows.length === 0 && <Text c="dimmed">{t('jobs.detail.emptyItems')}</Text>}
           {items.isSuccess && rows.length > 0 && (
             <DataTable<SyncJobItem>
@@ -66,7 +60,7 @@ export function SyncJobItemsTable({ jobId }: { jobId: string }) {
             <Button
               variant="subtle"
               size="sm"
-              className={classes.moreButton}
+              w="fit-content"
               disabled={items.isFetchingNextPage}
               onClick={() => void items.fetchNextPage()}
             >

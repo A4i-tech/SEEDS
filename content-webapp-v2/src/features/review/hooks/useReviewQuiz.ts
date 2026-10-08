@@ -6,7 +6,7 @@ import { routePaths } from '@app/navigation/routePaths';
 import { useAuthStore } from '@features/auth/store/useAuthStore';
 import { getContentById } from '@features/library/api/library';
 import { toApiErrorMessage } from '@shared/utils/apiErrors';
-import { updateReviewContent } from '../api/review';
+import { reviewKeys, updateReviewContent } from '../api/review';
 import { notifyApiError } from '@shared/utils/notifyApiError';
 
 export function useReviewQuiz(id: string) {
@@ -16,7 +16,7 @@ export function useReviewQuiz(id: string) {
   const status = useAuthStore((s) => s.status);
 
   const content = useQuery({
-    queryKey: ['review', 'quiz', id],
+    queryKey: reviewKeys.quiz(id),
     queryFn: () => getContentById(id),
     enabled: status === 'authenticated' && id !== '',
   });
@@ -25,7 +25,7 @@ export function useReviewQuiz(id: string) {
     mutationFn: () => updateReviewContent(id, {}),
     onSuccess: () => {
       notifications.show({ message: t('review.approved') });
-      void queryClient.invalidateQueries({ queryKey: ['review', 'quiz', id] });
+      void queryClient.invalidateQueries({ queryKey: reviewKeys.quiz(id) });
       const item = content.data;
       void navigate({ to: `${routePaths.review}/approved`, state: { title: item?.title.english || id } });
     },

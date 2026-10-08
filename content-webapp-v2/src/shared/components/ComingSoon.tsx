@@ -1,11 +1,7 @@
 import { Stack, Text, Title } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 
-interface ComingSoonProps {
-  title: string;
-}
-
-export function ComingSoon({ title }: ComingSoonProps) {
+export function ComingSoon({ title }: { title: string }) {
   const { t } = useTranslation();
   return (
     <Stack gap="xs" role="region" aria-label={title}>

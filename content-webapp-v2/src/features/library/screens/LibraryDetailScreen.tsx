@@ -1,6 +1,5 @@
-import { Breadcrumbs, Button, Group, Stack, Text, Title } from '@mantine/core';
-import { useState } from 'react';
-import { useNavigate, useParams } from '@tanstack/react-router';
+import { Alert, Breadcrumbs, Button, Group, Paper, Stack, Text, Title } from '@mantine/core';
+import { Link, useNavigate, useParams } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { routePaths } from '@app/navigation/routePaths';
@@ -8,8 +7,9 @@ import { useAuthStore } from '@features/auth/store/useAuthStore';
 import { openConfirmDialog } from '@shared/components/ConfirmDialog';
 import { toApiErrorMessage } from '@shared/utils/apiErrors';
 import { deleteContent, getContentById } from '../api/library';
+import { CONTENT_UI, libraryKeys } from '../types/content.types';
+import type { AudioContentItem, ContentItem } from '../types/content.types';
 import { AudioPreview, QuizPreview } from '../components/ContentPreview';
-import classes from './LibraryDetailScreen.module.css';
 import { notifyApiError } from '@shared/utils/notifyApiError';
 
 export function LibraryDetailScreen() {
@@ -18,10 +18,9 @@ export function LibraryDetailScreen() {
   const queryClient = useQueryClient();
   const { kind = '', id = '' } = useParams({ strict: false });
   const status = useAuthStore((s) => s.status);
-  const [error, setError] = useState('');
 
   const detail = useQuery({
-    queryKey: ['library', 'content', id],
+    queryKey: libraryKeys.contentDetail(id),
     queryFn: () => getContentById(id),
     enabled: status === 'authenticated' && kind !== 'course' && id !== '',
   });
@@ -29,7 +28,7 @@ export function LibraryDetailScreen() {
   const remove = useMutation({
     mutationFn: () => deleteContent(id),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['library'] });
+      void queryClient.invalidateQueries({ queryKey: libraryKeys.all });
       void navigate({ to: routePaths.library });
     },
     onError: notifyApiError,
@@ -41,11 +40,13 @@ export function LibraryDetailScreen() {
       body: t('library.deleteBody'),
       confirmLabel: t('library.deleteConfirm'),
       cancelLabel: t('dialog.cancel'),
-      onConfirm: () => void remove.mutateAsync().catch((err: unknown) => setError(toApiErrorMessage(err))),
+      onConfirm: () => remove.mutate(),
     });
   };
 
   const item = detail.data;
+  const ui = item ? CONTENT_UI[item.type] : undefined;
+  const error = toApiErrorMessage(remove.error);
   const processing = item && item.type !== 'quiz' && !item.is_processed;
 
   return (
@@ -56,34 +57,25 @@ export function LibraryDetailScreen() {
       </Breadcrumbs>
 
       {detail.isLoading && <Text c="dimmed">{t('common.loading')}</Text>}
-      {error && (
-        <Text c="red" role="alert">
-          {error}
-        </Text>
-      )}
+      {error && <Alert>{error}</Alert>}
 
       {item && (
         <>
-          <Text className={classes.eyebrow}>
+          <Text variant="eyebrow">
             {t(`library.experiences.${item.type}`)} · {t('library.readOnly')}
           </Text>
           <Title order={2}>{item.title.english}</Title>
           <Group gap="md">
             <Button
               variant="outline"
-              className={classes.secondaryButton}
               onClick={() => void navigate({ to: '/library/$kind/$id/edit', params: { kind: item.type, id: item.id } })}
             >
               {t('library.edit')}
             </Button>
-            <Button
-              variant="outline"
-              className={classes.secondaryButton}
-              onClick={confirmRemove}
-            >
+            <Button variant="outline" onClick={confirmRemove}>
               {t('library.delete')}
             </Button>
-            <Button className={classes.submitButton} onClick={() => void navigate({ to: routePaths.library })}>
+            <Button component={Link} to={routePaths.library}>
               {t('library.done')}
             </Button>
           </Group>
@@ -91,28 +83,33 @@ export function LibraryDetailScreen() {
           {processing && <Text c="dimmed">{t('library.processing')}</Text>}
           {!processing && (
             <>
-              <Stack gap="xs" className={classes.panel}>
-                <Text fw={700}>{t('library.preview')}</Text>
-                {item.type === 'quiz' && <QuizPreview item={item} />}
-                {item.type !== 'quiz' && (
-                  <>
-                    {item.description && <Text>{item.description}</Text>}
-                    <AudioPreview item={item} />
-                  </>
-                )}
-                <Text size="sm" c="dimmed">
-                  {t('library.readOnlyNote')}
+              <Paper p="lg" radius="md">
+                <Stack gap="xs">
+                  <Text fw={700}>{t('library.preview')}</Text>
+                  {ui?.preview === 'quiz' ? (
+                    <QuizPreview item={item as Extract<ContentItem, { type: 'quiz' }>} />
+                  ) : (
+                    <>
+                      {item.description && <Text>{item.description}</Text>}
+                      <AudioPreview item={item as AudioContentItem} />
+                    </>
+                  )}
+                  <Text size="sm" c="dimmed">
+                    {t('library.readOnlyNote')}
                 </Text>
               </Stack>
-              <Stack gap="xs" className={classes.panel}>
-                <Text fw={700}>{t('library.metadata')}</Text>
-                <Text size="sm">
-                  {t('library.metaKind')}: {t(`library.experiences.${item.type}`)}
-                </Text>
-                <Text size="sm">
+                </Paper>
+                <Paper p="lg" radius="md">
+                <Stack gap="xs">
+                  <Text fw={700}>{t('library.metadata')}</Text>
+                  <Text size="sm">
+                    {t('library.metaKind')}: {t(`library.experiences.${item.type}`)}
+                  </Text>
+                  <Text size="sm">
                   {t('library.metaTheme')}: {item.theme.english}
                 </Text>
               </Stack>
+              </Paper>
             </>
           )}
         </>

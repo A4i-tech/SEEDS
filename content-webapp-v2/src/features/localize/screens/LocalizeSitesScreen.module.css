@@ -1,63 +1,7 @@
-.filters {
-  align-items: flex-end;
+.moreButton.moreButton {
+  border: 1px dashed var(--mantine-color-default-border);
 }
 
-.search {
-  flex: 1;
-  min-width: min(240px, 100%);
-}
-
-.secondaryButton.secondaryButton {
-  border-color: var(--seeds-btn-secondary-border);
-  color: var(--seeds-btn-secondary-text);
-}
-
-.submitButton.submitButton {
-  background-color: var(--seeds-btn-primary-bg);
-  color: var(--seeds-btn-primary-text);
-}
-
-.rowAction {
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  color: var(--seeds-btn-tertiary-text);
-  font-weight: 700;
-}
-
-@media (max-width: 48em) {
-  .filters {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .filters > * {
-    width: 100%;
-  }
-}
-
-.chip {
-  border: 1px solid var(--seeds-border-default);
-  border-radius: var(--mantine-radius-sm);
-  padding: var(--mantine-spacing-xs);
-  background-color: var(--seeds-bg-page);
-}
-
-.moreChip {
-  border-style: dashed;
-  background: none;
-  cursor: pointer;
-  text-align: left;
-}
-
-.moreCount {
-  color: var(--seeds-btn-tertiary-text);
-}
-
-.addDashed.addDashed {
-  border-style: dashed;
-  border-color: var(--seeds-btn-secondary-border);
-  color: var(--seeds-btn-secondary-text);
-  height: 48px;
+.addButton.addButton {
+  border: 1px dashed;
 }

@@ -18,8 +18,6 @@ export function authHeaders(): Record<string, string> {
 
 export interface RequestOptions {
   params?: Record<string, string | number | boolean | undefined>;
-  headers?: Record<string, string>;
-  signal?: AbortSignal;
   timeoutMs?: number;
 }
 
@@ -62,15 +60,13 @@ async function request<T>(
   body?: unknown,
   options: RequestOptions = {},
 ): Promise<{ data: T }> {
-  const { params, headers, signal, timeoutMs = DEFAULT_TIMEOUT_MS } = options;
+  const { params, timeoutMs = DEFAULT_TIMEOUT_MS } = options;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
-  const onAbort = () => controller.abort();
-  signal?.addEventListener('abort', onAbort);
   try {
     const init: RequestInit = {
       method,
-      headers: { ...authHeaders(), ...headers },
+      headers: authHeaders(),
       signal: controller.signal,
     };
     if (body instanceof FormData) {
@@ -94,30 +90,26 @@ async function request<T>(
       throw new ApiError(0, 'Request timed out');
     }
     if (error instanceof Error) throw new ApiError(0, error.message);
-    throw new ApiError(0, 'Network request failed');
+    throw new ApiError(0, String(error));
   } finally {
     clearTimeout(timer);
-    signal?.removeEventListener('abort', onAbort);
   }
 }
 
 async function requestBlob(path: string, options: RequestOptions = {}): Promise<Blob> {
-  const { params, headers, signal, timeoutMs = DEFAULT_TIMEOUT_MS } = options;
+  const { params, timeoutMs = DEFAULT_TIMEOUT_MS } = options;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
-  const onAbort = () => controller.abort();
-  signal?.addEventListener('abort', onAbort);
   try {
     const response = await fetch(buildUrl(path, params), {
       method: 'GET',
-      headers: { ...authHeaders(), ...headers },
+      headers: authHeaders(),
       signal: controller.signal,
     });
     if (!response.ok) throw new ApiError(response.status, await response.text());
     return response.blob();
   } finally {
     clearTimeout(timer);
-    signal?.removeEventListener('abort', onAbort);
   }
 }
 

@@ -100,3 +100,10 @@ export const studentSchema = z.object({
 });
 
 export type Student = z.infer<typeof studentSchema>;
+
+export const registrationKeys = {
+  all: ['registration'] as const,
+  students: ['registration', 'students'] as const,
+  teachers: ['registration', 'teachers'] as const,
+  schools: ['registration', 'schools'] as const,
+};

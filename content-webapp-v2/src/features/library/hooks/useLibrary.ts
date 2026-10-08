@@ -10,6 +10,7 @@ import {
   syncAllCourses,
   updateIvr,
 } from '../api/library';
+import { libraryKeys } from '../types/content.types';
 import { notifyApiError } from '@shared/utils/notifyApiError';
 
 export function useLibrary() {
@@ -19,18 +20,18 @@ export function useLibrary() {
   const enabled = status === 'authenticated';
 
   const content = useQuery({
-    queryKey: ['library', 'content'],
+    queryKey: libraryKeys.content,
     queryFn: () => getContentPage(undefined, 50),
     enabled,
   });
   const courses = useQuery({
-    queryKey: ['library', 'courses'],
+    queryKey: libraryKeys.courses,
     queryFn: () => getCourses(undefined, 50),
     enabled,
   });
 
   const invalidate = () => {
-    void queryClient.invalidateQueries({ queryKey: ['library'] });
+    void queryClient.invalidateQueries({ queryKey: libraryKeys.all });
   };
 
   const removeContent = useMutation({

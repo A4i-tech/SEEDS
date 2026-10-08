@@ -1,10 +1,9 @@
-import { Breadcrumbs, List, Stack, Text, Title } from '@mantine/core';
+import { Breadcrumbs, List, Paper, Stack, Text, Title } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@features/auth/store/useAuthStore';
-import { toApiErrorMessage } from '@shared/utils/apiErrors';
+import { LoadError } from '@shared/components/LoadError';
 import { getIvrStructure, type Fsm } from '../api/ivr';
-import classes from './ViewIvrScreen.module.css';
 
 function IvrStructure({ fsm }: { fsm: Fsm }) {
   const { t } = useTranslation();
@@ -16,7 +15,7 @@ function IvrStructure({ fsm }: { fsm: Fsm }) {
   return (
     <Stack gap="md">
       {fsm.states.map((state) => (
-        <Stack key={state.id} gap={0} className={classes.state}>
+        <Paper key={state.id} p="md" radius="md">
           <Text fw={700}>{state.menu.description || state.id}</Text>
           {state.menu.options.map((opt) => (
             <Text key={opt.key} size="sm" c="dimmed">
@@ -32,7 +31,7 @@ function IvrStructure({ fsm }: { fsm: Fsm }) {
                 </List.Item>
               ))}
           </List>
-        </Stack>
+        </Paper>
       ))}
     </Stack>
   );
@@ -46,7 +45,6 @@ export function ViewIvrScreen() {
     queryFn: getIvrStructure,
     enabled: status === 'authenticated',
   });
-  const loadError = toApiErrorMessage(fsm.error);
 
   return (
     <Stack gap="md">
@@ -56,11 +54,7 @@ export function ViewIvrScreen() {
       </Breadcrumbs>
       <Title order={2}>{t('ivr.viewTitle')}</Title>
       {fsm.isLoading && <Text c="dimmed">{t('common.loading')}</Text>}
-      {loadError && (
-        <Text c="red" role="alert">
-          {loadError}
-        </Text>
-      )}
+      <LoadError error={fsm.error} />
       {fsm.data && <IvrStructure fsm={fsm.data} />}
     </Stack>
   );

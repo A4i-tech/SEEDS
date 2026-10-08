@@ -2,16 +2,16 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@features/auth/store/useAuthStore';
 import { getRemediationJobs } from '../api/remediationJobs';
 import { getActiveSyncJobs, getSyncJobs } from '../api/syncJobs';
-import { toJobRows, type JobRow } from '../types/job.types';
+import { jobKeys, toJobRows, type JobRow } from '../types/job.types';
 
 export function useJobs() {
   const status = useAuthStore((s) => s.status);
   const enabled = status === 'authenticated';
 
-  const remediation = useQuery({ queryKey: ['jobs', 'remediation'], queryFn: () => getRemediationJobs(), enabled });
-  const sync = useQuery({ queryKey: ['jobs', 'sync'], queryFn: () => getSyncJobs(), enabled });
+  const remediation = useQuery({ queryKey: jobKeys.remediation, queryFn: () => getRemediationJobs(), enabled });
+  const sync = useQuery({ queryKey: jobKeys.sync, queryFn: () => getSyncJobs(), enabled });
   const activeSync = useQuery({
-    queryKey: ['jobs', 'sync', 'active'],
+    queryKey: jobKeys.syncActive,
     queryFn: getActiveSyncJobs,
     enabled,
     refetchInterval: 5000,

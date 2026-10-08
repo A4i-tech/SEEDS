@@ -3,15 +3,16 @@ import { useEffect, useMemo } from 'react';
 import { useAuthStore } from '@features/auth/store/useAuthStore';
 import { apiUrl, authHeaders } from '@shared/services/apiClient';
 import { streamJob } from '@shared/services/sse';
+import { notifyApiError } from '@shared/utils/notifyApiError';
 import { getSyncStatus, syncJobStreamUrl } from '../api/syncJobs';
-import { syncJobSchema } from '../types/job.types';
+import { jobKeys, syncJobSchema } from '../types/job.types';
 
-const terminalStatuses = new Set(['completed', 'failed']);
+export const terminalStatuses = new Set(['completed', 'failed']);
 
-export function useSyncJob(jobId: string, enabled = true) {
+export function useSyncJob(jobId: string, enabled: boolean) {
   const queryClient = useQueryClient();
   const status = useAuthStore((s) => s.status);
-  const queryKey = useMemo(() => ['jobs', 'sync', 'detail', jobId], [jobId]);
+  const queryKey = useMemo(() => jobKeys.syncDetail(jobId), [jobId]);
 
   const job = useQuery({
     queryKey,
@@ -33,11 +34,13 @@ export function useSyncJob(jobId: string, enabled = true) {
       (job) => {
         queryClient.setQueryData(queryKey, job);
         if (terminalStatuses.has(job.status)) {
-          void queryClient.invalidateQueries({ queryKey: ['jobs'] });
+          void queryClient.invalidateQueries({ queryKey: jobKeys.all });
         }
       },
       controller.signal,
-    );
+    ).catch((err: unknown) => {
+      if (!controller.signal.aborted) notifyApiError(err);
+    });
     return () => controller.abort();
   }, [jobId, enabled, status, queryClient, queryKey]);
 

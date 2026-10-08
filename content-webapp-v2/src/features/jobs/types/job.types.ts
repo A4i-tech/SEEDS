@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { routePaths } from '@app/navigation/routePaths';
 import { text } from '@shared/utils/schema';
 
-const remediationStatusSchema = z.enum([
+export const remediationStatusSchema = z.enum([
   'pending',
   'running',
   'ready_to_review',
@@ -11,38 +11,11 @@ const remediationStatusSchema = z.enum([
   'failed',
 ]);
 
-const jobProgressSchema = z.object({
-  message: text,
-  percent: z.number().nullable(),
-});
-
 export const remediationJobSchema = z.object({
   job_id: z.string(),
   source_name: z.string(),
-  language: z.string(),
-  detected_language: text,
   status: remediationStatusSchema,
-  stage: text,
-  stage_index: z.number(),
-  stage_count: z.number(),
-  artifacts: z.record(z.string(), z.string()),
-  counts: z.record(z.string(), z.number()).optional(),
-  metrics: z
-    .object({
-      total_pages: z.number().nullable(),
-      processed_pages: z.number().nullable(),
-      diagrams_described: z.number().nullable(),
-      tables_fixed: z.number().nullable(),
-      flagged_items_count: z.number().nullable(),
-    })
-    .optional(),
-  progress: jobProgressSchema,
-  draft_remediated_md: z.string().nullish(),
-  verified_at: text,
-  verified_by: text,
-  title: text,
-  target_language: text,
-  translation_error: text,
+  draft_remediated_md: text,
   error: text,
   created_at: z.string(),
   finished_at: text,
@@ -59,7 +32,7 @@ export const syncJobSchema = z.object({
   status: syncStatusSchema,
   started_at: text,
   finished_at: text,
-  total_courses: z.number().nullish().transform((value) => value ?? 0),
+  total_courses: z.number(),
   processed: z.number(),
   stats: z.object({
     saved: z.number(),
@@ -115,7 +88,7 @@ export function failureSubtitle(job: RemediationJob): string {
   return '';
 }
 
-function syncTitle(job: SyncJob): string {
+export function syncTitle(job: SyncJob): string {
   if (job.scope === 'course' && job.course_id) return job.course_id;
   return 'All courses';
 }
@@ -148,3 +121,32 @@ export function toJobRows(remediation: RemediationJob[], sync: SyncJob[]): JobRo
   }));
   return [...fromRemediation, ...fromSync].sort((a, b) => b.updated.localeCompare(a.updated));
 }
+
+export const jobKeys = {
+  all: ['jobs'] as const,
+  remediation: ['jobs', 'remediation'] as const,
+  remediationDetail: (jobId: string) => ['jobs', 'remediation', 'detail', jobId] as const,
+  sync: ['jobs', 'sync'] as const,
+  syncActive: ['jobs', 'sync', 'active'] as const,
+  syncDetail: (jobId: string) => ['jobs', 'sync', 'detail', jobId] as const,
+  syncItems: (jobId: string) => ['jobs', 'sync', 'items', jobId] as const,
+};
+
+export const JOB_ACTION: Record<JobStatus, { labelKey: string; variant: 'outline' | 'transparent' }> = {
+  failed: { labelKey: 'jobs.fix', variant: 'outline' },
+  'needs-review': { labelKey: 'jobs.continue', variant: 'outline' },
+  running: { labelKey: 'jobs.view', variant: 'transparent' },
+  done: { labelKey: 'jobs.view', variant: 'transparent' },
+};
+
+export const REMEDIATION_UI: Record<
+  z.infer<typeof remediationStatusSchema>,
+  { step: 1 | 2; view: 'running' | 'done'; terminal: boolean }
+> = {
+  pending: { step: 1, view: 'running', terminal: false },
+  running: { step: 1, view: 'running', terminal: false },
+  ready_to_review: { step: 2, view: 'done', terminal: true },
+  in_review: { step: 2, view: 'done', terminal: true },
+  verified: { step: 2, view: 'done', terminal: true },
+  failed: { step: 1, view: 'running', terminal: true },
+};

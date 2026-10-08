@@ -16,7 +16,7 @@ export type SortDirection = 'asc' | 'desc';
 const ARIA_SORT = { none: undefined, asc: 'ascending', desc: 'descending' } as const;
 const SORT_ICON = { none: ArrowUpDown, asc: ArrowUp, desc: ArrowDown };
 
-interface DataTableProps<T> {
+interface DataTableBaseProps<T> {
   columns: DataTableColumn<T>[];
   rows: T[];
   getRowId: (row: T) => string;
@@ -27,10 +27,14 @@ interface DataTableProps<T> {
   pageSize: number;
   onPageChange?: (page: number) => void;
   footerLayout?: 'pages' | 'range';
-  actions?: (row: T) => ReactNode;
-  actionsLabel?: string;
   emptyMessage: string;
 }
+
+type DataTableActions<T> =
+  | { actions?: undefined; actionsLabel?: undefined }
+  | { actions: (row: T) => ReactNode; actionsLabel: string };
+
+type DataTableProps<T> = DataTableBaseProps<T> & DataTableActions<T>;
 
 export function DataTable<T>({
   columns,
@@ -44,7 +48,7 @@ export function DataTable<T>({
   onPageChange,
   footerLayout = 'range',
   actions,
-  actionsLabel = 'Actions',
+  actionsLabel,
   emptyMessage,
 }: DataTableProps<T>) {
   const { t } = useTranslation();
@@ -65,6 +69,7 @@ export function DataTable<T>({
         <Table
           highlightOnHover
           withTableBorder
+          withRowBorders={false}
           aria-busy={loading || undefined}
           className={classes.table}
         >
@@ -73,9 +78,10 @@ export function DataTable<T>({
               {columns.map((col) => {
                 const state = sortState(col.key);
                 const SortIcon = SORT_ICON[state];
+                const isSortable = col.sortable && onSortChange;
                 return (
                   <Table.Th key={col.key} aria-sort={ARIA_SORT[state]}>
-                    {col.sortable && onSortChange && (
+                    {isSortable && (
                       <UnstyledButton onClick={() => onSortChange(col.key)} aria-label={`Sort by ${col.header}`}>
                         <Group gap={4}>
                           {col.header}
@@ -83,7 +89,7 @@ export function DataTable<T>({
                         </Group>
                       </UnstyledButton>
                     )}
-                    {!(col.sortable && onSortChange) && col.header}
+                    {!isSortable && col.header}
                   </Table.Th>
                 );
               })}
@@ -127,7 +133,7 @@ export function DataTable<T>({
         <Text size="sm" c="dimmed">
           {t('common.rangeOf', { start: rangeStart, end: rangeEnd, total: itemCount })}
         </Text>
-        {pageCount > 1 &&
+        {pageCount > 1 && onPageChange &&
           (footerLayout === 'range' ? (
             <Group gap="xs">
               <Button variant="subtle" size="xs" disabled={page <= 1} onClick={() => onPageChange?.(page - 1)}>
@@ -150,6 +156,8 @@ export function DataTable<T>({
               aria-label="Pagination"
               previousIcon={() => t('common.previous')}
               nextIcon={() => t('common.next')}
+              size={44}
+              radius={4}
               classNames={{ control: classes.paginationControl }}
             />
           ))}
