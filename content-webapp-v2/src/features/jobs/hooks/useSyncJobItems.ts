@@ -8,8 +8,8 @@ export function useSyncJobItems(jobId: string, enabled = true) {
     queryKey: ['jobs', 'sync', 'items', jobId],
     queryFn: ({ pageParam }: { pageParam: string | undefined }) =>
       getSyncJobItems(jobId, { limit: 50, after: pageParam }),
-    initialPageParam: undefined as string | undefined,
-    getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
+    initialPageParam: undefined,
+    getNextPageParam: (lastPage) => lastPage.next_cursor,
     enabled: status === 'authenticated' && enabled && jobId !== '',
   });
 }

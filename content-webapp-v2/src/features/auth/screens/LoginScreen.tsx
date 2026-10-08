@@ -2,12 +2,11 @@ import { Button, Paper, PasswordInput, Stack, Text, TextInput, Title } from '@ma
 import { useForm } from '@mantine/form';
 import { zodResolver } from 'mantine-form-zod-resolver';
 import { useState } from 'react';
-import { Link, Navigate, useNavigate } from '@tanstack/react-router';
+import { Link, useNavigate } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { z } from 'zod';
 import { routePaths } from '@app/navigation/routePaths';
 import { toApiErrorMessage } from '@shared/utils/apiErrors';
-import { useAuthStore } from '../store/useAuthStore';
 import { useLogin } from '../hooks/useLogin';
 import classes from './LoginScreen.module.css';
 
@@ -21,24 +20,19 @@ type LoginValues = z.infer<typeof loginSchema>;
 export function LoginScreen() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const status = useAuthStore((s) => s.status);
   const { mutateAsync: login, isPending } = useLogin();
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState('');
 
   const form = useForm<LoginValues>({
     initialValues: { identifier: '', password: '' },
     validate: zodResolver(loginSchema),
   });
 
-  if (status === 'authenticated') {
-    return <Navigate to={routePaths.home} replace />;
-  }
-
   const handleSubmit = async (values: LoginValues) => {
-    setError(null);
+    setError('');
     try {
       await login(values);
-      await navigate({ to: routePaths.home });
+      await navigate({ to: routePaths.home, replace: true });
     } catch (err) {
       setError(toApiErrorMessage(err));
     }

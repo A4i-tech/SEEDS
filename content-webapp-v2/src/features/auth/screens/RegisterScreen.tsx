@@ -36,10 +36,23 @@ const registerSchema = z
 
 type RegisterValues = z.infer<typeof registerSchema>;
 
+function policyTone(met: boolean) {
+  if (met) return 'green';
+  return 'dimmed';
+}
+
+function PolicyItem({ met, label }: { met: boolean; label: string }) {
+  return (
+    <List.Item>
+      <Text c={policyTone(met)}>{label}</Text>
+    </List.Item>
+  );
+}
+
 export function RegisterScreen() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   const form = useForm<RegisterValues>({
@@ -50,7 +63,7 @@ export function RegisterScreen() {
   const checks = passwordChecks(form.values.password);
 
   const handleSubmit = async (values: RegisterValues) => {
-    setError(null);
+    setError('');
     setSubmitting(true);
     try {
       await registerTenant({ email: values.email, password: values.password, tenant_name: values.tenantName });
@@ -72,15 +85,9 @@ export function RegisterScreen() {
             <TextInput label={t('register.email')} autoComplete="email" required {...form.getInputProps('email')} />
             <PasswordInput label={t('register.password')} autoComplete="new-password" required {...form.getInputProps('password')} />
             <List size="sm" aria-label={t('register.policy')}>
-              <List.Item>
-                <Text c={checks.length ? 'green' : 'dimmed'}>{t('register.policyLength')}</Text>
-              </List.Item>
-              <List.Item>
-                <Text c={checks.lower && checks.upper ? 'green' : 'dimmed'}>{t('register.policyCase')}</Text>
-              </List.Item>
-              <List.Item>
-                <Text c={checks.number && checks.symbol ? 'green' : 'dimmed'}>{t('register.policyNumberSymbol')}</Text>
-              </List.Item>
+              <PolicyItem met={checks.length} label={t('register.policyLength')} />
+              <PolicyItem met={checks.lower && checks.upper} label={t('register.policyCase')} />
+              <PolicyItem met={checks.number && checks.symbol} label={t('register.policyNumberSymbol')} />
             </List>
             <PasswordInput
               label={t('register.confirmPassword')}

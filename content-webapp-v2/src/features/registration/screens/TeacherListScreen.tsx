@@ -18,8 +18,9 @@ import type { DataTableColumn } from '@shared/components/DataTable';
 import { DataTable } from '@shared/components/DataTable';
 import { openConfirmDialog } from '@shared/components/ConfirmDialog';
 import { toApiErrorMessage } from '@shared/utils/apiErrors';
+import { selectValue } from '@shared/utils/select';
 import { useSchools } from '../hooks/useSchools';
-import { useTableSort } from '../hooks/useTableSort';
+import { sortRows, useTableSort } from '../hooks/useTableSort';
 import { useTeachers } from '../hooks/useTeachers';
 import {
   teacherRegisterSchema,
@@ -35,31 +36,53 @@ type TeacherFormValues = {
   role: string;
 };
 
+const EMPTY_VALUES: TeacherFormValues = { name: '', phone_number: '', password: '', role: 'teacher' };
+
+const MODE_CONFIG = {
+  create: {
+    title: 'registration.addTeacher',
+    passwordLabel: 'registration.password',
+    passwordRequired: true,
+    showRole: true,
+    schema: teacherRegisterSchema,
+  },
+  edit: {
+    title: 'registration.editTeacher',
+    passwordLabel: 'registration.newPassword',
+    passwordRequired: false,
+    showRole: false,
+    schema: teacherUpdateSchema,
+  },
+};
+
+const SORT_VALUES = {
+  name: (teacher: SchoolTeacher) => teacher.name,
+  phone: (teacher: SchoolTeacher) => teacher.phone_number,
+};
+
 function TeacherFormModal({
-  teacher,
+  mode,
+  initialValues,
   onClose,
   onSubmit,
   pending,
 }: {
-  teacher: SchoolTeacher | null;
+  mode: keyof typeof MODE_CONFIG;
+  initialValues: TeacherFormValues;
   onClose: () => void;
   onSubmit: (values: TeacherFormValues) => Promise<unknown>;
   pending: boolean;
 }) {
   const { t } = useTranslation();
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState('');
+  const config = MODE_CONFIG[mode];
   const form = useForm<TeacherFormValues>({
-    initialValues: {
-      name: teacher?.name ?? '',
-      phone_number: teacher?.phone_number ?? '',
-      password: '',
-      role: teacher?.role ?? 'teacher',
-    },
-    validate: zodResolver(teacher ? teacherUpdateSchema : teacherRegisterSchema),
+    initialValues,
+    validate: zodResolver(config.schema),
   });
 
   const handleSubmit = async (values: TeacherFormValues) => {
-    setError(null);
+    setError('');
     try {
       await onSubmit(values);
       onClose();
@@ -72,7 +95,7 @@ function TeacherFormModal({
     <Modal
       opened
       onClose={onClose}
-      title={teacher ? t('registration.editTeacher') : t('registration.addTeacher')}
+      title={t(config.title)}
       centered
     >
       <form onSubmit={form.onSubmit((values) => void handleSubmit(values))}>
@@ -80,11 +103,11 @@ function TeacherFormModal({
           <TextInput label={t('registration.name')} required {...form.getInputProps('name')} />
           <TextInput label={t('registration.phone')} required {...form.getInputProps('phone_number')} />
           <PasswordInput
-            label={teacher ? t('registration.newPassword') : t('registration.password')}
-            required={!teacher}
+            label={t(config.passwordLabel)}
+            required={config.passwordRequired}
             {...form.getInputProps('password')}
           />
-          {!teacher && (
+          {config.showRole && (
             <Select
               label={t('registration.role')}
               data={[
@@ -122,10 +145,10 @@ function TransferModal({
   const { t } = useTranslation();
   const { schools } = useSchools();
   const [targetSchoolId, setTargetSchoolId] = useState('');
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState('');
 
   const handleTransfer = async () => {
-    setError(null);
+    setError('');
     try {
       await onSubmit(targetSchoolId);
       onClose();
@@ -141,11 +164,9 @@ function TransferModal({
         <Select
           label={t('registration.targetSchool')}
           placeholder={t('registration.targetSchool')}
-          data={schools
-            .filter((school) => school.id)
-            .map((school) => ({ value: school.id as string, label: school.name }))}
+          data={schools.map((school) => ({ value: school.id, label: school.name }))}
           value={targetSchoolId}
-          onChange={(value) => setTargetSchoolId(value ?? '')}
+          onChange={(value) => setTargetSchoolId(selectValue(value))}
         />
         {error && (
           <Text c="red" role="alert">
@@ -183,19 +204,13 @@ export function TeacherListScreen() {
   const { sort, toggleSort } = useTableSort();
   const [page, setPage] = useState(1);
   const [registerOpened, setRegisterOpened] = useState(false);
-  const [editing, setEditing] = useState<SchoolTeacher | null>(null);
-  const [transferringTeacher, setTransferringTeacher] = useState<SchoolTeacher | null>(null);
+  const [editingId, setEditingId] = useState('');
+  const [transferringId, setTransferringId] = useState('');
+  const editing = teachers.find((teacher) => teacher.id === editingId);
+  const transferringTeacher = teachers.find((teacher) => teacher.id === transferringId);
   const loadError = toApiErrorMessage(error);
 
-  const rows = useMemo(() => {
-    if (!sort) return teachers;
-    const direction = sort.direction === 'asc' ? 1 : -1;
-    return [...teachers].sort((a, b) => {
-      const left = sort.key === 'phone' ? (a.phone_number ?? '') : a.name;
-      const right = sort.key === 'phone' ? (b.phone_number ?? '') : b.name;
-      return left.localeCompare(right) * direction;
-    });
-  }, [teachers, sort]);
+  const rows = useMemo(() => sortRows(teachers, sort, SORT_VALUES), [teachers, sort]);
 
   const confirmRemove = (teacher: SchoolTeacher) => {
     openConfirmDialog({
@@ -221,7 +236,7 @@ export function TeacherListScreen() {
         <Stack gap={0}>
           <Text fw={700}>{row.name}</Text>
           <Text size="sm" c="dimmed">
-            {t(`registration.roles.${row.role === 'content_creator' ? 'content_creator' : 'teacher'}`)}
+            {t(`registration.roles.${row.role}`)}
           </Text>
         </Stack>
       ),
@@ -230,7 +245,7 @@ export function TeacherListScreen() {
       key: 'phone',
       header: t('registration.columns.phone'),
       sortable: true,
-      render: (row) => row.phone_number ?? '',
+      render: (row) => row.phone_number,
     },
   ];
 
@@ -266,13 +281,13 @@ export function TeacherListScreen() {
         emptyMessage={t('registration.emptyTeachers')}
         actions={(row) => (
           <Group gap="xs">
-            <button type="button" className={classes.rowAction} onClick={() => setEditing(row)}>
+            <button type="button" className={classes.rowAction} onClick={() => setEditingId(row.id)}>
               {t('registration.edit')}
             </button>
             <button
               type="button"
               className={classes.rowAction}
-              onClick={() => setTransferringTeacher(row)}
+              onClick={() => setTransferringId(row.id)}
             >
               {t('registration.transfer')}
             </button>
@@ -285,7 +300,8 @@ export function TeacherListScreen() {
       />
       {registerOpened && (
         <TeacherFormModal
-          teacher={null}
+          mode="create"
+          initialValues={EMPTY_VALUES}
           onClose={() => setRegisterOpened(false)}
           pending={registering}
           onSubmit={(values) =>
@@ -300,8 +316,9 @@ export function TeacherListScreen() {
       )}
       {editing && (
         <TeacherFormModal
-          teacher={editing}
-          onClose={() => setEditing(null)}
+          mode="edit"
+          initialValues={{ ...EMPTY_VALUES, name: editing.name, phone_number: editing.phone_number }}
+          onClose={() => setEditingId('')}
           pending={updating}
           onSubmit={(values) =>
             updateTeacher({
@@ -309,7 +326,7 @@ export function TeacherListScreen() {
               body: {
                 name: values.name,
                 phone_number: values.phone_number,
-                ...(values.password ? { password: values.password } : {}),
+                ...(values.password && { password: values.password }),
               },
             })
           }
@@ -318,7 +335,7 @@ export function TeacherListScreen() {
       {transferringTeacher && (
         <TransferModal
           teacher={transferringTeacher}
-          onClose={() => setTransferringTeacher(null)}
+          onClose={() => setTransferringId('')}
           pending={transferring}
           onSubmit={(targetSchoolId) =>
             transferTeacher({ teacher_id: transferringTeacher.id, target_school_id: targetSchoolId })

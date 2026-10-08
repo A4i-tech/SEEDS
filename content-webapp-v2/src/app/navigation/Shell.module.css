@@ -8,6 +8,7 @@
   display: flex;
   align-items: center;
   gap: var(--mantine-spacing-md);
+  min-width: 0;
 }
 
 .brandmark {

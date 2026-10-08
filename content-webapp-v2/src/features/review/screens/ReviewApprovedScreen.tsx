@@ -13,13 +13,13 @@ declare module '@tanstack/history' {
 export function ReviewApprovedScreen() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const state = useLocation().state as { title?: string } | null;
+  const { state } = useLocation();
 
   return (
     <Stack gap="md" className={classes.wrap}>
       <Text className={classes.eyebrow}>{t('review.title')}</Text>
       <Title order={2}>{t('review.approvedTitle')}</Title>
-      {state?.title && <Text fw={700}>{state.title}</Text>}
+      {state.title && <Text fw={700}>{state.title}</Text>}
       <Text c="dimmed">{t('review.approvedBody')}</Text>
       <Group gap="md">
         <Button className={classes.submitButton} onClick={() => void navigate({ to: routePaths.review })}>

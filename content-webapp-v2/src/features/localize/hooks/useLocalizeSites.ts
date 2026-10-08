@@ -3,7 +3,7 @@ import { notifications } from '@mantine/notifications';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '@features/auth/store/useAuthStore';
 import { toApiErrorMessage } from '@shared/utils/apiErrors';
-import { getLanguages } from '@shared/services/languages';
+import { useLanguages } from '@shared/hooks/useLanguages';
 import { createSite, deleteSite, listSites, updateSite } from '../api/sites';
 import type { WebsiteUpdate } from '../types/localize.types';
 
@@ -14,11 +14,7 @@ export function useLocalizeSites() {
   const enabled = authStatus === 'authenticated';
 
   const sites = useQuery({ queryKey: ['localize', 'sites'], queryFn: () => listSites(), enabled });
-  const languages = useQuery({
-    queryKey: ['localize', 'languages'],
-    queryFn: () => getLanguages(),
-    enabled,
-  });
+  const { languages, isLoading: languagesLoading, error: languagesError } = useLanguages();
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ['localize'] });
@@ -58,9 +54,9 @@ export function useLocalizeSites() {
 
   return {
     sites: sites.data ?? [],
-    languages: languages.data ?? [],
-    isLoading: sites.isLoading || languages.isLoading,
-    error: sites.error ?? languages.error,
+    languages,
+    isLoading: sites.isLoading || languagesLoading,
+    error: sites.error ?? languagesError,
     create: create.mutateAsync,
     creating: create.isPending,
     update: update.mutateAsync,

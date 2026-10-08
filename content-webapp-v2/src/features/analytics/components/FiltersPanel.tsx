@@ -1,6 +1,7 @@
 import { Button, Group, Select, Stack, Text, TextInput } from '@mantine/core';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { selectValue } from '@shared/utils/select';
 import { lastNDays, monthToDate } from '../hooks/useAnalytics';
 import classes from './FiltersPanel.module.css';
 
@@ -21,14 +22,29 @@ function toInputDate(date: Date): string {
 
 const TODAY = toInputDate(new Date());
 
+const QUICK_DAYS = { last7: 7, last30: 30 } as const;
+
 function datesForQuick(quick: QuickRange): { start: string; end: string } {
   if (quick === 'month') {
     const range = monthToDate();
-    return { start: toInputDate(range.start as Date), end: toInputDate(range.end as Date) };
+    return { start: toInputDate(range.start), end: toInputDate(range.end) };
   }
-  const days = quick === 'last30' ? 30 : 7;
-  const range = lastNDays(days);
-  return { start: toInputDate(range.start as Date), end: toInputDate(range.end as Date) };
+  if (quick === 'custom') {
+    const today = toInputDate(new Date());
+    return { start: today, end: today };
+  }
+  const range = lastNDays(QUICK_DAYS[quick]);
+  return { start: toInputDate(range.start), end: toInputDate(range.end) };
+}
+
+function quickVariant(isActive: boolean) {
+  if (isActive) return 'filled';
+  return 'outline';
+}
+
+function quickClass(isActive: boolean): string {
+  if (isActive) return classes.activeQuick;
+  return classes.quick;
 }
 
 export function FiltersPanel({
@@ -58,6 +74,11 @@ export function FiltersPanel({
 
   const canApply = draft.start.length > 0 && draft.end.length > 0 && !loading;
 
+  const applyLabel = (): string => {
+    if (loading) return t('analytics.states.loading');
+    return t('analytics.filtersPanel.apply');
+  };
+
   return (
     <Stack gap="md">
       <div>
@@ -70,7 +91,7 @@ export function FiltersPanel({
         <Select
           label={t('analytics.filtersPanel.branch')}
           value={draft.branch}
-          onChange={(v) => setDraft((d) => ({ ...d, branch: v ?? 'all' }))}
+          onChange={(v) => setDraft((d) => ({ ...d, branch: selectValue(v, 'all') }))}
           data={[{ value: 'all', label: t('analytics.filtersPanel.branchAll') }, ...schools]}
         />
       )}
@@ -82,9 +103,9 @@ export function FiltersPanel({
           {QUICKS.map((quick) => (
             <Button
               key={quick}
-              variant={draft.quick === quick ? 'filled' : 'outline'}
+              variant={quickVariant(draft.quick === quick)}
               size="sm"
-              className={draft.quick === quick ? classes.activeQuick : classes.quick}
+              className={quickClass(draft.quick === quick)}
               onClick={() => pickQuick(quick)}
             >
               {t(`analytics.filtersPanel.${quick}`)}
@@ -93,14 +114,14 @@ export function FiltersPanel({
         </Group>
       </div>
       <Group gap="md" grow>
-        <TextInput
+        <TextInput miw={200}
           label={t('analytics.filtersPanel.start')}
           type="date"
           value={draft.start}
           max={draft.end || undefined}
           onChange={(e) => setDraft((d) => ({ ...d, quick: 'custom', start: e.currentTarget.value }))}
         />
-        <TextInput
+        <TextInput miw={200}
           label={t('analytics.filtersPanel.end')}
           type="date"
           value={draft.end}
@@ -115,7 +136,7 @@ export function FiltersPanel({
         onClick={() => onApply(draft)}
         aria-label={t('analytics.filtersPanel.apply')}
       >
-        {loading ? t('analytics.states.loading') : t('analytics.filtersPanel.apply')}
+        {applyLabel()}
       </Button>
     </Stack>
   );

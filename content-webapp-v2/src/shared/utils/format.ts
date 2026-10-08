@@ -14,5 +14,7 @@ export function formatRelativeTime(iso: string): string {
   const yesterday = new Date(now.getTime() - day);
   if (date.toDateString() === yesterday.toDateString()) return 'Yesterday';
   const sameYear = date.getFullYear() === now.getFullYear();
-  return date.toLocaleDateString([], sameYear ? { month: 'short', day: 'numeric' } : { month: 'short', day: 'numeric', year: 'numeric' });
+  const monthDay: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' };
+  if (sameYear) return date.toLocaleDateString([], monthDay);
+  return date.toLocaleDateString([], { ...monthDay, year: 'numeric' });
 }

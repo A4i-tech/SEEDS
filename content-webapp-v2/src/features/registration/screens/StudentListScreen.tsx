@@ -9,7 +9,7 @@ import { DataTable } from '@shared/components/DataTable';
 import { openConfirmDialog } from '@shared/components/ConfirmDialog';
 import { toApiErrorMessage } from '@shared/utils/apiErrors';
 import { useStudents } from '../hooks/useStudents';
-import { useTableSort } from '../hooks/useTableSort';
+import { sortRows, useTableSort } from '../hooks/useTableSort';
 import { studentCreateSchema, studentUpdateSchema, type Student } from '../types/registration.types';
 import classes from './StudentListScreen.module.css';
 
@@ -18,26 +18,41 @@ type StudentFormValues = {
   phone_number: string;
 };
 
+const EMPTY_VALUES: StudentFormValues = { name: '', phone_number: '' };
+
+const MODE_CONFIG = {
+  create: { title: 'registration.addStudent', schema: studentCreateSchema },
+  edit: { title: 'registration.editStudent', schema: studentUpdateSchema },
+};
+
+const SORT_VALUES = {
+  name: (student: Student) => student.name,
+  phone: (student: Student) => student.phone_number,
+};
+
 function StudentFormModal({
-  student,
+  mode,
+  initialValues,
   onClose,
   onSubmit,
   pending,
 }: {
-  student: Student | null;
+  mode: keyof typeof MODE_CONFIG;
+  initialValues: StudentFormValues;
   onClose: () => void;
   onSubmit: (values: StudentFormValues) => Promise<unknown>;
   pending: boolean;
 }) {
   const { t } = useTranslation();
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState('');
+  const config = MODE_CONFIG[mode];
   const form = useForm<StudentFormValues>({
-    initialValues: { name: student?.name ?? '', phone_number: student?.phone_number ?? '' },
-    validate: zodResolver(student ? studentUpdateSchema : studentCreateSchema),
+    initialValues,
+    validate: zodResolver(config.schema),
   });
 
   const handleSubmit = async (values: StudentFormValues) => {
-    setError(null);
+    setError('');
     try {
       await onSubmit(values);
       onClose();
@@ -50,7 +65,7 @@ function StudentFormModal({
     <Modal
       opened
       onClose={onClose}
-      title={student ? t('registration.editStudent') : t('registration.addStudent')}
+      title={t(config.title)}
       centered
     >
       <form onSubmit={form.onSubmit((values) => void handleSubmit(values))}>
@@ -82,29 +97,20 @@ export function StudentListScreen() {
   const { sort, toggleSort } = useTableSort();
   const [page, setPage] = useState(1);
   const [createOpened, setCreateOpened] = useState(false);
-  const [editing, setEditing] = useState<Student | null>(null);
+  const [editingId, setEditingId] = useState('');
+  const editing = students.find((student) => student.id === editingId);
   const loadError = toApiErrorMessage(error);
 
-  const rows = useMemo(() => {
-    if (!sort) return students;
-    const direction = sort.direction === 'asc' ? 1 : -1;
-    return [...students].sort((a, b) => {
-      const left = sort.key === 'phone' ? (a.phone_number ?? '') : a.name;
-      const right = sort.key === 'phone' ? (b.phone_number ?? '') : b.name;
-      return left.localeCompare(right) * direction;
-    });
-  }, [students, sort]);
+  const rows = useMemo(() => sortRows(students, sort, SORT_VALUES), [students, sort]);
 
   const confirmRemove = (student: Student) => {
-    if (!student.id) return;
-    const id = student.id;
     openConfirmDialog({
       title: t('registration.deleteStudentTitle'),
       body: t('registration.deleteBody'),
       confirmLabel: t('registration.delete'),
       cancelLabel: t('dialog.cancel'),
       onConfirm: () => {
-        void deleteStudent(id).catch((err: unknown) => {
+        void deleteStudent(student.id).catch((err: unknown) => {
           const message = toApiErrorMessage(err);
           if (message) notifications.show({ color: 'red', message });
         });
@@ -123,7 +129,7 @@ export function StudentListScreen() {
       key: 'phone',
       header: t('registration.columns.phone'),
       sortable: true,
-      render: (row) => row.phone_number ?? '',
+      render: (row) => row.phone_number,
     },
   ];
 
@@ -148,7 +154,7 @@ export function StudentListScreen() {
       <DataTable<Student>
         columns={columns}
         rows={rows}
-        getRowId={(row) => row.id ?? row.phone_number ?? row.name}
+        getRowId={(row) => row.id}
         loading={isLoading}
         sort={sort}
         onSortChange={toggleSort}
@@ -159,7 +165,7 @@ export function StudentListScreen() {
         emptyMessage={t('registration.emptyStudents')}
         actions={(row) => (
           <Group gap="xs">
-            <button type="button" className={classes.rowAction} onClick={() => setEditing(row)}>
+            <button type="button" className={classes.rowAction} onClick={() => setEditingId(row.id)}>
               {t('registration.edit')}
             </button>
             <button type="button" className={classes.rowAction} onClick={() => confirmRemove(row)}>
@@ -171,7 +177,8 @@ export function StudentListScreen() {
       />
       {createOpened && (
         <StudentFormModal
-          student={null}
+          mode="create"
+          initialValues={EMPTY_VALUES}
           onClose={() => setCreateOpened(false)}
           pending={creating}
           onSubmit={(values) => createStudent(values)}
@@ -179,13 +186,12 @@ export function StudentListScreen() {
       )}
       {editing && (
         <StudentFormModal
-          student={editing}
-          onClose={() => setEditing(null)}
+          mode="edit"
+          initialValues={{ name: editing.name, phone_number: editing.phone_number }}
+          onClose={() => setEditingId('')}
           pending={updating}
           onSubmit={(values) =>
-            editing.id
-              ? updateStudent({ id: editing.id, body: values })
-              : Promise.reject(new Error('Missing student id'))
+            updateStudent({ id: editing.id, body: values })
           }
         />
       )}

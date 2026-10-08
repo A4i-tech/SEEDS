@@ -16,7 +16,7 @@ export async function streamEvents(url: string, headers: Record<string, string>,
     if (done) break;
     buffer += decoder.decode(value, { stream: true });
     const frames = buffer.split('\n\n');
-    buffer = frames.pop() ?? '';
+    [buffer] = frames.splice(-1);
     for (const frame of frames) {
       const lines = frame.split('\n').filter((line) => line.startsWith('data:'));
       if (lines.length === 0) continue;

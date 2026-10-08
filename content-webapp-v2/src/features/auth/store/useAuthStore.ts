@@ -1,27 +1,45 @@
 import { create } from 'zustand';
 import { queryClient } from '@app/store/queryClient';
 import { clearAuthToken, setAuthToken, setSessionExpiredHandler } from '@shared/services/apiClient';
-import { decodeJwtRole } from '@shared/utils/jwt';
+import { decodeJwtRole, isJwtExpired } from '@shared/utils/jwt';
 import { login as loginRequest } from '../api/login';
 
 const TOKEN_KEY = 'seeds.auth.token';
 
 interface AuthState {
   status: 'idle' | 'authenticated' | 'unauthenticated';
-  role: string | null;
+  role: string;
   hydrate: () => void;
   login: (identifier: string, password: string) => Promise<void>;
   logout: () => void;
 }
 
+function readStoredToken(): string {
+  const token = localStorage.getItem(TOKEN_KEY);
+  if (!token) return '';
+  try {
+    if (isJwtExpired(token)) throw new Error('Stored auth token has expired');
+    return token;
+  } catch (err) {
+    console.error(String(err));
+    localStorage.removeItem(TOKEN_KEY);
+    return '';
+  }
+}
+
 export const useAuthStore = create<AuthState>((set) => ({
   status: 'idle',
-  role: null,
+  role: '',
 
   hydrate: () => {
-    const token = localStorage.getItem(TOKEN_KEY);
+    const token = readStoredToken();
+    if (!token) {
+      clearAuthToken();
+      set({ status: 'unauthenticated', role: '' });
+      return;
+    }
     setAuthToken(token);
-    set({ status: token ? 'authenticated' : 'unauthenticated', role: decodeJwtRole(token) });
+    set({ status: 'authenticated', role: decodeJwtRole(token) });
   },
 
   login: async (identifier, password) => {
@@ -34,7 +52,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   logout: () => {
     localStorage.removeItem(TOKEN_KEY);
     clearAuthToken();
-    set({ status: 'unauthenticated', role: null });
+    set({ status: 'unauthenticated', role: '' });
     queryClient.clear();
   },
 }));

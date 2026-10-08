@@ -8,6 +8,10 @@ import { diffLines } from '@shared/utils/diff';
 import { useReviewText } from '../hooks/useReviewText';
 import classes from './ReviewTextScreen.module.css';
 
+const DIFF_CLASS = { removed: classes.removed, added: classes.added, same: classes.same };
+
+const DIFF_PREFIX = { removed: '− ', added: '+ ', same: '' };
+
 function wrapSelection(textarea: HTMLTextAreaElement | null, before: string, after: string, linePrefix: string) {
   if (!textarea) return '';
   const { value, selectionStart, selectionEnd } = textarea;
@@ -29,11 +33,11 @@ export function ReviewTextScreen() {
   const navigate = useNavigate();
   const { jobId = '' } = useParams({ strict: false });
   const { raw, corrected, isLoading, save, approve } = useReviewText(jobId);
-  const [edited, setEdited] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [edited, setEdited] = useState<string | undefined>(undefined);
+  const [error, setError] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const text = edited ?? corrected;
+  const text = edited === undefined ? corrected : edited;
   const ops = diffLines(raw, text);
 
   const applyTool = (before: string, after: string, linePrefix: string) => {
@@ -41,7 +45,7 @@ export function ReviewTextScreen() {
   };
 
   const handleSave = async () => {
-    setError(null);
+    setError('');
     try {
       await save.mutateAsync(text);
     } catch (err) {
@@ -79,7 +83,7 @@ export function ReviewTextScreen() {
       </Group>
 
       <Grid>
-        <Grid.Col span={6}>
+        <Grid.Col span={{ base: 12, md: 6 }}>
           <Stack gap="xs">
             <Text fw={700}>{t('review.source')}</Text>
             <div className={classes.sourcePane} role="document" aria-label={t('review.source')} aria-readonly="true">
@@ -87,19 +91,13 @@ export function ReviewTextScreen() {
                 <div
                   // eslint-disable-next-line react/no-array-index-key
                   key={index}
-                  className={
-                    op.type === 'removed'
-                      ? classes.removed
-                      : op.type === 'added'
-                        ? classes.added
-                        : classes.same
-                  }
+                  className={DIFF_CLASS[op.type]}
                 >
                   <span className={classes.lineNo} aria-hidden>
                     {index + 1}
                   </span>
                   <span>
-                    {op.type === 'removed' ? '− ' : op.type === 'added' ? '+ ' : ''}
+                    {DIFF_PREFIX[op.type]}
                     {op.text || ' '}
                   </span>
                 </div>
@@ -107,7 +105,7 @@ export function ReviewTextScreen() {
             </div>
           </Stack>
         </Grid.Col>
-        <Grid.Col span={6}>
+        <Grid.Col span={{ base: 12, md: 6 }}>
           <Stack gap="xs">
             <Text fw={700}>{t('review.edit')}</Text>
             <Group gap="xs" role="toolbar" aria-label={t('review.edit')}>

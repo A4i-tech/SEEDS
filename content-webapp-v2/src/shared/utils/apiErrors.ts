@@ -5,5 +5,6 @@ export function toApiErrorMessage(error: unknown): string {
     console.error(error.issues);
     return '';
   }
-  return (error as { message?: string } | null)?.message ?? '';
+  if (error instanceof Error) return error.message;
+  return '';
 }

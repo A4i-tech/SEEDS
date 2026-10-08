@@ -1,26 +1,14 @@
 import { z } from 'zod';
+import { text } from '@shared/utils/schema';
 
 export const tenantMeSchema = z.object({
-  id: z.string().nullable().optional(),
+  id: text,
   role: z.string(),
   name: z.string(),
-  email: z.string().nullable().optional(),
-  phone_number: z.string().nullable().optional(),
-  tenant_name: z.string().nullable().optional(),
-  organisation: z.string().nullable().optional(),
+  email: text,
+  phone_number: text,
+  tenant_name: text,
+  organisation: text,
 });
 
 export type TenantMe = z.infer<typeof tenantMeSchema>;
-
-export function sessionRoleFromToken(token: string | null): string | null {
-  if (!token) return null;
-  try {
-    const segment = token.split('.')[1] ?? '';
-    const payload = JSON.parse(atob(segment.replace(/-/g, '+').replace(/_/g, '/'))) as {
-      role?: unknown;
-    };
-    return typeof payload.role === 'string' ? payload.role : null;
-  } catch {
-    return null;
-  }
-}

@@ -6,6 +6,7 @@ import type { DataTableColumn } from '@shared/components/DataTable';
 import { DataTable } from '@shared/components/DataTable';
 import { StatusBadge } from '@shared/components/StatusBadge';
 import { toApiErrorMessage } from '@shared/utils/apiErrors';
+import { selectValue } from '@shared/utils/select';
 import { useLocalizeSites } from '../hooks/useLocalizeSites';
 import { useLocalizeReview } from '../hooks/useLocalizeReview';
 import type { Segment } from '../utils/segments';
@@ -14,6 +15,8 @@ import classes from './LocalizeReviewScreen.module.css';
 type StageFilter = 'all' | 'pending' | 'approved';
 
 const stageOptions: StageFilter[] = ['all', 'pending', 'approved'];
+
+const STAGE_TONE = { approved: 'done', pending: 'needs-review' } as const;
 
 function TranslationCell({ seg, onSave }: { seg: Segment; onSave: (id: string, text: string) => void }) {
   const { t } = useTranslation();
@@ -51,8 +54,11 @@ export function LocalizeReviewScreen() {
   const [page, setPage] = useState(1);
 
   const site = sites.find((s) => s.id === siteId);
-  const siteLangCodes = (site?.languages ?? []).filter((l) => l.enabled !== false).map((l) => l.code);
-  const langCodes = siteLangCodes.length > 0 ? siteLangCodes : languages.map((l) => l.code);
+  const siteLangCodes = (site?.languages ?? []).filter((l) => l.enabled).map((l) => l.code);
+  const langCodes = (): string[] => {
+    if (siteLangCodes.length > 0) return siteLangCodes;
+    return languages.map((l) => l.code);
+  };
   const langLabel = (code: string) => languages.find((l) => l.code === code)?.name ?? code;
 
   const {
@@ -69,6 +75,11 @@ export function LocalizeReviewScreen() {
 
   const loadError = toApiErrorMessage(error);
   const ready = siteId !== '' && route.trim() !== '' && lang !== '';
+
+  const generateLabel = (): string => {
+    if (generating) return t('localize.generating');
+    return t('localize.generate');
+  };
 
   const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -103,7 +114,7 @@ export function LocalizeReviewScreen() {
       header: t('localize.columns.status'),
       render: (row) => (
         <StatusBadge
-          tone={row.stage === 'approved' ? 'done' : 'needs-review'}
+          tone={STAGE_TONE[row.stage]}
           label={t(`localize.stageOptions.${row.stage}`)}
         />
       ),
@@ -120,7 +131,7 @@ export function LocalizeReviewScreen() {
           placeholder={t('localize.pickSite')}
           value={siteId}
           onChange={(v) => {
-            setSiteId(v ?? '');
+            setSiteId(selectValue(v));
             setLang('');
             setPage(1);
           }}
@@ -141,16 +152,16 @@ export function LocalizeReviewScreen() {
           placeholder={t('localize.pickLanguage')}
           value={lang}
           onChange={(v) => {
-            setLang(v ?? '');
+            setLang(selectValue(v));
             setPage(1);
           }}
-          data={langCodes.map((code) => ({ value: code, label: langLabel(code) }))}
+          data={langCodes().map((code) => ({ value: code, label: langLabel(code) }))}
         />
         <Select
           aria-label={t('localize.statusFilter')}
           value={stage}
           onChange={(v) => {
-            setStage((v as StageFilter) ?? 'pending');
+            setStage(selectValue(v, 'pending'));
             setPage(1);
           }}
           data={stageOptions.map((v) => ({ value: v, label: t(`localize.statusOptions.${v}`) }))}
@@ -172,7 +183,7 @@ export function LocalizeReviewScreen() {
           loading={generating}
           onClick={() => void generate()}
         >
-          {generating ? t('localize.generating') : t('localize.generate')}
+          {generateLabel()}
         </Button>
         <Button
           className={classes.submitButton}

@@ -18,7 +18,7 @@ import { DataTable } from '@shared/components/DataTable';
 import { openConfirmDialog } from '@shared/components/ConfirmDialog';
 import { toApiErrorMessage } from '@shared/utils/apiErrors';
 import { useSchools } from '../hooks/useSchools';
-import { useTableSort } from '../hooks/useTableSort';
+import { sortRows, useTableSort } from '../hooks/useTableSort';
 import { schoolCreateSchema, schoolUpdateSchema, type School } from '../types/registration.types';
 import classes from './SchoolListScreen.module.css';
 
@@ -28,26 +28,51 @@ type SchoolFormValues = {
   password: string;
 };
 
+const EMPTY_VALUES: SchoolFormValues = { name: '', email: '', password: '' };
+
+const MODE_CONFIG = {
+  create: {
+    title: 'registration.createSchool',
+    passwordLabel: 'registration.password',
+    passwordRequired: true,
+    schema: schoolCreateSchema,
+  },
+  edit: {
+    title: 'registration.editSchool',
+    passwordLabel: 'registration.newPassword',
+    passwordRequired: false,
+    schema: schoolUpdateSchema,
+  },
+};
+
+const SORT_VALUES = {
+  name: (school: School) => school.name,
+  email: (school: School) => school.email,
+};
+
 function SchoolFormModal({
-  school,
+  mode,
+  initialValues,
   onClose,
   onSubmit,
   pending,
 }: {
-  school: School | null;
+  mode: keyof typeof MODE_CONFIG;
+  initialValues: SchoolFormValues;
   onClose: () => void;
   onSubmit: (values: SchoolFormValues) => Promise<unknown>;
   pending: boolean;
 }) {
   const { t } = useTranslation();
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState('');
+  const config = MODE_CONFIG[mode];
   const form = useForm<SchoolFormValues>({
-    initialValues: { name: school?.name ?? '', email: school?.email ?? '', password: '' },
-    validate: zodResolver(school ? schoolUpdateSchema : schoolCreateSchema),
+    initialValues,
+    validate: zodResolver(config.schema),
   });
 
   const handleSubmit = async (values: SchoolFormValues) => {
-    setError(null);
+    setError('');
     try {
       await onSubmit(values);
       onClose();
@@ -60,7 +85,7 @@ function SchoolFormModal({
     <Modal
       opened
       onClose={onClose}
-      title={school ? t('registration.editSchool') : t('registration.createSchool')}
+      title={t(config.title)}
       centered
     >
       <form onSubmit={form.onSubmit((values) => void handleSubmit(values))}>
@@ -68,8 +93,8 @@ function SchoolFormModal({
           <TextInput label={t('registration.name')} required {...form.getInputProps('name')} />
           <TextInput label={t('registration.email')} required {...form.getInputProps('email')} />
           <PasswordInput
-            label={school ? t('registration.newPassword') : t('registration.password')}
-            required={!school}
+            label={t(config.passwordLabel)}
+            required={config.passwordRequired}
             {...form.getInputProps('password')}
           />
           {error && (
@@ -93,29 +118,20 @@ export function SchoolListScreen() {
   const { sort, toggleSort } = useTableSort();
   const [page, setPage] = useState(1);
   const [createOpened, setCreateOpened] = useState(false);
-  const [editing, setEditing] = useState<School | null>(null);
+  const [editingId, setEditingId] = useState('');
+  const editing = schools.find((school) => school.id === editingId);
   const loadError = toApiErrorMessage(error);
 
-  const rows = useMemo(() => {
-    if (!sort) return schools;
-    const direction = sort.direction === 'asc' ? 1 : -1;
-    return [...schools].sort((a, b) => {
-      const left = sort.key === 'email' ? (a.email ?? '') : a.name;
-      const right = sort.key === 'email' ? (b.email ?? '') : b.name;
-      return left.localeCompare(right) * direction;
-    });
-  }, [schools, sort]);
+  const rows = useMemo(() => sortRows(schools, sort, SORT_VALUES), [schools, sort]);
 
   const confirmRemove = (school: School) => {
-    if (!school.id) return;
-    const id = school.id;
     openConfirmDialog({
       title: t('registration.deleteSchoolTitle'),
       body: t('registration.deleteBody'),
       confirmLabel: t('registration.delete'),
       cancelLabel: t('dialog.cancel'),
       onConfirm: () => {
-        void deleteSchool(id).catch((err: unknown) => {
+        void deleteSchool(school.id).catch((err: unknown) => {
           const message = toApiErrorMessage(err);
           if (message) notifications.show({ color: 'red', message });
         });
@@ -134,7 +150,7 @@ export function SchoolListScreen() {
       key: 'email',
       header: t('registration.columns.email'),
       sortable: true,
-      render: (row) => row.email ?? '',
+      render: (row) => row.email,
     },
   ];
 
@@ -159,7 +175,7 @@ export function SchoolListScreen() {
       <DataTable<School>
         columns={columns}
         rows={rows}
-        getRowId={(row) => row.id ?? row.email ?? row.name}
+        getRowId={(row) => row.id}
         loading={isLoading}
         sort={sort}
         onSortChange={toggleSort}
@@ -170,7 +186,7 @@ export function SchoolListScreen() {
         emptyMessage={t('registration.emptySchools')}
         actions={(row) => (
           <Group gap="xs">
-            <button type="button" className={classes.rowAction} onClick={() => setEditing(row)}>
+            <button type="button" className={classes.rowAction} onClick={() => setEditingId(row.id)}>
               {t('registration.edit')}
             </button>
             <button type="button" className={classes.rowAction} onClick={() => confirmRemove(row)}>
@@ -182,7 +198,8 @@ export function SchoolListScreen() {
       />
       {createOpened && (
         <SchoolFormModal
-          school={null}
+          mode="create"
+          initialValues={EMPTY_VALUES}
           onClose={() => setCreateOpened(false)}
           pending={creating}
           onSubmit={(values) => createSchool(values)}
@@ -190,20 +207,19 @@ export function SchoolListScreen() {
       )}
       {editing && (
         <SchoolFormModal
-          school={editing}
-          onClose={() => setEditing(null)}
+          mode="edit"
+          initialValues={{ name: editing.name, email: editing.email, password: '' }}
+          onClose={() => setEditingId('')}
           pending={updating}
           onSubmit={(values) =>
-            editing.id
-              ? updateSchool({
-                  id: editing.id,
-                  body: {
-                    name: values.name,
-                    email: values.email,
-                    ...(values.password ? { password: values.password } : {}),
-                  },
-                })
-              : Promise.reject(new Error('Missing school id'))
+            updateSchool({
+              id: editing.id,
+              body: {
+                name: values.name,
+                email: values.email,
+                ...(values.password && { password: values.password }),
+              },
+            })
           }
         />
       )}

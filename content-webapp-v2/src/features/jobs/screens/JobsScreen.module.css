@@ -2,9 +2,20 @@
   align-items: flex-end;
 }
 
+@media (max-width: 48em) {
+  .filters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .filters > * {
+    width: 100%;
+  }
+}
+
 .search {
   flex: 1;
-  min-width: 240px;
+  min-width: min(240px, 100%);
 }
 
 .outlineAction.outlineAction {
@@ -13,5 +24,6 @@
 }
 
 .textAction.textAction {
+  padding-inline: 0;
   color: var(--seeds-btn-tertiary-text);
 }

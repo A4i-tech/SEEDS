@@ -10,7 +10,7 @@ export function useStudents() {
   const queryClient = useQueryClient();
   const status = useAuthStore((s) => s.status);
   const role = useAuthStore((s) => s.role);
-  const enabled = status === 'authenticated' && role !== null && role !== 'tenant';
+  const enabled = status === 'authenticated' && role !== '' && role !== 'tenant';
 
   const students = useQuery({
     queryKey: ['registration', 'students'],

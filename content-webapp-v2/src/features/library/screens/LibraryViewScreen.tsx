@@ -32,7 +32,7 @@ export function LibraryViewScreen() {
     <Stack gap="md">
       <Breadcrumbs aria-label="Breadcrumb">
         <Text>{t('library.title')}</Text>
-        <Text>{item?.title?.english ?? id}</Text>
+        <Text>{item?.title.english || id}</Text>
       </Breadcrumbs>
 
       {detail.isLoading && <Text c="dimmed">{t('common.loading')}</Text>}
@@ -60,7 +60,7 @@ export function LibraryViewScreen() {
           <Text className={classes.eyebrow}>
             {t(`library.experiences.${item.type}`)} · {t('library.readOnly')}
           </Text>
-          <Title order={2}>{item.title?.english}</Title>
+          <Title order={2}>{item.title.english}</Title>
           <Group gap="md">
             <Button
               variant="outline"
@@ -97,7 +97,7 @@ export function LibraryViewScreen() {
               {t('library.metaKind')}: {t(`library.experiences.${item.type}`)}
             </Text>
             <Text size="sm">
-              {t('library.metaTheme')}: {item.theme?.english ?? ''}
+              {t('library.metaTheme')}: {item.theme.english}
             </Text>
           </Stack>
         </>

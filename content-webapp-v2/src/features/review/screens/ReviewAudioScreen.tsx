@@ -12,8 +12,7 @@ export function ReviewAudioScreen() {
   const { item, audioUrl, audioSrc, isLoading, loadError, approve } = useReviewAudio(id);
 
   const isAudio = item && item.type !== 'quiz';
-  const transcript = isAudio ? (item.description ?? '') : '';
-  const title = item?.title?.english ?? id;
+  const title = item?.title.english || id;
 
   return (
     <Stack gap="md">
@@ -55,7 +54,7 @@ export function ReviewAudioScreen() {
           <Stack gap="xs" className={classes.panel}>
             <Text fw={700}>{t('review.script')}</Text>
             <div className={classes.scriptPane} role="document" aria-label={t('review.script')} aria-readonly="true">
-              <Text>{transcript}</Text>
+              <Text>{item.description}</Text>
             </div>
             <Text size="sm" c="dimmed">
               {t('review.scriptLocked')}
@@ -83,7 +82,7 @@ export function ReviewAudioScreen() {
             <Button
               className={classes.submitButton}
               loading={approve.isPending}
-              onClick={() => void approve.mutateAsync(transcript || undefined)}
+              onClick={() => void approve.mutateAsync(item.description || undefined)}
             >
               {t('review.approve')}
             </Button>

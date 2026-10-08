@@ -1,9 +1,9 @@
 import { API_BASE_URL } from '@/config/env';
 
-let authToken: string | null = null;
-let onSessionExpired: (() => void) | null = null;
+let authToken = '';
+let onSessionExpired: () => void = () => {};
 
-export function setAuthToken(token: string | null) {
+export function setAuthToken(token: string) {
   authToken = token;
 }
 
@@ -12,19 +12,20 @@ export function getAuthToken() {
 }
 
 export function clearAuthToken() {
-  authToken = null;
+  authToken = '';
 }
 
-export function setSessionExpiredHandler(handler: (() => void) | null) {
+export function setSessionExpiredHandler(handler: () => void) {
   onSessionExpired = handler;
 }
 
 export function authHeaders(): Record<string, string> {
-  return authToken ? { Authorization: `Bearer ${authToken}` } : {};
+  if (!authToken) return {};
+  return { Authorization: `Bearer ${authToken}` };
 }
 
 export interface RequestOptions {
-  params?: Record<string, string | number | boolean | null | undefined>;
+  params?: Record<string, string | number | boolean | undefined>;
   headers?: Record<string, string>;
   signal?: AbortSignal;
   timeoutMs?: number;
@@ -32,13 +33,14 @@ export interface RequestOptions {
 
 const DEFAULT_TIMEOUT_MS = 60000;
 
-function buildUrl(path: string, params?: RequestOptions['params']): string {
+function buildUrl(path: string, params: RequestOptions['params'] = {}): string {
   const query = new URLSearchParams();
-  for (const [key, value] of Object.entries(params ?? {})) {
-    if (value !== null && value !== undefined) query.append(key, String(value));
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined) query.append(key, String(value));
   }
   const suffix = query.toString();
-  return `${API_BASE_URL}${path}${suffix ? `?${suffix}` : ''}`;
+  if (!suffix) return `${API_BASE_URL}${path}`;
+  return `${API_BASE_URL}${path}?${suffix}`;
 }
 
 export function apiUrl(path: string): string {
@@ -56,14 +58,10 @@ export class ApiError extends Error {
 }
 
 async function parseBody(response: Response): Promise<unknown> {
-  const contentType = response.headers.get('content-type') ?? '';
-  if (response.status === 204) return null;
-  if (contentType.includes('application/json')) return (await response.json()) as unknown;
+  const contentType: unknown = response.headers.get('content-type');
+  if (response.status === 204) return undefined;
+  if (typeof contentType === 'string' && contentType.includes('application/json')) return response.json();
   return response.text();
-}
-
-function messageFromBody(body: string): string {
-  return body;
 }
 
 async function request<T>(
@@ -83,20 +81,18 @@ async function request<T>(
       headers: { ...authHeaders(), ...headers },
       signal: controller.signal,
     };
-    if (body !== undefined) {
-      if (body instanceof FormData) {
-        init.body = body;
-      } else {
-        (init.headers as Record<string, string>)['Content-Type'] = 'application/json';
-        init.body = JSON.stringify(body);
-      }
+    if (body instanceof FormData) {
+      init.body = body;
+    } else if (body !== undefined) {
+      init.headers = { ...init.headers, 'Content-Type': 'application/json' };
+      init.body = JSON.stringify(body);
     }
     const response = await fetch(buildUrl(path, params), init);
     if (!response.ok) {
       if (response.status === 401 && authToken && path !== '/auth/login') {
-        onSessionExpired?.();
+        onSessionExpired();
       }
-      throw new ApiError(response.status, messageFromBody(await response.text()));
+      throw new ApiError(response.status, await response.text());
     }
     const data = await parseBody(response);
     return { data: data as T };
@@ -105,7 +101,8 @@ async function request<T>(
     if (error instanceof DOMException && error.name === 'AbortError') {
       throw new ApiError(0, 'Request timed out');
     }
-    throw new ApiError(0, error instanceof Error ? error.message : 'Network request failed');
+    if (error instanceof Error) throw new ApiError(0, error.message);
+    throw new ApiError(0, 'Network request failed');
   } finally {
     clearTimeout(timer);
     signal?.removeEventListener('abort', onAbort);
@@ -116,16 +113,19 @@ async function requestBlob(path: string, options: RequestOptions = {}): Promise<
   const { params, headers, signal, timeoutMs = DEFAULT_TIMEOUT_MS } = options;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const onAbort = () => controller.abort();
+  signal?.addEventListener('abort', onAbort);
   try {
     const response = await fetch(buildUrl(path, params), {
       method: 'GET',
       headers: { ...authHeaders(), ...headers },
-      signal: signal ?? controller.signal,
+      signal: controller.signal,
     });
-    if (!response.ok) throw new ApiError(response.status, messageFromBody(await response.text()));
+    if (!response.ok) throw new ApiError(response.status, await response.text());
     return response.blob();
   } finally {
     clearTimeout(timer);
+    signal?.removeEventListener('abort', onAbort);
   }
 }
 

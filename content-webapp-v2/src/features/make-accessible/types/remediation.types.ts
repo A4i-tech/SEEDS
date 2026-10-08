@@ -1,35 +1,43 @@
 import { z } from 'zod';
+import { text } from '@shared/utils/schema';
+
+function numberOrAbsent(value: unknown): number | undefined {
+  if (typeof value !== 'number') return undefined;
+  return value;
+}
+
+const absentableCount = z.number().nullish().transform(numberOrAbsent);
 
 export const remediationJobDetailSchema = z.object({
   job_id: z.string(),
   source_name: z.string(),
   language: z.string(),
-  detected_language: z.string().nullable(),
+  detected_language: text,
   status: z.string(),
-  stage: z.string().nullable(),
+  stage: text,
   stage_index: z.number(),
   stage_count: z.number(),
   artifacts: z.record(z.string(), z.string()),
   counts: z.record(z.string(), z.number()).optional(),
   progress: z.object({
-    message: z.string().nullable(),
-    percent: z.number().nullable(),
+    message: text,
+    percent: absentableCount,
   }),
-  draft_remediated_md: z.string().nullable(),
-  verified_at: z.string().nullable(),
-  verified_by: z.string().nullable(),
-  title: z.string().nullable(),
-  target_language: z.string().nullable(),
-  translation_error: z.string().nullable(),
-  error: z.string().nullable(),
+  draft_remediated_md: text,
+  verified_at: text,
+  verified_by: text,
+  title: text,
+  target_language: text,
+  translation_error: text,
+  error: text,
   created_at: z.string(),
-  finished_at: z.string().nullable(),
+  finished_at: text,
   metrics: z.object({
-    total_pages: z.number().nullable(),
-    processed_pages: z.number().nullable(),
-    diagrams_described: z.number().nullable(),
-    tables_fixed: z.number().nullable(),
-    flagged_items_count: z.number().nullable(),
+    total_pages: absentableCount,
+    processed_pages: absentableCount,
+    diagrams_described: absentableCount,
+    tables_fixed: absentableCount,
+    flagged_items_count: absentableCount,
   }),
 });
 

@@ -41,6 +41,10 @@
   --seeds-pagebtn-active-bg: #235265;
   --seeds-pagebtn-active-text: #ffffff;
   --seeds-eyebrow-text: #355b3b;
+  --seeds-chart-1: #4caf50;
+  --seeds-chart-2: #2f7de1;
+  --seeds-chart-3: #f59a4a;
+  --seeds-chart-4: #9b4fd9;
 }
 
 html body {

@@ -1,10 +1,53 @@
 .table.table th {
   background-color: var(--seeds-table-header-bg);
   color: var(--seeds-table-header-text);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  font-size: 12px;
+}
+
+.paginationControl.paginationControl {
+  min-width: 44px;
+  height: 44px;
+  padding-inline: 12px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--seeds-text-primary);
+  background-color: var(--seeds-bg-surface);
+  border-color: var(--seeds-border-default);
+  border-radius: 4px;
 }
 
 .paginationControl.paginationControl[data-active] {
   background-color: var(--seeds-pagebtn-active-bg);
   color: var(--seeds-pagebtn-active-text);
   border-color: var(--seeds-pagebtn-active-bg);
+}
+
+.table.table {
+  border-collapse: separate;
+  border-spacing: 0;
+  border-radius: 8px;
+  border: 1px solid var(--seeds-table-border);
+}
+
+.table.table th:first-child {
+  border-top-left-radius: 8px;
+}
+
+.table.table th:last-child {
+  border-top-right-radius: 8px;
+}
+
+.table.table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.table.table th,
+.table.table td {
+  border-bottom: 1px solid var(--seeds-table-border);
+}
+
+.table.table tr {
+  border-bottom: none;
 }

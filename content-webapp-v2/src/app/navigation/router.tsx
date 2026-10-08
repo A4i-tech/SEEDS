@@ -39,10 +39,11 @@ import { MakeAccessibleScreen } from '@features/make-accessible/screens/MakeAcce
 import { MakeAccessibleJobScreen } from '@features/make-accessible/screens/MakeAccessibleJobScreen';
 import { HomeScreen } from '@features/home/screens/HomeScreen';
 import { Shell } from './Shell';
+import { routePaths } from './routePaths';
 
 function requireAuth() {
   if (useAuthStore.getState().status !== 'authenticated') {
-    throw redirect({ to: '/' });
+    throw redirect({ to: routePaths.login });
   }
 }
 
@@ -52,6 +53,11 @@ const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
   component: LoginScreen,
+  beforeLoad: () => {
+    if (useAuthStore.getState().status === 'authenticated') {
+      throw redirect({ to: routePaths.home });
+    }
+  },
 });
 
 const registerRoute = createRoute({
@@ -115,7 +121,7 @@ const notFoundRoute = createRoute({
   getParentRoute: () => shellRoute,
   path: '$',
   beforeLoad: () => {
-    throw redirect({ to: '/home' });
+    throw redirect({ to: routePaths.home, replace: true });
   },
 });
 
@@ -160,6 +166,10 @@ const routeTree = rootRoute.addChildren([
 ]);
 
 export const router = createRouter({ routeTree, defaultPreload: 'intent' });
+
+useAuthStore.subscribe((state, prev) => {
+  if (state.status !== prev.status) void router.invalidate();
+});
 
 declare module '@tanstack/react-router' {
   interface Register {

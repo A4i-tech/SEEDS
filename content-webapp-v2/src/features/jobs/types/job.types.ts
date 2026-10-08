@@ -1,4 +1,6 @@
 import { z } from 'zod';
+import { routePaths } from '@app/navigation/routePaths';
+import { text } from '@shared/utils/schema';
 
 export const remediationStatusSchema = z.enum([
   'pending',
@@ -10,7 +12,7 @@ export const remediationStatusSchema = z.enum([
 ]);
 
 const jobProgressSchema = z.object({
-  message: z.string().nullable(),
+  message: text,
   percent: z.number().nullable(),
 });
 
@@ -18,9 +20,9 @@ export const remediationJobSchema = z.object({
   job_id: z.string(),
   source_name: z.string(),
   language: z.string(),
-  detected_language: z.string().nullable(),
+  detected_language: text,
   status: remediationStatusSchema,
-  stage: z.string().nullable().optional(),
+  stage: text,
   stage_index: z.number(),
   stage_count: z.number(),
   artifacts: z.record(z.string(), z.string()),
@@ -35,15 +37,15 @@ export const remediationJobSchema = z.object({
     })
     .optional(),
   progress: jobProgressSchema,
-  draft_remediated_md: z.string().nullable().optional(),
-  verified_at: z.string().nullable().optional(),
-  verified_by: z.string().nullable().optional(),
-  title: z.string().nullable().optional(),
-  target_language: z.string().nullable().optional(),
-  translation_error: z.string().nullable().optional(),
-  error: z.string().nullable(),
+  draft_remediated_md: z.string().nullish(),
+  verified_at: text,
+  verified_by: text,
+  title: text,
+  target_language: text,
+  translation_error: text,
+  error: text,
   created_at: z.string(),
-  finished_at: z.string().nullable(),
+  finished_at: text,
 });
 
 export type RemediationJob = z.infer<typeof remediationJobSchema>;
@@ -53,11 +55,11 @@ export const syncStatusSchema = z.enum(['pending', 'running', 'completed', 'fail
 export const syncJobSchema = z.object({
   job_id: z.string(),
   scope: z.string(),
-  course_id: z.string().nullable(),
+  course_id: text,
   status: syncStatusSchema,
-  started_at: z.string().nullable(),
-  finished_at: z.string().nullable(),
-  total_courses: z.number().nullish(),
+  started_at: text,
+  finished_at: text,
+  total_courses: z.number().nullish().transform((value) => value ?? 0),
   processed: z.number(),
   stats: z.object({
     saved: z.number(),
@@ -65,7 +67,7 @@ export const syncJobSchema = z.object({
     empty: z.number(),
     failed: z.number(),
   }),
-  error: z.string().nullable(),
+  error: text,
 });
 
 export type SyncJob = z.infer<typeof syncJobSchema>;
@@ -85,6 +87,13 @@ export interface JobRow {
   updated: string;
 }
 
+export const flowRoute: Record<JobType, string> = {
+  'make-accessible': routePaths.makeAccessible,
+  'course-sync': routePaths.library,
+  localize: routePaths.localize,
+  create: routePaths.create,
+};
+
 const remediationStatusMap: Record<z.infer<typeof remediationStatusSchema>, JobStatus> = {
   pending: 'running',
   running: 'running',
@@ -101,6 +110,16 @@ const syncStatusMap: Record<z.infer<typeof syncStatusSchema>, JobStatus> = {
   failed: 'failed',
 };
 
+export function failureSubtitle(job: RemediationJob): string {
+  if (job.status === 'failed') return job.error;
+  return '';
+}
+
+function syncTitle(job: SyncJob): string {
+  if (job.scope === 'course' && job.course_id) return job.course_id;
+  return 'All courses';
+}
+
 function syncSubtitle(job: SyncJob): string {
   const parts: string[] = [];
   if (job.stats.failed) parts.push(`${job.stats.failed} courses failed`);
@@ -114,18 +133,18 @@ export function toJobRows(remediation: RemediationJob[], sync: SyncJob[]): JobRo
   const fromRemediation: JobRow[] = remediation.map((job) => ({
     id: job.job_id,
     title: job.source_name,
-    subtitle: job.status === 'failed' && job.error ? job.error : '',
+    subtitle: failureSubtitle(job),
     type: 'make-accessible',
     status: remediationStatusMap[job.status],
-    updated: job.finished_at ?? job.created_at,
+    updated: job.finished_at || job.created_at,
   }));
   const fromSync: JobRow[] = sync.map((job) => ({
     id: job.job_id,
-    title: job.scope === 'course' && job.course_id ? job.course_id : 'All courses',
+    title: syncTitle(job),
     subtitle: syncSubtitle(job),
     type: 'course-sync',
     status: syncStatusMap[job.status],
-    updated: job.finished_at ?? job.started_at ?? '',
+    updated: job.finished_at || job.started_at,
   }));
   return [...fromRemediation, ...fromSync].sort((a, b) => b.updated.localeCompare(a.updated));
 }

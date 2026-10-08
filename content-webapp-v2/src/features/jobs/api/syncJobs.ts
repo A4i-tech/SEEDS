@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { apiClient } from '@shared/services/apiClient';
+import { text } from '@shared/utils/schema';
 import { syncJobSchema } from '../types/job.types';
 
 const syncJobsResponseSchema = z.object({ jobs: z.array(syncJobSchema) });
@@ -18,7 +19,7 @@ const syncJobItemSchema = z.object({
   source_id: z.string(),
   name: z.string(),
   status: z.enum(['saved', 'skipped', 'empty', 'failed']),
-  error: z.string().nullable(),
+  error: text,
   at: z.string(),
 });
 
@@ -26,7 +27,7 @@ export type SyncJobItem = z.infer<typeof syncJobItemSchema>;
 
 const syncJobItemsPageSchema = z.object({
   items: z.array(syncJobItemSchema),
-  next_cursor: z.string().nullable(),
+  next_cursor: z.string().nullish().transform((value) => value ?? undefined),
   total: z.number(),
 });
 

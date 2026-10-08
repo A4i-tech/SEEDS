@@ -6,7 +6,13 @@ import { routePaths } from '@app/navigation/routePaths';
 import { useAuthStore } from '@features/auth/store/useAuthStore';
 import { getContentById, getContentSasUrl } from '@features/library/api/library';
 import { toApiErrorMessage } from '@shared/utils/apiErrors';
+import type { ContentItem } from '@features/library/types/content.types';
 import { updateReviewContent } from '../api/review';
+
+function audioUrlOf(item: ContentItem | undefined): string {
+  if (!item || item.type === 'quiz') return '';
+  return item.primary_audio_url || item.audio_content[0]?.audio_url || '';
+}
 
 export function useReviewAudio(id: string) {
   const { t } = useTranslation();
@@ -22,15 +28,12 @@ export function useReviewAudio(id: string) {
   });
 
   const item = content.data;
-  const audioUrl =
-    item && item.type !== 'quiz'
-      ? (item.primary_audio_url ?? item.audio_content?.[0]?.audio_url ?? null)
-      : null;
+  const audioUrl = audioUrlOf(item);
 
   const audio = useQuery({
     queryKey: ['review', 'audio', id, 'sas'],
-    queryFn: () => getContentSasUrl(audioUrl ?? ''),
-    enabled: enabled && audioUrl !== null,
+    queryFn: () => getContentSasUrl(audioUrl),
+    enabled: enabled && audioUrl !== '',
   });
 
   const save = useMutation({
@@ -49,7 +52,7 @@ export function useReviewAudio(id: string) {
     mutationFn: (description?: string) => updateReviewContent(id, { description }),
     onSuccess: () => {
       notifications.show({ message: t('review.approved') });
-      void navigate({ to: `${routePaths.review}/approved`, state: { title: item && item.title?.english ? item.title.english : id } });
+      void navigate({ to: `${routePaths.review}/approved`, state: { title: item?.title.english || id } });
     },
     onError: (err) => {
       const message = toApiErrorMessage(err);

@@ -1,12 +1,14 @@
+import { useMediaQuery } from '@mantine/hooks';
 import { Button, Group, Radio, SegmentedControl, Select, Stack, Text, TextInput, Title } from '@mantine/core';
 import { useState } from 'react';
+import { z } from 'zod';
 import { useTranslation } from 'react-i18next';
 import { ComingSoon } from '@shared/components/ComingSoon';
-import { useAuthStore } from '@features/auth/store/useAuthStore';
 import { toApiErrorMessage } from '@shared/utils/apiErrors';
-import { getLanguages } from '@shared/services/languages';
-import { useQuery } from '@tanstack/react-query';
+import { selectValue } from '@shared/utils/select';
+import { useLanguages } from '@shared/hooks/useLanguages';
 import type { QuizCreate } from '../../library/types/content.types';
+import { toLocalized } from '../utils/localized';
 import { useCreateQuiz } from '../hooks/useCreateQuiz';
 import classes from './QuizBuilderScreen.module.css';
 
@@ -22,7 +24,7 @@ interface DraftQuestion {
   correctOptionId: string;
 }
 
-type Starter = 'blank' | 'ai' | 'source';
+const starterSchema = z.enum(['blank', 'ai', 'source']);
 
 function blankQuestion(key: number): DraftQuestion {
   return {
@@ -40,22 +42,17 @@ function blankQuestion(key: number): DraftQuestion {
 
 export function QuizBuilderScreen() {
   const { t } = useTranslation();
-  const status = useAuthStore((s) => s.status);
-  const [starter, setStarter] = useState<Starter>('blank');
+  const [starter, setStarter] = useState<z.infer<typeof starterSchema>>('blank');
   const [title, setTitle] = useState('');
   const [localTitle, setLocalTitle] = useState('');
   const [theme, setTheme] = useState('');
   const [localTheme, setLocalTheme] = useState('');
   const [language, setLanguage] = useState('');
   const [questions, setQuestions] = useState<DraftQuestion[]>([blankQuestion(0)]);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState('');
   const createQuiz = useCreateQuiz();
 
-  const languages = useQuery({
-    queryKey: ['languages'],
-    queryFn: getLanguages,
-    enabled: status === 'authenticated',
-  });
+  const { options: languageOptions } = useLanguages();
 
   const updateQuestion = (key: number, patch: Partial<DraftQuestion>) => {
     setQuestions((prev) => prev.map((q) => (q.key === key ? { ...q, ...patch } : q)));
@@ -70,7 +67,7 @@ export function QuizBuilderScreen() {
   };
 
   const handleSave = async () => {
-    setError(null);
+    setError('');
     const needsLocal = language.toLowerCase() !== 'en';
     if (!title.trim() || !theme.trim() || !language || (needsLocal && (!localTitle.trim() || !localTheme.trim()))) {
       setError(t('create.quizIncomplete'));
@@ -79,8 +76,8 @@ export function QuizBuilderScreen() {
     const payload: QuizCreate = {
       type: 'quiz',
       language,
-      title: { english: title, local: needsLocal ? localTitle : title },
-      theme: { english: theme, local: needsLocal ? localTheme : theme },
+      title: toLocalized(title, localTitle, needsLocal),
+      theme: toLocalized(theme, localTheme, needsLocal),
       questions: questions.map((q, qi) => ({
         question: { id: `q${qi + 1}`, text: q.text },
         options: q.options.map((o) => ({ id: o.id, text: o.text })),
@@ -94,56 +91,54 @@ export function QuizBuilderScreen() {
     }
   };
 
+  const isMobile = useMediaQuery('(max-width: 36em)');
   return (
     <Stack gap="md">
       <Title order={2}>{t('create.quizTitle')}</Title>
       <SegmentedControl
+        orientation={isMobile ? 'vertical' : 'horizontal'}
         value={starter}
-        onChange={(v) => setStarter(v as Starter)}
-        data={[
-          { value: 'blank', label: t('create.starters.blank') },
-          { value: 'ai', label: t('create.starters.ai') },
-          { value: 'source', label: t('create.starters.source') },
-        ]}
+        onChange={(v) => setStarter(starterSchema.parse(v))}
+        data={starterSchema.options.map((value) => ({ value, label: t(`create.starters.${value}`) }))}
         aria-label={t('create.startFrom')}
       />
       {starter !== 'blank' && <ComingSoon title={t(`create.starters.${starter}`)} />}
       {starter === 'blank' && (
         <>
           <Group gap="md" grow>
-            <TextInput
+            <TextInput miw={200}
               label={t('create.quizName')}
               value={title}
               onChange={(e) => setTitle(e.currentTarget.value)}
               required
             />
             {language.toLowerCase() !== 'en' && language !== '' && (
-              <TextInput
+              <TextInput miw={200}
                 label={t('create.localQuizName')}
                 value={localTitle}
                 onChange={(e) => setLocalTitle(e.currentTarget.value)}
                 required
               />
             )}
-            <TextInput
+            <TextInput miw={200}
               label={t('create.theme')}
               value={theme}
               onChange={(e) => setTheme(e.currentTarget.value)}
               required
             />
             {language.toLowerCase() !== 'en' && language !== '' && (
-              <TextInput
+              <TextInput miw={200}
                 label={t('create.localTheme')}
                 value={localTheme}
                 onChange={(e) => setLocalTheme(e.currentTarget.value)}
                 required
               />
             )}
-            <Select
+            <Select miw={200}
               label={t('create.language')}
               value={language}
-              onChange={(v) => setLanguage(v ?? '')}
-              data={(languages.data ?? []).map((l) => ({ value: l.code, label: l.name }))}
+              onChange={(v) => setLanguage(selectValue(v))}
+              data={languageOptions}
               required
             />
           </Group>

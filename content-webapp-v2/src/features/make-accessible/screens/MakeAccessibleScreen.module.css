@@ -1,4 +1,5 @@
-.eyebrow {
+.eyebrow.eyebrow,
+.label.label {
   text-transform: uppercase;
   letter-spacing: 2px;
   color: var(--seeds-eyebrow-text);
@@ -10,7 +11,7 @@
   flex-direction: column;
   align-items: center;
   gap: var(--mantine-spacing-md);
-  padding: var(--mantine-spacing-xl);
+  padding: var(--mantine-spacing-xl) var(--mantine-spacing-md);
   border: 1px dashed var(--seeds-border-default);
   border-radius: var(--mantine-radius-md);
   background-color: var(--seeds-bg-surface);
@@ -30,4 +31,50 @@
 .submitButton.submitButton {
   background-color: var(--seeds-btn-primary-bg);
   color: var(--seeds-btn-primary-text);
+}
+
+.label.label {
+  font-size: var(--mantine-font-size-sm);
+}
+
+.tile {
+  padding: var(--mantine-spacing-sm);
+  border: 1px solid var(--seeds-card-border);
+  border-radius: var(--mantine-radius-sm);
+  background-color: var(--seeds-bg-surface);
+  text-align: center;
+  font-size: var(--mantine-font-size-sm);
+}
+
+.link.link {
+  color: var(--seeds-btn-tertiary-text);
+  font-size: var(--mantine-font-size-sm);
+  font-weight: 700;
+}
+
+.sample {
+  overflow: hidden;
+  border: 1px solid var(--seeds-card-border);
+  border-radius: var(--mantine-radius-md);
+  background-color: var(--seeds-bg-surface);
+}
+
+.preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 72px;
+  background-color: var(--seeds-bg-page);
+  color: var(--seeds-text-secondary);
+  font-size: var(--mantine-font-size-sm);
+}
+
+.sampleBody {
+  padding: var(--mantine-spacing-md);
+}
+
+@media (min-width: 48em) {
+  .dropzone {
+    padding: var(--mantine-spacing-xl);
+  }
 }

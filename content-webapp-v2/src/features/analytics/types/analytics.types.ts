@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { list, text } from '@shared/utils/schema';
 
 export const analyticsRequestSchema = z.object({
   start_date: z.string(),
@@ -7,14 +8,26 @@ export const analyticsRequestSchema = z.object({
 
 export type AnalyticsRequest = z.infer<typeof analyticsRequestSchema>;
 
-export const callLogSchema = z
-  .object({
-    phone_number: z.string().nullable().optional(),
-    duration: z.union([z.string(), z.number()]).nullable().optional(),
-    created_at: z.string().nullable().optional(),
-    user_actions: z.array(z.unknown()).nullable().optional(),
-  })
-  .catchall(z.unknown());
+function toSeconds(value: unknown): number {
+  if (typeof value === 'number') return value;
+  if (typeof value !== 'string' || value === '') return 0;
+  const seconds = parseInt(value, 10);
+  if (Number.isNaN(seconds)) return 0;
+  return seconds;
+}
+
+const looseText = z.string().catch('');
+
+export const callLogSchema = z.object({
+  phone_number: text,
+  duration: z.union([z.string(), z.number()]).nullish().transform(toSeconds),
+  created_at: text,
+  user_actions: list(z.unknown()),
+  content_id: looseText,
+  audio_id: looseText,
+  content_name: looseText,
+  audio_name: looseText,
+});
 
 export type CallLog = z.infer<typeof callLogSchema>;
 
@@ -36,16 +49,15 @@ export const dashboardStatisticsSchema = z.object({
 
 export type DashboardStatistics = z.infer<typeof dashboardStatisticsSchema>;
 
-export const schoolDashboardRowSchema = z.object({
-  id: z.string().nullable().optional(),
-  tenant_id: z.string().nullable().optional(),
-  name: z.string(),
-  email: z.string().nullable().optional(),
-  is_active: z.boolean().optional(),
-  teacher_count: z.number(),
-  student_count: z.number(),
-  class_count: z.number(),
-});
+export const schoolDashboardRowSchema = z
+  .object({
+    id: text,
+    name: z.string(),
+    teacher_count: z.number(),
+    student_count: z.number(),
+    class_count: z.number(),
+  })
+  .transform((row) => ({ ...row, id: row.id || row.name }));
 
 export type SchoolDashboardRow = z.infer<typeof schoolDashboardRowSchema>;
 
@@ -57,11 +69,7 @@ export const tenantDashboardSchema = z.object({
 export type TenantDashboard = z.infer<typeof tenantDashboardSchema>;
 
 export const schoolProfileSchema = z.object({
-  id: z.string().nullable().optional(),
-  tenant_id: z.string().nullable().optional(),
   name: z.string(),
-  email: z.string().nullable().optional(),
-  is_active: z.boolean().optional(),
 });
 
 export type SchoolProfile = z.infer<typeof schoolProfileSchema>;
@@ -79,10 +87,11 @@ export const analyticsRoleSchema = z.enum(['tenant', 'school_admin']);
 
 export type AnalyticsRole = z.infer<typeof analyticsRoleSchema>;
 
-export function analyticsEndpointFor(role: AnalyticsRole): string {
-  return role === 'school_admin' ? '/school/analytics' : '/tenant/analytics';
-}
+const ANALYTICS_ENDPOINT: Record<AnalyticsRole, string> = {
+  tenant: '/tenant/analytics',
+  school_admin: '/school/analytics',
+};
 
-export function dashboardEndpointFor(role: AnalyticsRole): string {
-  return role === 'school_admin' ? '/school/dashboard' : '/tenant/dashboard';
+export function analyticsEndpointFor(role: AnalyticsRole): string {
+  return ANALYTICS_ENDPOINT[role];
 }

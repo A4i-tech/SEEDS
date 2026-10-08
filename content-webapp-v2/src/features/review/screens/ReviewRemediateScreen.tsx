@@ -20,7 +20,7 @@ function FigureImage({ jobId, imageName, alt }: { jobId: string; imageName: stri
     },
     [image.data],
   );
-  if (!image.data) return null;
+  if (!image.data) return <></>;
   return <img src={image.data} alt={alt} className={classes.figure} />;
 }
 
@@ -29,15 +29,14 @@ export function ReviewRemediateScreen() {
   const navigate = useNavigate();
   const { jobId = '' } = useParams({ strict: false });
   const { job, summary, draftSeed, isLoading, loadError, save, approve } = useReviewRemediate(jobId);
-  const [edited, setEdited] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [edited, setEdited] = useState<string | undefined>(undefined);
+  const [error, setError] = useState('');
 
-  const draft = edited ?? draftSeed;
-  const findings = summary?.flagged_items ?? [];
+  const draft = edited === undefined ? draftSeed : edited;
   const title = job?.source_name ?? jobId;
 
   const handleSave = async () => {
-    setError(null);
+    setError('');
     try {
       await save.mutateAsync(draft);
     } catch (err) {
@@ -91,8 +90,8 @@ export function ReviewRemediateScreen() {
               pages: summary.total_pages,
             })}
           </Text>
-          {findings.length === 0 && <Text size="sm">{t('review.noFindings')}</Text>}
-          {findings.map((flag) => (
+          {summary.flagged_items.length === 0 && <Text size="sm">{t('review.noFindings')}</Text>}
+          {summary.flagged_items.map((flag) => (
             <Stack key={flag.id} gap={0} className={classes.finding}>
               <Text size="sm" fw={700}>
                 {t('review.pageN', { n: flag.page })} · {flag.type}
@@ -134,7 +133,7 @@ export function ReviewRemediateScreen() {
         <Button
           className={classes.submitButton}
           loading={approve.isPending}
-          onClick={() => void approve.mutateAsync(job ? job.source_name.replace(/\.pdf$/i, ' (Accessible)') : undefined)}
+          onClick={() => void approve.mutateAsync(job && job.source_name.replace(/\.pdf$/i, ' (Accessible)'))}
         >
           {t('review.approve')}
         </Button>

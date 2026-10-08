@@ -1,5 +1,5 @@
 import { Button, Code, Group, Modal, Select, Stack, Text, TextInput, Title } from '@mantine/core';
-import { Search } from 'lucide-react';
+import { Plus, Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
@@ -11,6 +11,8 @@ import { DataTable } from '@shared/components/DataTable';
 import { StatusBadge } from '@shared/components/StatusBadge';
 import { openConfirmDialog } from '@shared/components/ConfirmDialog';
 import { toApiErrorMessage } from '@shared/utils/apiErrors';
+import { formatRelativeTime } from '@shared/utils/format';
+import { selectValue } from '@shared/utils/select';
 import type { Website } from '../types/localize.types';
 import { useLocalizeSites } from '../hooks/useLocalizeSites';
 import classes from './LocalizeSitesScreen.module.css';
@@ -19,25 +21,35 @@ type SiteStatusFilter = 'all' | 'Active' | 'Inactive';
 
 const statusOptions: SiteStatusFilter[] = ['all', 'Active', 'Inactive'];
 
+const VISIBLE_LANGUAGES = 2;
+
 interface SiteRow {
   id: string;
   name: string;
   domain: string;
   status: string;
-  languages: string;
+  languages: { code: string; enabled: boolean }[];
+  updatedAt: string;
   siteId: string;
   apiBase: string;
+}
+
+function LanguageBadge({ enabled }: { enabled: boolean }) {
+  const { t } = useTranslation();
+  if (enabled) return <StatusBadge tone="done" label={t('localize.languageEnabled')} />;
+  return <StatusBadge tone="failed" label={t('localize.languageDisabled')} />;
 }
 
 function toRow(site: Website): SiteRow {
   return {
     id: site.id,
-    name: site.name ?? '',
-    domain: site.domain ?? '',
-    status: site.status ?? '',
-    languages: (site.languages ?? []).map((l) => l.code).join(', '),
-    siteId: site.site_id ?? '',
-    apiBase: site.api_base ?? API_BASE_URL,
+    name: site.name,
+    domain: site.domain,
+    status: site.status,
+    languages: site.languages,
+    updatedAt: site.updated_at,
+    siteId: site.site_id,
+    apiBase: site.api_base || API_BASE_URL,
   };
 }
 
@@ -65,11 +77,12 @@ function devToolsSnippet(row: SiteRow): string {
 export function LocalizeSitesScreen() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { sites, isLoading, error, remove } = useLocalizeSites();
+  const { sites, languages, isLoading, error, remove } = useLocalizeSites();
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<SiteStatusFilter>('all');
+  const [languageFilter, setLanguageFilter] = useState('all');
   const [page, setPage] = useState(1);
-  const [snippetRow, setSnippetRow] = useState<SiteRow | null>(null);
+  const [snippetId, setSnippetId] = useState('');
   const loadError = toApiErrorMessage(error);
 
   const rows = useMemo(() => {
@@ -77,14 +90,27 @@ export function LocalizeSitesScreen() {
     return sites.map(toRow).filter(
       (row) =>
         (statusFilter === 'all' || row.status === statusFilter) &&
+        (languageFilter === 'all' || row.languages.some((l) => l.code === languageFilter)) &&
         (!q || row.name.toLowerCase().includes(q) || row.domain.toLowerCase().includes(q)),
     );
-  }, [sites, query, statusFilter]);
+  }, [sites, query, statusFilter, languageFilter]);
+
+  const snippetRow = rows.find((row) => row.id === snippetId);
+
+  const snippetTitle = (): string | undefined => {
+    if (snippetRow === undefined) return undefined;
+    return t('localize.snippetTitle', { name: snippetRow.name || snippetRow.domain });
+  };
 
   const copySnippet = async (snippet: string) => {
     await navigator.clipboard.writeText(snippet);
     notifications.show({ message: t('localize.copied') });
   };
+
+  const languageName = (code: string) => languages.find((l) => l.code === code)?.name ?? code;
+
+  const openSite = (row: SiteRow) =>
+    void navigate({ to: '/localize/sites/$siteId/edit', params: { siteId: row.id } });
 
   const confirmRemove = (row: SiteRow) => {
     openConfirmDialog({
@@ -101,48 +127,91 @@ export function LocalizeSitesScreen() {
       key: 'site',
       header: t('localize.columns.site'),
       render: (row) => (
-        <Stack gap={0}>
-          <Text fw={700}>{row.name || row.domain}</Text>
-          {row.name && (
+        <Stack gap={4}>
+          <Text fw={700}>{row.domain}</Text>
+          {(row.name || row.status === 'Inactive') && (
             <Text size="sm" c="dimmed">
-              {row.domain}
+              {[row.name, row.status === 'Inactive' && t('localize.statusOptions.Inactive')].filter(Boolean).join(' · ')}
             </Text>
           )}
         </Stack>
       ),
     },
     {
-      key: 'status',
-      header: t('localize.columns.status'),
+      key: 'languages',
+      header: t('localize.columns.languages'),
       render: (row) => (
-        <StatusBadge tone={row.status === 'Active' ? 'done' : 'failed'} label={row.status} />
+        <Group gap="xs">
+          {row.languages.slice(0, VISIBLE_LANGUAGES).map((l) => (
+            <Stack key={l.code} gap={4} className={classes.chip}>
+              <Text size="xs" fw={700}>
+                {languageName(l.code)}
+              </Text>
+              <LanguageBadge enabled={l.enabled} />
+            </Stack>
+          ))}
+          {row.languages.length > VISIBLE_LANGUAGES && (
+            <button type="button" className={`${classes.chip} ${classes.moreChip}`} onClick={() => openSite(row)}>
+              <Text size="xs" fw={700} className={classes.moreCount}>
+                {t('localize.moreLanguages', { count: row.languages.length - VISIBLE_LANGUAGES })}
+              </Text>
+              <Text size="xs" c="dimmed">
+                {t('localize.viewAll')}
+              </Text>
+            </button>
+          )}
+        </Group>
       ),
     },
-    { key: 'languages', header: t('localize.columns.languages'), render: (row) => row.languages },
+    {
+      key: 'updated',
+      header: t('localize.columns.updated'),
+      render: (row) => (
+        <Text size="sm" c="dimmed">
+          {formatRelativeTime(row.updatedAt)}
+        </Text>
+      ),
+    },
   ];
 
   return (
     <Stack gap="md">
-      <Title order={2}>{t('localize.title')}</Title>
-      <Text c="dimmed">{t('localize.description')}</Text>
-      <Group gap="md">
-        <Button className={classes.submitButton} onClick={() => void navigate({ to: routePaths.localizeAdd })}>
-          {t('localize.addSite')}
-        </Button>
-        <Button
-          variant="outline"
-          className={classes.secondaryButton}
-          onClick={() => void navigate({ to: routePaths.localizeReview })}
-        >
-          {t('localize.reviewTranslations')}
-        </Button>
+      <Group justify="space-between" align="flex-start" wrap="wrap" gap="md">
+        <Stack gap="xs">
+          <Title order={2}>{t('localize.title')}</Title>
+          <Text size="sm" c="dimmed">
+            {t('localize.description')}
+          </Text>
+        </Stack>
+        <Group gap="md">
+          <Button
+            variant="outline"
+            className={classes.secondaryButton}
+            onClick={() => void navigate({ to: routePaths.localizeReview })}
+          >
+            {t('localize.reviewTranslations')}
+          </Button>
+          <Button
+            className={classes.submitButton}
+            leftSection={<Plus size={16} aria-hidden />}
+            onClick={() => void navigate({ to: routePaths.localizeAdd })}
+          >
+            {t('localize.addSite')}
+          </Button>
+        </Group>
       </Group>
       <Group gap="md" className={classes.filters}>
         <Select
           aria-label={t('localize.columns.status')}
           value={statusFilter}
-          onChange={(v) => setStatusFilter((v as SiteStatusFilter) ?? 'all')}
+          onChange={(v) => setStatusFilter(selectValue(v, 'all'))}
           data={statusOptions.map((v) => ({ value: v, label: t(`localize.statusOptions.${v}`) }))}
+        />
+        <Select
+          aria-label={t('localize.columns.languages')}
+          value={languageFilter}
+          onChange={(v) => setLanguageFilter(selectValue(v, 'all'))}
+          data={[{ value: 'all', label: t('localize.allLanguages') }, ...languages.map((l) => ({ value: l.code, label: l.name }))]}
         />
         <TextInput
           aria-label={t('localize.search')}
@@ -169,18 +238,14 @@ export function LocalizeSitesScreen() {
         footerLayout="range"
         emptyMessage={t('localize.empty')}
         actions={(row) => (
-          <Group gap="xs">
-            <button
-              type="button"
-              className={classes.rowAction}
-              onClick={() => void navigate({ to: '/localize/sites/$siteId/edit', params: { siteId: row.id } })}
-            >
-              {t('localize.edit')}
+          <Group gap="md" wrap="nowrap">
+            <button type="button" className={classes.rowAction} onClick={() => openSite(row)}>
+              {t('localize.open')}
             </button>
             <button
               type="button"
               className={classes.rowAction}
-              onClick={() => setSnippetRow(row)}
+              onClick={() => setSnippetId(row.id)}
             >
               {t('localize.viewSnippet')}
             </button>
@@ -189,12 +254,20 @@ export function LocalizeSitesScreen() {
             </button>
           </Group>
         )}
-        actionsLabel={t('localize.columns.actions')}
+        actionsLabel=""
       />
+      <Button
+        variant="outline"
+        fullWidth
+        className={classes.addDashed}
+        onClick={() => void navigate({ to: routePaths.localizeAdd })}
+      >
+        + {t('localize.addSite')}
+      </Button>
       <Modal
-        opened={snippetRow !== null}
-        onClose={() => setSnippetRow(null)}
-        title={snippetRow ? t('localize.snippetTitle', { name: snippetRow.name || snippetRow.domain }) : ''}
+        opened={snippetRow !== undefined}
+        onClose={() => setSnippetId('')}
+        title={snippetTitle()}
         centered
       >
         {snippetRow && (

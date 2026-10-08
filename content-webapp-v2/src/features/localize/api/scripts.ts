@@ -6,9 +6,11 @@ const GENERATE_TIMEOUT_MS = 5 * 60 * 1000;
 
 const runtimeTranslationsSchema = z.record(z.string(), z.string());
 
+const extractStatusSchema = z.object({ status: z.string().optional() });
+
 export async function extractItems(siteId: string, items: ExtractItem[]): Promise<{ status?: string }> {
   const { data } = await apiClient.post('/translations/extract', { site_id: siteId, items });
-  return data as { status?: string };
+  return extractStatusSchema.parse(data);
 }
 
 export async function getRuntimeTranslations(

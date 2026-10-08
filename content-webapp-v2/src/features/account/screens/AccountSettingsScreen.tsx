@@ -17,7 +17,7 @@ type PasswordValues = z.infer<typeof passwordSchema>;
 export function AccountSettingsScreen() {
   const { t } = useTranslation();
   const { mutateAsync: changePassword, isPending } = useChangePassword();
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState('');
   const [saved, setSaved] = useState(false);
 
   const form = useForm<PasswordValues>({
@@ -26,7 +26,7 @@ export function AccountSettingsScreen() {
   });
 
   const handleSubmit = async (values: PasswordValues) => {
-    setError(null);
+    setError('');
     setSaved(false);
     try {
       await changePassword(values);

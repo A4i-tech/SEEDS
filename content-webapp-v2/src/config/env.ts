@@ -1,6 +1,6 @@
 function required(name: string): string {
-  const value = import.meta.env[name] as string | undefined;
-  if (!value) {
+  const value: unknown = import.meta.env[name];
+  if (typeof value !== 'string' || value.length === 0) {
     throw new Error(`Missing required environment variable: ${name}`);
   }
   return value;

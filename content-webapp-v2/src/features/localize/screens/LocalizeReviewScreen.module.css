@@ -4,11 +4,11 @@
 
 .search {
   flex: 1;
-  min-width: 240px;
+  min-width: min(240px, 100%);
 }
 
 .route {
-  min-width: 220px;
+  min-width: min(220px, 100%);
 }
 
 .secondaryButton.secondaryButton {

@@ -12,3 +12,24 @@
   text-transform: uppercase;
   letter-spacing: 2px;
 }
+
+.tabList.tabList {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+}
+
+.tab.tab {
+  color: var(--seeds-text-primary);
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.tab.tab[data-active] {
+  color: var(--seeds-subnav-text-active);
+  border-bottom-color: var(--seeds-brandmark-bg);
+}
+
+.preview th {
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}

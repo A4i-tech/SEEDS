@@ -1,13 +1,14 @@
 import { Button, FileInput, Group, Select, Stack, Text, TextInput, Title } from '@mantine/core';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useQuery } from '@tanstack/react-query';
 import type { DataTableColumn } from '@shared/components/DataTable';
 import { DataTable } from '@shared/components/DataTable';
-import { useAuthStore } from '@features/auth/store/useAuthStore';
 import { toApiErrorMessage } from '@shared/utils/apiErrors';
-import { getLanguages } from '@shared/services/languages';
+import { fileFromInput } from '@shared/utils/fileInput';
+import { selectValue } from '@shared/utils/select';
+import { useLanguages } from '@shared/hooks/useLanguages';
 import type { QuizCreate } from '../../library/types/content.types';
+import { toLocalized } from '../utils/localized';
 import { useCreateQuiz } from '../hooks/useCreateQuiz';
 import classes from './CreateSourceScreen.module.css';
 
@@ -19,8 +20,7 @@ interface DraftRow {
 
 export function CreateSourceScreen() {
   const { t } = useTranslation();
-  const status = useAuthStore((s) => s.status);
-  const [file, setFile] = useState<File | null>(null);
+  const [file, setFile] = useState<File | undefined>(undefined);
   const [startPage, setStartPage] = useState('');
   const [endPage, setEndPage] = useState('');
   const [title, setTitle] = useState('');
@@ -32,18 +32,14 @@ export function CreateSourceScreen() {
   const [answer, setAnswer] = useState('');
   const [rows, setRows] = useState<DraftRow[]>([]);
   const [page, setPage] = useState(1);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState('');
   const createQuiz = useCreateQuiz();
 
-  const languages = useQuery({
-    queryKey: ['languages'],
-    queryFn: getLanguages,
-    enabled: status === 'authenticated',
-  });
+  const { options: languageOptions } = useLanguages();
 
   const start = Number(startPage);
   const end = Number(endPage);
-  const scopeValid = file !== null && Number.isInteger(start) && Number.isInteger(end) && start > 0 && end >= start;
+  const scopeValid = file !== undefined && Number.isInteger(start) && Number.isInteger(end) && start > 0 && end >= start;
   const draftValid = scopeValid && rows.length > 0;
 
   const columns: DataTableColumn<DraftRow>[] = [
@@ -52,7 +48,7 @@ export function CreateSourceScreen() {
   ];
 
   const handleSave = async () => {
-    setError(null);
+    setError('');
     const needsLocal = language.toLowerCase() !== 'en';
     if (!draftValid || !title.trim() || !theme.trim() || !language || (needsLocal && (!localTitle.trim() || !localTheme.trim()))) {
       setError(t('create.sourceIncomplete'));
@@ -61,9 +57,9 @@ export function CreateSourceScreen() {
     const payload: QuizCreate = {
       type: 'quiz',
       language,
-      title: { english: title, local: needsLocal ? localTitle : title },
-      theme: { english: theme, local: needsLocal ? localTheme : theme },
-      description: `Source: ${file?.name ?? ''} pp.${start}-${end}`,
+      title: toLocalized(title, localTitle, needsLocal),
+      theme: toLocalized(theme, localTheme, needsLocal),
+      description: `Source: ${file.name} pp.${start}-${end}`,
       questions: rows.map((r, qi) => ({
         question: { id: `q${qi + 1}`, text: r.text },
         options: [{ id: 'A', text: r.answer }],
@@ -84,8 +80,7 @@ export function CreateSourceScreen() {
       <Stack gap="xs" className={classes.panel}>
         <FileInput
           label={t('create.sourceFile')}
-          value={file}
-          onChange={setFile}
+          onChange={(f) => setFile(fileFromInput(f))}
           accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
           required
         />
@@ -94,14 +89,14 @@ export function CreateSourceScreen() {
         <Stack gap="xs" className={classes.panel}>
           <Text fw={700}>{t('create.scopeTitle')}</Text>
           <Group gap="md" grow>
-            <TextInput
+            <TextInput miw={200}
               label={t('create.startPage')}
               type="number"
               value={startPage}
               onChange={(e) => setStartPage(e.currentTarget.value)}
               required
             />
-            <TextInput
+            <TextInput miw={200}
               label={t('create.endPage')}
               type="number"
               value={endPage}
@@ -115,39 +110,39 @@ export function CreateSourceScreen() {
         <Stack gap="xs" className={classes.panel}>
           <Text fw={700}>{t('create.draftTitle')}</Text>
           <Group gap="md" grow>
-            <TextInput
+            <TextInput miw={200}
               label={t('create.quizName')}
               value={title}
               onChange={(e) => setTitle(e.currentTarget.value)}
               required
             />
             {language.toLowerCase() !== 'en' && language !== '' && (
-              <TextInput
+              <TextInput miw={200}
                 label={t('create.localQuizName')}
                 value={localTitle}
                 onChange={(e) => setLocalTitle(e.currentTarget.value)}
                 required
               />
             )}
-            <TextInput
+            <TextInput miw={200}
               label={t('create.theme')}
               value={theme}
               onChange={(e) => setTheme(e.currentTarget.value)}
               required
             />
             {language.toLowerCase() !== 'en' && language !== '' && (
-              <TextInput
+              <TextInput miw={200}
                 label={t('create.localTheme')}
                 value={localTheme}
                 onChange={(e) => setLocalTheme(e.currentTarget.value)}
                 required
               />
             )}
-            <Select
+            <Select miw={200}
               label={t('create.language')}
               value={language}
-              onChange={(v) => setLanguage(v ?? '')}
-              data={(languages.data ?? []).map((l) => ({ value: l.code, label: l.name }))}
+              onChange={(v) => setLanguage(selectValue(v))}
+              data={languageOptions}
               required
             />
           </Group>

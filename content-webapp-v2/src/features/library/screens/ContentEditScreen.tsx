@@ -6,6 +6,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@features/auth/store/useAuthStore';
 import { getLanguages } from '@shared/services/languages';
 import { toApiErrorMessage } from '@shared/utils/apiErrors';
+import { selectValue } from '@shared/utils/select';
 import { getContentById, updateContent } from '../api/library';
 import { contentUpdateSchema } from '../types/content.types';
 import type { ContentItem } from '../types/content.types';
@@ -16,18 +17,16 @@ function EditForm({ item }: { item: ContentItem }) {
   const navigate = useNavigate();
   const status = useAuthStore((s) => s.status);
 
-  const [titleEn, setTitleEn] = useState(item.title?.english ?? '');
-  const [titleLocal, setTitleLocal] = useState(item.title?.local ?? '');
-  const [themeEn, setThemeEn] = useState(item.theme?.english ?? '');
-  const [themeLocal, setThemeLocal] = useState(item.theme?.local ?? '');
-  const [description, setDescription] = useState(
-    item.type === 'quiz' ? '' : ((item as { description?: string | null }).description ?? ''),
-  );
+  const [titleEn, setTitleEn] = useState(item.title.english);
+  const [titleLocal, setTitleLocal] = useState(item.title.local);
+  const [themeEn, setThemeEn] = useState(item.theme.english);
+  const [themeLocal, setThemeLocal] = useState(item.theme.local);
+  const [description, setDescription] = useState(item.description);
   const [language, setLanguage] = useState(item.language);
-  const [isPullModel, setIsPullModel] = useState(item.is_pull_model ?? false);
-  const [isTeacherApp, setIsTeacherApp] = useState(item.is_teacher_app ?? false);
+  const [isPullModel, setIsPullModel] = useState(item.is_pull_model);
+  const [isTeacherApp, setIsTeacherApp] = useState(item.is_teacher_app);
   const [audioUploaded, setAudioUploaded] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState('');
 
   const languages = useQuery({
     queryKey: ['languages'],
@@ -39,8 +38,8 @@ function EditForm({ item }: { item: ContentItem }) {
     mutationFn: () => {
       const patch = contentUpdateSchema.parse({
         id: item.id,
-        title: { english: titleEn, local: titleLocal || null },
-        theme: { english: themeEn, local: themeLocal || null },
+        title: { english: titleEn, local: titleLocal || undefined },
+        theme: { english: themeEn, local: themeLocal || undefined },
         description: description || undefined,
         language: language || undefined,
         is_pull_model: isPullModel,
@@ -79,7 +78,7 @@ function EditForm({ item }: { item: ContentItem }) {
       <Select
         label={t('library.languageLabel')}
         value={language}
-        onChange={(v) => setLanguage(v ?? '')}
+        onChange={(v) => setLanguage(selectValue(v))}
         data={(languages.data ?? []).map((l) => ({ value: l.code, label: l.name }))}
       />
       {toApiErrorMessage(languages.error) && (
@@ -141,7 +140,7 @@ export function ContentEditScreen() {
     <Stack gap="md" className={classes.form}>
       <Breadcrumbs aria-label="Breadcrumb">
         <Text>{t('library.title')}</Text>
-        <Text>{item?.title?.english ?? id}</Text>
+        <Text>{item?.title.english || id}</Text>
       </Breadcrumbs>
       <Title order={2}>{t('library.editTitle')}</Title>
       <Text c="dimmed">{t('library.editHint')}</Text>

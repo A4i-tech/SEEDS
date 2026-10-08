@@ -13,14 +13,10 @@ import {
   type TeacherUpdate,
 } from '../types/registration.types';
 
-const teacherResponseSchema = teacherSchema.extend({ _id: z.string().optional() });
-
-type TeacherResponse = z.infer<typeof teacherResponseSchema>;
-
-function toTeacher(raw: TeacherResponse): Teacher {
-  const { _id, ...rest } = raw;
-  return { ...rest, id: rest.id ?? _id };
-}
+const teacherResponseSchema = teacherSchema
+  .omit({ id: true })
+  .extend({ id: z.string().optional(), _id: z.string().optional() })
+  .transform(({ id, _id, ...rest }) => teacherSchema.parse({ ...rest, id: id ?? _id }));
 
 const transferResponseSchema = z.object({
   message: z.string(),
@@ -34,7 +30,7 @@ export async function getTeachers(): Promise<SchoolTeacher[]> {
 
 export async function registerTeacher(body: TeacherRegister): Promise<Teacher> {
   const { data } = await apiClient.post('/teacher/register', teacherRegisterSchema.parse(body));
-  return toTeacher(teacherResponseSchema.parse(data));
+  return teacherResponseSchema.parse(data);
 }
 
 export async function updateTeacher(id: string, body: TeacherUpdate): Promise<Teacher> {
@@ -42,7 +38,7 @@ export async function updateTeacher(id: string, body: TeacherUpdate): Promise<Te
     `/teacher/${encodeURIComponent(id)}`,
     teacherUpdateSchema.parse(body),
   );
-  return toTeacher(teacherResponseSchema.parse(data));
+  return teacherResponseSchema.parse(data);
 }
 
 export async function deleteTeacher(id: string): Promise<void> {
@@ -53,6 +49,5 @@ export async function transferTeacher(
   body: TeacherTransfer,
 ): Promise<{ message: string; teacher: Teacher }> {
   const { data } = await apiClient.post('/school/transfer', teacherTransferSchema.parse(body));
-  const parsed = transferResponseSchema.parse(data);
-  return { message: parsed.message, teacher: toTeacher(parsed.teacher) };
+  return transferResponseSchema.parse(data);
 }

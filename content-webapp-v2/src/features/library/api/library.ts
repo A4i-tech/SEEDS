@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { apiClient } from '@shared/services/apiClient';
+import { flag, list, text } from '@shared/utils/schema';
 import { contentItemSchema, contentPageSchema, contentUpdateSchema } from '../types/content.types';
 import type { ContentUpdate } from '../types/content.types';
 
@@ -18,20 +19,20 @@ export async function getContentSasUrl(audioUrl: string) {
 export const courseSchema = z.object({
   id: z.string(),
   name: z.string(),
-  org: z.string().nullish(),
-  number: z.string().nullish(),
-  language: z.string().nullish(),
-  hidden: z.boolean().nullish(),
-  synced: z.boolean().nullish(),
-  lastSyncedAt: z.string().nullish(),
-  lastRunId: z.string().nullish(),
+  org: text,
+  number: text,
+  language: text,
+  hidden: flag,
+  synced: flag,
+  lastSyncedAt: text,
+  lastRunId: text,
 });
 
 export type Course = z.infer<typeof courseSchema>;
 
 const coursesResponseSchema = z.object({
   courses: z.array(courseSchema),
-  next_cursor: z.string().nullable().optional(),
+  next_cursor: text,
   has_more: z.boolean().optional(),
 });
 
@@ -39,7 +40,7 @@ const jobIdSchema = z.object({ jobId: z.string() });
 
 export async function getContentPage(cursor?: string, limit = 20) {
   const { data } = await apiClient.get('/content', {
-    params: { ...(cursor ? { cursor } : {}), limit },
+    params: { ...(cursor && { cursor }), limit },
   });
   return contentPageSchema.parse(data);
 }
@@ -58,7 +59,7 @@ export async function updateContent(id: string, patch: ContentUpdate, isAudioUpl
 
 export async function getCourses(cursor?: string, limit = 20) {
   const { data } = await apiClient.get('/content-aggregators/courses', {
-    params: { ...(cursor ? { cursor } : {}), limit },
+    params: { ...(cursor && { cursor }), limit },
   });
   return coursesResponseSchema.parse(data);
 }
@@ -72,29 +73,29 @@ const courseChoiceSchema = z.object({ value: z.string(), text: z.string() });
 const courseBlockSchema = z.object({
   block_id: z.string(),
   type: z.string(),
-  display_name: z.string().nullable().optional(),
-  markdown: z.string().nullable().optional(),
-  html: z.string().nullable().optional(),
-  question: z.string().nullable().optional(),
-  choices: z.array(courseChoiceSchema).nullable().optional(),
+  display_name: text,
+  markdown: text,
+  html: text,
+  question: text,
+  choices: list(courseChoiceSchema),
   student_view_data: z
     .object({
-      sources: z.array(z.string()).nullable().optional(),
-      streams: z.string().nullable().optional(),
-      poster: z.string().nullable().optional(),
+      sources: list(z.string()),
+      streams: text,
+      poster: text,
     })
-    .nullable()
-    .optional(),
+    .nullish()
+    .transform((value) => value ?? { sources: [], streams: '', poster: '' }),
 });
 
 export type CourseBlock = z.infer<typeof courseBlockSchema>;
 
 export const courseDetailSchema = z.object({
-  title: z.string().nullable().optional(),
-  name: z.string().nullable().optional(),
-  description: z.string().nullable().optional(),
-  hidden: z.boolean().nullable().optional(),
-  blocks: z.array(courseBlockSchema).nullable().optional(),
+  title: text,
+  name: text,
+  description: text,
+  hidden: flag,
+  blocks: list(courseBlockSchema),
 });
 
 export type CourseDetail = z.infer<typeof courseDetailSchema>;
@@ -131,7 +132,9 @@ export async function syncCourse(courseId: string) {
   return jobIdSchema.parse(data);
 }
 
+const ivrUpdateSchema = z.object({ message: text });
+
 export async function updateIvr() {
   const { data } = await apiClient.patch('/ivr');
-  return data as { message?: string };
+  return ivrUpdateSchema.parse(data);
 }

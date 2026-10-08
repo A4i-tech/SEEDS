@@ -59,7 +59,7 @@ export function useLibrary() {
   const refreshIvr = useMutation({
     mutationFn: updateIvr,
     onSuccess: (data) => {
-      notifications.show({ message: data.message ?? t('library.ivrUpdated') });
+      notifications.show({ message: data.message || t('library.ivrUpdated') });
     },
     onError: notifyError,
   });

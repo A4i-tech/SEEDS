@@ -7,6 +7,7 @@ import {
   Text,
   UnstyledButton,
 } from '@mantine/core';
+import { useDisclosure, useMediaQuery } from '@mantine/hooks';
 import {
   BarChart3,
   BookOpen,
@@ -20,7 +21,7 @@ import {
   Users,
 } from 'lucide-react';
 import { useEffect, useRef } from 'react';
-import { Outlet, useLocation, useNavigate } from '@tanstack/react-router';
+import { Link, Outlet, useLocation, useNavigate } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { useUiStore } from '@app/store/useUiStore';
 import { useAuthStore } from '@features/auth/store/useAuthStore';
@@ -47,6 +48,10 @@ export function Shell() {
   const collapsed = useUiStore((s) => s.railCollapsed);
   const toggleRail = useUiStore((s) => s.toggleRail);
   const logout = useAuthStore((s) => s.logout);
+  const [mobileOpened, { toggle: toggleMobile, close: closeMobile }] = useDisclosure(false);
+  const isMobile = useMediaQuery('(max-width: 47.99em)');
+  const railCollapsed = collapsed && !isMobile;
+  const navOpened = isMobile ? mobileOpened : !collapsed;
   const mainRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -70,22 +75,23 @@ export function Shell() {
   return (
     <MantineAppShell
       header={{ height: 56 }}
-      navbar={{ width: collapsed ? 72 : 240, breakpoint: 'sm', collapsed: { mobile: false } }}
+      navbar={{ width: railCollapsed ? 72 : 240, breakpoint: 'sm', collapsed: { mobile: !mobileOpened } }}
       padding="md"
     >
       <MantineAppShell.Header className={classes.header}>
-        <Group h="100%" px="md" justify="space-between">
-          <Group>
+        <Group h="100%" px="md" justify="space-between" wrap="nowrap">
+          <Group wrap="nowrap" miw={0}>
             <Burger
-              opened={!collapsed}
-              onClick={toggleRail}
-              aria-label={t('nav.home')}
+              opened={navOpened}
+              onClick={isMobile ? toggleMobile : toggleRail}
+              aria-label={t('nav.menu')}
+              aria-expanded={navOpened}
               size="sm"
               color="var(--seeds-nav-topbar-text)"
             />
             <div className={classes.brand}>
               <img src="/seeds-logo.png" alt="SEEDS" width={36} height={36} className={classes.brandmark} />
-              <Text fw={700} size="md" className={classes.brandName}>
+              <Text fw={700} size="md" truncate className={classes.brandName}>
                 SEEDS Content Studio
               </Text>
             </div>
@@ -118,12 +124,14 @@ export function Shell() {
           return (
             <NavLink
               key={to}
-              label={collapsed ? undefined : label}
+              label={!railCollapsed && label}
               leftSection={<Icon size={20} aria-hidden />}
               active={active}
               aria-label={label}
-              title={collapsed ? label : undefined}
-              onClick={() => void navigate({ to })}
+              title={railCollapsed ? label : undefined}
+              component={Link}
+              to={to}
+              onClick={closeMobile}
               className={active ? classes.active : undefined}
             />
           );

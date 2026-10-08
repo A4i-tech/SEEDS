@@ -8,12 +8,27 @@ import type { SyncJobItem } from '../api/syncJobs';
 import { useSyncJobItems } from '../hooks/useSyncJobItems';
 import classes from '../screens/JobDetailScreen.module.css';
 
+function ErrorCell({ error }: { error: string }) {
+  if (error) return <Text c="red">{error}</Text>;
+  return <Text c="dimmed">—</Text>;
+}
+
 export function SyncJobItemsTable({ jobId }: { jobId: string }) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(false);
   const items = useSyncJobItems(jobId, expanded);
   const rows = (items.data?.pages ?? []).flatMap((page) => page.items);
   const loadError = toApiErrorMessage(items.error);
+
+  const toggleLabel = (): string => {
+    if (expanded) return t('jobs.detail.hideItems');
+    return t('jobs.detail.showItems');
+  };
+
+  const moreLabel = (): string => {
+    if (items.isFetchingNextPage) return t('jobs.detail.loadingMore');
+    return t('jobs.detail.loadMore');
+  };
 
   const columns: DataTableColumn<SyncJobItem>[] = [
     { key: 'course', header: t('jobs.detail.columns.course'), render: (row) => row.source_id },
@@ -26,7 +41,7 @@ export function SyncJobItemsTable({ jobId }: { jobId: string }) {
     {
       key: 'error',
       header: t('jobs.detail.columns.error'),
-      render: (row) => (row.error ? <Text c="red">{row.error}</Text> : <Text c="dimmed">—</Text>),
+      render: (row) => <ErrorCell error={row.error} />,
     },
     { key: 'at', header: t('jobs.detail.columns.at'), render: (row) => new Date(row.at).toLocaleString() },
   ];
@@ -40,7 +55,7 @@ export function SyncJobItemsTable({ jobId }: { jobId: string }) {
         onClick={() => setExpanded((v) => !v)}
         aria-expanded={expanded}
       >
-        {expanded ? t('jobs.detail.hideItems') : t('jobs.detail.showItems')}
+        {toggleLabel()}
       </Button>
       {expanded && (
         <>
@@ -71,7 +86,7 @@ export function SyncJobItemsTable({ jobId }: { jobId: string }) {
               disabled={items.isFetchingNextPage}
               onClick={() => void items.fetchNextPage()}
             >
-              {items.isFetchingNextPage ? t('jobs.detail.loadingMore') : t('jobs.detail.loadMore')}
+              {moreLabel()}
             </Button>
           )}
         </>

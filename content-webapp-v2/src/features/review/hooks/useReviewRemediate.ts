@@ -49,7 +49,7 @@ export function useReviewRemediate(jobId: string) {
     onSuccess: () => {
       notifications.show({ message: t('review.approved') });
       void queryClient.invalidateQueries({ queryKey: ['jobs'] });
-      void navigate({ to: `${routePaths.review}/approved`, state: { title: job.data ? job.data.source_name : jobId } });
+      void navigate({ to: `${routePaths.review}/approved`, state: { title: job.data?.source_name ?? jobId } });
     },
     onError: (err) => {
       const message = toApiErrorMessage(err);

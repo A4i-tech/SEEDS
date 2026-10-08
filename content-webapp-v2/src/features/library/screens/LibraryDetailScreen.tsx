@@ -18,7 +18,7 @@ export function LibraryDetailScreen() {
   const queryClient = useQueryClient();
   const { kind = '', id = '' } = useParams({ strict: false });
   const status = useAuthStore((s) => s.status);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState('');
 
   const detail = useQuery({
     queryKey: ['library', 'content', id],
@@ -55,7 +55,7 @@ export function LibraryDetailScreen() {
     <Stack gap="md">
       <Breadcrumbs aria-label="Breadcrumb">
         <Text>{t('library.title')}</Text>
-        <Text>{item?.title?.english ?? id}</Text>
+        <Text>{item?.title.english || id}</Text>
       </Breadcrumbs>
 
       {detail.isLoading && <Text c="dimmed">{t('common.loading')}</Text>}
@@ -70,7 +70,7 @@ export function LibraryDetailScreen() {
           <Text className={classes.eyebrow}>
             {t(`library.experiences.${item.type}`)} · {t('library.readOnly')}
           </Text>
-          <Title order={2}>{item.title?.english}</Title>
+          <Title order={2}>{item.title.english}</Title>
           <Group gap="md">
             <Button
               variant="outline"
@@ -96,9 +96,8 @@ export function LibraryDetailScreen() {
             <>
               <Stack gap="xs" className={classes.panel}>
                 <Text fw={700}>{t('library.preview')}</Text>
-                {item.type === 'quiz' ? (
-                  <QuizPreview item={item} />
-                ) : (
+                {item.type === 'quiz' && <QuizPreview item={item} />}
+                {item.type !== 'quiz' && (
                   <>
                     {item.description && <Text>{item.description}</Text>}
                     <AudioPreview item={item} />
@@ -114,7 +113,7 @@ export function LibraryDetailScreen() {
                   {t('library.metaKind')}: {t(`library.experiences.${item.type}`)}
                 </Text>
                 <Text size="sm">
-                  {t('library.metaTheme')}: {item.theme?.english ?? ''}
+                  {t('library.metaTheme')}: {item.theme.english}
                 </Text>
               </Stack>
             </>

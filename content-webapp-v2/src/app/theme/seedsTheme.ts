@@ -1,7 +1,20 @@
-import { createTheme } from '@mantine/core';
+import { Breadcrumbs, createTheme, MultiSelect, Select } from '@mantine/core';
+import i18n from '../../shared/i18n';
 import { seedsTokens } from './seedsTokens';
 
+const searchableDefaults = { searchable: true, nothingFoundMessage: i18n.t('common.nothingFound') };
+
 export const seedsTheme = createTheme({
+  components: {
+    Select: Select.extend({ defaultProps: searchableDefaults }),
+    MultiSelect: MultiSelect.extend({ defaultProps: searchableDefaults }),
+    Breadcrumbs: Breadcrumbs.extend({
+      styles: {
+        root: { flexWrap: 'wrap' },
+        breadcrumb: { whiteSpace: 'normal', overflowWrap: 'anywhere' },
+      },
+    }),
+  },
   fontFamily: `'${seedsTokens.fontBody}', system-ui, sans-serif`,
   headings: {
     fontFamily: `'${seedsTokens.fontBody}', system-ui, sans-serif`,

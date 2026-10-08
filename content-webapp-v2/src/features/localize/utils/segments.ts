@@ -12,27 +12,22 @@ export interface Segment {
   lowConfidence: boolean;
 }
 
-interface TranslationEntry {
-  text?: unknown;
-  status?: unknown;
-}
+const EMPTY_ENTRY = { text: '', status: '' };
 
-function entryOf(item: TranslationItem, lang: string): TranslationEntry {
-  const value = item.translations?.[lang];
-  return value !== null && typeof value === 'object' ? (value as TranslationEntry) : {};
+function stageOf(status: string): SegmentStage {
+  if (status === 'approved') return 'approved';
+  return 'pending';
 }
 
 export function toSegment(item: TranslationItem, lang: string): Segment {
-  const raw = item as unknown as Record<string, unknown>;
-  const entry = entryOf(item, lang);
-  const source = raw['source_text'];
+  const entry = item.translations[lang] ?? EMPTY_ENTRY;
   return {
     id: item.id,
-    key: item.key ?? '',
-    route: item.route ?? '',
-    sourceText: typeof source === 'string' && source !== '' ? source : (item.key ?? ''),
-    translation: typeof entry.text === 'string' ? entry.text : '',
-    stage: entry.status === 'approved' ? 'approved' : 'pending',
-    lowConfidence: item.low_confidence ?? false,
+    key: item.key,
+    route: item.route,
+    sourceText: item.source_text || item.key,
+    translation: entry.text,
+    stage: stageOf(entry.status),
+    lowConfidence: item.low_confidence,
   };
 }

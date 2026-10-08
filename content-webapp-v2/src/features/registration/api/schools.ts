@@ -9,23 +9,19 @@ import {
   type SchoolUpdate,
 } from '../types/registration.types';
 
-const schoolResponseSchema = schoolSchema.extend({ _id: z.string().optional() });
-
-type SchoolResponse = z.infer<typeof schoolResponseSchema>;
-
-function toSchool(raw: SchoolResponse): School {
-  const { _id, ...rest } = raw;
-  return { ...rest, id: rest.id ?? _id };
-}
+const schoolResponseSchema = schoolSchema
+  .omit({ id: true })
+  .extend({ id: z.string().optional(), _id: z.string().optional() })
+  .transform(({ id, _id, ...rest }) => schoolSchema.parse({ ...rest, id: id ?? _id }));
 
 export async function getSchools(): Promise<School[]> {
   const { data } = await apiClient.get('/school');
-  return z.array(schoolResponseSchema).parse(data).map(toSchool);
+  return z.array(schoolResponseSchema).parse(data);
 }
 
 export async function createSchool(body: SchoolCreate): Promise<School> {
   const { data } = await apiClient.post('/school', schoolCreateSchema.parse(body));
-  return toSchool(schoolResponseSchema.parse(data));
+  return schoolResponseSchema.parse(data);
 }
 
 export async function updateSchool(id: string, body: SchoolUpdate): Promise<School> {
@@ -33,7 +29,7 @@ export async function updateSchool(id: string, body: SchoolUpdate): Promise<Scho
     `/school/${encodeURIComponent(id)}`,
     schoolUpdateSchema.parse(body),
   );
-  return toSchool(schoolResponseSchema.parse(data));
+  return schoolResponseSchema.parse(data);
 }
 
 export async function deleteSchool(id: string): Promise<void> {

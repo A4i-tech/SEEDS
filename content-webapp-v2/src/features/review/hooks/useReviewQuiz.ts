@@ -26,7 +26,7 @@ export function useReviewQuiz(id: string) {
       notifications.show({ message: t('review.approved') });
       void queryClient.invalidateQueries({ queryKey: ['review', 'quiz', id] });
       const item = content.data;
-      void navigate({ to: `${routePaths.review}/approved`, state: { title: item && item.title?.english ? item.title.english : id } });
+      void navigate({ to: `${routePaths.review}/approved`, state: { title: item?.title.english || id } });
     },
     onError: (err) => {
       const message = toApiErrorMessage(err);

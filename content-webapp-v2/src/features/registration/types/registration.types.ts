@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { text } from '@shared/utils/schema';
 
 export const schoolCreateSchema = z.object({
   name: z.string(),
@@ -17,13 +18,13 @@ export const schoolUpdateSchema = z.object({
 export type SchoolUpdate = z.infer<typeof schoolUpdateSchema>;
 
 export const schoolSchema = z.object({
-  id: z.string().nullish(),
-  tenant_id: z.string().nullish(),
+  id: z.string(),
+  tenant_id: text,
   name: z.string(),
-  email: z.string().nullish(),
+  email: text,
   is_active: z.boolean().optional(),
-  created_at: z.string().nullish(),
-  updated_at: z.string().nullish(),
+  created_at: text,
+  updated_at: text,
 });
 
 export type School = z.infer<typeof schoolSchema>;
@@ -31,8 +32,8 @@ export type School = z.infer<typeof schoolSchema>;
 export const schoolTeacherSchema = z.object({
   id: z.string(),
   name: z.string(),
-  phone_number: z.string().nullish(),
-  role: z.string(),
+  phone_number: text,
+  role: z.enum(['teacher', 'content_creator']),
 });
 
 export type SchoolTeacher = z.infer<typeof schoolTeacherSchema>;
@@ -62,17 +63,17 @@ export const teacherTransferSchema = z.object({
 export type TeacherTransfer = z.infer<typeof teacherTransferSchema>;
 
 export const teacherSchema = z.object({
-  id: z.string().nullish(),
-  role: z.string().nullish(),
+  id: z.string(),
+  role: text,
   name: z.string(),
-  email: z.string().nullish(),
-  phone_number: z.string().nullish(),
-  tenant_id: z.string().nullish(),
-  school_id: z.string().nullish(),
-  tenant_name: z.string().nullish(),
+  email: text,
+  phone_number: text,
+  tenant_id: text,
+  school_id: text,
+  tenant_name: text,
   is_active: z.boolean().optional(),
-  created_at: z.string().nullish(),
-  updated_at: z.string().nullish(),
+  created_at: text,
+  updated_at: text,
 });
 
 export type Teacher = z.infer<typeof teacherSchema>;
@@ -92,10 +93,10 @@ export const studentUpdateSchema = z.object({
 export type StudentUpdate = z.infer<typeof studentUpdateSchema>;
 
 export const studentSchema = z.object({
-  id: z.string().nullish(),
+  id: z.string(),
   name: z.string(),
-  phone_number: z.string().nullish(),
-  school_id: z.string().nullish(),
+  phone_number: text,
+  school_id: text,
 });
 
 export type Student = z.infer<typeof studentSchema>;

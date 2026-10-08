@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { list, text } from '@shared/utils/schema';
 
 export const languageConfigSchema = z.object({
   code: z.string(),
@@ -26,29 +27,35 @@ export type WebsiteUpdate = z.infer<typeof websiteUpdateSchema>;
 
 export const websiteSchema = z.object({
   id: z.string(),
-  domain: z.string().nullish(),
-  name: z.string().nullish(),
-  status: z.string().nullish(),
-  languages: z.array(languageConfigSchema).nullable().optional(),
-  site_id: z.string().nullish(),
-  api_base: z.string().nullish(),
-  project_id: z.string().nullish(),
+  domain: text,
+  name: text,
+  status: text,
+  languages: list(languageConfigSchema),
+  site_id: text,
+  api_base: text,
+  project_id: text,
   created_at: z.unknown(),
-  updated_at: z.unknown(),
+  updated_at: text,
 });
 
 export type Website = z.infer<typeof websiteSchema>;
 
+const translationEntrySchema = z.object({ text, status: text });
+
 export const translationItemSchema = z.object({
   id: z.string(),
-  translations: z.record(z.string(), z.unknown()).nullable().optional(),
-  low_confidence: z.boolean().optional(),
-  site_id: z.string().nullish(),
-  route: z.string().nullish(),
-  key: z.string().nullish(),
-  lang: z.string().nullish(),
-  created_at: z.string().nullish(),
-  updated_at: z.string().nullish(),
+  translations: z
+    .partialRecord(z.string(), translationEntrySchema)
+    .nullish()
+    .transform((value) => value ?? {}),
+  low_confidence: z.boolean().default(false),
+  source_text: text,
+  site_id: text,
+  route: text,
+  key: text,
+  lang: text,
+  created_at: text,
+  updated_at: text,
 });
 
 export type TranslationItem = z.infer<typeof translationItemSchema>;
