@@ -1,7 +1,7 @@
 """IVR repository — PyMongo async data access for IVR FSM state and logs."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 from pymongo.asynchronous.database import AsyncDatabase
@@ -106,6 +106,15 @@ class IVRRepository(BaseRepository):
     # Ongoing IVR state (stream playback tracking)
     # ------------------------------------------------------------------
 
+    @classmethod
+    async def ensure_ongoing_indexes(cls, db: AsyncDatabase, ttl_seconds: int) -> None:
+        col = db[cls.ONGOING_COLLECTION]
+        await col.create_index("updated_at", expireAfterSeconds=ttl_seconds)
+        await col.update_many(
+            {"updated_at": {"$exists": False}},
+            [{"$set": {"updated_at": {"$ifNull": ["$created_at", "$$NOW"]}}}],
+        )
+
     async def find_ongoing_state(self, conversation_id: str) -> dict[str, Any] | None:
         return await self._ongoing_col.find_one({"_id": conversation_id})
 
@@ -122,6 +131,7 @@ class IVRRepository(BaseRepository):
         current_version = doc.get("version", 0)
         new_version = current_version + 1
         doc["version"] = new_version
+        doc["updated_at"] = datetime.now(UTC)
         doc.pop("pending_dtmf", None)
         doc.pop("last_dtmf_message_id", None)
         try:
@@ -148,7 +158,8 @@ class IVRRepository(BaseRepository):
                         "ncco": None,
                         "should_hangup": None,
                         "created_at": datetime.utcnow(),
-                    }
+                    },
+                    "updated_at": datetime.now(UTC),
                 }
             },
         )
@@ -172,7 +183,7 @@ class IVRRepository(BaseRepository):
     async def record_dtmf_processed(self, call_leg_id: str, message_id: str) -> None:
         await self._ongoing_col.update_one(
             {"_id": call_leg_id},
-            {"$set": {"last_dtmf_message_id": message_id}},
+            {"$set": {"last_dtmf_message_id": message_id, "updated_at": datetime.now(UTC)}},
         )
 
     async def peek_dtmf_result(self, call_leg_id: str, message_id: str) -> dict[str, Any] | None:
@@ -184,7 +195,7 @@ class IVRRepository(BaseRepository):
     async def pop_dtmf_result(self, call_leg_id: str, message_id: str) -> dict[str, Any] | None:
         doc = await self._ongoing_col.find_one_and_update(
             {"_id": call_leg_id, "pending_dtmf.message_id": message_id},
-            {"$unset": {"pending_dtmf": ""}},
+            {"$unset": {"pending_dtmf": ""}, "$set": {"updated_at": datetime.now(UTC)}},
         )
         return doc.get("pending_dtmf") if doc else None
 
@@ -206,6 +217,7 @@ class IVRRepository(BaseRepository):
                     "pending_dtmf.waiting": False,
                     "pending_dtmf.ncco": ncco,
                     "pending_dtmf.should_hangup": should_hangup,
+                    "updated_at": datetime.now(UTC),
                 }
             },
         )
@@ -214,7 +226,10 @@ class IVRRepository(BaseRepository):
     async def push_stream_playback(self, conversation_id: str, item: dict[str, Any]) -> None:
         await self._ongoing_col.update_one(
             {"_id": conversation_id},
-            {"$push": {"stream_playback": item}},
+            {
+                "$push": {"stream_playback": item},
+                "$set": {"updated_at": datetime.now(UTC)},
+            },
         )
 
     async def set_playback_field(
@@ -222,7 +237,7 @@ class IVRRepository(BaseRepository):
     ) -> None:
         await self._ongoing_col.update_one(
             {"_id": conversation_id, "stream_playback.play_id": play_id},
-            {"$set": {f"stream_playback.$.{field}": value}},
+            {"$set": {f"stream_playback.$.{field}": value, "updated_at": datetime.now(UTC)}},
         )
 
     # ------------------------------------------------------------------
