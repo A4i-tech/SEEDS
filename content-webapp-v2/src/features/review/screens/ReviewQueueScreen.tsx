@@ -1,5 +1,5 @@
 import { Chip, Group, Stack, Tabs, Text, TextInput, Title } from '@mantine/core';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { z } from 'zod';
 import { useNavigate } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
@@ -67,7 +67,7 @@ export function ReviewQueueScreen() {
   const { data: jobs = [] } = queue;
   const pendingCount = jobs.filter((job) => pendingStatuses.has(job.status)).length;
 
-  const rows = (() => {
+  const rows = useMemo(() => {
     const q = query.trim().toLowerCase();
     return jobs
       .filter(TAB_FILTER[tab])
@@ -76,7 +76,7 @@ export function ReviewQueueScreen() {
         (row) =>
           (selected.length === 0 || selected.includes(row.modality)) && (!q || row.title.toLowerCase().includes(q)),
       );
-  })();
+  }, [jobs, tab, selected, query]);
 
   const columns: DataTableColumn<QueueRow>[] = [
     {

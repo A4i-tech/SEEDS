@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import { apiClient } from '@shared/services/apiClient';
-import { quizCreateSchema } from '../../library/types/content.types';
-import type { QuizCreate } from '../../library/types/content.types';
+import { quizCreateSchema, type QuizCreate } from '../../library/types/content.types';
 
 const jobScheduledSchema = z.object({
   message: z.string(),

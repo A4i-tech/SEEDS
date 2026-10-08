@@ -111,6 +111,7 @@ export function MakeAccessibleJobScreen() {
   const navigate = useNavigate();
   const { jobId = '' } = useParams({ strict: false });
   const { data: job, isLoading, error } = useRemediationJob(jobId);
+  const loadError = toApiErrorMessage(error);
 
   return (
     <Stack gap="md">
@@ -122,9 +123,9 @@ export function MakeAccessibleJobScreen() {
       <RemediationSteps activeStep={activeStepFor(job)} />
 
       {isLoading && <Text c="dimmed">{t('common.loading')}</Text>}
-      {toApiErrorMessage(error) && (
+      {loadError && (
         <Text c="red" role="alert">
-          {toApiErrorMessage(error)}
+          {loadError}
         </Text>
       )}
 

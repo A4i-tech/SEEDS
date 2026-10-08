@@ -97,10 +97,7 @@ export function LocalizeSitesScreen() {
 
   const snippetRow = rows.find((row) => row.id === snippetId);
 
-  const snippetTitle = (): string | undefined => {
-    if (snippetRow === undefined) return undefined;
-    return t('localize.snippetTitle', { name: snippetRow.name || snippetRow.domain });
-  };
+  const snippetTitle = snippetRow && t('localize.snippetTitle', { name: snippetRow.name || snippetRow.domain });
 
   const copySnippet = async (snippet: string) => {
     await navigator.clipboard.writeText(snippet);
@@ -267,7 +264,7 @@ export function LocalizeSitesScreen() {
       <Modal
         opened={snippetRow !== undefined}
         onClose={() => setSnippetId('')}
-        title={snippetTitle()}
+        title={snippetTitle}
         centered
       >
         {snippetRow && (

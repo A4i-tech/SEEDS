@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import type { CallLog } from '../types/analytics.types';
-import { formatClock, parseDurationSeconds } from './useAnalytics';
+import { formatClock } from './useAnalytics';
 import type { CountBin } from './useAnalytics';
 
 export interface RecentConference {
@@ -10,12 +10,12 @@ export interface RecentConference {
   duration: string;
 }
 
-export interface ConferenceStats {
+interface ConferenceStats {
   durationTrend: CountBin[];
   recent: RecentConference[];
 }
 
-export function summarizeConferences(logs: CallLog[]): ConferenceStats {
+function summarizeConferences(logs: CallLog[]): ConferenceStats {
   const dated = logs
     .filter((log) => log.created_at && !Number.isNaN(new Date(log.created_at).getTime()))
     .map((log, index) => ({ log, index, time: new Date(log.created_at) }))
@@ -23,7 +23,7 @@ export function summarizeConferences(logs: CallLog[]): ConferenceStats {
 
   const secondsByDay = new Map<string, number[]>();
   for (const { log, time } of dated) {
-    const seconds = parseDurationSeconds(log.duration);
+    const seconds = log.duration;
     if (seconds <= 0) continue;
     const day = time.toISOString().slice(0, 10);
     const existing = secondsByDay.get(day);
@@ -45,7 +45,7 @@ export function summarizeConferences(logs: CallLog[]): ConferenceStats {
       id: `${index}-${time.toISOString()}`,
       date: `${time.getUTCMonth() + 1}/${time.getUTCDate()}`,
       teacher: log.phone_number || '—',
-      duration: formatClock(parseDurationSeconds(log.duration)),
+      duration: formatClock(log.duration),
     })),
   };
 }

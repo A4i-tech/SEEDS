@@ -1,5 +1,4 @@
-.eyebrow.eyebrow,
-.label.label {
+.eyebrow.eyebrow {
   text-transform: uppercase;
   letter-spacing: 2px;
   color: var(--seeds-eyebrow-text);
@@ -34,6 +33,10 @@
 }
 
 .label.label {
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: var(--seeds-eyebrow-text);
+  font-weight: 700;
   font-size: var(--mantine-font-size-sm);
 }
 

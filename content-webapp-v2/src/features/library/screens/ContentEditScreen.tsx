@@ -33,6 +33,7 @@ function EditForm({ item }: { item: ContentItem }) {
     queryFn: getLanguages,
     enabled: status === 'authenticated',
   });
+  const languagesError = toApiErrorMessage(languages.error);
 
   const save = useMutation({
     mutationFn: () => {
@@ -81,9 +82,9 @@ function EditForm({ item }: { item: ContentItem }) {
         onChange={(v) => setLanguage(selectValue(v))}
         data={(languages.data ?? []).map((l) => ({ value: l.code, label: l.name }))}
       />
-      {toApiErrorMessage(languages.error) && (
+      {languagesError && (
         <Text c="red" role="alert">
-          {toApiErrorMessage(languages.error)}
+          {languagesError}
         </Text>
       )}
       <Checkbox

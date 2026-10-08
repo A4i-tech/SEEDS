@@ -5,13 +5,13 @@ import { routePaths } from '@app/navigation/routePaths';
 import { useAuthStore } from '@features/auth/store/useAuthStore';
 import { openConfirmDialog } from '@shared/components/ConfirmDialog';
 import { toApiErrorMessage } from '@shared/utils/apiErrors';
-import { useSessionRole, useTenantMe } from '../hooks/useAccount';
+import { useTenantMe } from '../hooks/useAccount';
 
 export function AccountProfileScreen() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const logout = useAuthStore((s) => s.logout);
-  const sessionRole = useSessionRole();
+  const sessionRole = useAuthStore((s) => s.role);
   const { data, error } = useTenantMe();
   const loadError = toApiErrorMessage(error);
 

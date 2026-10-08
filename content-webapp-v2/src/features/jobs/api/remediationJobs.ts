@@ -8,7 +8,3 @@ export async function getRemediationJobs(limit = 20) {
   const { data } = await apiClient.get('/textbook-remediation/jobs', { params: { limit } });
   return jobsResponseSchema.parse(data).jobs;
 }
-
-export async function deleteRemediationJob(jobId: string) {
-  await apiClient.delete(`/textbook-remediation/jobs/${encodeURIComponent(jobId)}`);
-}

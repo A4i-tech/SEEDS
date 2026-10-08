@@ -12,10 +12,6 @@
   padding: var(--mantine-spacing-lg);
 }
 
-.player {
-  width: 100%;
-}
-
 .secondaryButton.secondaryButton {
   border-color: var(--seeds-btn-secondary-border);
   color: var(--seeds-btn-secondary-text);

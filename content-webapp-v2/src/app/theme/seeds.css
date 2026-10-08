@@ -1,5 +1,4 @@
 :root {
-  --seeds-font-body: 'Atkinson Hyperlegible', system-ui, sans-serif;
   --seeds-text-primary: #1a1d1e;
   --seeds-text-secondary: #434849;
   --seeds-bg-page: #f4f6f7;
@@ -8,7 +7,6 @@
   --seeds-brandmark-bg: #235265;
   --seeds-nav-topbar-bg: #1b404e;
   --seeds-nav-topbar-text: #ffffff;
-  --seeds-subnav-text: #1a1d1e;
   --seeds-subnav-text-active: #1b404e;
   --seeds-subnav-bg-active: #dfebf0;
   --seeds-btn-primary-bg: #235265;
@@ -18,16 +16,10 @@
   --seeds-btn-tertiary-text: #235265;
   --seeds-btn-destructive-bg: #9e241c;
   --seeds-btn-destructive-text: #ffffff;
-  --seeds-field-bg: #ffffff;
-  --seeds-field-border: #6e7476;
-  --seeds-field-text: #1a1d1e;
-  --seeds-field-helper-text: #434849;
-  --seeds-table-bg: #ffffff;
   --seeds-table-border: #b2b8b9;
   --seeds-table-header-bg: #f4f6f7;
   --seeds-table-header-text: #434849;
   --seeds-card-border: #b2b8b9;
-  --seeds-modal-scrim: #1412108c;
   --seeds-badge-easy-bg: #dcf3e3;
   --seeds-badge-easy-text: #166534;
   --seeds-badge-hard-bg: #fbe0dd;

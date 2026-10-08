@@ -41,25 +41,28 @@ interface SchoolRow {
   classes: number;
 }
 
-function formatRangeLabel(start: Date | undefined, end: Date | undefined): string {
-  if (!start || !end) return '';
+function formatRangeLabel(start: Date, end: Date): string {
   const day = (d: Date) => d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
   const year = end.getFullYear();
   return `${day(start)} – ${day(end)} ${year}`;
 }
 
-function toInputDateOrEmpty(date: Date | undefined): string {
-  if (date === undefined) return '';
-  return toInputDate(date);
-}
-
-function parseInputDate(value: string): Date | undefined {
-  if (!value) return undefined;
-  return new Date(value);
-}
-
 function toInputDate(date: Date): string {
   return date.toISOString().slice(0, 10);
+}
+
+function ChartSectionHeading({ label }: { label: string }) {
+  const { t } = useTranslation();
+  return (
+    <Group gap="xs" align="center">
+      <Text size="sm" fw={700} className={classes.eyebrow}>
+        {label}
+      </Text>
+      <Text size="sm" c="dimmed">
+        {t('analytics.chartsHint')}
+      </Text>
+    </Group>
+  );
 }
 
 export function AnalyticsScreen() {
@@ -86,9 +89,9 @@ export function AnalyticsScreen() {
   const schools = useMemo<SchoolRow[]>(
     () =>
       (tenantDashboard?.schools ?? [])
-        .filter((s) => branch === 'all' || (s.id || s.name) === branch)
+        .filter((s) => branch === 'all' || s.id === branch)
         .map((s) => ({
-          id: s.id || s.name,
+          id: s.id,
           name: s.name,
           teachers: s.teacher_count,
           students: s.student_count,
@@ -111,7 +114,7 @@ export function AnalyticsScreen() {
   const schoolOptions = useMemo(
     () =>
       (tenantDashboard?.schools ?? []).map((s) => ({
-        value: s.id || s.name,
+        value: s.id,
         label: s.name,
       })),
     [tenantDashboard],
@@ -120,13 +123,13 @@ export function AnalyticsScreen() {
   const filtersInitial: FiltersValue = {
     branch,
     quick: 'last7',
-    start: toInputDateOrEmpty(range.start),
-    end: toInputDateOrEmpty(range.end),
+    start: toInputDate(range.start),
+    end: toInputDate(range.end),
   };
 
   const applyFilters = (value: FiltersValue) => {
     setBranch(value.branch);
-    setRange({ start: parseInputDate(value.start), end: parseInputDate(value.end) });
+    setRange({ start: new Date(value.start), end: new Date(value.end) });
     setPage(1);
     setFiltersOpen(false);
   };
@@ -247,11 +250,9 @@ export function AnalyticsScreen() {
           <Text c="dimmed">{t('analytics.description')}</Text>
         </div>
         <Group gap="sm" align="center">
-          {range.start && range.end && (
-            <Text size="sm" c="dimmed">
-              {t('analytics.showing', { range: formatRangeLabel(range.start, range.end) })}
-            </Text>
-          )}
+          <Text size="sm" c="dimmed">
+            {t('analytics.showing', { range: formatRangeLabel(range.start, range.end) })}
+          </Text>
           <Button className={classes.filtersButton} onClick={() => setFiltersOpen(true)}>
             {t('analytics.filters')}
           </Button>
@@ -280,14 +281,7 @@ export function AnalyticsScreen() {
       {tab === 'ivr' && (
         <Stack gap="md">
           <StatCards cards={kpiCards} loading={analytics.isLoading} />
-          <Group gap="xs" align="center">
-            <Text size="sm" fw={700} className={classes.eyebrow}>
-              {t('analytics.chartsLabel')}
-            </Text>
-            <Text size="sm" c="dimmed">
-              {t('analytics.chartsHint')}
-            </Text>
-          </Group>
+          <ChartSectionHeading label={t('analytics.chartsLabel')} />
           <SimpleGrid cols={{ base: 1, sm: 2 }}>
             <ChartCard
               title={t('analytics.charts.callsByDate')}
@@ -340,14 +334,7 @@ export function AnalyticsScreen() {
       {tab === 'conference' && (
         <Stack gap="md">
           <StatCards cards={conferenceCards} loading={analytics.isLoading} />
-          <Group gap="xs" align="center">
-            <Text size="sm" fw={700} className={classes.eyebrow}>
-              {t('analytics.chartsLabel')}
-            </Text>
-            <Text size="sm" c="dimmed">
-              {t('analytics.chartsHint')}
-            </Text>
-          </Group>
+          <ChartSectionHeading label={t('analytics.chartsLabel')} />
           <SimpleGrid cols={{ base: 1, sm: 2 }}>
             <ChartCard
               title={t('analytics.conference.byDate')}
@@ -398,14 +385,7 @@ export function AnalyticsScreen() {
       {tab === 'organisation' && role === 'tenant' && (
         <Stack gap="md">
           <StatCards cards={orgCards()} loading={dashboards.tenant.isLoading} />
-          <Group gap="xs" align="center">
-            <Text size="sm" fw={700} className={classes.eyebrow}>
-              {t('analytics.org.activityMix')}
-            </Text>
-            <Text size="sm" c="dimmed">
-              {t('analytics.chartsHint')}
-            </Text>
-          </Group>
+          <ChartSectionHeading label={t('analytics.org.activityMix')} />
           <SimpleGrid cols={{ base: 1, sm: 2 }}>
             <ChartCard
               title={t('analytics.org.studentsBySchool')}

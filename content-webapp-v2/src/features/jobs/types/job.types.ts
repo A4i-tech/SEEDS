@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { routePaths } from '@app/navigation/routePaths';
 import { text } from '@shared/utils/schema';
 
-export const remediationStatusSchema = z.enum([
+const remediationStatusSchema = z.enum([
   'pending',
   'running',
   'ready_to_review',
@@ -50,7 +50,7 @@ export const remediationJobSchema = z.object({
 
 export type RemediationJob = z.infer<typeof remediationJobSchema>;
 
-export const syncStatusSchema = z.enum(['pending', 'running', 'completed', 'failed']);
+const syncStatusSchema = z.enum(['pending', 'running', 'completed', 'failed']);
 
 export const syncJobSchema = z.object({
   job_id: z.string(),
@@ -72,10 +72,10 @@ export const syncJobSchema = z.object({
 
 export type SyncJob = z.infer<typeof syncJobSchema>;
 
-export const jobTypeSchema = z.enum(['make-accessible', 'course-sync', 'localize', 'create']);
+const jobTypeSchema = z.enum(['make-accessible', 'course-sync', 'localize', 'create']);
 export type JobType = z.infer<typeof jobTypeSchema>;
 
-export const jobStatusSchema = z.enum(['running', 'needs-review', 'done', 'failed']);
+const jobStatusSchema = z.enum(['running', 'needs-review', 'done', 'failed']);
 export type JobStatus = z.infer<typeof jobStatusSchema>;
 
 export interface JobRow {

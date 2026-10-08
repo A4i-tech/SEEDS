@@ -1,6 +1,6 @@
 import type { TranslationItem } from '../types/localize.types';
 
-export type SegmentStage = 'pending' | 'approved';
+type SegmentStage = 'pending' | 'approved';
 
 export interface Segment {
   id: string;

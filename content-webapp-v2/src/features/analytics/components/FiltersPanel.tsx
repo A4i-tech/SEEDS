@@ -5,7 +5,7 @@ import { selectValue } from '@shared/utils/select';
 import { lastNDays, monthToDate } from '../hooks/useAnalytics';
 import classes from './FiltersPanel.module.css';
 
-export type QuickRange = 'last7' | 'last30' | 'month' | 'custom';
+type QuickRange = 'last7' | 'last30' | 'month' | 'custom';
 
 export interface FiltersValue {
   branch: string;

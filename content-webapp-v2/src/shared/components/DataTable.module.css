@@ -4,6 +4,7 @@
   text-transform: uppercase;
   letter-spacing: 2px;
   font-size: 12px;
+  border-bottom: 1px solid var(--seeds-table-border);
 }
 
 .paginationControl.paginationControl {
@@ -43,7 +44,6 @@
   border-bottom: none;
 }
 
-.table.table th,
 .table.table td {
   border-bottom: 1px solid var(--seeds-table-border);
 }

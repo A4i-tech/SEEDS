@@ -47,8 +47,6 @@ export const dashboardStatisticsSchema = z.object({
   total_classes: z.number(),
 });
 
-export type DashboardStatistics = z.infer<typeof dashboardStatisticsSchema>;
-
 export const schoolDashboardRowSchema = z
   .object({
     id: text,
@@ -58,8 +56,6 @@ export const schoolDashboardRowSchema = z
     class_count: z.number(),
   })
   .transform((row) => ({ ...row, id: row.id || row.name }));
-
-export type SchoolDashboardRow = z.infer<typeof schoolDashboardRowSchema>;
 
 export const tenantDashboardSchema = z.object({
   statistics: dashboardStatisticsSchema,
@@ -71,8 +67,6 @@ export type TenantDashboard = z.infer<typeof tenantDashboardSchema>;
 export const schoolProfileSchema = z.object({
   name: z.string(),
 });
-
-export type SchoolProfile = z.infer<typeof schoolProfileSchema>;
 
 export const schoolDashboardSchema = z.object({
   school: schoolProfileSchema,

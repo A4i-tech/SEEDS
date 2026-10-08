@@ -3,13 +3,10 @@ import { notifications } from '@mantine/notifications';
 import { useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '@features/auth/store/useAuthStore';
-import { streamEvents } from '@shared/services/sse';
+import { streamJob } from '@shared/services/sse';
 import { apiUrl, authHeaders } from '@shared/services/apiClient';
-import { z } from 'zod';
 import { getRemediationJob, remediationJobStreamUrl } from '../api/remediation';
 import { remediationJobDetailSchema } from '../types/remediation.types';
-
-const streamEventSchema = z.object({ job: remediationJobDetailSchema }).passthrough();
 
 const terminalStatuses = new Set(['ready_to_review', 'in_review', 'verified', 'failed']);
 
@@ -32,18 +29,19 @@ export function useRemediationJob(jobId: string) {
   useEffect(() => {
     if (status !== 'authenticated') return;
     const controller = new AbortController();
-    void streamEvents(apiUrl(remediationJobStreamUrl(jobId)), authHeaders(), {
-      signal: controller.signal,
-      onEvent: (data) => {
-        const parsed = streamEventSchema.safeParse(data);
-        if (!parsed.success) return;
-        queryClient.setQueryData(queryKey, parsed.data.job);
-        if (terminalStatuses.has(parsed.data.job.status)) {
-          notifications.show({ message: t('makeAccessible.jobUpdated', { name: parsed.data.job.source_name }) });
+    void streamJob(
+      apiUrl(remediationJobStreamUrl(jobId)),
+      authHeaders(),
+      remediationJobDetailSchema,
+      (job) => {
+        queryClient.setQueryData(queryKey, job);
+        if (terminalStatuses.has(job.status)) {
+          notifications.show({ message: t('makeAccessible.jobUpdated', { name: job.source_name }) });
           void queryClient.invalidateQueries({ queryKey: ['jobs'] });
         }
       },
-    }).catch(() => undefined);
+      controller.signal,
+    );
     return () => controller.abort();
   }, [jobId, status, queryClient, queryKey, t]);
 

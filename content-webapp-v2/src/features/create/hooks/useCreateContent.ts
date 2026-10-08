@@ -31,7 +31,7 @@ export function useCreateContentText() {
   });
 }
 
-export interface AudioUploadInput {
+interface AudioUploadInput {
   file: File;
   payload: ContentCreate;
 }

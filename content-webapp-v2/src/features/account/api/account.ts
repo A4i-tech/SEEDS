@@ -1,6 +1,5 @@
 import { apiClient } from '@shared/services/apiClient';
-import { tenantMeSchema } from '../types/account.types';
-import type { TenantMe } from '../types/account.types';
+import { tenantMeSchema, type TenantMe } from '../types/account.types';
 
 export async function getTenantMe(): Promise<TenantMe> {
   const { data } = await apiClient.get('/tenant/me');

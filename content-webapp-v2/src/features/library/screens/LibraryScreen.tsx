@@ -29,7 +29,6 @@ interface LibraryRow {
 }
 
 function languageName(code: string): string {
-  if (!code) return '';
   try {
     return new Intl.DisplayNames(['en'], { type: 'language' }).of(code) ?? code;
   } catch {

@@ -123,12 +123,12 @@ export function DataTable<T>({
           </Table.Tbody>
         </Table>
       </Table.ScrollContainer>
-      {footerLayout === 'range' && (
-        <Group justify="space-between" mt="md">
-          <Text size="sm" c="dimmed">
-            {t('common.rangeOf', { start: rangeStart, end: rangeEnd, total: itemCount })}
-          </Text>
-          {pageCount > 1 && (
+      <Group justify="space-between" mt="md">
+        <Text size="sm" c="dimmed">
+          {t('common.rangeOf', { start: rangeStart, end: rangeEnd, total: itemCount })}
+        </Text>
+        {pageCount > 1 &&
+          (footerLayout === 'range' ? (
             <Group gap="xs">
               <Button variant="subtle" size="xs" disabled={page <= 1} onClick={() => onPageChange?.(page - 1)}>
                 {t('common.previous')}
@@ -142,15 +142,7 @@ export function DataTable<T>({
                 {t('common.next')}
               </Button>
             </Group>
-          )}
-        </Group>
-      )}
-      {footerLayout !== 'range' && (
-        <Group justify="space-between" mt="md">
-          <Text size="sm" c="dimmed">
-            {t('common.rangeOf', { start: rangeStart, end: rangeEnd, total: itemCount })}
-          </Text>
-          {pageCount > 1 && (
+          ) : (
             <Pagination
               value={page}
               total={pageCount}
@@ -160,9 +152,8 @@ export function DataTable<T>({
               nextIcon={() => t('common.next')}
               classNames={{ control: classes.paginationControl }}
             />
-          )}
-        </Group>
-      )}
+          ))}
+      </Group>
     </>
   );
 }

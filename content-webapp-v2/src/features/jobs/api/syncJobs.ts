@@ -31,8 +31,6 @@ const syncJobItemsPageSchema = z.object({
   total: z.number(),
 });
 
-export type SyncJobItemsPage = z.infer<typeof syncJobItemsPageSchema>;
-
 export async function getSyncStatus(jobId: string) {
   const { data } = await apiClient.get(`/content-aggregators/sync/status/${encodeURIComponent(jobId)}`);
   return syncJobSchema.parse(data);

@@ -7,10 +7,6 @@ export function setAuthToken(token: string) {
   authToken = token;
 }
 
-export function getAuthToken() {
-  return authToken;
-}
-
 export function clearAuthToken() {
   authToken = '';
 }
@@ -58,9 +54,9 @@ export class ApiError extends Error {
 }
 
 async function parseBody(response: Response): Promise<unknown> {
-  const contentType: unknown = response.headers.get('content-type');
+  const contentType = response.headers.get('content-type');
   if (response.status === 204) return undefined;
-  if (typeof contentType === 'string' && contentType.includes('application/json')) return response.json();
+  if (contentType?.includes('application/json')) return response.json();
   return response.text();
 }
 

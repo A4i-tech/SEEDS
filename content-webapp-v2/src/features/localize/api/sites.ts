@@ -14,11 +14,6 @@ export async function listSites(): Promise<Website[]> {
   return websiteListSchema.parse(data);
 }
 
-export async function getSite(id: string): Promise<Website> {
-  const { data } = await apiClient.get(`/websites/${encodeURIComponent(id)}`);
-  return websiteSchema.parse(data);
-}
-
 export async function createSite(input: WebsiteCreate): Promise<Website> {
   const { data } = await apiClient.post('/websites', input);
   return websiteSchema.parse(data);

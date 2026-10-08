@@ -7,8 +7,6 @@ export const languageSchema = z.object({
   name: z.string(),
 });
 
-export type Language = z.infer<typeof languageSchema>;
-
 const languagesResponseSchema = z.object({ languages: z.array(languageSchema) });
 
 export async function getLanguages() {

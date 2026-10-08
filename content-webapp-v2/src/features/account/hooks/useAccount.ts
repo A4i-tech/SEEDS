@@ -1,11 +1,5 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { getAuthToken } from '@shared/services/apiClient';
 import { changeTenantPassword, getTenantMe } from '../api/account';
-import { decodeJwtRole } from '@shared/utils/jwt';
-
-export function useSessionRole(): string {
-  return decodeJwtRole(getAuthToken());
-}
 
 export function useTenantMe() {
   return useQuery({ queryKey: ['account', 'me'], queryFn: getTenantMe, retry: false });

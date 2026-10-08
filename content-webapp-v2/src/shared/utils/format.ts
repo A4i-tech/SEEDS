@@ -8,7 +8,7 @@ export function formatRelativeTime(iso: string): string {
   const minute = 60_000;
   const hour = 60 * minute;
   const day = 24 * hour;
-  if (diffMs < 0 || diffMs < minute) return 'Just now';
+  if (diffMs < minute) return 'Just now';
   if (diffMs < hour) return `${Math.floor(diffMs / minute)}m ago`;
   if (diffMs < day) return `${Math.floor(diffMs / hour)}h ago`;
   const yesterday = new Date(now.getTime() - day);

@@ -6,8 +6,8 @@ import type { AnalyticsRole, CallLog } from '../types/analytics.types';
 import { analyticsRoleSchema } from '../types/analytics.types';
 
 export interface DateRange {
-  start: Date | undefined;
-  end: Date | undefined;
+  start: Date;
+  end: Date;
 }
 
 export interface CountBin {
@@ -23,7 +23,7 @@ export interface DateRow {
   dropPercent: string;
 }
 
-export interface AnalyticsStats {
+interface AnalyticsStats {
   totalCalls: number;
   uniqueUsers: number;
   avgDuration: string;
@@ -38,10 +38,6 @@ export interface AnalyticsStats {
 }
 
 const CONTENT_KEYS = ['content_id', 'audio_id', 'content_name', 'audio_name'] as const;
-
-export function parseDurationSeconds(value: number): number {
-  return value;
-}
 
 export function formatClock(totalSeconds: number): string {
   const minutes = Math.floor(totalSeconds / 60);
@@ -90,7 +86,7 @@ function topCounts(entries: Array<[string, number]>, limit: number): CountBin[] 
 }
 
 function isDropped(log: CallLog): boolean {
-  return parseDurationSeconds(log.duration) === 0 || log.user_actions.length <= 1;
+  return log.duration === 0 || log.user_actions.length <= 1;
 }
 
 function averageDuration(total: number, count: number): number {
@@ -104,7 +100,7 @@ function medianOfSorted(sorted: number[]): number {
 }
 
 function summarizeDate(date: string, logs: CallLog[]): DateRow {
-  const durations = logs.map((log) => parseDurationSeconds(log.duration)).filter((d) => d > 0);
+  const durations = logs.map((log) => log.duration).filter((d) => d > 0);
   const total = durations.reduce((sum, d) => sum + d, 0);
   return {
     date,
@@ -131,7 +127,7 @@ export function summarizeCalls(logs: CallLog[]): AnalyticsStats {
   };
   if (logs.length === 0) return empty;
 
-  const durations = logs.map((log) => parseDurationSeconds(log.duration)).filter((d) => d > 0);
+  const durations = logs.map((log) => log.duration).filter((d) => d > 0);
   const totalSeconds = durations.reduce((sum, d) => sum + d, 0);
   const sorted = [...durations].sort((a, b) => a - b);
   const median = medianOfSorted(sorted);
@@ -199,16 +195,14 @@ export function useAnalyticsRole(): AnalyticsRole | undefined {
 
 export function useAnalyticsRange(role: AnalyticsRole | undefined, range: DateRange) {
   const status = useAuthStore((s) => s.status);
-  const startISO = range.start?.toISOString();
-  const endISO = range.end?.toISOString();
-  const enabled = status === 'authenticated' && role !== undefined && startISO !== undefined && endISO !== undefined;
+  const startISO = range.start.toISOString();
+  const endISO = range.end.toISOString();
+  const enabled = status === 'authenticated' && role !== undefined;
 
   const query = useQuery({
     queryKey: ['analytics', role, startISO, endISO],
     queryFn: () => {
-      if (role === undefined || startISO === undefined || endISO === undefined) {
-        throw new Error('Analytics query ran without role or date range');
-      }
+      if (role === undefined) throw new Error('Analytics query ran without role');
       return postAnalytics(role, {
         start_date: startISO,
         end_date: endISO,

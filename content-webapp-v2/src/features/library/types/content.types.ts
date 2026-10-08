@@ -133,4 +133,4 @@ export const contentPageSchema = z.object({
   }),
 });
 
-export type ContentPage = z.infer<typeof contentPageSchema>;
+

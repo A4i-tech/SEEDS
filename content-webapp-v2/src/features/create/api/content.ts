@@ -1,7 +1,6 @@
 import { z } from 'zod';
 import { ApiError, apiClient } from '@shared/services/apiClient';
-import { contentCreateSchema } from '../../library/types/content.types';
-import type { ContentCreate } from '../../library/types/content.types';
+import { contentCreateSchema, type ContentCreate } from '../../library/types/content.types';
 
 const sasTokenSchema = z.object({ sas_token: z.string() });
 

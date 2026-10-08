@@ -5,11 +5,6 @@
   padding: var(--mantine-spacing-md);
 }
 
-.secondaryButton.secondaryButton {
-  border-color: var(--seeds-btn-secondary-border);
-  color: var(--seeds-btn-secondary-text);
-}
-
 .submitButton.submitButton {
   background-color: var(--seeds-btn-primary-bg);
   color: var(--seeds-btn-primary-text);

@@ -81,9 +81,6 @@ export function useLocalizeReview({ siteId, route, lang }: LocalizeReviewScope) 
     segments: (list.data ?? []).map((item) => toSegment(item, lang)),
     isLoading: list.isLoading,
     error: list.error,
-    refetch: () => {
-      void list.refetch();
-    },
     generate: generate.mutateAsync,
     generating: generate.isPending,
     saveEdit: saveEdit.mutateAsync,
