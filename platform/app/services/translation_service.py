@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Literal, NotRequired, TypedDict
 
 from fastapi import Depends
 from pymongo import UpdateOne
@@ -30,6 +30,17 @@ from app.services.quality_scorer import is_low_confidence, score_translation
 from app.services.sdk_rolling_hash import js_trim, sdk_rolling_hash
 
 logger = logging.getLogger(__name__)
+
+
+class _PlannedRow(TypedDict):
+    row: int
+    route: str
+    key: str
+    kind: Literal["created", "updated"]
+    audits: list[dict[str, Any]]
+    version_doc: NotRequired[dict[str, Any]]
+    translation_id: NotRequired[str | None]
+
 
 IMPORT_TEXT_MAX_LENGTH = 5000
 IMPORT_ROUTE_MAX_LENGTH = 2048
@@ -591,7 +602,7 @@ class TranslationService:
         base = f"translations.{lang}"
         approving = state == "approved"
         ops: list[UpdateOne] = []
-        planned: list[dict[str, Any]] = []
+        planned: list[_PlannedRow] = []
 
         for row_no, route, key, source, text in parsed:
             doc = existing.get((route, key))
