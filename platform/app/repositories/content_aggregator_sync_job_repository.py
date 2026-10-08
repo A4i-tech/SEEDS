@@ -27,6 +27,10 @@ class ContentAggregatorSyncJobRepository:
         self._db = db
         self._col = db[self.COLLECTION_NAME]
 
+    @classmethod
+    async def ensure_indexes(cls, db: AsyncDatabase) -> None:
+        await db[cls.COLLECTION_NAME].create_index([("status", 1), ("source_type", 1), ("created_at", 1)])
+
     async def create_job(
         self,
         job_id: str,
