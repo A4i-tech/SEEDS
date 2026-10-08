@@ -4,7 +4,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -82,6 +82,11 @@ class Settings(BaseSettings):
 
     openai_api_key: str = Field(default="", repr=False)
     openai_org_id: str = ""
+    openai_base_url: str = ""
+    transcription_base_url: str = ""
+    embedding_base_url: str = ""
+    transcription_model: str = "whisper-1"
+    embedding_model: str = "text-embedding-3-small"
 
     mistral_ocr_api_key: str = Field(default="", repr=False)
     mistral_ocr_endpoint: str = ""
@@ -155,6 +160,12 @@ class Settings(BaseSettings):
     subodha_collection_name: str = "subodhaCourses"
     subodha_jobs_collection_name: str = "subodhaSyncJobs"
     subodha_asset_container: str = "subodha"
+
+    @model_validator(mode="after")
+    def _default_base_urls(self) -> Settings:
+        self.transcription_base_url = self.transcription_base_url or self.openai_base_url
+        self.embedding_base_url = self.embedding_base_url or self.openai_base_url
+        return self
 
     @property
     def call_webhook_queue_name(self) -> str:
