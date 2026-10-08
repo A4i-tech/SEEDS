@@ -7,6 +7,17 @@ const { MessageType } = require("../../src/constants");
 jest.mock("../../src/services/websocketService");
 jest.mock("../../src/services/connectionManager");
 
+function findLoggedEntry(spy, message) {
+  const call = spy.mock.calls.find((c) => {
+    try {
+      return JSON.parse(c[0]).message === message;
+    } catch {
+      return false;
+    }
+  });
+  return call && JSON.parse(call[0]);
+}
+
 describe("ControlService", () => {
   let mockWebSocket, mockMessageHandler, mockCloseHandler, mockErrorHandler;
 
@@ -31,6 +42,7 @@ describe("ControlService", () => {
     websocketService.seekAudioContent.mockResolvedValue();
     websocketService.closeConnection.mockReturnValue();
     connectionManager.removeConnection.mockReturnValue();
+    connectionManager.getConnection.mockReturnValue({ ws: mockWebSocket, state: { correlationId: "test-correlation-id" } });
   });
 
   describe("connection handling", () => {
@@ -53,12 +65,14 @@ describe("ControlService", () => {
       );
 
       // Test close event
-      connectionManager.getConnection.mockReturnValue({ ws: mockWebSocket });
+      connectionManager.getConnection.mockReturnValue({ ws: mockWebSocket, state: { correlationId: "test-correlation-id" } });
       mockCloseHandler(1000, "normal");
-      expect(consoleSpy).toHaveBeenCalledWith(
-        "[INFO] Control WebSocket connection closed (confv2server): code=1000 reason=normal",
-        ""
-      );
+      expect(
+        findLoggedEntry(
+          consoleSpy,
+          "Control WebSocket connection closed (confv2server): code=1000 reason=normal"
+        )
+      ).toBeTruthy();
       expect(connectionManager.removeConnection).toHaveBeenCalledWith(
         "confv2server"
       );
@@ -66,11 +80,9 @@ describe("ControlService", () => {
       // Test error event
       const testError = new Error("Test error");
       mockErrorHandler(testError);
-      expect(errorSpy).toHaveBeenCalledWith(
-        "[ERROR] Control WebSocket error",
-        testError,
-        ""
-      );
+      expect(
+        findLoggedEntry(errorSpy, "Control WebSocket error")
+      ).toMatchObject({ error: testError.message });
 
       consoleSpy.mockRestore();
       errorSpy.mockRestore();
@@ -160,6 +172,7 @@ describe("ControlService", () => {
       }
 
       // Test heartbeat
+      const debugSpy = jest.spyOn(logger, "debug").mockImplementation(() => {});
       await mockMessageHandler(
         JSON.stringify({
           websocket_id: "client-7",
@@ -167,10 +180,11 @@ describe("ControlService", () => {
           message: "",
         })
       );
-      expect(consoleSpy).toHaveBeenCalledWith(
-        "[WARN] Heartbeat message received from conf server",
-        ""
+      expect(debugSpy).toHaveBeenCalledWith(
+        "Heartbeat message received from conf server",
+        expect.objectContaining({ eventType: "control_command_heartbeat" })
       );
+      debugSpy.mockRestore();
 
       // Test unknown type
       await mockMessageHandler(
@@ -180,10 +194,9 @@ describe("ControlService", () => {
           message: "test",
         })
       );
-      expect(consoleSpy).toHaveBeenCalledWith(
-        "[WARN] Unknown control message type: UNKNOWN",
-        ""
-      );
+      expect(
+        findLoggedEntry(consoleSpy, "Unknown control message type: UNKNOWN")
+      ).toBeTruthy();
 
       consoleSpy.mockRestore();
       logSpy.mockRestore();
@@ -196,11 +209,9 @@ describe("ControlService", () => {
 
       // Malformed JSON
       await mockMessageHandler("{ invalid json }");
-      expect(errorSpy).toHaveBeenCalledWith(
-        "[ERROR] Error parsing control message",
-        expect.any(Error),
-        ""
-      );
+      expect(
+        findLoggedEntry(errorSpy, "Error parsing control message")
+      ).toMatchObject({ error: expect.any(String) });
 
       // Empty/null messages
       await mockMessageHandler("");
@@ -217,11 +228,9 @@ describe("ControlService", () => {
           message: "test",
         })
       );
-      expect(errorSpy).toHaveBeenCalledWith(
-        "[ERROR] Error playing audio for ID error-client",
-        testError,
-        ""
-      );
+      expect(
+        findLoggedEntry(errorSpy, "Error playing audio for ID error-client")
+      ).toMatchObject({ error: testError.message });
 
       websocketService.playSystemAudioContent.mockRejectedValue(testError);
       await mockMessageHandler(
@@ -231,11 +240,9 @@ describe("ControlService", () => {
           message: "test",
         })
       );
-      expect(errorSpy).toHaveBeenCalledWith(
-        "[ERROR] Error playing audio for ID system-error",
-        testError,
-        ""
-      );
+      expect(
+        findLoggedEntry(errorSpy, "Error playing audio for ID system-error")
+      ).toMatchObject({ error: testError.message });
 
       websocketService.seekAudioContent.mockRejectedValue(testError);
       await mockMessageHandler(
@@ -245,11 +252,9 @@ describe("ControlService", () => {
           message: { deltaSeconds: 5 },
         })
       );
-      expect(errorSpy).toHaveBeenCalledWith(
-        "[ERROR] Error seeking audio for ID seek-error",
-        testError,
-        ""
-      );
+      expect(
+        findLoggedEntry(errorSpy, "Error seeking audio for ID seek-error")
+      ).toMatchObject({ error: testError.message });
 
       // Missing fields
       await mockMessageHandler(
@@ -261,10 +266,9 @@ describe("ControlService", () => {
       await mockMessageHandler(
         JSON.stringify({ websocket_id: "test", type: MessageType.PLAY_AUDIO })
       );
-      expect(warnSpy).toHaveBeenCalledWith(
-        "[WARN] Unknown control message type: undefined",
-        ""
-      );
+      expect(
+        findLoggedEntry(warnSpy, "Unknown control message type: undefined")
+      ).toBeTruthy();
 
       errorSpy.mockRestore();
       warnSpy.mockRestore();
