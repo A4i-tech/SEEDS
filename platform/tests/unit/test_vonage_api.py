@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from typing import Any
 from unittest.mock import MagicMock, patch
 
@@ -214,16 +215,16 @@ class TestTryConnectingWebsocketWithParticipant:
     async def test_get_call_times_out_returns_false(self) -> None:
         provider = make_provider(call_timeout_seconds=0.01)
         participant = VonageParticipantInfo(phone_number="123", call_leg_id="leg-1", initial_conv_id="conv-1")
+        provider._client.voice.get_call = MagicMock(return_value={"status": "answered"})
 
-        def slow_get_call(**kwargs: Any) -> dict[str, Any]:
-            import time
+        async def fake_wait_for(coro, timeout):
+            coro.close()
+            raise TimeoutError
 
-            time.sleep(0.2)
-            return {"status": "answered"}
-
-        provider._client.voice.get_call = MagicMock(side_effect=slow_get_call)
-        result = await provider._try_connecting_websocket_with_participant(participant)
+        with patch("app.providers.vonage_api.asyncio.wait_for", fake_wait_for):
+            result = await provider._try_connecting_websocket_with_participant(participant)
         assert result is False
+        provider._client.voice.update_call.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_get_call_raises_returns_false(self) -> None:
@@ -246,15 +247,22 @@ class TestTryConnectingWebsocketWithParticipant:
         provider = make_provider(call_timeout_seconds=0.01)
         participant = VonageParticipantInfo(phone_number="123", call_leg_id="leg-1", initial_conv_id="conv-1")
         provider._client.voice.get_call = MagicMock(return_value={"status": "answered"})
+        provider._client.voice.update_call = MagicMock(return_value=None)
 
-        def slow_update_call(**kwargs: Any) -> None:
-            import time
+        calls = {"n": 0}
 
-            time.sleep(0.2)
+        async def fake_wait_for(coro, timeout):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                return await coro
+            coro.close()
+            raise TimeoutError
 
-        provider._client.voice.update_call = MagicMock(side_effect=slow_update_call)
-        result = await provider._try_connecting_websocket_with_participant(participant)
+        with patch("app.providers.vonage_api.asyncio.wait_for", fake_wait_for):
+            result = await provider._try_connecting_websocket_with_participant(participant)
         assert result is False
+        provider._client.voice.get_call.assert_called_once()
+        provider._client.voice.update_call.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_update_call_raises_returns_false(self) -> None:
