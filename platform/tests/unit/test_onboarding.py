@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 import pytest
+from pydantic import ValidationError as PydanticValidationError
 from pymongo.errors import DuplicateKeyError
 
+from app.models.requests.onboarding_requests import WebsiteCreateRequest, WebsiteUpdateRequest
 from app.platform.error_handling import ConflictError, NotFoundError, ValidationError
 from app.repositories.website_repository import WebsiteRepository
 from app.services.onboarding_service import OnboardingService
@@ -77,19 +79,32 @@ async def test_register_website_defaults_to_no_additional_domains(onboarding_ser
     assert website.additional_domains == []
 
 
-async def test_register_website_stores_normalized_deduped_additional_domains(onboarding_service):
+async def test_register_website_stores_additional_domains(onboarding_service):
     website = await onboarding_service.register_website(
-        TENANT, None, "apps.acme.com", additional_domains=[" LMS.Acme.com ", "lms.acme.com", "acme.com"]
+        TENANT, None, "apps.acme.com", additional_domains=["lms.acme.com", "acme.com"]
     )
 
     assert website.additional_domains == ["lms.acme.com", "acme.com"]
 
 
-async def test_register_website_rejects_an_invalid_additional_domain_and_creates_nothing(onboarding_service, mock_db):
-    with pytest.raises(ValidationError):
-        await onboarding_service.register_website(TENANT, None, "acme.com", additional_domains=["not a domain"])
+def test_create_request_defaults_additional_domains_to_an_empty_list():
+    assert WebsiteCreateRequest(domain="acme.com").additional_domains == []
+    assert WebsiteUpdateRequest().additional_domains == []
+    assert "additional_domains" not in WebsiteUpdateRequest(name="Renamed").model_fields_set
 
-    assert await mock_db["websites"].count_documents({}) == 0
+
+def test_requests_normalize_dedupe_and_validate_additional_domains():
+    create = WebsiteCreateRequest(domain="apps.acme.com", additional_domains=[" LMS.Acme.com ", "lms.acme.com", "acme.com"])
+    update = WebsiteUpdateRequest(additional_domains=["ACME.com"])
+
+    assert create.additional_domains == ["lms.acme.com", "acme.com"]
+    assert update.additional_domains == ["acme.com"]
+    assert "additional_domains" in update.model_fields_set
+    for bad in ("not a domain", "-bad.com", "nodot", ""):
+        with pytest.raises(PydanticValidationError):
+            WebsiteCreateRequest(domain="acme.com", additional_domains=[bad])
+        with pytest.raises(PydanticValidationError):
+            WebsiteUpdateRequest(additional_domains=[bad])
 
 
 async def test_register_website_rejects_a_domain_already_claimed_by_another_site(onboarding_service, mock_db):
@@ -109,7 +124,7 @@ async def test_update_website_sets_and_clears_additional_domains(onboarding_serv
     website = await onboarding_service.register_website(TENANT, None, "apps.acme.com")
 
     updated = await onboarding_service.update_website(
-        website.id, TENANT, {"additional_domains": ["Acme.com"], "domain": "apps.acme.com"}
+        website.id, TENANT, {"additional_domains": ["acme.com"], "domain": "apps.acme.com"}
     )
     assert updated.additional_domains == ["acme.com"]
     assert updated.site_id == website.site_id
@@ -140,13 +155,6 @@ async def test_update_website_rejects_a_domain_claimed_by_another_site_and_chang
             await onboarding_service.update_website(website.id, TENANT, fields)
 
     assert await WebsiteRepository(mock_db).find_by_id_and_tenant(website.id, TENANT) == before
-
-
-async def test_update_website_rejects_an_invalid_additional_domain(onboarding_service):
-    website = await onboarding_service.register_website(TENANT, None, "acme.com")
-
-    with pytest.raises(ValidationError):
-        await onboarding_service.update_website(website.id, TENANT, {"additional_domains": ["bad domain"]})
 
 
 async def test_snippet_format(onboarding_service):

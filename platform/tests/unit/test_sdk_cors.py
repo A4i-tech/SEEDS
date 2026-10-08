@@ -65,7 +65,7 @@ def mock_db(monkeypatch):
     return db
 
 
-async def _seed(db, domain: str, status: str = "Active", additional_domains: list[str] | None = None) -> None:
+async def _seed(db, domain: str, status: str = "Active", additional_domains: tuple[str, ...] = ()) -> None:
     await WebsiteRepository.ensure_indexes(db)
     await WebsiteRepository(db).create(
         "tenant-1", None, domain, f"site-{domain}", "", status, additional_domains=additional_domains

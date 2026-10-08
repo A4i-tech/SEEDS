@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Any
 
@@ -30,14 +31,14 @@ class WebsiteRepository(BaseRepository):
         name: str = "",
         status: str = "Active",
         languages: list[dict[str, Any]] | None = None,
-        additional_domains: list[str] | None = None,
+        additional_domains: Sequence[str] = (),
     ) -> dict[str, Any]:
         now = datetime.now(UTC)
         doc = {
             "tenant_id": tenant_id,
             "project_id": project_id,
             "domain": domain,
-            "additional_domains": additional_domains or [],
+            "additional_domains": list(additional_domains),
             "site_id": site_id,
             "name": name,
             "status": status,

@@ -1,13 +1,14 @@
 from __future__ import annotations
 
-import re
 import uuid
+from collections.abc import Sequence
 from typing import Any
 
 from fastapi import Depends
 from pymongo.asynchronous.database import AsyncDatabase
 from pymongo.errors import DuplicateKeyError
 
+from app.models.requests.onboarding_requests import DOMAIN_RE
 from app.models.responses.onboarding import ProjectResponse, WebsiteResponse
 from app.platform.auth.dependencies import get_db
 from app.platform.error_handling import (
@@ -20,23 +21,10 @@ from app.platform.settings import get_settings
 from app.repositories.project_repository import ProjectRepository
 from app.repositories.website_repository import WebsiteRepository
 
-# Matches a plain hostname (e.g. "example.com"): dot-separated labels, each
-# 1-63 chars of letters/digits/hyphens, no leading/trailing hyphen per label.
-_DOMAIN_RE = re.compile(
-    r"^(?!-)[A-Za-z0-9-]{1,63}(?<!-)(\.[A-Za-z0-9-]{1,63}(?<!-))+$"
-)
-
 
 def _validate_domain(domain: str) -> None:
-    if not domain or not _DOMAIN_RE.match(domain):
+    if not domain or not DOMAIN_RE.match(domain):
         raise ValidationError(f"Invalid domain: {domain!r}")
-
-
-def _normalize_domains(domains: list[str]) -> list[str]:
-    normalized = list(dict.fromkeys(domain.strip().lower() for domain in domains))
-    for domain in normalized:
-        _validate_domain(domain)
-    return normalized
 
 
 class OnboardingService:
@@ -80,10 +68,9 @@ class OnboardingService:
         name: str = "",
         status: str = "Active",
         languages: list[dict[str, Any]] | None = None,
-        additional_domains: list[str] | None = None,
+        additional_domains: Sequence[str] = (),
     ) -> WebsiteResponse:
         _validate_domain(domain)
-        additional_domains = _normalize_domains(additional_domains or [])
         self._base_url()
 
         if project_id is not None:
@@ -124,10 +111,9 @@ class OnboardingService:
 
         if "domain" in fields and fields["domain"]:
             _validate_domain(fields["domain"])
-        if "additional_domains" in fields:
-            fields = {**fields, "additional_domains": _normalize_domains(fields["additional_domains"])}
         claimed = [fields["domain"]] if fields.get("domain") else []
-        await self._ensure_domains_unclaimed(claimed + fields.get("additional_domains", []), str(website["_id"]))
+        claimed += fields.get("additional_domains", ())
+        await self._ensure_domains_unclaimed(claimed, str(website["_id"]))
 
         updated = await self._websites.update(website_id, tenant_id, fields)
         return WebsiteResponse.from_doc(updated, api_base=self._base_url())
@@ -137,7 +123,7 @@ class OnboardingService:
         if not deleted:
             raise NotFoundError("Website", website_id)
 
-    async def _ensure_domains_unclaimed(self, domains: list[str], own_website_id: str | None = None) -> None:
+    async def _ensure_domains_unclaimed(self, domains: list[str], own_website_id: str = "") -> None:
         for domain in domains:
             existing = await self._websites.find_by_domain(domain)
             if existing is not None and str(existing["_id"]) != own_website_id:

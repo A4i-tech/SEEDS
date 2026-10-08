@@ -103,6 +103,8 @@ async def update_website(
     user: dict[str, Any] = Depends(require_tenant),
 ) -> WebsiteResponse:
     fields = {k: v for k, v in body.model_dump().items() if v is not None}
+    if "additional_domains" not in body.model_fields_set:
+        del fields["additional_domains"]
     return await service.update_website(website_id, _tenant_id(user), fields)
 
 
