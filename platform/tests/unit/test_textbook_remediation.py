@@ -579,6 +579,24 @@ async def test_upload_source_pages_renders_and_uploads_each_page(tmp_path):
     assert all(data[:2] == b"\xff\xd8" for data in blob.uploaded.values())
 
 
+def test_render_page_jpeg_caps_an_oversized_page():
+    import pymupdf
+
+    from app.consumers.textbook_remediation_consumer import MAX_PAGE_PX, _render_page_jpeg
+
+    doc = pymupdf.open()
+    doc.new_page(width=14000, height=10000)
+    pix = pymupdf.Pixmap(_render_page_jpeg(doc, 0))
+    assert max(pix.width, pix.height) <= MAX_PAGE_PX
+
+
+def test_resolve_language_returns_none_when_nothing_is_detectable(tmp_path):
+    from app.consumers.textbook_remediation_consumer import _resolve_language
+
+    job = SimpleNamespace(job_id="j1", language="auto")
+    assert _resolve_language(job, True, None, tmp_path / "missing.md") is None
+
+
 @pytest.mark.asyncio
 async def test_update_source_page_count_stores_the_count(repo):
     job = await _create(repo)

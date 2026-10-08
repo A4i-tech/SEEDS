@@ -43,6 +43,7 @@ logger = logging.getLogger(__name__)
 
 POLL_INTERVAL_SECONDS = 10
 JOB_TIMEOUT_SECONDS = 4 * 60 * 60
+MAX_PAGE_PX = 2000
 PIPELINE_PATH = Path(__file__).resolve().parent.parent / "remediation" / "textbook_remediation.yaml"
 
 
@@ -108,8 +109,9 @@ async def _upload(
 
 
 def _render_page_jpeg(doc: pymupdf.Document, page_index: int) -> bytes:
-    pix = doc[page_index].get_pixmap(dpi=100)
-    return pix.tobytes("jpeg")
+    page = doc[page_index]
+    scale = min(100 / 72, MAX_PAGE_PX / max(page.rect.width, page.rect.height))
+    return page.get_pixmap(matrix=pymupdf.Matrix(scale, scale)).tobytes("jpeg")
 
 
 async def _upload_source_pages(blob_provider: BlobStorageProvider, job_id: str, pdf: Path) -> int:
@@ -191,7 +193,7 @@ def _detect_body_language(raw_path: Path) -> str | None:
 
 def _resolve_language(
     job: RemediationJob, is_auto: bool, ctx_data: dict[str, object] | None, raw_path: Path
-) -> str:
+) -> str | None:
     detected = _metadata_language(ctx_data) if ctx_data else None
     if not detected and raw_path.exists():
         try:
@@ -202,9 +204,7 @@ def _resolve_language(
     if requested:
         return normalize_language_name(requested)
     if not detected or detected.lower() in ("auto", "detecting", "unknown"):
-        raise RuntimeError(
-            f"Could not detect the language for job {job.job_id}. Select a language and retry."
-        )
+        return None
     return normalize_language_name(detected)
 
 
@@ -308,8 +308,13 @@ async def _process_job(
         unresolved = out / artifact_filename(ArtifactName.UNRESOLVED)
 
         final_lang = _resolve_language(job, is_auto, ctx_data, raw)
-        await service.update_language(job.job_id, final_lang)
-        logger.info("remediation: updated final language for job_id=%s to %s", job.job_id, final_lang)
+        language_warning = None
+        if final_lang:
+            await service.update_language(job.job_id, final_lang)
+            logger.info("remediation: updated final language for job_id=%s to %s", job.job_id, final_lang)
+        else:
+            language_warning = "Could not detect the document language. Review the output and set the language manually."
+            logger.warning("remediation: %s job_id=%s", language_warning, job.job_id)
 
         await _upload_images(blob_provider, job.job_id, out / "images", out)
         await service.record_artifacts(
@@ -334,7 +339,8 @@ async def _process_job(
         translation_error = await _translate_if_requested(job, service, blob_provider, out)
 
     await service.update_progress(job.job_id, JobProgress())
-    await service.finish(job.job_id, JobStatus.READY_TO_REVIEW, error=translation_error)
+    error = " ".join(filter(None, (language_warning, translation_error))) or None
+    await service.finish(job.job_id, JobStatus.READY_TO_REVIEW, error=error)
 
 
 class TextbookRemediationConsumer(BaseConsumer):
