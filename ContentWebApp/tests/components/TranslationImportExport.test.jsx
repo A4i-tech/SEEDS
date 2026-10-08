@@ -138,25 +138,6 @@ describe("Export", () => {
     await screen.findByText("Exported 4 rows");
   });
 
-  test("Export this page asks only for the current route", async () => {
-    translationService.listTranslations.mockResolvedValue(docs.slice(2));
-    renderWorkspace();
-    await waitFor(() => expect(translationService.listTranslations).toHaveBeenCalled());
-    translationService.listTranslations.mockClear();
-
-    await userEvent.click(screen.getByRole("button", { name: "Export this page" }));
-
-    await waitFor(() => expect(downloads).toHaveLength(1));
-    expect(translationService.listTranslations).toHaveBeenCalledWith({
-      siteId: "site-1",
-      route: "/about",
-    });
-    expect(downloads[0].filename).toBe("example-com-kn-page.csv");
-    const text = utf8((await readBlob(downloads[0].blob)).slice(3));
-    expect(text).not.toContain("\"k1\"");
-    expect(text).toContain("\"k4\",\"/about\",\"Untranslated one\",\"\"");
-  });
-
   test("exports the selected language column, not another one", async () => {
     translationService.listTranslations.mockResolvedValue([
       {
@@ -540,20 +521,6 @@ describe("Export safety and limits", () => {
     await screen.findByText("Exported 19999 rows");
     expect(screen.queryByText(/may be incomplete/)).not.toBeInTheDocument();
   });
-
-  test("a single-page export is not subject to the all-pages cap warning", async () => {
-    translationService.listTranslations
-      .mockResolvedValueOnce(docs)
-      .mockResolvedValueOnce(docs)
-      .mockResolvedValue(manyDocs(20000));
-    renderWorkspace();
-    await screen.findByText("Untranslated one");
-
-    await userEvent.click(screen.getByRole("button", { name: "Export this page" }));
-
-    await screen.findByText("Exported 20000 rows");
-    expect(screen.queryByText(/may be incomplete/)).not.toBeInTheDocument();
-  });
 });
 
 describe("Import dialog layout on short viewports", () => {
@@ -651,5 +618,11 @@ describe("Import dialog layout on short viewports", () => {
     expect(rule(".import-dialog-scroll > * {")).toMatch(/flex-shrink:\s*0/);
     expect(rule(".import-dialog-scroll .import-dialog-errors {")).toMatch(/max-height:\s*16rem/);
     expect(rule(".import-dialog-scroll .import-dialog-errors {")).toMatch(/overflow:\s*auto/);
+    expect(rule(".import-dialog-scroll .import-dialog-errors .content-table {")).toMatch(
+      /table-layout:\s*auto/
+    );
+    expect(rule(".import-dialog-scroll .import-dialog-errors .table-cell {")).toMatch(
+      /white-space:\s*normal/
+    );
   });
 });

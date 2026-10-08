@@ -324,20 +324,20 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
     }
   };
 
-  const exportCsv = async (allPages) => {
+  const exportCsv = async () => {
     try {
-      const exported = await translationService.listTranslations(allPages ? { siteId } : { siteId, route });
+      const exported = await translationService.listTranslations({ siteId });
       if (!exported.length) return toast({ message: "Nothing to export", tone: "info" });
       const site = sites.find((s) => s.siteId === siteId);
       const slug = (site?.name || site?.domain || siteId).replace(/[^a-z0-9]+/gi, "-");
       const languageName = languages.find((l) => l.code === lang)?.name;
       downloadCsv(
         buildTranslationCsv({ docs: exported, lang, languageName }),
-        `${slug}-${lang}${allPages ? "" : "-page"}.csv`
+        `${slug}-${lang}.csv`
       );
-      if (allPages && exported.length >= LIST_ROW_CAP) {
+      if (exported.length >= LIST_ROW_CAP) {
         toast({
-          message: `Exported ${exported.length} rows, but ${LIST_ROW_CAP.toLocaleString("en-US")} is the most one export can hold, so this file may be incomplete. Use Export this page for the rest.`,
+          message: `Exported ${exported.length} rows, but ${LIST_ROW_CAP.toLocaleString("en-US")} is the most one export can hold, so this file may be incomplete.`,
           tone: "crit",
           duration: 20000,
         });
@@ -374,11 +374,8 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
           <button type="button" className="tertiary-button" onClick={() => setImportOpen(true)} disabled={!siteId}>
             Import
           </button>
-          <button type="button" className="tertiary-button" onClick={() => exportCsv(true)} disabled={!siteId || !lang}>
+          <button type="button" className="tertiary-button" onClick={exportCsv} disabled={!siteId || !lang}>
             Export
-          </button>
-          <button type="button" className="tertiary-button" onClick={() => exportCsv(false)} disabled={!ready || !lang}>
-            Export this page
           </button>
         </div>
       </div>

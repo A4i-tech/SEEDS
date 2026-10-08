@@ -14,3 +14,20 @@
   max-height: 16rem;
   overflow: auto;
 }
+
+.import-dialog-scroll .import-dialog-errors .content-table {
+  min-width: 0;
+  table-layout: auto;
+}
+
+.import-dialog-scroll .import-dialog-errors .table-header,
+.import-dialog-scroll .import-dialog-errors .table-cell {
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: left;
+  vertical-align: top;
+}
+
+.import-dialog-scroll .import-dialog-errors .table-cell:last-child {
+  width: 55%;
+}
