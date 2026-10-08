@@ -201,6 +201,41 @@ async def test_remediation_delete_access_allows_tenant_school_admin_and_content_
 
 
 @pytest.mark.asyncio
+async def test_list_jobs_is_tenant_scoped_for_a_volunteer(repo):
+    job = await _create(repo)
+    user = {"role": "textbook_remediation_volunteer", "tenant_id": "tenant-a"}
+    assert [j.job_id for j in await repo.list_jobs(user["tenant_id"])] == [job.job_id]
+    assert await repo.list_jobs("tenant-b") == []
+
+
+@pytest.mark.asyncio
+async def test_only_a_tenant_can_create_or_list_volunteers():
+    from app.platform.auth.dependencies import require_tenant
+
+    assert await require_tenant(user={"role": "tenant"}) == {"role": "tenant"}
+    for role in ("school_admin", "content_creator", "teacher", "textbook_remediation_volunteer"):
+        with pytest.raises(ForbiddenError):
+            await require_tenant(user={"role": role})
+
+
+@pytest.mark.asyncio
+async def test_volunteer_is_rejected_from_non_remediation_endpoints():
+    from app.controllers.content_aggregator_controller import _require_tenant
+    from app.controllers.content_controller import _require_content_read, _require_content_write
+    from app.platform.auth.dependencies import require_role
+
+    volunteer = {"role": "textbook_remediation_volunteer"}
+    for dependency in (
+        _require_content_read,
+        _require_content_write,
+        _require_tenant,
+        require_role("school_admin"),
+    ):
+        with pytest.raises(ForbiddenError):
+            await dependency(user=volunteer)
+
+
+@pytest.mark.asyncio
 async def test_create_job_uploads_the_pdf_and_stores_its_url(repo):
     blob = _StubBlob()
     result = await create_remediation_job(
