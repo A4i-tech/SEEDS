@@ -491,7 +491,9 @@ class TestPlayAnnouncementToConference:
     @pytest.mark.asyncio
     async def test_no_redis_store_is_noop(self) -> None:
         provider = make_provider()
+        provider._client.voice.update_call = MagicMock()
         await provider.play_announcement_to_conference("hello")
+        provider._client.voice.update_call.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_plays_to_explicit_recipients_only(self) -> None:

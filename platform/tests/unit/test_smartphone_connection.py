@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 
 import pytest
 
@@ -105,7 +106,7 @@ class TestSendMessageToClient:
         queued = mgr._queue.get_nowait()
         assert queued == json.dumps({"k": "v"})
 
-    async def test_send_message_queue_full_is_swallowed(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    async def test_send_message_queue_full_is_swallowed(self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
         mgr = SmartphoneConnectionManager("conf-1")
 
         def raise_full(item):
@@ -113,4 +114,7 @@ class TestSendMessageToClient:
 
         monkeypatch.setattr(mgr._queue, "put_nowait", raise_full)
 
-        await mgr.send_message_to_client(client=None, message={"k": "v"})
+        with caplog.at_level(logging.WARNING, logger="app.providers.smartphone_connection"):
+            await mgr.send_message_to_client(client=None, message={"k": "v"})
+
+        assert "smartphone_connection: queue full for conf_id=conf-1, dropping message" in caplog.text
