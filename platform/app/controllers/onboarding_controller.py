@@ -73,7 +73,7 @@ async def register_website(
 ) -> WebsiteResponse:
     languages = [lc.model_dump() for lc in body.languages] if body.languages is not None else None
     return await service.register_website(
-        _tenant_id(user), body.project_id, body.domain, body.name, body.status, languages
+        _tenant_id(user), body.project_id, body.domain, body.name, body.status, languages, body.additional_domains
     )
 
 
@@ -103,6 +103,8 @@ async def update_website(
     user: dict[str, Any] = Depends(require_tenant),
 ) -> WebsiteResponse:
     fields = {k: v for k, v in body.model_dump().items() if v is not None}
+    if "additional_domains" not in body.model_fields_set:
+        del fields["additional_domains"]
     return await service.update_website(website_id, _tenant_id(user), fields)
 
 

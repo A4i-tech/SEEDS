@@ -1,13 +1,14 @@
 from __future__ import annotations
 
-import re
 import uuid
+from collections.abc import Sequence
 from typing import Any
 
 from fastapi import Depends
 from pymongo.asynchronous.database import AsyncDatabase
 from pymongo.errors import DuplicateKeyError
 
+from app.models.requests.onboarding_requests import DOMAIN_RE
 from app.models.responses.onboarding import ProjectResponse, WebsiteResponse
 from app.platform.auth.dependencies import get_db
 from app.platform.error_handling import (
@@ -20,15 +21,9 @@ from app.platform.settings import get_settings
 from app.repositories.project_repository import ProjectRepository
 from app.repositories.website_repository import WebsiteRepository
 
-# Matches a plain hostname (e.g. "example.com"): dot-separated labels, each
-# 1-63 chars of letters/digits/hyphens, no leading/trailing hyphen per label.
-_DOMAIN_RE = re.compile(
-    r"^(?!-)[A-Za-z0-9-]{1,63}(?<!-)(\.[A-Za-z0-9-]{1,63}(?<!-))+$"
-)
-
 
 def _validate_domain(domain: str) -> None:
-    if not domain or not _DOMAIN_RE.match(domain):
+    if not domain or not DOMAIN_RE.match(domain):
         raise ValidationError(f"Invalid domain: {domain!r}")
 
 
@@ -73,6 +68,7 @@ class OnboardingService:
         name: str = "",
         status: str = "Active",
         languages: list[dict[str, Any]] | None = None,
+        additional_domains: Sequence[str] = (),
     ) -> WebsiteResponse:
         _validate_domain(domain)
         self._base_url()
@@ -82,9 +78,13 @@ class OnboardingService:
             if project is None:
                 raise NotFoundError("Project", project_id)
 
+        await self._ensure_domains_unclaimed([domain, *additional_domains])
+
         site_id = str(uuid.uuid4())
         try:
-            website = await self._websites.create(tenant_id, project_id, domain, site_id, name, status, languages)
+            website = await self._websites.create(
+                tenant_id, project_id, domain, site_id, name, status, languages, additional_domains
+            )
         except DuplicateKeyError as exc:
             raise ConflictError(f"Website with domain {domain!r}") from exc
         return WebsiteResponse.from_doc(website, api_base=self._base_url())
@@ -111,6 +111,9 @@ class OnboardingService:
 
         if "domain" in fields and fields["domain"]:
             _validate_domain(fields["domain"])
+        claimed = [fields["domain"]] if fields.get("domain") else []
+        claimed += fields.get("additional_domains", ())
+        await self._ensure_domains_unclaimed(claimed, str(website["_id"]))
 
         updated = await self._websites.update(website_id, tenant_id, fields)
         return WebsiteResponse.from_doc(updated, api_base=self._base_url())
@@ -119,6 +122,12 @@ class OnboardingService:
         deleted = await self._websites.delete(website_id, tenant_id)
         if not deleted:
             raise NotFoundError("Website", website_id)
+
+    async def _ensure_domains_unclaimed(self, domains: list[str], own_website_id: str = "") -> None:
+        for domain in domains:
+            existing = await self._websites.find_by_domain(domain)
+            if existing is not None and str(existing["_id"]) != own_website_id:
+                raise ConflictError(f"Website with domain {domain!r}")
 
     def _base_url(self) -> str:
         base_url = get_settings().base_url.rstrip("/")
