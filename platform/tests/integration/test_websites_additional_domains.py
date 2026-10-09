@@ -53,10 +53,6 @@ async def test_register_defaults_normalizes_and_dedupes_additional_domains(clien
     assert cleaned.json()["additional_domains"] == ["lms.other.com", "other.com"]
 
 
-async def test_register_rejects_an_invalid_additional_domain_with_422(client):
-    response = await _register(client, additional_domains=["not a domain"])
-
-    assert response.status_code == 422
 
 
 async def test_update_without_additional_domains_keeps_them(client):

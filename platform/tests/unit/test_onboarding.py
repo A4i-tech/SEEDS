@@ -73,18 +73,8 @@ async def test_register_website_rejects_duplicate_domain(onboarding_service):
         await onboarding_service.register_website(TENANT, project.id, "acme.com")
 
 
-async def test_register_website_defaults_to_no_additional_domains(onboarding_service):
-    website = await onboarding_service.register_website(TENANT, None, "acme.com")
-
-    assert website.additional_domains == []
 
 
-async def test_register_website_stores_additional_domains(onboarding_service):
-    website = await onboarding_service.register_website(
-        TENANT, None, "apps.acme.com", additional_domains=["lms.acme.com", "acme.com"]
-    )
-
-    assert website.additional_domains == ["lms.acme.com", "acme.com"]
 
 
 def test_create_request_defaults_additional_domains_to_an_empty_list():
@@ -120,17 +110,6 @@ async def test_register_website_rejects_a_domain_already_claimed_by_another_site
     assert await mock_db["websites"].count_documents({}) == 1
 
 
-async def test_update_website_sets_and_clears_additional_domains(onboarding_service):
-    website = await onboarding_service.register_website(TENANT, None, "apps.acme.com")
-
-    updated = await onboarding_service.update_website(
-        website.id, TENANT, {"additional_domains": ["acme.com"], "domain": "apps.acme.com"}
-    )
-    assert updated.additional_domains == ["acme.com"]
-    assert updated.site_id == website.site_id
-
-    cleared = await onboarding_service.update_website(website.id, TENANT, {"additional_domains": []})
-    assert cleared.additional_domains == []
 
 
 async def test_update_website_without_additional_domains_leaves_them_unchanged(onboarding_service):

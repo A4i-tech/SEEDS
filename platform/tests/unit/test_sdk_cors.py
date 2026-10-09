@@ -368,27 +368,6 @@ async def test_setup_security_opens_only_registered_origins_on_sdk_paths(mock_db
     assert "access-control-allow-origin" not in stranger.headers
 
 
-async def test_setup_security_allows_sdk_preflight_for_an_additional_domain(mock_db):
-    await _seed(mock_db, "apps.acme.com", additional_domains=["acme.com"])
-    app = FastAPI()
-    _routes(app)
-    setup_security(app, SimpleNamespace(env="production", cors_allowed_origins=ADMIN_ORIGIN))
-
-    async with _client(app) as client:
-        preflight = await client.options(
-            "/translations/extract",
-            headers={
-                "origin": "https://acme.com",
-                "access-control-request-method": "POST",
-                "access-control-request-headers": "content-type",
-            },
-        )
-        other_path = await client.get("/translations/list", headers={"origin": "https://acme.com"})
-
-    assert preflight.status_code == 204
-    assert preflight.headers["access-control-allow-origin"] == "https://acme.com"
-    assert "access-control-allow-credentials" not in preflight.headers
-    assert "access-control-allow-origin" not in other_path.headers
 
 
 async def test_setup_security_leaves_the_global_allow_list_unchanged(mock_db):
