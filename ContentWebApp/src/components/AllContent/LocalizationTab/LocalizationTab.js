@@ -23,6 +23,7 @@ export default function LocalizationTab() {
   });
   const [siteDocs, setSiteDocs] = useState([]);
   const [pagesError, setPagesError] = useState(null);
+  const [docsVersion, setDocsVersion] = useState(0);
   useEffect(() => {
     let cancelled = false;
     setSiteDocs([]);
@@ -40,7 +41,7 @@ export default function LocalizationTab() {
     return () => {
       cancelled = true;
     };
-  }, [scope.siteId, nav]);
+  }, [scope.siteId, nav, docsVersion]);
 
   const pages = useMemo(() => pagesFromDocs(siteDocs, scope.lang), [siteDocs, scope.lang]);
 
@@ -78,6 +79,7 @@ export default function LocalizationTab() {
         onScope={setScope}
         pages={pages}
         pagesError={pagesError}
+        onDataChanged={() => setDocsVersion((v) => v + 1)}
       />
     );
 

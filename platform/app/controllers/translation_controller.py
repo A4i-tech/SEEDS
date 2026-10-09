@@ -7,12 +7,14 @@ from pydantic import BaseModel, Field
 from app.models.requests.translation_requests import (
     BulkApproveRequest,
     TranslationApproveRequest,
+    TranslationImportRequest,
     TranslationRejectRequest,
     TranslationUpdateRequest,
 )
 from app.models.responses.common import StatusResponse
 from app.models.responses.translation import (
     AuditEntryResponse,
+    TranslationImportResponse,
     TranslationResponse,
     TranslationVersionResponse,
 )
@@ -115,6 +117,29 @@ async def list_translations(
         site_id, _tenant_id(user), route, status, low_confidence_only=low_confidence
     )
     return [TranslationResponse.from_doc(doc) for doc in docs]
+
+
+@router.post(
+    "/import",
+    summary="Bulk import translations for one language into a site (CSV rows parsed client-side)",
+    response_model=TranslationImportResponse,
+)
+async def import_translations(
+    site_id: str,
+    body: TranslationImportRequest,
+    service: TranslationService = Depends(get_translation_service),
+    user: dict[str, Any] = Depends(require_translation_reviewer),
+) -> TranslationImportResponse:
+    result = await service.import_translations(
+        site_id,
+        _tenant_id(user),
+        _reviewer_id(user),
+        body.lang,
+        body.rows,
+        overwrite_blank=body.overwrite_blank,
+        state=body.state,
+    )
+    return TranslationImportResponse(**result)
 
 
 @router.post(
