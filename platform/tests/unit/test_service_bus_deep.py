@@ -5,6 +5,7 @@ content_controller additional paths, and users_controller additional routes.
 
 from __future__ import annotations
 
+import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -131,6 +132,7 @@ class TestServiceBusProviderNullHandles:
         p._dtmf_input = None
         p._call_event = None
         p._initialized = True
+        p._init_lock = asyncio.Lock()
 
         with patch("app.platform.settings.get_settings", return_value=mock_settings):
             # Already initialized — should just warn and return

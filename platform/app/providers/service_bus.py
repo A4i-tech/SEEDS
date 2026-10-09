@@ -228,12 +228,15 @@ class ServiceBusProvider:
         self._call_event: _AzureQueueHandle | None = None
         self._sync_jobs: _AzureQueueHandle | None = None
         self._initialized = False
+        self._init_lock = asyncio.Lock()
 
     async def initialize(self) -> None:
-        if self._initialized:
-            logger.warning("ServiceBusProvider already initialized")
-            return
+        async with self._init_lock:
+            if self._initialized:
+                return
+            await self._do_initialize()
 
+    async def _do_initialize(self) -> None:
         from app.platform.settings import get_settings  # noqa: PLC0415
 
         settings = get_settings()
