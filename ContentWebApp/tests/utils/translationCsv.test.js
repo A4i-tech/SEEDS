@@ -242,6 +242,15 @@ describe("parseTranslationCsv", () => {
     ]);
   });
 
+  test("a metadata column without a language code before the target is not read as a language", () => {
+    const table = parseTranslationCsv(
+      "\"Asset ID\",\"Route\",\"English, en\",\"Screenshot\",\"Kannada, kn\"\n\"k1\",\"/\",\"Hello\",\"img\",\"ಹಲೋ\"\n"
+    );
+
+    expect(table.targets).toHaveLength(1);
+    expect(selectTargetColumn(table, "kn")).toEqual({ index: 4, code: "kn" });
+  });
+
   test("exposes a row cap constant matching the backend", () => {
     expect(MAX_IMPORT_ROWS).toBe(5000);
   });

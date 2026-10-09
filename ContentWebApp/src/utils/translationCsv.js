@@ -83,12 +83,14 @@ const buildTable = (data, headerIndex) => {
       error: "The CSV needs a source column and a target language column after Asset ID and Route.",
     };
   }
-  const [source, ...targets] = locales;
+  const [source, ...rest] = locales;
+  const targets = rest.map(({ label, index }) => ({ index, label, code: localeFromHeader(label) }));
+  const coded = targets.filter(({ code }) => code);
   return {
     assetIndex: lower.indexOf("asset id"),
     routeIndex,
     sourceIndex: source.index,
-    targets: targets.map(({ label, index }) => ({ index, label, code: localeFromHeader(label) })),
+    targets: coded.length ? coded : targets,
     rows: data
       .slice(headerIndex + 1)
       .map((cells, offset) => ({ cells, number: headerIndex + offset + 2 }))
@@ -116,17 +118,17 @@ export const parseTranslationCsv = (text) => {
 export const selectTargetColumn = (table, lang) => {
   const matching = table.targets.find((target) => target.code === lang);
   if (matching) return { index: matching.index, code: matching.code };
-  if (table.targets.length === 1 && !table.targets[0].code) {
-    return {
-      index: table.targets[0].index,
-      code: null,
-      warning: `The CSV target column "${table.targets[0].label}" has no language code. It will be imported as ${lang}.`,
-    };
-  }
   if (table.targets.length === 1) {
-    return {
-      error: `The CSV target column is for "${table.targets[0].code}" but ${lang} is selected. Pick the matching language or use a different file.`,
-    };
+    const [only] = table.targets;
+    return only.code
+      ? {
+          error: `The CSV target column is for "${only.code}" but ${lang} is selected. Pick the matching language or use a different file.`,
+        }
+      : {
+          index: only.index,
+          code: null,
+          warning: `The CSV target column "${only.label}" has no language code. It will be imported as ${lang}.`,
+        };
   }
   return { error: `The CSV has no target column for "${lang}".` };
 };
