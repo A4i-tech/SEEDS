@@ -101,7 +101,10 @@ class TestSinkConferenceEvent:
         conf = _make_conf()
         event = SinkConferenceEvent(conf, on_sink_callback=None)
 
-        await event.execute_event()  # should not raise
+        await event.execute_event()
+
+        conf.update_state.assert_awaited_once()
+        conf.end_processing_conf_events_from_queue.assert_called_once()
 
     async def test_full_order_of_operations(self) -> None:
         conn_mgr = MagicMock()
@@ -128,11 +131,3 @@ class TestSinkConferenceEvent:
             "disconnect",
             "callback",
         ]
-
-    async def test_exposes_conf_call_and_callback_attributes(self) -> None:
-        conf = _make_conf()
-        callback = MagicMock()
-        event = SinkConferenceEvent(conf, on_sink_callback=callback)
-
-        assert event.conf_call is conf
-        assert event.on_sink_callback is callback

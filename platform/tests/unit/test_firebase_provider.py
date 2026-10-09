@@ -7,11 +7,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+import app.platform.auth.providers.firebase_provider as mod
+from app.platform.settings import get_settings
+
 
 @pytest.fixture(autouse=True)
 def reset_firebase_module_state():
-    import app.platform.auth.providers.firebase_provider as mod
-
     mod._firebase_app = None
     mod._initialized = False
     yield
@@ -21,32 +22,28 @@ def reset_firebase_module_state():
 
 def set_auth_type(monkeypatch: pytest.MonkeyPatch, auth_type: str) -> None:
     monkeypatch.setenv("AUTH_TYPE", auth_type)
-    from app.platform.settings import get_settings
-
     get_settings.cache_clear()
 
 
 class TestEnsureInitialized:
     def test_already_initialized_returns_immediately(self) -> None:
-        import app.platform.auth.providers.firebase_provider as mod
-
         mod._initialized = True
-        mod._ensure_initialized()  # should not raise even with no firebase config
+        with patch("app.platform.settings.get_settings") as mock_get_settings:
+            mod._ensure_initialized()
+        mock_get_settings.assert_not_called()
 
     def test_raises_when_auth_type_not_firebase(self, monkeypatch: pytest.MonkeyPatch) -> None:
         set_auth_type(monkeypatch, "jwt")
-        from app.platform.auth.providers.firebase_provider import _ensure_initialized
 
         with pytest.raises(RuntimeError, match="AUTH_TYPE is not 'firebase'"):
-            _ensure_initialized()
+            mod._ensure_initialized()
 
     def test_raises_when_service_account_not_configured(self, monkeypatch: pytest.MonkeyPatch) -> None:
         set_auth_type(monkeypatch, "firebase")
         monkeypatch.setenv("FIREBASE_SERVICE_ACCOUNT", "")
-        from app.platform.auth.providers.firebase_provider import _ensure_initialized
 
         with pytest.raises(RuntimeError, match="FIREBASE_SERVICE_ACCOUNT is not configured"):
-            _ensure_initialized()
+            mod._ensure_initialized()
 
     def test_initializes_new_app_from_json_string(self, monkeypatch: pytest.MonkeyPatch) -> None:
         set_auth_type(monkeypatch, "firebase")
@@ -63,13 +60,11 @@ class TestEnsureInitialized:
             "firebase_admin": fake_firebase_admin,
             "firebase_admin.credentials": fake_credentials,
         }):
-            import app.platform.auth.providers.firebase_provider as mod
-            from app.platform.auth.providers.firebase_provider import _ensure_initialized
-
-            _ensure_initialized()
+            mod._ensure_initialized()
 
         fake_credentials.Certificate.assert_called_once_with({"type": "service_account"})
         fake_firebase_admin.initialize_app.assert_called_once_with("fake-cred")
+        fake_firebase_admin.get_app.assert_not_called()
         assert mod._initialized is True
         assert mod._firebase_app == "fake-app"
 
@@ -88,9 +83,7 @@ class TestEnsureInitialized:
             "firebase_admin": fake_firebase_admin,
             "firebase_admin.credentials": fake_credentials,
         }):
-            from app.platform.auth.providers.firebase_provider import _ensure_initialized
-
-            _ensure_initialized()
+            mod._ensure_initialized()
 
         fake_credentials.Certificate.assert_called_once_with("/path/to/service-account.json")
 
@@ -109,10 +102,7 @@ class TestEnsureInitialized:
             "firebase_admin": fake_firebase_admin,
             "firebase_admin.credentials": fake_credentials,
         }):
-            import app.platform.auth.providers.firebase_provider as mod
-            from app.platform.auth.providers.firebase_provider import _ensure_initialized
-
-            _ensure_initialized()
+            mod._ensure_initialized()
 
         fake_firebase_admin.initialize_app.assert_not_called()
         fake_firebase_admin.get_app.assert_called_once()
@@ -122,8 +112,6 @@ class TestEnsureInitialized:
 class TestVerifyFirebaseToken:
     @pytest.mark.asyncio
     async def test_returns_claims_from_top_level_fields(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        import app.platform.auth.providers.firebase_provider as mod
-
         mod._initialized = True
         fake_auth = MagicMock()
         fake_auth.verify_id_token.return_value = {
@@ -146,8 +134,6 @@ class TestVerifyFirebaseToken:
 
     @pytest.mark.asyncio
     async def test_falls_back_to_nested_claims(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        import app.platform.auth.providers.firebase_provider as mod
-
         mod._initialized = True
         fake_auth = MagicMock()
         fake_auth.verify_id_token.return_value = {
@@ -164,8 +150,6 @@ class TestVerifyFirebaseToken:
 
     @pytest.mark.asyncio
     async def test_missing_optional_fields_default_to_empty_string(self) -> None:
-        import app.platform.auth.providers.firebase_provider as mod
-
         mod._initialized = True
         fake_auth = MagicMock()
         fake_auth.verify_id_token.return_value = {"uid": "user-1"}
@@ -177,8 +161,6 @@ class TestVerifyFirebaseToken:
 
     @pytest.mark.asyncio
     async def test_propagates_native_exception_on_invalid_token(self) -> None:
-        import app.platform.auth.providers.firebase_provider as mod
-
         mod._initialized = True
         fake_auth = MagicMock()
         fake_auth.verify_id_token.side_effect = ValueError("Invalid token")
@@ -189,19 +171,22 @@ class TestVerifyFirebaseToken:
 
     @pytest.mark.asyncio
     async def test_calls_ensure_initialized_first(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        import app.platform.auth.providers.firebase_provider as mod
-
-        called: dict[str, bool] = {"ensure": False}
+        order: list[str] = []
 
         def fake_ensure() -> None:
-            called["ensure"] = True
+            order.append("ensure")
             mod._initialized = True
 
         fake_auth = MagicMock()
-        fake_auth.verify_id_token.return_value = {"uid": "user-1"}
+
+        def fake_verify(token: str) -> dict[str, str]:
+            order.append("verify")
+            return {"uid": "user-1"}
+
+        fake_auth.verify_id_token.side_effect = fake_verify
 
         with patch.object(mod, "_ensure_initialized", side_effect=fake_ensure), \
                 patch.dict("sys.modules", {"firebase_admin.auth": fake_auth}):
             await mod.verify_firebase_token("fake-token")
 
-        assert called["ensure"] is True
+        assert order == ["ensure", "verify"]

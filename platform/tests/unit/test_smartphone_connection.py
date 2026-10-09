@@ -7,17 +7,11 @@ import json
 
 import pytest
 
+import app.providers.smartphone_connection as smartphone_connection_module
 from app.providers.smartphone_connection import (
     SmartphoneConnectionManager,
     SmartphoneConnectionManagerFactory,
 )
-
-
-async def _drain(gen, count):
-    items = []
-    for _ in range(count):
-        items.append(await gen.__anext__())
-    return items
 
 
 class TestSmartphoneConnectionManagerFactory:
@@ -71,21 +65,10 @@ class TestConnect:
             await gen.__anext__()
 
     async def test_connect_keepalive_on_timeout(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(smartphone_connection_module, "_KEEPALIVE_INTERVAL", 0.01)
         mgr = SmartphoneConnectionManager("conf-1")
         resp = await mgr.connect(client=None)
         gen = resp.body_iterator
-
-        real_wait_for = asyncio.wait_for
-        calls = {"n": 0}
-
-        async def fake_wait_for(coro, timeout):
-            calls["n"] += 1
-            if calls["n"] == 1:
-                coro.close()
-                raise TimeoutError
-            return await real_wait_for(coro, timeout)
-
-        monkeypatch.setattr(asyncio, "wait_for", fake_wait_for)
 
         chunk = await gen.__anext__()
         assert chunk == ": keepalive\n\n"

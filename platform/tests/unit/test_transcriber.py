@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -122,9 +123,11 @@ class TestProcessChunk:
     async def test_insufficient_bytes_buffers_without_result(self, monkeypatch: pytest.MonkeyPatch) -> None:
         t = _make_transcriber(monkeypatch=monkeypatch)
         t._consume_frame = AsyncMock(return_value=None)
-        result = await t.process_chunk(b"\x00" * (t.frame_bytes - 2))
+        data = b"\x00" * (t.frame_bytes - 2)
+        result = await t.process_chunk(data)
         assert result is None
         t._consume_frame.assert_not_called()
+        assert bytes(t.pending_frame_buffer) == data
 
     async def test_single_segment_result_returned_directly(self, monkeypatch: pytest.MonkeyPatch) -> None:
         t = _make_transcriber(monkeypatch=monkeypatch)
@@ -159,9 +162,10 @@ class TestIsVoicedFrame:
     def test_webrtc_vad_exception_falls_back_to_rms(self, monkeypatch: pytest.MonkeyPatch) -> None:
         fake_vad_mod = MagicMock()
         fake_vad_mod.Vad.return_value = MagicMock(is_speech=MagicMock(side_effect=RuntimeError("bad frame")))
-        settings = _make_settings(audio_silence_threshold=0)
+        settings = _make_settings(audio_silence_threshold=50)
         t = _make_transcriber(settings, webrtcvad_mod=fake_vad_mod, monkeypatch=monkeypatch)
         assert t._is_voiced_frame(_frame(t.frame_bytes, amplitude=100)) is True
+        assert t._is_voiced_frame(_frame(t.frame_bytes, amplitude=10)) is False
 
     def test_rms_below_threshold_is_unvoiced_before_window_full(self, monkeypatch: pytest.MonkeyPatch) -> None:
         settings = _make_settings(audio_silence_threshold=1000)
@@ -256,10 +260,12 @@ class TestConsumeFrame:
         voiced = _frame(t.frame_bytes, amplitude=1000)
         await t._consume_frame(voiced)  # streak 1, inactive
         await t._consume_frame(voiced)  # streak 2 -> activates, returns None
-        await t._consume_frame(voiced)  # buffer now exceeds max_segment_bytes -> finalizes
+        result = await t._consume_frame(voiced)  # buffer now exceeds max_segment_bytes -> finalizes
 
-        t._transcribe_segment.assert_awaited_once()
+        t._transcribe_segment.assert_awaited_once_with(voiced * 3)
+        assert result is None
         assert t.segment_active is False
+        assert t.metrics["segments_emitted"] == 1
 
 
 class TestTranscribeSegment:
@@ -273,18 +279,21 @@ class TestTranscribeSegment:
         assert t.client is None
         assert await t._transcribe_segment(_frame(320, amplitude=100)) is None
 
-    async def test_successful_transcription_returns_payload(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    async def test_successful_transcription_returns_payload(self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
         t = _make_transcriber(monkeypatch=monkeypatch)
         fake_transcript = SimpleNamespace(text=" hello world ", duration=1.5)
         t.client = MagicMock()
         t.client.audio.transcriptions.create = AsyncMock(return_value=fake_transcript)
 
-        result = await t._transcribe_segment(_frame(3200, amplitude=5000))
+        with caplog.at_level(logging.DEBUG, logger="app.services.audio.transcriber"):
+            result = await t._transcribe_segment(_frame(3200, amplitude=5000))
 
         assert result["text"] == "hello world"
         assert result["duration"] == 1.5
         assert result["transcript_chunks"][0]["text"] == "hello world"
         assert t.metrics["segments_transcribed"] == 1
+        assert "AudioTranscriber: transcription <redacted len=11>" in caplog.text
+        assert "hello world" not in caplog.text
 
     async def test_empty_transcript_text_returns_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
         t = _make_transcriber(monkeypatch=monkeypatch)
@@ -296,22 +305,28 @@ class TestTranscribeSegment:
 
         assert result is None
 
-    async def test_api_exception_is_swallowed_and_returns_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    async def test_api_exception_is_swallowed_and_returns_none(self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
         t = _make_transcriber(monkeypatch=monkeypatch)
         t.client = MagicMock()
         t.client.audio.transcriptions.create = AsyncMock(side_effect=RuntimeError("api down"))
 
-        result = await t._transcribe_segment(_frame(3200, amplitude=5000))
+        with caplog.at_level(logging.ERROR, logger="app.services.audio.transcriber"):
+            result = await t._transcribe_segment(_frame(3200, amplitude=5000))
 
         assert result is None
+        assert t.metrics["segments_transcribed"] == 0
+        assert "AudioTranscriber: API error" in caplog.text
+        assert "api down" in caplog.text
 
-    async def test_transcript_logging_enabled_skips_redaction(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    async def test_transcript_logging_enabled_skips_redaction(self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
         settings = _make_settings(audio_transcript_logging_enabled=True)
         t = _make_transcriber(settings, monkeypatch=monkeypatch)
         fake_transcript = SimpleNamespace(text="visible text", duration=0.5)
         t.client = MagicMock()
         t.client.audio.transcriptions.create = AsyncMock(return_value=fake_transcript)
 
-        result = await t._transcribe_segment(_frame(3200, amplitude=5000))
+        with caplog.at_level(logging.DEBUG, logger="app.services.audio.transcriber"):
+            result = await t._transcribe_segment(_frame(3200, amplitude=5000))
 
         assert result["text"] == "visible text"
+        assert "redacted" not in caplog.text

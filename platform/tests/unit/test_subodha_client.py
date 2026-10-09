@@ -164,8 +164,6 @@ class TestSubodhaClientInit:
     def test_base_url_from_settings(self) -> None:
         client = _make_client(_make_settings(subodha_base_url="https://custom.example.com"))
         assert client._base_url == "https://custom.example.com"
-        assert client._session_cookie is None
-        assert client._session_expires_at is None
 
     async def test_aclose_closes_http_client(self) -> None:
         client = _make_client()
@@ -210,11 +208,20 @@ class TestGetSession:
         client._http.get = AsyncMock(return_value=init_resp)
         client._http.post = AsyncMock(return_value=login_resp)
 
+        before = datetime.now(UTC)
         result = await client.get_session()
+        after = datetime.now(UTC)
 
         assert "csrftoken=tok123" in result
         assert "sessionid=sess456" in result
-        assert client._session_expires_at is not None
+
+        client._http.post.assert_awaited_once()
+        args, kwargs = client._http.post.await_args
+        assert args[0] == "https://lms.example.com/api/user/v1/account/login_session/"
+        assert kwargs["data"] == {"email": "user1", "password": "pass1"}
+        assert kwargs["headers"]["X-CSRFToken"] == "tok123"
+
+        assert before + timedelta(days=7) <= client._session_expires_at <= after + timedelta(days=7)
 
     async def test_logs_in_when_cached_session_near_expiry(self) -> None:
         client = _make_client()
@@ -276,6 +283,10 @@ class TestListAllCourses:
 
         assert [c["id"] for c in courses] == ["c1", "c2"]
         assert client._http.get.await_count == 2
+        first_url = client._http.get.await_args_list[0].args[0]
+        second_url = client._http.get.await_args_list[1].args[0]
+        assert first_url == "https://lms.example.com/api/courses/v1/courses/?page=1&page_size=50"
+        assert second_url == "page2-url"
 
     async def test_single_page_returns_all_results(self, monkeypatch: pytest.MonkeyPatch) -> None:
         client = _make_client()
@@ -342,8 +353,7 @@ class TestEnrichBlocksWithContent:
         result = await client.enrich_blocks_with_content(blocks_response, "session=abc")
 
         block = result["blocks"]["b1"]
-        assert "Lesson" in block["student_view_html"]
-        assert "wrap-instructor-info" not in block["student_view_html"]
+        assert block["student_view_html"] == "<p>Lesson</p>"
         assert block["student_view_data"] is None
 
     async def test_skips_blocks_without_student_view_url(self) -> None:
@@ -387,7 +397,9 @@ class TestEnrichBlocksWithContent:
         async def fake_get(url, **kwargs):
             if "b1" in url:
                 return ok_resp
-            raise RuntimeError("boom-b2")
+            if "b2" in url:
+                raise RuntimeError("boom-b2")
+            raise RuntimeError("boom-b3")
 
         client._http.get = AsyncMock(side_effect=fake_get)
 
@@ -395,13 +407,17 @@ class TestEnrichBlocksWithContent:
             "blocks": {
                 "b1": {"id": "b1", "type": "html", "student_view_url": "https://x/b1"},
                 "b2": {"id": "b2", "type": "html", "student_view_url": "https://x/b2"},
+                "b3": {"id": "b3", "type": "html", "student_view_url": "https://x/b3"},
             }
         }
 
-        with pytest.raises(RuntimeError, match="1/2 xblocks failed"):
+        with pytest.raises(RuntimeError, match="2/3 xblocks failed") as exc_info:
             await client.enrich_blocks_with_content(blocks_response, "session=abc")
 
-        assert "ok" in blocks_response["blocks"]["b1"]["student_view_html"]
+        message = str(exc_info.value)
+        assert "b2: boom-b2" in message
+        assert "b3: boom-b3" in message
+        assert blocks_response["blocks"]["b1"]["student_view_html"] == "<p>ok</p>"
 
 
 class TestFetchAsset:
