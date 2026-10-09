@@ -92,6 +92,13 @@ def _version_doc(version: int, translations: dict[str, Any], approved_by: str, a
     }
 
 
+def _same_instant(stored: datetime | None, expected: datetime) -> bool:
+    if stored is None:
+        return False
+    millis = expected.microsecond // 1000 * 1000
+    return stored.replace(tzinfo=None) == expected.replace(tzinfo=None, microsecond=millis)
+
+
 def _is_url_pathname(route: str) -> bool:
     if len(route) > IMPORT_ROUTE_MAX_LENGTH or not route.startswith("/"):
         return False
@@ -707,6 +714,8 @@ class TranslationService:
                 if unset_fields:
                     update["$unset"] = unset_fields
                 query = {"_id": doc["_id"]}
+                if approving:
+                    query["version"] = doc.get("version", {"$exists": False})
                 kind = "updated"
 
             log_entries = [{"action": "imported", "actor": actor, "detail": f"lang={lang};state={state}", "at": now}]
@@ -761,6 +770,16 @@ class TranslationService:
                     len(failed_ops),
                     extra={"site_id": site_id, "failed_rows": sorted(planned[i]["row"] for i in failed_ops)},
                 )
+
+        guarded = [
+            i for i, p in enumerate(planned) if p.get("version_doc") and p["translation_id"] and i not in failed_ops
+        ]
+        if guarded:
+            stored = await self._repo.find_by_route_keys(
+                site_id, [(planned[i]["route"], planned[i]["key"]) for i in guarded]
+            )
+            applied_at = {(d["route"], d["key"]): _same_instant(d.get("approved_at"), now) for d in stored}
+            failed_ops |= {i for i in guarded if not applied_at.get((planned[i]["route"], planned[i]["key"]))}
 
         written = []
         for index, plan in enumerate(planned):

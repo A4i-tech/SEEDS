@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 from pymongo.errors import BulkWriteError, PyMongoError
 
@@ -832,3 +834,26 @@ async def test_a_clean_import_has_no_warnings(service, repo):
 
     assert res["warnings"] == []
     assert len(await service.get_audit_trail(SITE, TENANT)) == 2
+
+
+async def test_approved_import_does_not_overwrite_a_row_approved_concurrently(service, repo, monkeypatch):
+    await _seed(repo, "First", lang="kn", text="old1", status="approved")
+    await _seed(repo, "Second", lang="kn", text="old2", status="approved")
+    first = (await repo.find_by_keys(SITE, [sdk_rolling_hash("First")]))[0]
+    real = service._repo.bulk_write
+
+    async def racing(ops):
+        await asyncio.sleep(0.01)
+        await repo.approve_translation(str(first["_id"]), "kn", "other", version=2)
+        return await real(ops)
+
+    monkeypatch.setattr(service._repo, "bulk_write", racing)
+
+    res = await _import(
+        service, [{**_row("First", "new1"), "row": 2}, {**_row("Second", "new2"), "row": 3}], state="approved"
+    )
+
+    assert (res["updated"], res["failed"]) == (1, 1)
+    assert res["errors"] == [{"row": 2, "route": "/", "key": sdk_rolling_hash("First"), "reason": "write_failed"}]
+    assert (await _doc(repo, sdk_rolling_hash("First")))["translations"]["kn"]["text"] == "old1"
+    assert (await _doc(repo, sdk_rolling_hash("Second")))["translations"]["kn"]["text"] == "new2"
