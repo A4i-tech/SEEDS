@@ -82,6 +82,16 @@ def _import_audit_doc(
     }
 
 
+def _version_doc(version: int, translations: dict[str, Any], approved_by: str, at: datetime) -> dict[str, Any]:
+    return {
+        "version": version,
+        "translations": translations,
+        "approved_by": approved_by,
+        "approved_at": at,
+        "created_at": at,
+    }
+
+
 def _is_url_pathname(route: str) -> bool:
     if len(route) > IMPORT_ROUTE_MAX_LENGTH or not route.startswith("/"):
         return False
@@ -477,11 +487,7 @@ class TranslationService:
                 version += 1
                 versions_by_translation.setdefault(translation_id, []).append({
                     "translation_id": translation_id,
-                    "version": version,
-                    "translations": translations_snapshot,
-                    "approved_by": approved_by,
-                    "approved_at": now,
-                    "created_at": now,
+                    **_version_doc(version, translations_snapshot, approved_by, now),
                 })
                 set_fields[f"translations.{doc_lang}.status"] = "approved"
                 set_fields[f"translations.{doc_lang}.approved_by"] = approved_by
@@ -715,9 +721,9 @@ class TranslationService:
                 audits.append(
                     _import_audit_doc(site_id, route, key, lang, "approved", actor, None, f"version={version}", now)
                 )
-                version_doc = {
-                    "version": version,
-                    "translations": {
+                version_doc = _version_doc(
+                    version,
+                    {
                         **((doc or {}).get("translations") or {}),
                         lang: {
                             **(entry or {}),
@@ -727,10 +733,9 @@ class TranslationService:
                             "status": "pending",
                         },
                     },
-                    "approved_by": actor,
-                    "approved_at": now,
-                    "created_at": now,
-                }
+                    actor,
+                    now,
+                )
             update["$push"] = {"audit_log": {"$each": log_entries}}
             ops.append(UpdateOne(query, update, upsert=doc is None))
             planned.append(
