@@ -527,7 +527,7 @@ class TranslationService:
         failed_translation_ids: set[str] = set()
         if ops:
             try:
-                await self._repo.bulk_approve(ops)
+                await self._repo.bulk_write(ops)
             except BulkWriteError as exc:
                 for err in exc.details.get("writeErrors", []):
                     idx = err["index"]

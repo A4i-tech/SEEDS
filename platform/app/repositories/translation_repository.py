@@ -216,6 +216,3 @@ class TranslationRepository(BaseRepository):
 
     async def bulk_write(self, ops: list[UpdateOne]) -> BulkWriteResult:
         return await self._col.bulk_write(ops, ordered=False)
-
-    async def bulk_approve(self, ops: list[UpdateOne]) -> BulkWriteResult:
-        return await self.bulk_write(ops)
