@@ -229,7 +229,7 @@ class TestConsumeFrame:
         result = await t._consume_frame(silent)  # second consecutive silent frame -> finalize
         assert result == {"text": "ok", "duration": 1.0}
         assert t.segment_active is False
-        t._transcribe_segment.assert_awaited_once()
+        t._transcribe_segment.assert_awaited_once_with(voiced + voiced + silent + silent)
 
     async def test_short_segment_is_dropped_without_transcribing(self, monkeypatch: pytest.MonkeyPatch) -> None:
         settings = self._settings()

@@ -12,12 +12,13 @@ runs:
   using: composite
   steps:
     - name: Run tests with coverage
+      env:
+        COVERAGE_THRESHOLD_INPUT: ${{ inputs.coverage_threshold }}
       run: |
         cd ${{ inputs.directory }}
-        THRESHOLD="${{ inputs.coverage_threshold }}"
-        if [ -n "$THRESHOLD" ]; then
-          poetry run pytest --ignore=tests/e2e --cov=app --cov-report=html --cov-report=xml --cov-report=json --cov-report=term --cov-fail-under="$THRESHOLD"
-        else
-          poetry run pytest --ignore=tests/e2e --cov=app --cov-report=html --cov-report=xml --cov-report=json --cov-report=term
+        FAIL_UNDER=""
+        if [ -n "$COVERAGE_THRESHOLD_INPUT" ]; then
+          FAIL_UNDER="--cov-fail-under=$COVERAGE_THRESHOLD_INPUT"
         fi
+        poetry run pytest --ignore=tests/e2e --cov=app --cov-report=html --cov-report=xml --cov-report=json --cov-report=term $FAIL_UNDER
       shell: bash

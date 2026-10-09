@@ -298,7 +298,9 @@ class TestListAllCourses:
         courses = await client.list_all_courses()
 
         assert [c["id"] for c in courses] == ["only"]
-        client._http.get.assert_awaited_once()
+        client._http.get.assert_awaited_once_with(
+            "https://lms.example.com/api/courses/v1/courses/?page=1&page_size=50"
+        )
 
 
 class TestFetchBlocks:
