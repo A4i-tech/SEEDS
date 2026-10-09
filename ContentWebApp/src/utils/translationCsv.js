@@ -1,7 +1,7 @@
 import Papa from "papaparse";
 
 export const MAX_IMPORT_ROWS = 5000;
-export const LIST_ROW_CAP = 20000;
+export const MAX_EXPORT_ROWS = 20000;
 
 export const ENCODING_ERROR =
   "The file is not valid UTF-8, so its text would be corrupted. In Excel use Save As > CSV UTF-8 (Comma delimited), then import that file.";

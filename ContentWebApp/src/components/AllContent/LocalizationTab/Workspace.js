@@ -16,7 +16,7 @@ import { translationService } from "../../../services/translationService";
 import { toSegment } from "../../../utils/segments";
 import { useToast } from "./Toast";
 import TranslationImportDialog from "./TranslationImportDialog";
-import { LIST_ROW_CAP, buildTranslationCsv, downloadCsv } from "../../../utils/translationCsv";
+import { MAX_EXPORT_ROWS, buildTranslationCsv, downloadCsv } from "../../../utils/translationCsv";
 
 function EmptyState({ title, message, action }) {
   return (
@@ -335,9 +335,9 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
         buildTranslationCsv({ docs: exported, lang, languageName }),
         `${slug}-${lang}.csv`
       );
-      if (exported.length >= LIST_ROW_CAP) {
+      if (exported.length >= MAX_EXPORT_ROWS) {
         toast({
-          message: `Exported ${exported.length} rows, but ${LIST_ROW_CAP.toLocaleString("en-US")} is the most one export can hold, so this file may be incomplete.`,
+          message: `Exported ${exported.length} rows, but ${MAX_EXPORT_ROWS.toLocaleString("en-US")} is the most one export can hold, so this file may be incomplete.`,
           tone: "crit",
           duration: 20000,
         });

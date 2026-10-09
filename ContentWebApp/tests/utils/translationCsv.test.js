@@ -1,7 +1,7 @@
 import Papa from "papaparse";
 import {
   ENCODING_ERROR,
-  LIST_ROW_CAP,
+  MAX_EXPORT_ROWS,
   MAX_IMPORT_ROWS,
   buildImportRows as buildRows,
   buildTranslationCsv,
@@ -418,6 +418,6 @@ describe("encoding corruption", () => {
   });
 });
 
-test("the list cap matches the backend MAX_TRANSLATION_ROWS", () => {
-  expect(LIST_ROW_CAP).toBe(20000);
+test("the export cap matches the backend MAX_TRANSLATION_ROWS", () => {
+  expect(MAX_EXPORT_ROWS).toBe(20000);
 });
