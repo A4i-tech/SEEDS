@@ -8,15 +8,20 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from app.models.requests.auth_requests import TenantChangePasswordRequest, TenantRegisterRequest
+from app.models.requests.auth_requests import (
+    TenantChangePasswordRequest,
+    TenantRegisterRequest,
+    VolunteerCreateRequest,
+)
 from app.models.requests.tenant_requests import TenantAnalyticsRequest
 from app.models.responses.analytics_response import AnalyticsResponse
 from app.models.responses.dashboard import TenantDashboardResponse
 from app.models.responses.login import MessageResponse
 from app.models.responses.user import UserPublicResponse
+from app.models.user import UserRole
 from app.platform.auth.dependencies import get_current_user, require_tenant
 from app.repositories.ivr_repository import IVRRepository
-from app.services.auth_service import AuthService, TenantCreate, get_auth_service
+from app.services.auth_service import AuthService, TeacherCreate, TenantCreate, get_auth_service
 
 logger = logging.getLogger(__name__)
 
@@ -111,3 +116,38 @@ async def tenant_dashboard(
     service: AuthService = Depends(get_auth_service),
 ) -> TenantDashboardResponse:
     return await service.get_tenant_dashboard(current_user.get("sub", ""))
+
+
+@router.post(
+    "/volunteers",
+    summary="Create a textbook remediation volunteer for this tenant",
+    status_code=status.HTTP_201_CREATED,
+    response_model_exclude_none=True,
+)
+async def create_volunteer(
+    body: VolunteerCreateRequest,
+    current_user: dict[str, Any] = Depends(require_tenant),
+    service: AuthService = Depends(get_auth_service),
+) -> UserPublicResponse:
+    data = TeacherCreate(
+        name=body.name,
+        email=body.email,
+        password=body.password,
+        role=UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER.value,
+        tenant_id=current_user.get("sub", ""),
+    )
+    user = await service.register_teacher(data)
+    return UserPublicResponse.from_domain(user)
+
+
+@router.get(
+    "/volunteers",
+    summary="List textbook remediation volunteers for this tenant",
+    status_code=status.HTTP_200_OK,
+)
+async def list_volunteers(
+    current_user: dict[str, Any] = Depends(require_tenant),
+    service: AuthService = Depends(get_auth_service),
+) -> list[UserPublicResponse]:
+    users = await service.list_volunteers(current_user.get("sub", ""))
+    return [UserPublicResponse.from_domain(u) for u in users]

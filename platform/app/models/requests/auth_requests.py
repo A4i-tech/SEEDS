@@ -24,6 +24,12 @@ class TenantRegisterRequest(BaseModel):
     name: str = ""
 
 
+class VolunteerCreateRequest(BaseModel):
+    email: str
+    password: str
+    name: str
+
+
 class TenantChangePasswordRequest(BaseModel):
     current_password: str
     new_password: str

@@ -41,13 +41,14 @@ class TextbookRemediationRepository:
 
     async def create(
         self, *, job_id: ObjectId, tenant_id: str, source_name: str, source_url: str, language: str,
-        target_language: str | None = None,
+        target_language: str | None = None, created_by: str | None = None,
     ) -> RemediationJob:
         initial_lang = "detecting" if language in AUTO_LANGUAGES else language
         doc: dict[str, object] = {
             "_id": job_id, "tenant_id": tenant_id, "source_name": source_name, "source_url": source_url,
             "language": initial_lang, "status": JobStatus.PENDING.value, "stage": None,
             "created_at": datetime.now(UTC).isoformat(), "target_language": target_language,
+            "created_by": created_by,
         }
         await self._col.insert_one(doc)
         return RemediationJob.from_doc(doc)
@@ -109,8 +110,12 @@ class TextbookRemediationRepository:
         )
         return RemediationJob.from_doc(doc) if doc else None
 
-    async def update_draft(self, job_id: str, draft_md: str, draft_url: str | None = None) -> RemediationJob | None:
+    async def update_draft(
+        self, job_id: str, draft_md: str, draft_url: str | None = None, *, last_edited_by: str | None = None,
+    ) -> RemediationJob | None:
         update: dict[str, object] = {"draft_remediated_md": draft_md, "status": JobStatus.IN_REVIEW}
+        if last_edited_by:
+            update["last_edited_by"] = last_edited_by
         if draft_url:
             update[f"artifacts.{ArtifactName.DRAFT}"] = draft_url
         doc = await self._col.find_one_and_update(

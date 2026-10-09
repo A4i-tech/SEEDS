@@ -9,6 +9,8 @@ import { StageProgress } from "./StageProgress";
 import { SyncAllProgress } from "../shared/SyncAllProgress";
 import { ARTIFACT_DOWNLOADS } from "../../artifactDownloads";
 import { JOB_STATUS } from "../../../utils/remediationStatus";
+import { getRole } from "../../../utils/authHelpers";
+import { USER_ROLES } from "../../../Constants";
 import "./RemediationTab.css";
 import "../shared/cards.css";
 import "../shared/buttons.css";
@@ -18,6 +20,7 @@ const ARTIFACT_LABELS = { docx: "Word", pdf: "PDF", tex: "LaTeX" };
 
 const RemediationTab = () => {
   const navigate = useNavigate();
+  const canDelete = getRole() !== USER_ROLES.TEXTBOOK_REMEDIATION_VOLUNTEER;
   const { jobs, isLoading, isUploading, error, upload, remove } = useRemediationJobs();
   const fileRef = useRef(null);
   const [selectedFile, setSelectedFile] = useState(null);
@@ -177,14 +180,18 @@ const RemediationTab = () => {
                         ...(job.status !== JOB_STATUS.RUNNING && job.status !== JOB_STATUS.FAILED
                           ? [{ key: "edit", label: "Edit", variant: "edit", onClick: () => navigate(`/content/remediation/${job.job_id}`) }]
                           : []),
-                        {
-                          key: "delete",
-                          label: "Delete",
-                          variant: "delete",
-                          onClick: () => {
-                            if (window.confirm(`Delete "${job.source_name}"?`)) remove(job.job_id);
-                          },
-                        },
+                        ...(canDelete
+                          ? [
+                              {
+                                key: "delete",
+                                label: "Delete",
+                                variant: "delete",
+                                onClick: () => {
+                                  if (window.confirm(`Delete "${job.source_name}"?`)) remove(job.job_id);
+                                },
+                              },
+                            ]
+                          : []),
                       ]}
                     />
                   </td>

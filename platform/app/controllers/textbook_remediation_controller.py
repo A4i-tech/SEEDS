@@ -46,6 +46,12 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/textbook-remediation", tags=["Textbook Remediation"])
 
 require_remediation_access = require_role(
+    UserRole.TENANT.value,
+    UserRole.SCHOOL_ADMIN.value,
+    UserRole.CONTENT_CREATOR.value,
+    UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER.value,
+)
+require_remediation_delete_access = require_role(
     UserRole.TENANT.value, UserRole.SCHOOL_ADMIN.value, UserRole.CONTENT_CREATOR.value
 )
 
@@ -109,6 +115,7 @@ async def create_remediation_job(
         data=file.file,
         language=language,
         target_language=target_language or None,
+        created_by=str(user.get("email") or user.get("name") or user.get("id") or "user"),
     )
     return {"job_id": job.job_id}
 
@@ -126,7 +133,7 @@ async def list_remediation_jobs(
 @router.delete("/jobs/{job_id}", status_code=204, summary="Soft-delete a remediation job")
 async def delete_remediation_job(
     job_id: str,
-    user: dict[str, object] = Depends(require_remediation_access),
+    user: dict[str, object] = Depends(require_remediation_delete_access),
     repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
 ) -> None:
     deleted = await repo.soft_delete(str(user["tenant_id"]), job_id)
@@ -226,7 +233,8 @@ async def save_remediation_draft(
     blob_provider: BlobStorageProvider = Depends(get_blob_storage_provider),
 ) -> dict[str, object]:
     job = await _get_job(repo, str(user["tenant_id"]), job_id)
-    return serialize_job(await save_draft(repo, blob_provider, job, payload.draft_md))
+    last_edited_by = str(user.get("email") or user.get("name") or user.get("id") or "user")
+    return serialize_job(await save_draft(repo, blob_provider, job, payload.draft_md, last_edited_by))
 
 
 @router.post("/jobs/{job_id}/verify", response_model=RemediationJobResponse, summary="Mark a remediated document verified and save to library")

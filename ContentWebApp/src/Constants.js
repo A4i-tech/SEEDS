@@ -8,4 +8,5 @@ export const USER_ROLES = {
   CONTENT_CREATOR: "content_creator",
   TENANT: "tenant",
   SCHOOL_ADMIN: "school_admin",
+  TEXTBOOK_REMEDIATION_VOLUNTEER: "textbook_remediation_volunteer",
 };
