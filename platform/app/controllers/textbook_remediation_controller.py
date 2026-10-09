@@ -88,6 +88,26 @@ async def _closing(chunks: AsyncIterator[bytes]) -> AsyncIterator[bytes]:
             await aclose()
 
 
+async def _stream_blob(
+    blob_provider: BlobStorageProvider, blob_path: str, media_type: str, not_found_kind: str, not_found_id: str
+) -> StreamingResponse:
+    container = get_settings().azure_storage_container
+    try:
+        size = await blob_provider.blob_size(container, blob_path)
+        chunks = await blob_provider.download_chunks(container, blob_path)
+    except ResourceNotFoundError as exc:
+        raise NotFoundError(not_found_kind, not_found_id) from exc
+    return StreamingResponse(
+        _closing(chunks),
+        media_type=media_type,
+        headers={
+            "Cache-Control": "private, max-age=86400",
+            "X-Content-Type-Options": "nosniff",
+            "Content-Length": str(size),
+        },
+    )
+
+
 async def _get_job(repo: TextbookRemediationRepository, tenant_id: str, job_id: str) -> RemediationJob:
     job = await repo.get(tenant_id, job_id)
     if job is None:
@@ -207,22 +227,8 @@ async def get_remediation_image(
     if content_type is None:
         raise NotFoundError("Image", safe_name)
 
-    blob_path = f"textbook-remediation/{job_id}/images/{safe_name}"
-    try:
-        container = get_settings().azure_storage_container
-        size = await blob_provider.blob_size(container, blob_path)
-        chunks = await blob_provider.download_chunks(container, blob_path)
-    except ResourceNotFoundError as exc:
-        raise NotFoundError("Image", safe_name) from exc
-
-    return StreamingResponse(
-        _closing(chunks),
-        media_type=content_type,
-        headers={
-            "Cache-Control": "private, max-age=86400",
-            "X-Content-Type-Options": "nosniff",
-            "Content-Length": str(size),
-        },
+    return await _stream_blob(
+        blob_provider, f"textbook-remediation/{job_id}/images/{safe_name}", content_type, "Image", safe_name
     )
 
 
@@ -247,22 +253,8 @@ async def get_remediation_page(
     if page_num < 1 or page_num > job.source_page_count:
         raise NotFoundError("Page", str(page_num))
 
-    blob_path = f"textbook-remediation/{job_id}/pages/{page_num}.jpg"
-    try:
-        container = get_settings().azure_storage_container
-        size = await blob_provider.blob_size(container, blob_path)
-        chunks = await blob_provider.download_chunks(container, blob_path)
-    except ResourceNotFoundError as exc:
-        raise NotFoundError("Page", str(page_num)) from exc
-
-    return StreamingResponse(
-        _closing(chunks),
-        media_type="image/jpeg",
-        headers={
-            "Cache-Control": "private, max-age=86400",
-            "X-Content-Type-Options": "nosniff",
-            "Content-Length": str(size),
-        },
+    return await _stream_blob(
+        blob_provider, f"textbook-remediation/{job_id}/pages/{page_num}.jpg", "image/jpeg", "Page", str(page_num)
     )
 
 
@@ -301,9 +293,14 @@ async def verify_remediation_job(
     blob_provider: BlobStorageProvider = Depends(get_blob_storage_provider),
 ) -> dict[str, object]:
     job = await _get_job(repo, str(user["tenant_id"]), job_id)
-    verified_by = str(user.get("email") or user.get("name") or user.get("id") or "reviewer")
-    edited_by = user.get("email") or user.get("sub")
-    updated = await verify_job(repo, blob_provider, job, title=payload.title, verified_by=verified_by, edited_by=edited_by)
+    identity = str(user.get("email") or user.get("sub") or "")
+    if not identity:
+        raise AppError(
+            "IDENTITY_MISSING",
+            "Your signed-in account has no email or account ID, so the review cannot be recorded. Sign in again.",
+            400,
+        )
+    updated = await verify_job(repo, blob_provider, job, title=payload.title, verified_by=identity, edited_by=identity)
     return serialize_job(updated)
 
 

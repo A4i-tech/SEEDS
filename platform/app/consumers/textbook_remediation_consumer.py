@@ -37,7 +37,7 @@ from app.remediation.detect_language import (
 from app.remediation.render import render_remediation
 from app.remediation.run_pipeline import run_pipeline
 from app.remediation.translate import run_translation
-from app.services.textbook_remediation import TextbookRemediationService
+from app.repositories.textbook_remediation_repository import TextbookRemediationRepository
 
 logger = logging.getLogger(__name__)
 
@@ -210,7 +210,7 @@ def _resolve_language(
 
 async def _translate_if_requested(
     job: RemediationJob,
-    service: TextbookRemediationService,
+    service: TextbookRemediationRepository,
     blob_provider: BlobStorageProvider,
     out: Path,
 ) -> str | None:
@@ -236,7 +236,7 @@ async def _translate_if_requested(
 
 
 async def _process_job(
-    job: RemediationJob, service: TextbookRemediationService, blob_provider: BlobStorageProvider
+    job: RemediationJob, service: TextbookRemediationRepository, blob_provider: BlobStorageProvider
 ) -> None:
     def make_progress_handler(stage: JobStage) -> Callable[[dict[str, object]], Awaitable[None]]:
         async def _handler(evt: dict[str, object]) -> None:
@@ -347,7 +347,7 @@ class TextbookRemediationConsumer(BaseConsumer):
     name = "TextbookRemediationConsumer"
 
     def __init__(self, db: AsyncDatabase) -> None:
-        self._service = TextbookRemediationService(db)
+        self._service = TextbookRemediationRepository(db)
         self._blob_provider: BlobStorageProvider | None = None
 
     async def _run_loop(self) -> None:

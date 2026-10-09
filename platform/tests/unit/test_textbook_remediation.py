@@ -415,6 +415,20 @@ async def test_save_draft_and_verify_job(repo):
 
 
 @pytest.mark.asyncio
+async def test_verify_rejects_user_without_identity(repo):
+    created = await _create(repo)
+    with pytest.raises(AppError) as exc_info:
+        await verify_remediation_job(
+            created.job_id,
+            VerifyJobRequest(title="T"),
+            user={"tenant_id": "tenant-a"},
+            repo=repo,
+            blob_provider=_StubBlob(),
+        )
+    assert exc_info.value.code == "IDENTITY_MISSING"
+
+
+@pytest.mark.asyncio
 async def test_review_summary(repo):
     created = await _create(repo)
     summary = await get_review_summary(
@@ -621,7 +635,7 @@ async def test_verify_job_uploads_go_under_the_verified_path(repo, monkeypatch):
     monkeypatch.setattr(remediation_service, "_compile_verified", _fake_compile)
     blob = _StubBlob()
 
-    await remediation_service.verify_job(repo, blob, job, title="Title", verified_by="reviewer@seeds.org")
+    await remediation_service.verify_job(repo, blob, job, title="Title", verified_by="reviewer@seeds.org", edited_by="reviewer@seeds.org")
 
     assert f"textbook-remediation/{created.job_id}/verified/remediated.docx" in blob.uploaded
     assert f"textbook-remediation/{created.job_id}/verified/remediated.tex" in blob.uploaded

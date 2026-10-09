@@ -3,37 +3,24 @@ import ReactMarkdown from "react-markdown";
 
 import { textbookRemediationService } from "../services/textbookRemediationService";
 import { normalizeMathDelimiters, MarkdownParagraph } from "./ContentAggregatorDetails/markdownMath";
+import { useBlobObjectUrl } from "./useBlobObjectUrl";
 import { remediationRemarkPlugins, remediationRehypePlugins } from "./remediationMarkdown";
 
 export function RemediationFigureImage({ src, jobId, alt }) {
-  const [objectUrl, setObjectUrl] = useState(null);
   const [imgError, setImgError] = useState(false);
   const remote = src && !src.startsWith("http://") && !src.startsWith("https://") && !src.startsWith("data:");
   const imageName = src ? src.replace(/^images\//, "") : "";
 
+  const { url: objectUrl, error: loadError } = useBlobObjectUrl(
+    remote ? (signal) => textbookRemediationService.getImage(jobId, imageName, { signal }) : null,
+    [remote, jobId, src, imageName]
+  );
   useEffect(() => {
-    if (!remote) return undefined;
-    const controller = new AbortController();
-    let url;
-    const loadImage = async () => {
-      try {
-        const blob = await textbookRemediationService.getImage(jobId, imageName, { signal: controller.signal });
-        url = URL.createObjectURL(blob);
-        setObjectUrl(url);
-      } catch (imageError) {
-        if (!controller.signal.aborted) {
-          console.error("Failed to load remediation figure image", imageError);
-          setObjectUrl(null);
-          setImgError(true);
-        }
-      }
-    };
-    loadImage();
-    return () => {
-      controller.abort();
-      if (url) URL.revokeObjectURL(url);
-    };
-  }, [remote, jobId, src, imageName]);
+    if (loadError) {
+      console.error("Failed to load remediation figure image", loadError);
+      setImgError(true);
+    }
+  }, [loadError]);
 
   const imgSrc = remote ? objectUrl : src;
   if (imgError) {

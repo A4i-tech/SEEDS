@@ -9,16 +9,11 @@ from pathlib import Path
 from typing import IO
 
 from bson import ObjectId
-from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.remediation_job import (
     ARTIFACTS,
     STAGES,
     ArtifactName,
-    JobMetrics,
-    JobModels,
-    JobProgress,
-    JobStage,
     JobStatus,
     RemediationJob,
     artifact_filename,
@@ -45,43 +40,6 @@ _TERMINAL: tuple[JobStatus, ...] = (
     JobStatus.VERIFIED,
     JobStatus.FAILED,
 )
-
-
-class TextbookRemediationService:
-    def __init__(self, db: AsyncDatabase) -> None:
-        self._repo = TextbookRemediationRepository(db)
-
-    async def claim_next_pending(self) -> RemediationJob | None:
-        return await self._repo.claim_next_pending()
-
-    async def update_progress(self, job_id: str, progress: JobProgress) -> RemediationJob | None:
-        return await self._repo.update_progress(job_id, progress)
-
-    async def update_source_page_count(self, job_id: str, page_count: int) -> RemediationJob | None:
-        return await self._repo.update_source_page_count(job_id, page_count)
-
-    async def update_models(self, job_id: str, models: JobModels) -> RemediationJob | None:
-        return await self._repo.update_models(job_id, models)
-
-    async def set_stage(self, job_id: str, stage: JobStage) -> RemediationJob | None:
-        return await self._repo.set_stage(job_id, stage)
-
-    async def update_language(self, job_id: str, language: str) -> RemediationJob | None:
-        return await self._repo.update_language(job_id, language)
-
-    async def record_artifacts(
-        self, job_id: str, artifacts: dict[ArtifactName, str], counts: dict[str, int]
-    ) -> RemediationJob | None:
-        return await self._repo.record_artifacts(job_id, artifacts, counts)
-
-    async def update_metrics(self, job_id: str, metrics: JobMetrics) -> RemediationJob | None:
-        return await self._repo.update_metrics(job_id, metrics)
-
-    async def set_translation_error(self, job_id: str, message: str | None) -> RemediationJob | None:
-        return await self._repo.set_translation_error(job_id, message)
-
-    async def finish(self, job_id: str, status: JobStatus, *, error: str | None = None) -> RemediationJob | None:
-        return await self._repo.finish(job_id, status, error=error)
 
 
 def serialize_job(job: RemediationJob) -> dict[str, object]:
@@ -247,7 +205,7 @@ async def verify_job(
     *,
     title: str,
     verified_by: str,
-    edited_by: str | None = None,
+    edited_by: str,
 ) -> RemediationJob:
     if job.draft_remediated_md:
         if ArtifactName.REMEDIATED in job.artifacts:
@@ -374,9 +332,9 @@ async def review_summary(job: RemediationJob, blob_provider: BlobStorageProvider
         job_id=job.job_id,
         status=job.status,
         total_pages=job.metrics.total_pages or 1,
-        diagrams_described_count=job.metrics.diagrams_described or len(diagrams),
-        tables_fixed_count=job.metrics.tables_fixed or len(tables),
-        flagged_items_count=job.metrics.flagged_items_count or len(flagged_items),
+        diagrams_described_count=job.metrics.diagrams_described if job.metrics.diagrams_described is not None else len(diagrams),
+        tables_fixed_count=job.metrics.tables_fixed if job.metrics.tables_fixed is not None else len(tables),
+        flagged_items_count=job.metrics.flagged_items_count if job.metrics.flagged_items_count is not None else len(flagged_items),
         diagrams=diagrams,
         tables=tables,
         flagged_items=flagged_items,

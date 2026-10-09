@@ -134,6 +134,7 @@ async def run_pipeline(
                 peak_rss["mb"] = max(mb, peak_rss["mb"] or 0)
                 await asyncio.sleep(0.5)
         except (OSError, AttributeError, ValueError):
+            logger.debug("RSS polling stopped for pid %s", pid, exc_info=True)
             return
 
     tail_task = asyncio.create_task(_tail_progress())

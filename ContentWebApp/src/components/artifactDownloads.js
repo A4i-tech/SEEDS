@@ -6,3 +6,6 @@ export const ARTIFACT_DOWNLOADS = [
   { key: "translated_pdf", ext: "translated.pdf" },
   { key: "translated_tex", ext: "translated.tex" },
 ];
+
+export const artifactFilename = (job, entry) =>
+  `${job.source_name.replace(/\.pdf$/i, "")}.${entry.ext}`;

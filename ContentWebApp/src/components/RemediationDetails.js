@@ -10,7 +10,8 @@ import { MarkdownViewer } from "./RemediationMarkdownView";
 import { RemediationPageEditor } from "./RemediationPageEditor";
 import { replacePageInDocument, splitIntoPages } from "./remediationBlocks";
 import { isRemediationDone, JOB_STATUS } from "../utils/remediationStatus";
-import { ARTIFACT_DOWNLOADS } from "./artifactDownloads";
+import { ARTIFACT_DOWNLOADS, artifactFilename } from "./artifactDownloads";
+import { useBlobObjectUrl } from "./useBlobObjectUrl";
 import { RemediationRunDetails } from "./RemediationRunDetails";
 
 import "./AllContent/AllContent.css";
@@ -70,8 +71,6 @@ const RemediationDetails = () => {
   const [reviewSummary, setReviewSummary] = useState({ flagged_items: [] });
   const hasSeededDraftRef = useRef(false);
   const [showOcrText, setShowOcrText] = useState(false);
-  const [sourcePdfUrl, setSourcePdfUrl] = useState(null);
-  const [sourcePageUrl, setSourcePageUrl] = useState(null);
   const [isDirty, setIsDirty] = useState(false);
   const [pendingNav, setPendingNav] = useState(null);
 
@@ -146,48 +145,22 @@ const RemediationDetails = () => {
   }, [jobId]);
 
   const jobLoaded = Boolean(job);
+  const { url: sourcePdfUrl, error: pdfError } = useBlobObjectUrl(
+    jobLoaded && !job?.source_page_count
+      ? (signal) => textbookRemediationService.getSourcePdf(jobId, { signal })
+      : null,
+    [jobId, jobLoaded, job?.source_page_count]
+  );
+  const { url: sourcePageUrl, error: pageError } = useBlobObjectUrl(
+    job?.source_page_count
+      ? (signal) => textbookRemediationService.getSourcePage(jobId, bookPageNum, { signal })
+      : null,
+    [jobId, job?.source_page_count, bookPageNum]
+  );
   useEffect(() => {
-    if (!jobLoaded || job?.source_page_count) return undefined;
-    const controller = new AbortController();
-    let url;
-    const loadSourcePdf = async () => {
-      try {
-        const blob = await textbookRemediationService.getSourcePdf(jobId, { signal: controller.signal });
-        if (controller.signal.aborted) return;
-        url = URL.createObjectURL(blob);
-        setSourcePdfUrl(url);
-      } catch (pdfError) {
-        if (!controller.signal.aborted) setError(pdfError.message);
-      }
-    };
-    loadSourcePdf();
-    return () => {
-      controller.abort();
-      if (url) URL.revokeObjectURL(url);
-    };
-  }, [jobId, jobLoaded, job?.source_page_count]);
-
-  useEffect(() => {
-    if (!job?.source_page_count) return undefined;
-    const controller = new AbortController();
-    let url;
-    setSourcePageUrl(null);
-    const loadSourcePage = async () => {
-      try {
-        const blob = await textbookRemediationService.getSourcePage(jobId, bookPageNum, { signal: controller.signal });
-        if (controller.signal.aborted) return;
-        url = URL.createObjectURL(blob);
-        setSourcePageUrl(url);
-      } catch (pageError) {
-        if (!controller.signal.aborted) setError(pageError.message);
-      }
-    };
-    loadSourcePage();
-    return () => {
-      controller.abort();
-      if (url) URL.revokeObjectURL(url);
-    };
-  }, [jobId, job?.source_page_count, bookPageNum]);
+    const blobError = pdfError || pageError;
+    if (blobError) setError(blobError.message);
+  }, [pdfError, pageError]);
 
   const artifacts = useMemo(() => (job ? job.artifacts : {}), [job]);
 
@@ -393,7 +366,7 @@ const RemediationDetails = () => {
                           textbookRemediationService.downloadArtifact(
                             job.job_id,
                             entry.key,
-                            `${job.source_name.replace(/\.pdf$/i, "")}.${entry.ext}`
+                            artifactFilename(job, entry)
                           )
                       )
                     }
@@ -413,7 +386,7 @@ const RemediationDetails = () => {
                           textbookRemediationService.downloadArtifact(
                             job.job_id,
                             entry.key,
-                            `${job.source_name.replace(/\.pdf$/i, "")}.${entry.ext}`
+                            artifactFilename(job, entry)
                           )
                         }
                       >

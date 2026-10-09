@@ -7,7 +7,7 @@ import RowActions from "../shared/RowActions";
 import Select from "../shared/Select";
 import { StageProgress } from "./StageProgress";
 import { SyncAllProgress } from "../shared/SyncAllProgress";
-import { ARTIFACT_DOWNLOADS } from "../../artifactDownloads";
+import { ARTIFACT_DOWNLOADS, artifactFilename } from "../../artifactDownloads";
 import { JOB_STATUS } from "../../../utils/remediationStatus";
 import "./RemediationTab.css";
 import "../shared/cards.css";
@@ -80,7 +80,7 @@ const RemediationTab = () => {
             Textbook PDF <span style={{ color: "var(--color-danger-dot)" }}>*</span>
           </span>
           <input ref={fileRef} type="file" accept="application/pdf" onChange={handleFile} style={{ display: "none" }} />
-          <button type="button" className="action-ghost-button" onClick={() => fileRef.current && fileRef.current.click()}>
+          <button type="button" className="action-ghost-button" onClick={() => fileRef.current.click()}>
             Choose PDF File
           </button>
           {selectedFile && <span className="table-cell-secondary">{selectedFile.name}</span>}
@@ -133,7 +133,7 @@ const RemediationTab = () => {
                   </td>
                   <td className="table-cell">
                     {ARTIFACT_DOWNLOADS.some((entry) => job.artifacts[entry.key]) ? (
-                      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                      <div className="action-buttons-wrapper">
                         {ARTIFACT_DOWNLOADS.map(
                           (entry) =>
                             job.artifacts[entry.key] && (
@@ -145,7 +145,7 @@ const RemediationTab = () => {
                                   textbookRemediationService.downloadArtifact(
                                     job.job_id,
                                     entry.key,
-                                    `${job.source_name.replace(/\.pdf$/i, "")}.${entry.ext}`
+                                    artifactFilename(job, entry)
                                   )
                                 }
                               >
