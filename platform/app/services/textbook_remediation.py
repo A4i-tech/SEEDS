@@ -62,6 +62,8 @@ def serialize_job(job: RemediationJob) -> dict[str, object]:
         title=job.title,
         error=job.error,
         created_at=job.created_at,
+        created_by=job.created_by,
+        last_edited_by=job.last_edited_by,
         finished_at=job.finished_at,
         target_language=job.target_language,
         translation_error=job.translation_error,
@@ -95,6 +97,7 @@ async def create_job(
     data: IO[bytes],
     language: str,
     target_language: str | None,
+    created_by: str | None = None,
 ) -> RemediationJob:
     job_id = ObjectId()
     url = await blob_provider.upload_file(
@@ -107,6 +110,7 @@ async def create_job(
         source_url=url,
         language=language,
         target_language=target_language,
+        created_by=created_by,
     )
 
 
@@ -140,6 +144,7 @@ async def save_draft(
     blob_provider: BlobStorageProvider,
     job: RemediationJob,
     draft_md: str,
+    last_edited_by: str | None = None,
 ) -> RemediationJob:
     url = await blob_provider.upload_file(
         get_settings().azure_storage_container,
@@ -147,7 +152,7 @@ async def save_draft(
         draft_md.encode("utf-8"),
         "text/markdown",
     )
-    updated = await repo.update_draft(job.job_id, draft_md, url)
+    updated = await repo.update_draft(job.job_id, draft_md, url, last_edited_by=last_edited_by)
     if updated is None:
         raise NotFoundError("Remediation job", job.job_id)
     return updated

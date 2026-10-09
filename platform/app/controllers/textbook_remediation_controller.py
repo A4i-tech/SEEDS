@@ -115,6 +115,7 @@ async def create_remediation_job(
         data=file.file,
         language=language,
         target_language=target_language or None,
+        created_by=str(user.get("email") or user.get("name") or user.get("id") or "user"),
     )
     return {"job_id": job.job_id}
 
@@ -232,7 +233,8 @@ async def save_remediation_draft(
     blob_provider: BlobStorageProvider = Depends(get_blob_storage_provider),
 ) -> dict[str, object]:
     job = await _get_job(repo, str(user["tenant_id"]), job_id)
-    return serialize_job(await save_draft(repo, blob_provider, job, payload.draft_md))
+    last_edited_by = str(user.get("email") or user.get("name") or user.get("id") or "user")
+    return serialize_job(await save_draft(repo, blob_provider, job, payload.draft_md, last_edited_by))
 
 
 @router.post("/jobs/{job_id}/verify", response_model=RemediationJobResponse, summary="Mark a remediated document verified and save to library")

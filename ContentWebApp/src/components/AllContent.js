@@ -32,7 +32,11 @@ const AllContent = () => {
   const { getAuthHeaders, logout, getCurrentUser } = useAuth();
   const isVolunteer = currentUserRole === USER_ROLES.TEXTBOOK_REMEDIATION_VOLUNTEER;
   const canViewContent = currentUserRole !== null && !isVolunteer;
-  const canViewRemediation = currentUserRole !== null;
+  const canViewRemediation =
+    currentUserRole === USER_ROLES.TENANT ||
+    currentUserRole === USER_ROLES.SCHOOL_ADMIN ||
+    currentUserRole === USER_ROLES.CONTENT_CREATOR ||
+    isVolunteer;
   const {
     content,
     allContent,
@@ -172,7 +176,7 @@ const AllContent = () => {
           showRegistration={canViewRegistration}
           showAnalytics={canViewAnalytics}
           showLocalization={canViewLocalization}
-          showRemediation={isVolunteer}
+          showRemediation={canViewRemediation}
         />
 
         {updateIVRStatus && <div className="status-message">{updateIVRStatus}</div>}

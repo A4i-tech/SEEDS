@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { volunteerService } from "../services/volunteerService";
 import { getRole } from "../utils/authHelpers";
 
@@ -7,15 +7,19 @@ export const useVolunteers = (activeTab) => {
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [messageType, setMessageType] = useState("success");
+  const flashTimeoutRef = useRef(null);
 
   const flash = useCallback((msg, type = "success") => {
     setMessage(msg);
     setMessageType(type);
-    setTimeout(() => {
+    clearTimeout(flashTimeoutRef.current);
+    flashTimeoutRef.current = setTimeout(() => {
       setMessage("");
       setMessageType("success");
     }, 3000);
   }, []);
+
+  useEffect(() => () => clearTimeout(flashTimeoutRef.current), []);
 
   const fetchVolunteers = useCallback(async () => {
     setIsLoading(true);

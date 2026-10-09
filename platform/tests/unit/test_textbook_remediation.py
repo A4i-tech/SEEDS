@@ -220,19 +220,30 @@ async def test_only_a_tenant_can_create_or_list_volunteers():
 
 @pytest.mark.asyncio
 async def test_volunteer_is_rejected_from_non_remediation_endpoints():
+    from app.controllers.class_controller import _require_class_access
     from app.controllers.content_aggregator_controller import _require_tenant
     from app.controllers.content_controller import _require_content_read, _require_content_write
-    from app.platform.auth.dependencies import require_role
+    from app.platform.auth.dependencies import require_role, require_tenant
 
     volunteer = {"role": "textbook_remediation_volunteer"}
     for dependency in (
         _require_content_read,
         _require_content_write,
         _require_tenant,
-        require_role("school_admin"),
+        require_role("school_admin"),  # school_controller / teacher_controller / student_controller
+        _require_class_access,  # class_controller
+        require_role("teacher", "content_creator"),  # conference_controller
+        require_tenant,  # glossary_controller / translation_controller
     ):
         with pytest.raises(ForbiddenError):
             await dependency(user=volunteer)
+
+
+@pytest.mark.asyncio
+async def test_get_rejects_a_job_from_a_different_tenant_for_a_volunteer(repo):
+    job = await _create(repo)
+    user = {"role": "textbook_remediation_volunteer", "tenant_id": "tenant-b"}
+    assert await repo.get(str(user["tenant_id"]), job.job_id) is None
 
 
 @pytest.mark.asyncio
@@ -257,6 +268,17 @@ async def test_create_job_stores_the_target_language_when_given(repo):
     )
     job = await repo.get("tenant-a", result["job_id"])
     assert job.target_language == "hi"
+
+
+@pytest.mark.asyncio
+async def test_create_job_stores_and_exposes_the_creating_user(repo):
+    result = await create_remediation_job(
+        file=_StubUpload(b"%PDF-1.7 body"), language="kn", target_language="",
+        user={"tenant_id": "tenant-a", "email": "volunteer@seeds.org"}, repo=repo, blob_provider=_StubBlob()
+    )
+    job = await repo.get("tenant-a", result["job_id"])
+    assert job.created_by == "volunteer@seeds.org"
+    assert serialize_job(job)["created_by"] == "volunteer@seeds.org"
 
 
 @pytest.mark.asyncio
@@ -325,12 +347,13 @@ async def test_save_draft_and_verify_job(repo):
     res = await save_remediation_draft(
         created.job_id,
         DraftUpdateRequest(draft_md="# Corrected title\n\nParagraph text"),
-        user={"tenant_id": "tenant-a"},
+        user={"tenant_id": "tenant-a", "email": "volunteer@seeds.org"},
         repo=repo,
         blob_provider=blob,
     )
     assert res["status"] == "in_review"
     assert res["draft_remediated_md"] == "# Corrected title\n\nParagraph text"
+    assert res["last_edited_by"] == "volunteer@seeds.org"
     assert f"textbook-remediation/{created.job_id}/remediated.draft.md" in blob.uploaded
 
     verified = await verify_remediation_job(

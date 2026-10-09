@@ -118,6 +118,8 @@ class RemediationJob(BaseModel):
     title: str | None = None
     error: str | None = None
     created_at: str = ""
+    created_by: str | None = None
+    last_edited_by: str | None = None
     finished_at: str | None = None
     target_language: str | None = None
     translation_error: str | None = None
