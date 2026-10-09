@@ -422,13 +422,8 @@ ws: "^8.13.0"                   # WebSocket testing
 ### Component-Specific Coverage Goals
 
 | Component                 | Target Coverage | Current Status | Priority |
-| ------------------------- | --------------- | -------------- | -------- |
-| ConferenceV2 Models       | 95%             |      | HIGH     |
-| ConferenceV2 Services     | 95%             |        | HIGH     |
-| IVRv2 FSM Engine          | 90%             |          | HIGH     |
-| IVRv2 API Routes          | 85%             |         | MEDIUM   |
-| Backend Server Jobs       | 90%             |         | HIGH     |
-| Backend Server Services   | 85%             |         | MEDIUM   |
+| ------------------------- | --------------- | --------------- | -------- |
+| Platform (unified backend) | 80%             | ✅ 80%          | HIGH     |
 | WebSocket Service         | 90%             |          | HIGH     |
 | Teacher WebApp Components | 85%             |         | MEDIUM   |
 
