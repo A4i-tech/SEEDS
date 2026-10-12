@@ -158,7 +158,7 @@ async def test_azure_mistral_ocr_creates_images_and_dedupes(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_azure_mistral_ocr_fails_loud_on_unknown_image_ref():
+async def test_azure_mistral_ocr_flags_unknown_image_ref_and_keeps_page():
     page_bytes = b"PAGE-1"
     _FakeMistralAzure.results = {
         page_bytes: _FakeResult([_FakePage("![img-0.jpeg](img-0.jpeg)", [])]),
@@ -169,8 +169,9 @@ async def test_azure_mistral_ocr_fails_loud_on_unknown_image_ref():
     )
     ctx = IngestionContext(resource=ResolvedResource(uri="", raw_content=b""), items=[item])
 
-    with pytest.raises(RuntimeError, match="img-0.jpeg"):
-        await _agent().run(ctx)
+    await _agent().run(ctx)
+
+    assert "Figure missing from OCR output: img-0.jpeg" in item.raw_content.decode("utf-8")
 
 
 @pytest.mark.asyncio
