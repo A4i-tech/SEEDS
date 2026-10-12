@@ -67,16 +67,6 @@ class BlobStorageProvider(ABC):
         container, blob_path = _parse_blob_url(blob_url)
         return await self.generate_sas_url(container, blob_path, expiry_hours=expiry_hours)
 
-    async def get_upload_sas_url(
-        self,
-        container: str,
-        blob_name: str,
-        expiry_hours: int = 1,
-    ) -> str:
-        return await self.generate_sas_url(
-            container, blob_name, expiry_hours=expiry_hours, read=True, write=True
-        )
-
     def extract_blob_path_without_extension(self, blob_url: str) -> str:
         _container, blob_path = _parse_blob_url(blob_url)
         dot_pos = blob_path.rfind(".")

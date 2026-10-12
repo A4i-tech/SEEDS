@@ -11,7 +11,6 @@ jest.mock("../../src/utils/phoneUtils", () => ({
 
 // Mock environment variables
 process.env.REACT_APP_API_BASE_URL = "http://localhost:3001";
-process.env.REACT_APP_STORAGE_ACCOUNT_NAME = "testaccount";
 
 describe("apiService", () => {
   const confId = "conf-123";
@@ -195,40 +194,15 @@ describe("apiService", () => {
   });
 
   describe("Audio Control", () => {
-    test("plays audio with default URL", async () => {
+    test("plays audio", async () => {
       const mockResponse = { data: {} };
       axiosInstance.put.mockResolvedValueOnce(mockResponse);
 
-      await apiService.playAudio(confId);
+      await apiService.playAudio(confId, "https://example.com/a.wav");
 
       expect(axiosInstance.put).toHaveBeenCalledWith(
         expect.stringContaining(`/conference/playaudio/${confId}`)
       );
-      expect(axiosInstance.put).toHaveBeenCalledWith(
-        expect.stringContaining(
-          encodeURIComponent("https://testaccount.blob.core.windows.net/output-container/25/1.0.wav")
-        )
-      );
-    });
-
-    test("plays audio from REACT_APP_AUDIO_STORAGE_BASE_URL when it is set", async () => {
-      process.env.REACT_APP_AUDIO_STORAGE_BASE_URL = "http://localhost:9000";
-      try {
-        jest.resetModules();
-        const freshApiService = require("../../src/services/apiService");
-        const freshAxiosInstance = require("../../src/services/axiosInstance").default;
-        freshAxiosInstance.put.mockResolvedValueOnce({ data: {} });
-
-        await freshApiService.playAudio(confId);
-
-        expect(freshAxiosInstance.put).toHaveBeenCalledWith(
-          expect.stringContaining(
-            encodeURIComponent("http://localhost:9000/output-container/25/1.0.wav")
-          )
-        );
-      } finally {
-        delete process.env.REACT_APP_AUDIO_STORAGE_BASE_URL;
-      }
     });
 
     test("pauses audio", async () => {

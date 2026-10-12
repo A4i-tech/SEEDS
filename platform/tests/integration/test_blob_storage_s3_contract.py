@@ -179,25 +179,6 @@ class TestDownloadLink:
         assert response.content == b"sync-bytes"
 
 
-class TestUploadLink:
-    async def test_bytes_put_to_the_link_can_be_downloaded(self, provider, blob) -> None:
-        bucket, name = blob
-        url = await provider.get_upload_sas_url(bucket, name)
-
-        async with httpx.AsyncClient() as client:
-            response = await client.put(url, content=b"client-upload")
-
-        assert response.status_code == 200
-        assert await provider.download_file(bucket, name) == b"client-upload"
-
-    async def test_upload_link_does_not_allow_get(self, provider, blob) -> None:
-        bucket, name = blob
-        await provider.upload_file(bucket, name, b"x")
-        url = await provider.get_upload_sas_url(bucket, name)
-
-        assert (await _get(url)).status_code == 403
-
-
 class TestAudioCaptureUpload:
     async def test_captured_wav_is_uploaded_to_the_bucket(self, provider, tmp_path) -> None:
         from app.services.audio.audio_capture import AudioCaptureService

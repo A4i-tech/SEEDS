@@ -1,6 +1,7 @@
 import React from "react";
 import { useState, useEffect } from "react";
-import { SEEDS_URL, AUDIO_STORAGE_BASE_URL } from "../Constants";
+import { SEEDS_URL } from "../Constants";
+import { contentService } from "../services/contentService";
 import { getAuthHeaders } from "../utils/authHelpers";
 
 const StoryDetails = ({ type, story }) => {
@@ -30,17 +31,19 @@ const StoryDetails = ({ type, story }) => {
       }
     };
 
-    const defaultSrc = `${AUDIO_STORAGE_BASE_URL}/output-container/${storyId}/1.0.wav`;
-    const defaultAnswerSrc = `${AUDIO_STORAGE_BASE_URL}/output-container/${storyId}/answer/1.0.wav`;
-    const defaultQuestionSrc = `${AUDIO_STORAGE_BASE_URL}/output-container/${storyId}/question/1.0.wav`;
-
-    const resolvedPrimary = primaryAudio || defaultSrc;
+    const fetchDefaultUrl = (variant) =>
+      contentService.getAudioUrl(storyId, variant).catch((error) => {
+        console.error("Error fetching audio URL:", error);
+        return "";
+      });
 
     if (type === "riddle") {
-      fetchSASUrl(defaultQuestionSrc).then(setAudioSrc);
-      fetchSASUrl(defaultAnswerSrc).then(setAnswerAudioSrc);
+      fetchDefaultUrl("question").then(setAudioSrc);
+      fetchDefaultUrl("answer").then(setAnswerAudioSrc);
+    } else if (primaryAudio) {
+      fetchSASUrl(primaryAudio).then(setAudioSrc);
     } else {
-      fetchSASUrl(resolvedPrimary).then(setAudioSrc);
+      fetchDefaultUrl("final").then(setAudioSrc);
     }
   }, [storyId, type, primaryAudio]);
 
