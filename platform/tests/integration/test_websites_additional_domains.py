@@ -48,8 +48,9 @@ async def test_register_defaults_normalizes_and_dedupes_additional_domains(clien
     assert plain.json()["additional_domains"] == []
 
     cleaned = await _register(
-        client, domain="apps.other.com", additional_domains=[" LMS.Other.com ", "lms.other.com", "other.com"]
+        client, domain=" Apps.Other.COM ", additional_domains=[" LMS.Other.com ", "lms.other.com", "other.com"]
     )
+    assert cleaned.json()["domain"] == "apps.other.com"
     assert cleaned.json()["additional_domains"] == ["lms.other.com", "other.com"]
 
 
@@ -63,6 +64,10 @@ async def test_update_without_additional_domains_keeps_them(client):
     assert renamed.status_code == 200
     assert renamed.json()["name"] == "Renamed"
     assert renamed.json()["additional_domains"] == ["acme.com"]
+
+    nulled = await client.put(f"/websites/{created['id']}", json={"additional_domains": None}, headers=_auth())
+
+    assert nulled.json()["additional_domains"] == ["acme.com"]
 
 
 async def test_update_rejects_an_invalid_additional_domain_with_422(client):
@@ -117,8 +122,11 @@ async def test_update_sets_normalized_additional_domains_and_rejects_conflicts(c
     first = (await _register(client)).json()
     await _register(client, domain="apps.taken.com", additional_domains=["taken.com"])
 
-    updated = await client.put(f"/websites/{first['id']}", json={"additional_domains": ["ACME.com"]}, headers=_auth())
+    updated = await client.put(
+        f"/websites/{first['id']}", json={"domain": " Apps.ACME.com ", "additional_domains": ["ACME.com"]}, headers=_auth()
+    )
     conflict = await client.put(f"/websites/{first['id']}", json={"additional_domains": ["taken.com"]}, headers=_auth())
 
+    assert updated.json()["domain"] == "apps.acme.com"
     assert updated.json()["additional_domains"] == ["acme.com"]
     assert conflict.status_code == 409

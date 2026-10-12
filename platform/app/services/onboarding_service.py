@@ -8,23 +8,16 @@ from fastapi import Depends
 from pymongo.asynchronous.database import AsyncDatabase
 from pymongo.errors import DuplicateKeyError
 
-from app.models.requests.onboarding_requests import DOMAIN_RE
 from app.models.responses.onboarding import ProjectResponse, WebsiteResponse
 from app.platform.auth.dependencies import get_db
 from app.platform.error_handling import (
     ConfigurationError,
     ConflictError,
     NotFoundError,
-    ValidationError,
 )
 from app.platform.settings import get_settings
 from app.repositories.project_repository import ProjectRepository
 from app.repositories.website_repository import WebsiteRepository
-
-
-def _validate_domain(domain: str) -> None:
-    if not domain or not DOMAIN_RE.match(domain):
-        raise ValidationError(f"Invalid domain: {domain!r}")
 
 
 class OnboardingService:
@@ -70,7 +63,6 @@ class OnboardingService:
         languages: list[dict[str, Any]] | None = None,
         additional_domains: Sequence[str] = (),
     ) -> WebsiteResponse:
-        _validate_domain(domain)
         self._base_url()
 
         if project_id is not None:
@@ -109,13 +101,14 @@ class OnboardingService:
         if website is None:
             raise NotFoundError("Website", website_id)
 
-        if "domain" in fields and fields["domain"]:
-            _validate_domain(fields["domain"])
-        claimed = [fields["domain"]] if fields.get("domain") else []
+        claimed = [fields["domain"]] if "domain" in fields else []
         claimed += fields.get("additional_domains", ())
         await self._ensure_domains_unclaimed(claimed, str(website["_id"]))
 
-        updated = await self._websites.update(website_id, tenant_id, fields)
+        try:
+            updated = await self._websites.update(website_id, tenant_id, fields)
+        except DuplicateKeyError as exc:
+            raise ConflictError(f"Website with domain {fields.get('domain')!r}") from exc
         return WebsiteResponse.from_doc(updated, api_base=self._base_url())
 
     async def delete_website(self, website_id: str, tenant_id: str) -> None:
