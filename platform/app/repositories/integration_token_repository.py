@@ -87,7 +87,7 @@ class IntegrationTokenRepository(BaseRepository):
         # revoked token is treated as reuse and revokes the whole client.
         raise RefreshTokenReusedError(existing.client_id)
 
-    async def revoke_all_for_client(self, client_id: str, *, reason: str | None = None) -> None:
+    async def revoke_all_for_client(self, client_id: str, *, reason: str) -> None:
         await self._col.update_many(
             {"client_id": client_id},
             {"$set": {"revoked": True, "revoked_reason": reason}},
