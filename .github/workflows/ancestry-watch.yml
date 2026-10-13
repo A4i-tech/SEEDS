@@ -22,6 +22,10 @@ jobs:
         run: |
           bypass=$(gh api "repos/${{ github.repository }}/rulesets/7400719" --jq 'if .bypass_actors == null then "missing" else (.bypass_actors | length | tostring) end')
           methods=$(gh api "repos/${{ github.repository }}/rulesets/7400719" --jq '[.rules[] | select(.type=="pull_request") | .parameters.allowed_merge_methods[]] | sort | join(",")')
+          if [ "$bypass" = "missing" ]; then
+            echo "Could not read bypass_actors, RELEASE_BOT_PAT likely lacks Administration:read on the ruleset." >&2
+            exit 1
+          fi
           if [ "$bypass" != "0" ]; then
             echo "a4i/main ruleset bypass_actors is non-empty." >&2
             exit 1
@@ -32,7 +36,7 @@ jobs:
           fi
       - name: Confirm commits unique to main are all merge commits (no squash/rebase/direct push)
         env:
-          # Tip of a4i/main right after the 2026-10-08 staging/main resync (#540 incident fix).
+          # Tip of a4i/main right after the 2026-10-06 staging/main resync (#540 incident fix).
           # Merge-commit-only enforcement starts from here; history before it predates the rule.
           BASELINE: 4c2cf9c085ad5ddeafb3bbe9af302b5ce8afc541
         run: |

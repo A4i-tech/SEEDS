@@ -4,6 +4,10 @@ on:
   push:
     branches: [a4i/main]
 
+concurrency:
+  group: release
+  cancel-in-progress: false
+
 jobs:
   tag-and-release:
     runs-on: ubuntu-latest
@@ -17,7 +21,7 @@ jobs:
         name: Compute CalVer tag, suffixed with short SHA on same-day repeat release
         run: |
           git fetch --tags origin
-          existing=$(git tag --points-at HEAD)
+          existing=$(git tag --points-at HEAD | head -1)
           if [ -n "$existing" ]; then
             echo "tag=$existing" >> "$GITHUB_OUTPUT"
             exit 0
@@ -53,20 +57,26 @@ jobs:
           git config user.email "release-bot@a4i-lab.in"
           git config user.name "a4i-release-bot"
           branch="sync/main-$(git rev-parse --short origin/a4i/main)"
+          force=""
           if git ls-remote --exit-code origin "$branch" >/dev/null 2>&1; then
-            echo "Sync branch $branch already exists, leaving it for manual resolution." >&2
-            exit 0
+            open_pr=$(gh pr list --head "$branch" --state all --json number --jq '.[0].number')
+            if [ -n "$open_pr" ]; then
+              echo "Sync branch $branch already exists with PR #$open_pr, leaving it for manual resolution." >&2
+              exit 0
+            fi
+            echo "Sync branch $branch exists with no PR (prior run failed before opening one), rebuilding it." >&2
+            force="--force"
           fi
           git checkout -b "$branch" origin/a4i/staging
           if git merge origin/a4i/main --no-edit; then
-            git push origin "$branch"
+            git push origin "$branch" $force
             gh pr create --base a4i/staging --head "$branch" \
               --title "Sync: a4i/main -> a4i/staging" \
               --body "Automatic back-sync after a push to a4i/main. Merge via Create a merge commit, do not squash."
           else
             git merge --abort
             git checkout -B "$branch" origin/a4i/main
-            git push origin "$branch"
+            git push origin "$branch" $force
             gh pr create --base a4i/staging --head "$branch" \
               --title "Sync: a4i/main -> a4i/staging (conflict)" \
               --label needs-resolution \

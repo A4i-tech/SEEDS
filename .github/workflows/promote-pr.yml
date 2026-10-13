@@ -18,7 +18,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.RELEASE_BOT_PAT }}
         run: |
-          number=$(gh pr list --base a4i/main --head a4i/staging --state open --json number --jq '.[0].number')
+          number=$(gh pr list --base a4i/main --head a4i/staging --state open --json number,isCrossRepository --jq '[.[] | select(.isCrossRepository | not)][0].number')
           notes=$(gh api "repos/${{ github.repository }}/releases/generate-notes" -f tag_name=next-release -f target_commitish=a4i/staging --jq .body)
           if [ -z "$number" ]; then
             url=$(gh pr create --base a4i/main --head a4i/staging \

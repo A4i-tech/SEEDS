@@ -8,13 +8,19 @@ jobs:
   source-guard:
     runs-on: ubuntu-latest
     steps:
-      - name: Only staging or hotfix branches may target main
+      - name: Only staging or hotfix branches, from this repo, may target main
         env:
           REF: ${{ github.head_ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          BASE_REPO: ${{ github.repository }}
         run: |
+          if [ "$HEAD_REPO" != "$BASE_REPO" ]; then
+            echo "PRs into a4i/main must come from this repository, not a fork ($HEAD_REPO)." >&2
+            exit 1
+          fi
           case "$REF" in
-            a4i/staging|hotfix/*|sync/*) exit 0 ;;
-            *) echo "PRs into a4i/main must come from a4i/staging, hotfix/*, or sync/* (back-sync), got: $REF" >&2; exit 1 ;;
+            a4i/staging|hotfix/*) exit 0 ;;
+            *) echo "PRs into a4i/main must come from a4i/staging or hotfix/*, got: $REF" >&2; exit 1 ;;
           esac
 
   ancestry-gate:
@@ -25,8 +31,7 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Block release until any hotfix on main is synced back to staging
-        if: github.head_ref == 'a4i/staging'
+      - name: Block any merge into main until a pending hotfix is synced back to staging
         run: |
           git fetch origin a4i/staging a4i/main
           pending=$(git rev-list --no-merges origin/a4i/staging..origin/a4i/main)
