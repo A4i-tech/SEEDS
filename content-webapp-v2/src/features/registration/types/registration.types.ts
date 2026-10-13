@@ -38,8 +38,10 @@ export const schoolTeacherSchema = z.object({
 
 export type SchoolTeacher = z.infer<typeof schoolTeacherSchema>;
 
+const phoneNumber = z.string().refine((v) => /^\d{10}$/.test(v), 'Enter a valid 10-digit phone number');
+
 export const teacherRegisterSchema = z.object({
-  phone_number: z.string(),
+  phone_number: phoneNumber,
   password: z.string(),
   name: z.string(),
   role: z.string().default('teacher'),
@@ -49,7 +51,7 @@ export type TeacherRegister = z.infer<typeof teacherRegisterSchema>;
 
 export const teacherUpdateSchema = z.object({
   name: z.string().optional(),
-  phone_number: z.string().optional(),
+  phone_number: phoneNumber.optional(),
   password: z.string().optional(),
 });
 
@@ -80,14 +82,14 @@ export type Teacher = z.infer<typeof teacherSchema>;
 
 export const studentCreateSchema = z.object({
   name: z.string(),
-  phone_number: z.string(),
+  phone_number: phoneNumber,
 });
 
 export type StudentCreate = z.infer<typeof studentCreateSchema>;
 
 export const studentUpdateSchema = z.object({
   name: z.string().optional(),
-  phone_number: z.string().optional(),
+  phone_number: phoneNumber.optional(),
 });
 
 export type StudentUpdate = z.infer<typeof studentUpdateSchema>;

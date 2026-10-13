@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "noEmit": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "types": ["node"]
+  },
+  // Standalone from the app build: tsconfig.app.json `include` stays src-only
+  // and tsconfig.json gains no reference to this file, so `npm run build`
+  // (tsc -b) never type-checks or bundles e2e. Verify with:
+  //   npx tsc --noEmit -p tests/e2e/tsconfig.json
+  // NOTE: include covers sibling-owned pages/tests too (shared ContentPage,
+  // RegisterPage, content specs) — this tsconfig type-checks the whole e2e tree.
+  "include": ["./auth", "./pages", "./tests", "./fixtures"]
+}
