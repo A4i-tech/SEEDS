@@ -11,7 +11,6 @@ from pathlib import Path
 
 import pymupdf
 import yaml
-from omni_ingest.core.config import settings as omni_settings
 from pymongo.asynchronous.database import AsyncDatabase
 
 from app.consumers.base_consumer import BaseConsumer, PermanentError
@@ -35,7 +34,7 @@ from app.remediation.detect_language import (
     normalize_language_name,
 )
 from app.remediation.render import render_remediation
-from app.remediation.run_pipeline import run_pipeline
+from app.remediation.run_pipeline import omni_settings, run_pipeline
 from app.remediation.translate import run_translation
 from app.repositories.textbook_remediation_repository import TextbookRemediationRepository
 
@@ -278,25 +277,17 @@ async def _process_job(
         await service.update_progress(job.job_id, JobProgress(stage=JobStage.OCR, message=progress_msg))
         await service.update_models(job.job_id, _resolve_models(job))
 
-        context_json_path = work / "context.json"
         docx_path = out / artifact_filename(ArtifactName.DOCX)
 
-        await run_pipeline(
+        ctx_data = await run_pipeline(
             PIPELINE_PATH, pdf, work,
-            ["--language", pipeline_lang, "--output", str(context_json_path)],
+            {"language": pipeline_lang},
             on_progress=make_progress_handler(JobStage.OCR),
             timeout=JOB_TIMEOUT_SECONDS,
         )
         await service.set_stage(job.job_id, JobStage.REVIEW)
 
-        if not context_json_path.exists():
-            raise RuntimeError(f"Pipeline {PIPELINE_PATH.name} produced no context output")
-
-        def _load_and_render() -> tuple[dict[str, object], dict[str, object]]:
-            ctx = json.loads(context_json_path.read_text(encoding="utf-8"))
-            return ctx, render_remediation(ctx, out)
-
-        ctx_data, render_result = await asyncio.to_thread(_load_and_render)
+        render_result = await asyncio.to_thread(render_remediation, ctx_data, out)
         rendered_metrics = render_result.get("metrics")
         if not isinstance(rendered_metrics, dict):
             raise RuntimeError(f"Render metrics are missing for job {job.job_id}.")

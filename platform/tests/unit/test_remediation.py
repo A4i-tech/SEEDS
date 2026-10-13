@@ -121,16 +121,12 @@ class _StubBlob:
 
 @pytest.mark.asyncio
 async def test_run_translation_uploads_translated_artifacts(monkeypatch, tmp_path):
-    import json
-
     import app.remediation.translate as translate_mod
 
     translated = "translated heading and body"
 
-    async def fake_run_pipeline(pipeline_path, resource, workspace, options, on_progress=None, timeout=None):
-        (workspace / "context.json").write_text(
-            json.dumps({"metadata": {"translated_text": translated}}), encoding="utf-8"
-        )
+    async def fake_run_pipeline(pipeline_path, resource, workspace, params, on_progress=None, timeout=None):
+        return {"metadata": {"translated_text": translated}}
 
     def fake_compile(markdown, out_dir, out_docx, out_tex, resource_root=None):
         out_docx.write_bytes(b"stub-docx")
@@ -325,17 +321,13 @@ def test_render_remediation_flags_and_strips_garbled_figure_text(tmp_path):
 
 @pytest.mark.asyncio
 async def test_run_translation_maps_source_language_name_to_code(monkeypatch, tmp_path):
-    import json
-
     import app.remediation.translate as translate_mod
 
-    captured_options = {}
+    captured_params = {}
 
-    async def fake_run_pipeline(pipeline_path, resource, workspace, options, on_progress=None, timeout=None):
-        captured_options["options"] = options
-        (workspace / "context.json").write_text(
-            json.dumps({"metadata": {"translated_text": "x"}}), encoding="utf-8"
-        )
+    async def fake_run_pipeline(pipeline_path, resource, workspace, params, on_progress=None, timeout=None):
+        captured_params["params"] = params
+        return {"metadata": {"translated_text": "x"}}
 
     monkeypatch.setattr(translate_mod, "run_pipeline", fake_run_pipeline)
     monkeypatch.setattr(translate_mod, "compile_docx_tex_pdf", lambda *a, **k: None)
@@ -344,12 +336,12 @@ async def test_run_translation_maps_source_language_name_to_code(monkeypatch, tm
     md.write_bytes(b"hi")
 
     await translate_mod.run_translation("job-1", md, "kn", "Hindi", _StubBlob())
-    options = captured_options["options"]
-    assert options[options.index("--source-language") + 1] == "hi"
+    params = captured_params["params"]
+    assert params["source_language"] == "hi"
 
     await translate_mod.run_translation("job-1", md, "kn", "auto", _StubBlob())
-    options = captured_options["options"]
-    assert options[options.index("--source-language") + 1] == "auto"
+    params = captured_params["params"]
+    assert params["source_language"] == "auto"
 
     with pytest.raises(ValueError, match="not supported for translation"):
         await translate_mod.run_translation("job-1", md, "kn", "Klingon", _StubBlob())
@@ -357,14 +349,10 @@ async def test_run_translation_maps_source_language_name_to_code(monkeypatch, tm
 
 @pytest.mark.asyncio
 async def test_run_translation_raises_clear_error_when_no_text(monkeypatch, tmp_path):
-    import json
-
     import app.remediation.translate as translate_mod
 
-    async def fake_run_pipeline(pipeline_path, resource, workspace, options, on_progress=None, timeout=None):
-        (workspace / "context.json").write_text(
-            json.dumps({"metadata": {"translated_text": None}}), encoding="utf-8"
-        )
+    async def fake_run_pipeline(pipeline_path, resource, workspace, params, on_progress=None, timeout=None):
+        return {"metadata": {"translated_text": None}}
 
     monkeypatch.setattr(translate_mod, "run_pipeline", fake_run_pipeline)
 

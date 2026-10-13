@@ -1,22 +1,16 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import os
-import sys
-from collections.abc import Awaitable, Callable
 from pathlib import Path
+from typing import Any
 
 from app.platform.settings import get_settings
 
-logger = logging.getLogger(__name__)
-
-PLATFORM_ROOT = Path(__file__).resolve().parent.parent.parent
-
 # The only platform secrets the remediation/translation pipelines actually
-# read (OCR + chat-completion model credentials) — not the platform's whole
-# .env, which also carries DB connection strings and unrelated service keys.
+# read (OCR + chat-completion model credentials). omni_ingest reads them from
+# the environment when it is first imported, so set them before the imports below.
 _REMEDIATION_SETTINGS_KEYS = (
     "openai_api_key",
     "mistral_ocr_api_key",
@@ -29,156 +23,98 @@ _REMEDIATION_SETTINGS_KEYS = (
     "azure_translation_key",
     "azure_translation_region",
 )
+_settings = get_settings()
+os.environ.update({name.upper(): value for name in _REMEDIATION_SETTINGS_KEYS if (value := getattr(_settings, name))})
+
+from collections.abc import Awaitable, Callable  # noqa: E402
+
+from omni_ingest.core import event  # noqa: E402
+from omni_ingest.core.config import settings as omni_settings  # noqa: E402, F401
+from omni_ingest.core.model import Resource, StepStatus  # noqa: E402
+from omni_ingest.core.output import json_dump_context  # noqa: E402
+from omni_ingest.core.pipeline import IngestionContext, create_pipeline_from_config  # noqa: E402
+from omni_ingest.port.metadata_store import NullMetadataStore  # noqa: E402
+from pydantic import TypeAdapter  # noqa: E402
+
+from app.remediation import (  # noqa: E402, F401
+    azure_mistral_ocr,
+    detach_content,
+    safe_extract,
+)
+
+logger = logging.getLogger(__name__)
 
 
-def _stderr_tail(path: Path) -> str:
-    with open(path, "rb") as f:
-        f.seek(max(path.stat().st_size - 8000, 0))
-        return f.read().decode("utf-8", "replace").strip()[-2000:]
-
-
-def _failure_message(name: str, code: int, step: str | None, tail: str) -> str:
-    step_desc = step or "an unknown step"
-    if code < 0:
-        msg = (
-            f"The remediation pipeline was stopped by signal {-code} during step {step_desc}, "
-            "most likely because it ran out of memory. Retry with a smaller PDF, or ask an "
-            "admin to raise the worker memory limit."
-        )
-    else:
-        msg = (
-            f"Pipeline {name} failed during step {step_desc} with exit code {code}. "
-            "Check the stderr output below for the cause."
-        )
-    if tail:
-        msg += f" stderr: {tail}"
-    return msg
+def _progress_event(e: event.Event) -> dict[str, object] | None:
+    if isinstance(e, event.PipelineStepBeginEvent):
+        return {"type": "step_begin", "step_name": e.step_name, "message": f"Starting {e.step_name}"}
+    if isinstance(e, event.PipelineStepProgressEvent):
+        return {
+            "type": "step_progress",
+            "step_name": e.step_name,
+            "completed": int(e.completed),
+            "total": int(e.total),
+            "message": e.message or f"{int(e.completed)}/{int(e.total)}",
+        }
+    if isinstance(e, event.PipelineStepEndEvent):
+        return {"type": "step_end", "step_name": e.step_name, "status": e.step_result.status.value}
+    return None
 
 
 async def run_pipeline(
     pipeline_path: Path,
     resource: Path,
     workspace: Path,
-    options: list[str],
+    params: dict[str, Any],
     on_progress: Callable[[dict[str, object]], Awaitable[None]] | None = None,
     timeout: float | None = None,
-) -> None:
-    progress_file = workspace / "remediation.progress.jsonl"
-    stderr_path = workspace / "remediation.stderr.log"
-    command = [
-        sys.executable, "-m", "app.remediation.run",
-        str(pipeline_path), "--input", str(resource),
-        "--quiet", "--progress-file", str(progress_file), *options,
-    ]
-    settings = get_settings()
-    env_vars = {name.upper(): value for name in _REMEDIATION_SETTINGS_KEYS if (value := getattr(settings, name))}
+) -> dict[str, Any]:
+    """Run an omni_ingest pipeline in this process and return its dumped context."""
+    runner = create_pipeline_from_config(pipeline_path, config_args=params)
+    root = IngestionContext(
+        resource=TypeAdapter(Resource).validate_python(str(resource)),
+        store=NullMetadataStore(),
+        metadata={"workspace": str(workspace)},
+    )
+    [ctx] = [child async for child in runner.flatten(root)]
+    last_step: str | None = None
 
-    env = {
-        **os.environ,
-        **env_vars,
-        "PYTHONPATH": str(PLATFORM_ROOT),
-        "PYTHONIOENCODING": "utf-8",
-        "PYTHONUTF8": "1",
-        "METADATA_STORE": "null",
-        "MALLOC_ARENA_MAX": "2",
-    }
-
-    stop_tailing = asyncio.Event()
-    last_step: dict[str, str | None] = {"name": None}
-    peak_rss: dict[str, float | None] = {"mb": None}
-
-    async def _tail_progress() -> None:
-        file_pos = 0
-
-        async def _read_new() -> None:
-            nonlocal file_pos
-            if not progress_file.exists():
-                return
-            try:
-                with open(progress_file, encoding="utf-8") as f:
-                    f.seek(file_pos)
-                    lines = f.readlines()
-                    file_pos = f.tell()
-            except Exception as exc:
-                logger.warning("remediation: failed reading progress file: %s", exc)
-                return
-            for line in lines:
-                line = line.strip()
-                if not line:
+    async def _forward_progress() -> None:
+        nonlocal last_step
+        try:
+            async for e in event.subscribe(populate_with_buffered=False):
+                if e.run_id != ctx.run_id or (evt := _progress_event(e)) is None:
                     continue
-                try:
-                    evt = json.loads(line)
-                except Exception as exc:
-                    logger.warning("remediation: failed parsing progress line: %s", exc)
-                    continue
-                if evt.get("step_name"):
-                    last_step["name"] = evt["step_name"]
+                last_step = str(evt["step_name"])
                 if on_progress:
                     try:
                         await on_progress(evt)
                     except Exception as exc:
-                        logger.warning("remediation: failed handling progress event: %s", exc)
+                        logger.warning("remediation: run_id=%s failed handling progress event: %s", ctx.run_id, exc)
+        except Exception:
+            logger.exception("remediation: run_id=%s progress listener stopped", ctx.run_id)
 
-        while not stop_tailing.is_set():
-            await _read_new()
-            await asyncio.sleep(0.5)
-        await _read_new()
-
-    async def _poll_rss(pid: int) -> None:
-        # Parent samples child RSS: a SIGKILL from the OOM killer skips any child-side reporting.
-        try:
-            page_size = os.sysconf("SC_PAGE_SIZE")
-            while True:
-                pages = int(Path(f"/proc/{pid}/statm").read_text().split()[1])
-                mb = round(pages * page_size / 1048576, 1)
-                peak_rss["mb"] = max(mb, peak_rss["mb"] or 0)
-                await asyncio.sleep(0.5)
-        except (OSError, AttributeError, ValueError):
-            logger.debug("RSS polling stopped for pid %s", pid, exc_info=True)
-            return
-
-    tail_task = asyncio.create_task(_tail_progress())
-    rss_task: asyncio.Task | None = None
+    listener = asyncio.create_task(_forward_progress())
+    await asyncio.sleep(0)
+    logger.info("remediation: pipeline %s started run_id=%s", pipeline_path.name, ctx.run_id)
     try:
-        with open(stderr_path, "wb") as stderr_fh:
-            proc = await asyncio.create_subprocess_exec(
-                *command,
-                cwd=str(workspace),
-                env=env,
-                stdout=asyncio.subprocess.DEVNULL,
-                stderr=stderr_fh,
-            )
-        rss_task = asyncio.create_task(_poll_rss(proc.pid))
-        try:
-            await asyncio.wait_for(proc.wait(), timeout)
-        except TimeoutError as exc:
-            proc.kill()
-            await proc.wait()
-            tail = _stderr_tail(stderr_path)
-            logger.error(
-                "remediation: pipeline %s timed out after %ss, last step=%s peak_rss_mb=%s: %s",
-                pipeline_path.name, timeout, last_step["name"],
-                peak_rss["mb"] if peak_rss["mb"] is not None else "unavailable", tail,
-            )
-            raise RuntimeError(
-                f"Pipeline {pipeline_path.name} timed out after {timeout}s during step "
-                f"{last_step['name'] or 'an unknown step'}: {tail}"
-            ) from exc
-        except asyncio.CancelledError:
-            proc.kill()
-            await proc.wait()
-            raise
+        async with asyncio.timeout(timeout):
+            results = await runner.run(ctx)
+    except TimeoutError as exc:
+        logger.error("remediation: pipeline %s run_id=%s timed out after %ss at step %s", pipeline_path.name, ctx.run_id, timeout, last_step)
+        raise RuntimeError(
+            f"Pipeline {pipeline_path.name} timed out after {timeout}s during step {last_step or 'an unknown step'}. "
+            "Retry with a smaller PDF."
+        ) from exc
     finally:
-        stop_tailing.set()
-        await tail_task
-        if rss_task:
-            rss_task.cancel()
+        listener.cancel()
 
-    if proc.returncode != 0:
-        tail = _stderr_tail(stderr_path)
-        logger.error(
-            "remediation: pipeline %s failed rc=%s last step=%s peak_rss_mb=%s: %s",
-            pipeline_path.name, proc.returncode, last_step["name"],
-            peak_rss["mb"] if peak_rss["mb"] is not None else "unavailable", tail,
+    failures = [r.error for r in results if r.status == StepStatus.FAILURE]
+    if failures:
+        logger.error("remediation: pipeline %s run_id=%s failed at step %s: %s", pipeline_path.name, ctx.run_id, last_step, failures)
+        raise RuntimeError(
+            f"Pipeline {pipeline_path.name} failed during step {last_step or 'an unknown step'}: "
+            f"{'; '.join(str(f) for f in failures)}. Retry the job. If it fails again, send run ID {ctx.run_id} to an admin."
         )
-        raise RuntimeError(_failure_message(pipeline_path.name, proc.returncode, last_step["name"], tail))
+    logger.info("remediation: pipeline %s finished run_id=%s", pipeline_path.name, ctx.run_id)
+    return await json_dump_context(ctx)

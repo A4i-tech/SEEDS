@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import base64
-import sys
-import time
 
 import pytest
 
@@ -139,97 +137,107 @@ def test_render_remediation_raises_and_removes_docx_on_pandoc_failure(monkeypatc
     assert not (out_dir / "remediated.docx").exists()
 
 
-async def _run_sleeping_pipeline(tmp_path, monkeypatch, **kwargs):
+class _FakeRunner:
+    def __init__(self, run):
+        self.run = run
+
+    async def flatten(self, ctx):
+        from dataclasses import replace
+
+        from omni_ingest.core.model import ResolvedResource
+
+        yield replace(ctx, resource=ResolvedResource(uri="in.txt", raw_content=b"x"))
+
+
+def _patch_runner(monkeypatch, run):
     import app.remediation.run_pipeline as pipeline_mod
 
-    started: dict[str, object] = {}
-    real_exec = asyncio.create_subprocess_exec
-
-    class _Settings:
-        openai_api_key = ""
-        mistral_ocr_api_key = ""
-        mistral_ocr_endpoint = ""
-        mistral_ocr_model = ""
-        azure_openai_api_key = ""
-        azure_openai_endpoint = ""
-        openai_api_version = ""
-        default_chat_completion_model = ""
-        azure_translation_key = ""
-        azure_translation_region = ""
-
-    monkeypatch.setattr(pipeline_mod, "get_settings", lambda: _Settings())
-
-    async def fake_exec(*args, **exec_kwargs):
-        proc = await real_exec(sys.executable, "-c", "import time; time.sleep(30)", **exec_kwargs)
-        started["proc"] = proc
-        return proc
-
-    monkeypatch.setattr(pipeline_mod.asyncio, "create_subprocess_exec", fake_exec)
-
-    task = asyncio.ensure_future(
-        pipeline_mod.run_pipeline(tmp_path / "pipeline.yaml", tmp_path / "in.txt", tmp_path, [], **kwargs)
-    )
-    for _ in range(200):
-        if "proc" in started:
-            break
-        await asyncio.sleep(0.05)
-    assert "proc" in started, "child process never started"
-    return task, started
+    monkeypatch.setattr(pipeline_mod, "create_pipeline_from_config", lambda *a, **k: _FakeRunner(run))
+    return pipeline_mod
 
 
 @pytest.mark.asyncio
-async def test_run_pipeline_kills_child_on_cancellation(tmp_path, monkeypatch):
-    task, started = await _run_sleeping_pipeline(tmp_path, monkeypatch, timeout=30)
+async def test_run_pipeline_forwards_progress_and_returns_context(tmp_path, monkeypatch):
+    from omni_ingest.core import event
+    from omni_ingest.core.model import StepResult, StepStatus
 
-    start = time.monotonic()
+    async def run(ctx):
+        step = object()
+        event.publish(event.PipelineStepBeginEvent(run_id=ctx.run_id, tenant_id=ctx.tenant_id, step_name="ocr", step=step))
+        await asyncio.sleep(0)
+        event.publish(event.PipelineStepBeginEvent(run_id=object(), tenant_id=ctx.tenant_id, step_name="other-job", step=step))
+        await asyncio.sleep(0)
+        return [StepResult(status=StepStatus.SUCCESS)]
+
+    pipeline_mod = _patch_runner(monkeypatch, run)
+    seen: list[dict] = []
+
+    async def on_progress(evt):
+        seen.append(evt)
+
+    out = await pipeline_mod.run_pipeline(tmp_path / "p.yaml", tmp_path / "in.txt", tmp_path, {}, on_progress=on_progress)
+
+    assert [e["step_name"] for e in seen] == ["ocr"]
+    assert out["metadata"]["workspace"] == str(tmp_path)
+
+
+@pytest.mark.asyncio
+async def test_run_pipeline_failure_names_step_and_run_id(tmp_path, monkeypatch):
+    from omni_ingest.core import event
+    from omni_ingest.core.model import StepResult, StepStatus
+
+    async def run(ctx):
+        event.publish(event.PipelineStepBeginEvent(run_id=ctx.run_id, tenant_id=ctx.tenant_id, step_name="safe_extract", step=object()))
+        await asyncio.sleep(0)
+        return [StepResult(status=StepStatus.FAILURE, error="boom")]
+
+    pipeline_mod = _patch_runner(monkeypatch, run)
+
+    with pytest.raises(RuntimeError, match=r"safe_extract.*boom.*run ID"):
+        await pipeline_mod.run_pipeline(tmp_path / "p.yaml", tmp_path / "in.txt", tmp_path, {})
+
+
+@pytest.mark.asyncio
+async def test_run_pipeline_cancel_stops_run(tmp_path, monkeypatch):
+    started = asyncio.Event()
+
+    async def run(ctx):
+        started.set()
+        await asyncio.sleep(30)
+
+    pipeline_mod = _patch_runner(monkeypatch, run)
+    task = asyncio.create_task(pipeline_mod.run_pipeline(tmp_path / "p.yaml", tmp_path / "in.txt", tmp_path, {}))
+    await started.wait()
     task.cancel()
+
     with pytest.raises(asyncio.CancelledError):
         await task
 
-    assert started["proc"].returncode is not None
-    assert time.monotonic() - start < 5
+
+@pytest.mark.asyncio
+async def test_detach_content_writes_under_workspace(tmp_path):
+    from omni_ingest.core.model import ResolvedResource
+    from omni_ingest.core.pipeline import IngestionContext
+
+    from app.remediation.detach_content import DetachContentAgent
+
+    ctx = IngestionContext(resource=ResolvedResource(uri="in.pdf", raw_content=b"pdf"), metadata={"workspace": str(tmp_path)})
+
+    await DetachContentAgent().run(ctx)
+
+    assert (tmp_path / "out" / "detached").is_dir()
+    assert ctx.resource.raw_content == b""
 
 
 @pytest.mark.asyncio
-async def test_run_pipeline_kills_child_on_timeout(tmp_path, monkeypatch):
-    task, started = await _run_sleeping_pipeline(tmp_path, monkeypatch, timeout=0.3)
+async def test_run_pipeline_times_out(tmp_path, monkeypatch):
+    async def run(ctx):
+        await asyncio.sleep(30)
 
-    start = time.monotonic()
+    pipeline_mod = _patch_runner(monkeypatch, run)
+
     with pytest.raises(RuntimeError, match="timed out"):
-        await task
-
-    assert started["proc"].returncode is not None
-    assert time.monotonic() - start < 5
-
-
-@pytest.mark.asyncio
-async def test_run_pipeline_reports_stderr_tail_on_nonzero_exit(tmp_path, monkeypatch):
-    import app.remediation.run_pipeline as pipeline_mod
-
-    class _Settings:
-        openai_api_key = ""
-        mistral_ocr_api_key = ""
-        mistral_ocr_endpoint = ""
-        mistral_ocr_model = ""
-        azure_openai_api_key = ""
-        azure_openai_endpoint = ""
-        openai_api_version = ""
-        default_chat_completion_model = ""
-        azure_translation_key = ""
-        azure_translation_region = ""
-
-    monkeypatch.setattr(pipeline_mod, "get_settings", lambda: _Settings())
-
-    real_exec = asyncio.create_subprocess_exec
-
-    async def fake_exec(*args, **exec_kwargs):
-        script = "import sys; sys.stderr.write('boom: out of memory'); sys.exit(3)"
-        return await real_exec(sys.executable, "-c", script, **exec_kwargs)
-
-    monkeypatch.setattr(pipeline_mod.asyncio, "create_subprocess_exec", fake_exec)
-
-    with pytest.raises(RuntimeError, match="boom: out of memory"):
-        await pipeline_mod.run_pipeline(tmp_path / "pipeline.yaml", tmp_path / "in.txt", tmp_path, [], timeout=10)
+        await pipeline_mod.run_pipeline(tmp_path / "p.yaml", tmp_path / "in.txt", tmp_path, {}, timeout=0.2)
 
 
 def test_figure_block_with_mangled_id_uses_next_unused_page_figure():
@@ -257,14 +265,3 @@ def test_page_without_ocr_text_drops_invented_text_blocks():
 
     assert "Physical Quantities" not in body
     assert corpus.unresolved_records[0]["type"] == "invented_text"
-
-
-def test_failure_message_names_signal_and_step_when_child_is_killed():
-    import app.remediation.run_pipeline as pipeline_mod
-
-    msg = pipeline_mod._failure_message("p.yaml", -9, "safe_extract", "tail")
-
-    assert "signal 9" in msg
-    assert "safe_extract" in msg
-    assert "ran out of memory" in msg
-    assert msg.endswith("stderr: tail")

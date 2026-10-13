@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import re
 import tempfile
@@ -68,19 +67,13 @@ async def run_translation(
 
     with tempfile.TemporaryDirectory() as workspace:
         work = Path(workspace)
-        context_path = work / "context.json"
 
-        await run_pipeline(
+        ctx_data = await run_pipeline(
             PIPELINE_PATH, remediated_path, work,
-            [
-                "--source-language", source,
-                "--target-language", target_language,
-                "--output", str(context_path),
-            ],
+            {"source_language": source, "target_language": target_language},
             timeout=TRANSLATION_TIMEOUT_SECONDS,
         )
 
-        ctx_data = json.loads(context_path.read_text(encoding="utf-8"))
         translated_text = str((ctx_data.get("metadata") or {}).get("translated_text") or "")
         if not translated_text:
             raise RuntimeError(

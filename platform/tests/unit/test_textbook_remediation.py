@@ -513,14 +513,6 @@ async def test_findings_page_pages_correctly_across_chunk_boundaries(repo):
     assert (page["total"], page["offset"], page["has_more"]) == (5, 1, True)
 
 
-def test_platform_root_path():
-    from app.remediation.run_pipeline import PLATFORM_ROOT
-
-    assert PLATFORM_ROOT.name == "platform"
-    assert (PLATFORM_ROOT / "app").is_dir()
-    assert (PLATFORM_ROOT / "app" / "remediation").is_dir()
-
-
 class _FailingBlob:
     async def upload_file(self, *args, **kwargs):
         raise RuntimeError("blob storage is down")

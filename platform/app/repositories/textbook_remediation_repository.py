@@ -42,6 +42,10 @@ class TextbookRemediationRepository:
         self._col = db[self.COLLECTION_NAME]
         self._edits = db[self.EDITS_COLLECTION_NAME]
 
+    @classmethod
+    async def ensure_indexes(cls, db: AsyncDatabase) -> None:
+        await db[cls.EDITS_COLLECTION_NAME].create_index([("job_id", 1), ("timestamp", 1)])
+
     async def record_edit(self, job_id: str, previous_md: str, new_md: str, edited_by: str) -> None:
         await self._edits.insert_one({
             "job_id": job_id, "timestamp": datetime.now(UTC).isoformat(), "edited_by": edited_by,
