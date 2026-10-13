@@ -158,7 +158,9 @@ async def test_import_rejects_rows_with_missing_or_misspelled_fields_instead_of_
     resp = await client.post(URL, json=_body(rows=[row]), headers=_headers())
 
     assert resp.status_code == 422
-    assert "route" in str(resp.json())
+    error = resp.json()["details"]["validation_errors"][0]
+    assert error["loc"] == ["body", "rows", 0, "route"]
+    assert error["type"] == "missing"
 
 
 async def test_import_rejects_a_zero_csv_row_number(client, mock_db):

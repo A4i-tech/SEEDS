@@ -184,9 +184,9 @@ function TranslationImportDialog({ siteId, languages, defaultLang, onClose, onIm
             <p className={result.failed ? "error-message" : "success-message"}>
               {`Updated ${result.updated}, created ${result.created}, unchanged ${result.unchanged}, skipped blank ${result.skippedBlank}, failed ${result.failed}`}
             </p>
-            {result.warnings?.length > 0 && (
+            {result.warnings.length > 0 && (
               <p className="status-message">
-                {`These rows were saved, but their ${[...new Set(result.warnings.map((w) => WARNINGS[w.reason] || w.reason))].join(" and ")} could not be recorded: row ${result.warnings.map((w) => w.row).join(", ")}.`}
+                {`These rows were saved, but their ${[...new Set(result.warnings.map((w) => WARNINGS[w.reason]))].join(" and ")} could not be recorded: row ${[...new Set(result.warnings.map((w) => w.row))].join(", ")}.`}
               </p>
             )}
             {result.errors.length > 0 && (

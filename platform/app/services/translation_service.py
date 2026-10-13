@@ -11,6 +11,7 @@ from pymongo.asynchronous.database import AsyncDatabase
 from pymongo.errors import BulkWriteError, PyMongoError
 
 from app.models.requests.translation_requests import ImportState, TranslationImportRow
+from app.models.responses.translation import ImportRowError
 from app.platform.auth.dependencies import get_db
 from app.platform.error_handling import NotFoundError, ValidationError
 from app.platform.settings import get_settings
@@ -771,53 +772,87 @@ class TranslationService:
                     extra={"site_id": site_id, "failed_rows": sorted(planned[i]["row"] for i in failed_ops)},
                 )
 
+        warnings: list[ImportRowError] = []
+
+        def warn(plan: _PlannedRow, reason: str) -> None:
+            warnings.append(ImportRowError(row=plan["row"], route=plan["route"], key=plan["key"], reason=reason))
+
         guarded = [
             i for i, p in enumerate(planned) if p.get("version_doc") and p["translation_id"] and i not in failed_ops
         ]
+        unverified: set[int] = set()
         if guarded:
-            stored = await self._repo.find_by_route_keys(
-                site_id, [(planned[i]["route"], planned[i]["key"]) for i in guarded]
-            )
-            applied_at = {(d["route"], d["key"]): _same_instant(d.get("approved_at"), now) for d in stored}
-            failed_ops |= {i for i in guarded if not applied_at.get((planned[i]["route"], planned[i]["key"]))}
+            try:
+                stored = await self._repo.find_by_route_keys(
+                    site_id, [(planned[i]["route"], planned[i]["key"]) for i in guarded]
+                )
+            except PyMongoError:
+                logger.error(
+                    "import_translations: rows were saved but their version-guard status could not be verified",
+                    extra={"site_id": site_id, "rows": [planned[i]["row"] for i in guarded]},
+                    exc_info=True,
+                )
+                unverified = set(guarded)
+            else:
+                applied_at = {(d["route"], d["key"]): _same_instant(d.get("approved_at"), now) for d in stored}
+                failed_ops |= {i for i in guarded if not applied_at.get((planned[i]["route"], planned[i]["key"]))}
 
-        written = []
+        written: list[_PlannedRow] = []
         for index, plan in enumerate(planned):
             if index in failed_ops:
                 fail(plan["row"], plan["route"], plan["key"], "write_failed")
             else:
                 counts[plan["kind"]] += 1
                 written.append(plan)
+                if index in unverified:
+                    warn(plan, "version_not_recorded")
 
+        unverified_keys = {(planned[i]["route"], planned[i]["key"]) for i in unverified}
         new_identities = [
             (p["route"], p["key"]) for p in written if p.get("version_doc") and p["translation_id"] is None
         ]
         new_ids: dict[tuple[str, str], str] = {}
         if new_identities:
-            created_docs = await self._repo.find_by_route_keys(site_id, new_identities)
-            new_ids = {(doc["route"], doc["key"]): str(doc["_id"]) for doc in created_docs}
+            try:
+                created_docs = await self._repo.find_by_route_keys(site_id, new_identities)
+                new_ids = {(doc["route"], doc["key"]): str(doc["_id"]) for doc in created_docs}
+            except PyMongoError:
+                logger.error(
+                    "import_translations: new rows were saved but their ids could not be looked up for history recording",
+                    extra={
+                        "site_id": site_id,
+                        "rows": [p["row"] for p in written if (p["route"], p["key"]) in new_identities],
+                    },
+                    exc_info=True,
+                )
 
-        version_docs = [
-            {**p["version_doc"], "translation_id": p["translation_id"] or new_ids[(p["route"], p["key"])]}
-            for p in written
-            if p.get("version_doc")
-        ]
+        version_docs = []
+        version_doc_rows: list[_PlannedRow] = []
+        for p in written:
+            if not p.get("version_doc"):
+                continue
+            key_tuple = (p["route"], p["key"])
+            if key_tuple in unverified_keys:
+                continue
+            translation_id = p["translation_id"] or new_ids.get(key_tuple)
+            if translation_id is None:
+                warn(p, "version_not_recorded")
+                continue
+            version_docs.append({**p["version_doc"], "translation_id": translation_id})
+            version_doc_rows.append(p)
+
         audit_docs = [audit for p in written for audit in p["audits"]]
-        warnings: list[dict[str, Any]] = []
         if version_docs:
             try:
                 await self._version_repo.add_versions_bulk(version_docs)
             except PyMongoError:
-                versioned = [p for p in written if p.get("version_doc")]
                 logger.error(
                     "import_translations: rows were saved but their versions were not recorded",
-                    extra={"site_id": site_id, "rows": [p["row"] for p in versioned]},
+                    extra={"site_id": site_id, "rows": [p["row"] for p in version_doc_rows]},
                     exc_info=True,
                 )
-                warnings.extend(
-                    {"row": p["row"], "route": p["route"], "key": p["key"], "reason": "version_not_recorded"}
-                    for p in versioned
-                )
+                for p in version_doc_rows:
+                    warn(p, "version_not_recorded")
         if audit_docs:
             try:
                 await self._audit_repo.record_bulk(audit_docs)
@@ -827,13 +862,11 @@ class TranslationService:
                     extra={"site_id": site_id, "rows": [p["row"] for p in written]},
                     exc_info=True,
                 )
-                warnings.extend(
-                    {"row": p["row"], "route": p["route"], "key": p["key"], "reason": "audit_not_recorded"}
-                    for p in written
-                )
+                for p in written:
+                    warn(p, "audit_not_recorded")
 
         errors.sort(key=lambda e: e["row"])
-        warnings.sort(key=lambda w: w["row"])
+        warnings.sort(key=lambda w: w.row)
         return {**counts, "failed": len(errors), "errors": errors, "warnings": warnings}
 
     async def get_translation(self, translation_id: str, tenant_id: str) -> dict[str, Any]:

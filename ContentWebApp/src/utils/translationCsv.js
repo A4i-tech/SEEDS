@@ -66,8 +66,8 @@ export const readFileText = (file) =>
   });
 
 const quotesError = (rowIndex) =>
-  `The CSV has a quoted value that is not closed properly${
-    rowIndex === undefined ? "" : ` near row ${rowIndex + 1}`
+  `The CSV has a quoted value that is not closed properly near row ${
+    rowIndex + 1
   }. Every opening quote needs a closing quote. Fix that row and import again.`;
 
 const buildTable = (data, headerIndex) => {

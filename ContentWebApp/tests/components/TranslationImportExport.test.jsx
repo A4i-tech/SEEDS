@@ -210,6 +210,7 @@ describe("Import dialog", () => {
       skippedBlank: 0,
       failed: 1,
       errors: [{ row: 3, route: "/new", key: "tbad", reason: "key_mismatch" }],
+      warnings: [],
     });
     renderWorkspace(undefined, onDataChanged);
     await screen.findByText("Untranslated one");
@@ -286,6 +287,7 @@ describe("Import dialog", () => {
       skippedBlank: 0,
       failed: 0,
       errors: [],
+      warnings: [],
     });
     renderWorkspace();
     await screen.findByText("Untranslated one");
@@ -427,6 +429,7 @@ describe("Import safety", () => {
       skippedBlank: 0,
       failed: 0,
       errors: [],
+      warnings: [],
     });
     renderWorkspace();
     await screen.findByText("Untranslated one");
@@ -454,6 +457,7 @@ describe("Import safety", () => {
       skippedBlank: 0,
       failed: 1,
       errors: [{ row: 1, route: "/a?x=1", key: "k1", reason: "invalid_route" }],
+      warnings: [],
     });
     renderWorkspace();
     await screen.findByText("Untranslated one");
@@ -541,6 +545,7 @@ describe("Import dialog layout on short viewports", () => {
       skippedBlank: 0,
       failed: count,
       errors: manyErrors(count),
+      warnings: [],
     });
     renderWorkspace();
     await screen.findByText("Untranslated one");
@@ -731,8 +736,10 @@ describe("Import review fixes", () => {
 
     const problem = await within(dialog).findByText("Asset ID is too long");
     expect(problem).toHaveAttribute("title", "Asset ID is too long");
-    expect(within(dialog).getByText("/faq?page=2")).toHaveAttribute("title", "/faq?page=2");
-    expect(within(dialog).getByText("9")).toBeInTheDocument();
+    const route = within(dialog).getByText("/faq?page=2");
+    expect(route).toHaveAttribute("title", "/faq?page=2");
+    const errorRow = route.closest("tr");
+    expect(within(errorRow).getByText("9")).toBeInTheDocument();
   });
 
   test("the target language field and the status radios have accessible names", async () => {
