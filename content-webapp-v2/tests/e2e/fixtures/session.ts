@@ -1,6 +1,6 @@
 import type { Browser, BrowserContext, Page } from '@playwright/test';
 import { getInstance, type Persona } from './instances';
-import { LoginPage } from '../pages/LoginPage';
+import { login } from '../helpers';
 
 /**
  * Logs in as a different persona in a brand-new browser context (no cookies
@@ -23,7 +23,7 @@ export async function loginInNewContext(
 ): Promise<{ context: BrowserContext; page: Page }> {
   const context = await browser.newContext({ baseURL: getInstance().baseURL });
   const page = await context.newPage();
-  await new LoginPage(page).login(identifier, password);
+  await login(page, identifier, password);
   return { context, page };
 }
 

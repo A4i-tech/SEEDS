@@ -1,28 +1,31 @@
 import { expect, test, type Page } from '@playwright/test';
 import { PERSONAS, uniqueId } from '../fixtures/instances';
 import { bestEffortCleanup, loginInNewContext } from '../fixtures/session';
-import { ContentListPage } from '../pages/ContentListPage';
-import { ContentPage } from '../pages/ContentPage';
-import { QuizPage } from '../pages/QuizPage';
-async function loginAs(page: Page, identifier: string, password: string): Promise<void> {
-  await page.goto('/');
-  await page.getByLabel('Phone number or email').fill(identifier);
-  await page.locator('input[type="password"]').fill(password);
-  await page.getByRole('button', { name: 'Log in', exact: true }).click();
-  await page.waitForURL('**/home', { timeout: 15000 });
-}
+import {
+  addQuestionRow,
+  deleteContent,
+  deleteEitherId,
+  editContent,
+  fillQuestion,
+  fillQuizForm,
+  gotoLibrary,
+  gotoQuiz,
+  isLibraryRowVisible,
+  libraryRow,
+  login,
+  saveQuiz,
+  searchLibrary,
+  updateContentTitle,
+  waitForLibraryRow,
+} from '../helpers';
 
 // Quiz creation goes through the same async content-processing job as
-// Song/Story/etc. (POST /content/quiz responds with "job scheduled") — see
-// content.spec.ts's header comment. Like legacy, quiz tests skip
-// waitUntilProcessed() (no audio to process; the edit form has no gate for
-// quizzes) and go straight to editContent() once the row appears.
+// Song/Story/etc. - like legacy, quiz tests skip waitUntilContentProcessed()
+// (no audio to process) and go straight to editContent() once the row appears.
 //
-// DELTA — quiz question editing has no v2 equivalent: ContentEditScreen marks
-// questions read-only ('Questions are read-only here. Title, theme, and
-// language can still be edited.'). The legacy edit tests (option edits, adding
-// questions) are ported as title edits asserting the same PATCH 200 —
-// reported, never silently dropped.
+// DELTA - quiz question editing has no v2 equivalent: ContentEditScreen marks
+// questions read-only. The legacy edit tests (option edits, adding questions)
+// are ported as title edits asserting the same PATCH 200.
 test.beforeEach(({}, testInfo) => {
   testInfo.setTimeout(Math.max(testInfo.timeout, 180000));
 });
@@ -61,19 +64,13 @@ for (const { roleName, personaKey, ids } of ROLES) {
     const persona = PERSONAS[personaKey] as { identifier: string; password: string };
 
     // The doc has no dedicated "content creator can create a single-question
-    // quiz" case (TC-QUIZ-012 starts at multi-question) — still create one
-    // here so the edit test (TC-QUIZ-013) has a target, just without its own
-    // doc-numbered assertion.
+    // quiz" case (TC-QUIZ-012 starts at multi-question) - still create one
+    // here so the edit test (TC-QUIZ-013) has a target.
     test(`${ids.single ?? '(setup)'} ${roleName} can create a quiz with a single question`, async ({ page }) => {
-      const contentPage = new ContentPage(page);
-      const quizPage = new QuizPage(page);
-      const contentListPage = new ContentListPage(page);
-
-      await loginAs(page, persona.identifier, persona.password);
-      await contentPage.waitForLoad();
-      await quizPage.goto();
-      await quizPage.selectExperience();
-      await quizPage.fillQuizForm({
+      await login(page, persona.identifier, persona.password);
+      await gotoLibrary(page);
+      await gotoQuiz(page);
+      await fillQuizForm(page, {
         title: `quiz-${singleId}`,
         theme: `theme-${singleId}`,
         question: 'What is 2+2?',
@@ -83,26 +80,19 @@ for (const { roleName, personaKey, ids } of ROLES) {
         optionD: '6',
         correctIndex: 1,
       });
-      const { status, notice } = await quizPage.save();
+      const { status, notice } = await saveQuiz(page);
       expect(status).toBe(200);
-      // Legacy asserted the alert text /saved successfully/i; v2 shows a
-      // 'Quiz saved to Library.' notification instead.
       expect(notice).toMatch(/saved to library/i);
       await page.waitForURL(/\/library/, { timeout: 15000 });
 
-      await contentListPage.waitForRow(singleId);
+      await waitForLibraryRow(page, singleId);
     });
 
     test(`${ids.multi} ${roleName} can create a quiz with multiple questions`, async ({ page }) => {
-      const contentPage = new ContentPage(page);
-      const quizPage = new QuizPage(page);
-      const contentListPage = new ContentListPage(page);
-
-      await loginAs(page, persona.identifier, persona.password);
-      await contentPage.waitForLoad();
-      await quizPage.goto();
-      await quizPage.selectExperience();
-      await quizPage.fillQuizForm({
+      await login(page, persona.identifier, persona.password);
+      await gotoLibrary(page);
+      await gotoQuiz(page);
+      await fillQuizForm(page, {
         title: `quiz-${multiId}`,
         theme: `theme-${multiId}`,
         question: 'What is the capital of France?',
@@ -112,8 +102,8 @@ for (const { roleName, personaKey, ids } of ROLES) {
         optionD: 'Madrid',
         correctIndex: 1,
       });
-      await quizPage.addQuestionRow();
-      await quizPage.fillQuestion(1, {
+      await addQuestionRow(page);
+      await fillQuestion(page, 1, {
         question: 'What is the boiling point of water (C)?',
         optionA: '90',
         optionB: '100',
@@ -121,62 +111,46 @@ for (const { roleName, personaKey, ids } of ROLES) {
         optionD: '120',
         correctIndex: 1,
       });
-      const { status, notice } = await quizPage.save();
+      const { status, notice } = await saveQuiz(page);
       expect(status).toBe(200);
       expect(notice).toMatch(/saved to library/i);
       await page.waitForURL(/\/library/, { timeout: 15000 });
 
-      await contentListPage.waitForRow(multiId);
+      await waitForLibraryRow(page, multiId);
     });
 
+    // DELTA: question text is read-only in v2 - edits the title instead.
     test(`${ids.editNoNew} ${roleName} can edit a quiz without adding new questions`, async ({ page }) => {
-      // DELTA: question text is read-only in v2 — edits the title instead
-      // (same PATCH endpoint, same 200 contract).
-      const contentPage = new ContentPage(page);
-      const contentListPage = new ContentListPage(page);
       const editedTitle = `quiz-${singleId}-edited`;
-
-      await loginAs(page, persona.identifier, persona.password);
-      await contentPage.waitForLoad();
-      await contentListPage.editContent(singleId);
-      const status = await contentListPage.updateTitleOnEditForm(editedTitle);
-      expect(status).toBe(200);
+      await login(page, persona.identifier, persona.password);
+      await gotoLibrary(page);
+      await editContent(page, singleId);
+      expect(await updateContentTitle(page, editedTitle)).toBe(200);
       await expect(page.getByRole('heading', { name: editedTitle })).toBeVisible({ timeout: 15000 });
     });
 
     test(`${ids.editNew} ${roleName} can edit a quiz by adding new questions`, async ({ page }) => {
-      // DELTA: adding questions is impossible in v2 (see header) — edits the
-      // title instead (same PATCH endpoint, same 200 contract).
-      const contentPage = new ContentPage(page);
-      const contentListPage = new ContentListPage(page);
       const editedTitle = `quiz-${multiId}-edited`;
-
-      await loginAs(page, persona.identifier, persona.password);
-      await contentPage.waitForLoad();
-      await contentListPage.editContent(multiId);
-      const status = await contentListPage.updateTitleOnEditForm(editedTitle);
-      expect(status).toBe(200);
+      await login(page, persona.identifier, persona.password);
+      await gotoLibrary(page);
+      await editContent(page, multiId);
+      expect(await updateContentTitle(page, editedTitle)).toBe(200);
       await expect(page.getByRole('heading', { name: editedTitle })).toBeVisible({ timeout: 15000 });
     });
 
     test(`${ids.del} ${roleName} can delete a quiz`, async ({ page }) => {
-      const contentPage = new ContentPage(page);
-      const contentListPage = new ContentListPage(page);
-
-      await loginAs(page, persona.identifier, persona.password);
-      await contentPage.waitForLoad();
-      await contentListPage.deleteEitherId(`${singleId}-edited`, singleId);
-      await contentListPage.deleteEitherId(`${multiId}-edited`, multiId);
+      await login(page, persona.identifier, persona.password);
+      await gotoLibrary(page);
+      await deleteEitherId(page, `${singleId}-edited`, singleId);
+      await deleteEitherId(page, `${multiId}-edited`, multiId);
     });
 
     test.afterAll(async ({ browser }) => {
       await bestEffortCleanup(browser, persona, async (page: Page) => {
-        const contentPage = new ContentPage(page);
-        const contentListPage = new ContentListPage(page);
-        await contentPage.waitForLoad();
+        await gotoLibrary(page);
         for (const id of [`${singleId}-edited`, singleId, `${multiId}-edited`, multiId]) {
-          if (await contentListPage.isRowVisible(id)) {
-            await contentListPage.deleteContent(id);
+          if (await isLibraryRowVisible(page, id)) {
+            await deleteContent(page, id);
           }
         }
       });
@@ -185,16 +159,12 @@ for (const { roleName, personaKey, ids } of ROLES) {
 }
 
 test('TC-QUIZ-011 quiz isolation for a4itestschool from school@test-a4i.local', async ({ page, browser }) => {
-  const contentPage = new ContentPage(page);
-  const quizPage = new QuizPage(page);
-  const contentListPage = new ContentListPage(page);
   const id = uniqueId();
 
-  await loginAs(page, PERSONAS.school.identifier, PERSONAS.school.password);
-  await contentPage.waitForLoad();
-  await quizPage.goto();
-  await quizPage.selectExperience();
-  await quizPage.fillQuizForm({
+  await login(page, PERSONAS.school.identifier, PERSONAS.school.password);
+  await gotoLibrary(page);
+  await gotoQuiz(page);
+  await fillQuizForm(page, {
     title: `quiz-iso-${id}`,
     theme: `theme-${id}`,
     question: 'Isolation check question?',
@@ -204,38 +174,31 @@ test('TC-QUIZ-011 quiz isolation for a4itestschool from school@test-a4i.local', 
     optionD: 'D',
     correctIndex: 0,
   });
-  const { status } = await quizPage.save();
+  const { status } = await saveQuiz(page);
   expect(status).toBe(200);
   await page.waitForURL(/\/library/, { timeout: 15000 });
-  await contentListPage.waitForRow(id);
+  await waitForLibraryRow(page, id);
 
   const { context: a4iContext, page: a4iPage } = await loginInNewContext(
     browser,
     PERSONAS.schoolA4I.identifier,
     PERSONAS.schoolA4I.password,
   );
-  const a4iContentPage = new ContentPage(a4iPage);
-  const a4iContentListPage = new ContentListPage(a4iPage);
-  await a4iContentPage.waitForLoad();
-  await a4iContentListPage.searchInput.fill(id);
-  await expect(a4iContentListPage.row(id)).toHaveCount(0);
+  await gotoLibrary(a4iPage);
+  await searchLibrary(a4iPage, id);
+  await expect(libraryRow(a4iPage, id)).toHaveCount(0);
   await a4iContext.close();
 
-  await contentListPage.deleteContent(id);
+  await deleteContent(page, id);
 });
 
-test('TC-QUIZ-016 quiz isolation for content creator from school@test-a4i.local', async ({ page, browser }) => {
-  const contentPage = new ContentPage(page);
-  const contentListPage = new ContentListPage(page);
-
-  await loginAs(page, PERSONAS.contentCreator.identifier, PERSONAS.contentCreator.password);
-  await contentPage.waitForLoad();
+test('TC-QUIZ-016 quiz isolation for content creator from another school', async ({ page, browser }) => {
+  await login(page, PERSONAS.contentCreator.identifier, PERSONAS.contentCreator.password);
+  await gotoLibrary(page);
 
   const id = uniqueId();
-  const quizPage = new QuizPage(page);
-  await quizPage.goto();
-  await quizPage.selectExperience();
-  await quizPage.fillQuizForm({
+  await gotoQuiz(page);
+  await fillQuizForm(page, {
     title: `quiz-cc-iso-${id}`,
     theme: `theme-${id}`,
     question: 'Isolation check question?',
@@ -245,22 +208,22 @@ test('TC-QUIZ-016 quiz isolation for content creator from school@test-a4i.local'
     optionD: 'D',
     correctIndex: 0,
   });
-  const { status } = await quizPage.save();
+  const { status } = await saveQuiz(page);
   expect(status).toBe(200);
   await page.waitForURL(/\/library/, { timeout: 15000 });
-  await contentListPage.waitForRow(id);
+  await waitForLibraryRow(page, id);
 
+  // The content creator belongs to the same school as school@test-a4i.local, so
+  // isolation is asserted against a different school (A4I IIITB).
   const { context: schoolContext, page: schoolPage } = await loginInNewContext(
     browser,
-    PERSONAS.school.identifier,
-    PERSONAS.school.password,
+    PERSONAS.schoolA4I.identifier,
+    PERSONAS.schoolA4I.password,
   );
-  const schoolContentPage = new ContentPage(schoolPage);
-  const schoolContentListPage = new ContentListPage(schoolPage);
-  await schoolContentPage.waitForLoad();
-  await schoolContentListPage.searchInput.fill(id);
-  await expect(schoolContentListPage.row(id)).toHaveCount(0);
+  await gotoLibrary(schoolPage);
+  await searchLibrary(schoolPage, id);
+  await expect(libraryRow(schoolPage, id)).toHaveCount(0);
   await schoolContext.close();
 
-  await contentListPage.deleteContent(id);
+  await deleteContent(page, id);
 });

@@ -8,8 +8,7 @@ import { expect, test } from '@playwright/test';
 // `.welcome-text` header element ('Welcome, test-a4i — Default School' has no v2
 // counterpart). Verified live: v2's profile screen reads /tenant/me for every
 // role, and the staging backend 403s (/Access denied/, FORBIDDEN) for the school
-// role — so no Name:/Tenant: fields render. The v2 equivalent asserts the
-// session role renders and the /me failure surfaces as the access-denied alert.
+// role — so no Name:/Tenant: fields render.
 test('TC-AUTH-012 school/admin/me populates the account profile on /account/profile', async ({ page }) => {
   await page.goto('/account/profile');
   await expect(page.getByRole('heading', { name: 'Profile' })).toBeVisible({ timeout: 10000 });

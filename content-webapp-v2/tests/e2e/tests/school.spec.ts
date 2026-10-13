@@ -1,58 +1,65 @@
-import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { PERSONAS } from '../fixtures/instances';
-import { expectRowAbsentOnAllPages, expectRowOnAnyPage, gotoRowPage } from '../pages/pagination';
-import { SchoolsPage } from '../pages/SchoolsPage';
+import { bestEffortCleanup } from '../fixtures/session';
+import { expectRowAbsentOnAllPages, expectRowOnAnyPage, gotoRowPage, login } from '../helpers';
 
-async function loginAs(page: Page, identifier: string, password: string): Promise<string> {
-  await page.goto('/');
-  await page.getByLabel('Phone number or email').fill(identifier);
-  await page.locator('input[type="password"]').fill(password);
-  await page.getByRole('button', { name: 'Log in', exact: true }).click();
-  await page.waitForURL('**/home', { timeout: 15000 });
-  return new URL(page.url()).origin;
+// Tenants render the school list directly at /registration; await the list GET so callers never race the initial fetch.
+async function openSchools(page: Page): Promise<void> {
+  const schoolsFetched = page.waitForResponse(
+    (res) => res.url().endsWith('/school') && res.request().method() === 'GET',
+    { timeout: 10000 },
+  );
+  await page.getByRole('link', { name: 'Registration' }).click();
+  await page.getByRole('button', { name: 'Create school' }).waitFor();
+  await schoolsFetched;
 }
 
-async function loginInNewContext(
-  browser: Browser,
-  origin: string,
-  identifier: string,
-  password: string,
-): Promise<{ context: BrowserContext; page: Page }> {
-  const context = await browser.newContext({ baseURL: origin });
-  const page = await context.newPage();
-  await loginAs(page, identifier, password);
-  return { context, page };
+function schoolsDialog(page: Page): Locator {
+  return page.getByRole('dialog');
 }
 
-async function bestEffortCleanup(
-  browser: Browser,
-  origin: string,
-  persona: { identifier: string; password: string },
-  fn: (page: Page) => Promise<void>,
-): Promise<void> {
-  const { context, page } = await loginInNewContext(browser, origin, persona.identifier, persona.password);
-  try {
-    await fn(page);
-  } catch (err) {
-    console.warn(`bestEffortCleanup failed for ${persona.identifier}:`, err instanceof Error ? (err.stack ?? err.message) : String(err));
-  } finally {
-    await context.close();
-  }
+function schoolsRow(page: Page, email: string): Locator {
+  return page.locator('tr', { has: page.getByText(email, { exact: true }) });
+}
+
+async function createSchool(page: Page, name: string, email: string, password: string): Promise<void> {
+  await page.getByRole('button', { name: 'Create school' }).click();
+  const dialog = schoolsDialog(page);
+  await dialog.getByLabel('Name *', { exact: true }).fill(name);
+  await dialog.getByLabel('Email *', { exact: true }).fill(email);
+  // Only the create dialog is open here; its single password input avoids the ambiguous getByLabel('Password').
+  await dialog.locator('input[type="password"]').fill(password);
+  await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+}
+
+async function editSchool(page: Page, email: string): Promise<void> {
+  await gotoRowPage(page, schoolsRow(page, email));
+  await schoolsRow(page, email).getByRole('button', { name: 'Edit', exact: true }).click();
+  await schoolsDialog(page).getByLabel('Name *', { exact: true }).waitFor();
+}
+
+async function saveEdit(page: Page, name: string): Promise<void> {
+  const dialog = schoolsDialog(page);
+  await dialog.getByLabel('Name *', { exact: true }).fill(name);
+  await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+}
+
+async function deleteSchool(page: Page, email: string): Promise<void> {
+  await gotoRowPage(page, schoolsRow(page, email));
+  await schoolsRow(page, email).getByRole('button', { name: 'Delete', exact: true }).click();
+  // v2 delete goes through a Mantine confirm modal (not window.confirm).
+  await schoolsDialog(page).getByRole('button', { name: 'Delete', exact: true }).click();
 }
 
 // Self-contained + self-cleaning: unique school email per run, deleted at the end.
 test.describe.configure({ mode: 'serial' });
 
-let origin = '';
-
 test('TC-SCHOOL-001 existing schools are listed for a tenant', async ({ page }) => {
-  const schoolsPage = new SchoolsPage(page);
+  await login(page, PERSONAS.tenant.identifier, PERSONAS.tenant.password);
+  await openSchools(page);
 
-  origin = await loginAs(page, PERSONAS.tenant.identifier, PERSONAS.tenant.password);
-  await schoolsPage.open();
-
-  await expectRowOnAnyPage(page, schoolsPage.row('school@test-a4i.local'));
-  await expectRowOnAnyPage(page, schoolsPage.row('a4itestschool@iiitb.ac.in'));
+  await expectRowOnAnyPage(page, schoolsRow(page, 'school@test-a4i.local'));
+  await expectRowOnAnyPage(page, schoolsRow(page, 'a4itestschool@iiitb.ac.in'));
 });
 
 test.describe('school CRUD (unique per run, self-cleaning)', () => {
@@ -60,63 +67,54 @@ test.describe('school CRUD (unique per run, self-cleaning)', () => {
   const updatedName = `test-school-updated-${Date.now()}`;
 
   test('TC-SCHOOL-002 new school registration', async ({ page }) => {
-    const schoolsPage = new SchoolsPage(page);
-
-    origin = await loginAs(page, PERSONAS.tenant.identifier, PERSONAS.tenant.password);
-    await schoolsPage.open();
-    await schoolsPage.createSchool('test-school-e2e', uniqueEmail, 'Test@123');
+    await login(page, PERSONAS.tenant.identifier, PERSONAS.tenant.password);
+    await openSchools(page);
+    await createSchool(page, 'test-school-e2e', uniqueEmail, 'Test@123');
 
     // v2 shows a generic 'Saved.' notification (no per-action flash text).
     await expect(page.getByText('Saved.', { exact: true })).toBeVisible({ timeout: 10000 });
-    await expectRowOnAnyPage(page, schoolsPage.row(uniqueEmail));
+    await expectRowOnAnyPage(page, schoolsRow(page, uniqueEmail));
   });
 
   test('TC-SCHOOL-003 school registration fails for a duplicate email', async ({ page }) => {
-    const schoolsPage = new SchoolsPage(page);
-
-    origin = await loginAs(page, PERSONAS.tenant.identifier, PERSONAS.tenant.password);
-    await schoolsPage.open();
-    await schoolsPage.createSchool('test-school-e2e-retry', uniqueEmail, 'Test@321');
+    await login(page, PERSONAS.tenant.identifier, PERSONAS.tenant.password);
+    await openSchools(page);
+    await createSchool(page, 'test-school-e2e-retry', uniqueEmail, 'Test@321');
 
     // v2 surfaces the 409 as an Alert inside the still-open dialog.
-    await expect(schoolsPage.dialog().getByText(/already exists/i)).toBeVisible({ timeout: 10000 });
+    await expect(schoolsDialog(page).getByText(/already exists/i)).toBeVisible({ timeout: 10000 });
     // Close the dialog before paging: the modal overlay intercepts pager clicks.
     await page.keyboard.press('Escape');
-    await expect(schoolsPage.dialog()).toBeHidden({ timeout: 5000 });
-    await gotoRowPage(page, schoolsPage.row(uniqueEmail));
-    await expect(schoolsPage.row(uniqueEmail)).toHaveCount(1);
+    await expect(schoolsDialog(page)).toBeHidden({ timeout: 5000 });
+    await gotoRowPage(page, schoolsRow(page, uniqueEmail));
+    await expect(schoolsRow(page, uniqueEmail)).toHaveCount(1);
   });
 
   test('TC-SCHOOL-004 school update', async ({ page }) => {
-    const schoolsPage = new SchoolsPage(page);
-
-    origin = await loginAs(page, PERSONAS.tenant.identifier, PERSONAS.tenant.password);
-    await schoolsPage.open();
-    await schoolsPage.editSchool(uniqueEmail);
-    await schoolsPage.saveEdit(updatedName);
+    await login(page, PERSONAS.tenant.identifier, PERSONAS.tenant.password);
+    await openSchools(page);
+    await editSchool(page, uniqueEmail);
+    await saveEdit(page, updatedName);
 
     await expect(page.getByText('Saved.', { exact: true })).toBeVisible({ timeout: 10000 });
-    await gotoRowPage(page, schoolsPage.row(uniqueEmail));
-    await expect(schoolsPage.row(uniqueEmail)).toContainText(updatedName);
+    await gotoRowPage(page, schoolsRow(page, uniqueEmail));
+    await expect(schoolsRow(page, uniqueEmail)).toContainText(updatedName);
   });
 
   test('TC-SCHOOL-005 school deletion', async ({ page }) => {
-    const schoolsPage = new SchoolsPage(page);
-
-    origin = await loginAs(page, PERSONAS.tenant.identifier, PERSONAS.tenant.password);
-    await schoolsPage.open();
+    await login(page, PERSONAS.tenant.identifier, PERSONAS.tenant.password);
+    await openSchools(page);
     // Delete-confirm coverage: v2 uses a Mantine confirm modal, no toast.
-    await schoolsPage.deleteSchool(uniqueEmail);
+    await deleteSchool(page, uniqueEmail);
 
-    await expectRowAbsentOnAllPages(page, schoolsPage.row(uniqueEmail));
+    await expectRowAbsentOnAllPages(page, schoolsRow(page, uniqueEmail));
   });
 
   test.afterAll(async ({ browser }) => {
-    await bestEffortCleanup(browser, origin, PERSONAS.tenant, async (page) => {
-      const schoolsPage = new SchoolsPage(page);
-      await schoolsPage.open();
-      if (await gotoRowPage(page, schoolsPage.row(uniqueEmail))) {
-        await schoolsPage.deleteSchool(uniqueEmail);
+    await bestEffortCleanup(browser, PERSONAS.tenant, async (page) => {
+      await openSchools(page);
+      if (await gotoRowPage(page, schoolsRow(page, uniqueEmail))) {
+        await deleteSchool(page, uniqueEmail);
       }
     });
   });

@@ -1,59 +1,95 @@
-import { expect, test, type Browser, type BrowserContext, type Page } from '@playwright/test';
+import { expect, test, type Browser, type BrowserContext, type Locator, type Page } from '@playwright/test';
 import { PERSONAS, uniquePhone } from '../fixtures/instances';
-import { expectRowAbsentOnAllPages, expectRowOnAnyPage, gotoRowPage } from '../pages/pagination';
-import { StudentsPage } from '../pages/StudentsPage';
+import { bestEffortCleanup, loginInNewContext } from '../fixtures/session';
+import { expectRowAbsentOnAllPages, expectRowOnAnyPage, gotoRowPage, login } from '../helpers';
 
-async function loginAs(page: Page, identifier: string, password: string): Promise<string> {
-  await page.goto('/');
-  await page.getByLabel('Phone number or email').fill(identifier);
-  await page.locator('input[type="password"]').fill(password);
-  await page.getByRole('button', { name: 'Log in', exact: true }).click();
-  await page.waitForURL('**/home', { timeout: 15000 });
-  return new URL(page.url()).origin;
-}
-
-async function loginInNewContext(
-  browser: Browser,
-  origin: string,
-  identifier: string,
-  password: string,
-): Promise<{ context: BrowserContext; page: Page }> {
-  const context = await browser.newContext({ baseURL: origin });
-  const page = await context.newPage();
-  await loginAs(page, identifier, password);
-  return { context, page };
-}
-
-async function bestEffortCleanup(
-  browser: Browser,
-  origin: string,
-  persona: { identifier: string; password: string },
-  fn: (page: Page) => Promise<void>,
-): Promise<void> {
-  const { context, page } = await loginInNewContext(browser, origin, persona.identifier, persona.password);
-  try {
-    await fn(page);
-  } catch (err) {
-    console.warn(`bestEffortCleanup failed for ${persona.identifier}:`, err instanceof Error ? (err.stack ?? err.message) : String(err));
-  } finally {
-    await context.close();
+// Both phone inputs are controlled with per-keystroke handling — verify the fill landed, retrying if not.
+async function fillAndVerify(locator: Locator, value: string, attempts = 3): Promise<void> {
+  for (let i = 1; i <= attempts; i++) {
+    await locator.fill(value);
+    if ((await locator.inputValue()) === value) return;
   }
+  throw new Error(`fillAndVerify: "${value}" didn't stick after ${attempts} attempts`);
 }
 
-// Self-contained + self-cleaning: two generated phones per run (phoneA for the CRUD
-// chain, phoneB as TC-STU-006's collision target); assertions check HTTP status + row state.
+// Await the students list GET so callers never race the initial fetch; deliberately not swallowed.
+async function openStudents(page: Page): Promise<void> {
+  const studentsFetched = page.waitForResponse(
+    (res) => res.url().endsWith('/student') && res.request().method() === 'GET',
+    { timeout: 10000 },
+  );
+  await page.getByRole('link', { name: 'Registration' }).click();
+  await page.getByRole('tab', { name: 'Students' }).click();
+  await page.getByRole('button', { name: 'Add student' }).waitFor();
+  await studentsFetched;
+}
+
+function studentsDialog(page: Page): Locator {
+  return page.getByRole('dialog');
+}
+
+function studentsRow(page: Page, phone: string): Locator {
+  return page.locator('tr', { has: page.getByText(phone, { exact: true }) });
+}
+
+async function addStudent(page: Page, name: string, phone: string): Promise<number> {
+  const response = page.waitForResponse(
+    (res) => res.url().endsWith('/student') && res.request().method() === 'POST',
+  );
+  await page.getByRole('button', { name: 'Add student' }).click();
+  const dialog = studentsDialog(page);
+  await dialog.getByLabel('Name *', { exact: true }).fill(name);
+  await fillAndVerify(dialog.getByLabel('Phone number *', { exact: true }), phone);
+  await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+  return (await response).status();
+}
+
+async function editStudent(page: Page, phone: string): Promise<void> {
+  await gotoRowPage(page, studentsRow(page, phone));
+  await studentsRow(page, phone).getByRole('button', { name: 'Edit', exact: true }).click();
+  await studentsDialog(page).getByLabel('Name *', { exact: true }).waitFor();
+}
+
+async function saveEditName(page: Page, name: string): Promise<number> {
+  const response = page.waitForResponse(
+    (res) => /\/student\//.test(res.url()) && res.request().method() === 'PATCH',
+  );
+  const dialog = studentsDialog(page);
+  await dialog.getByLabel('Name *', { exact: true }).fill(name);
+  await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+  return (await response).status();
+}
+
+async function saveEditPhone(page: Page, phone: string): Promise<number> {
+  const response = page.waitForResponse(
+    (res) => /\/student\//.test(res.url()) && res.request().method() === 'PATCH',
+  );
+  const dialog = studentsDialog(page);
+  await fillAndVerify(dialog.getByLabel('Phone number *', { exact: true }), phone);
+  await dialog.getByRole('button', { name: 'Save', exact: true }).click();
+  return (await response).status();
+}
+
+async function deleteStudent(page: Page, phone: string): Promise<number> {
+  await gotoRowPage(page, studentsRow(page, phone));
+  const response = page.waitForResponse(
+    (res) => /\/student\//.test(res.url()) && res.request().method() === 'DELETE',
+  );
+  await studentsRow(page, phone).getByRole('button', { name: 'Delete', exact: true }).click();
+  // v2 delete goes through a Mantine confirm modal (legacy had no confirm for students).
+  await studentsDialog(page).getByRole('button', { name: 'Delete', exact: true }).click();
+  return (await response).status();
+}
+
+// Self-contained + self-cleaning: two generated phones per run (phoneA for the CRUD chain, phoneB as TC-STU-006's collision target).
 test.describe.configure({ mode: 'serial' });
 
-let origin = '';
-
 test('TC-STU-001 existing students are listed for a school', async ({ page }) => {
-  const studentsPage = new StudentsPage(page);
+  await login(page, PERSONAS.school.identifier, PERSONAS.school.password);
+  await openStudents(page);
 
-  origin = await loginAs(page, PERSONAS.school.identifier, PERSONAS.school.password);
-  await studentsPage.open();
-
-  await expectRowOnAnyPage(page, studentsPage.row('7567071072'));
-  await expectRowOnAnyPage(page, studentsPage.row('9012345700'));
+  await expectRowOnAnyPage(page, studentsRow(page, '7567071072'));
+  await expectRowOnAnyPage(page, studentsRow(page, '9012345700'));
 });
 
 test.describe('student CRUD (unique per run, self-cleaning)', () => {
@@ -63,102 +99,86 @@ test.describe('student CRUD (unique per run, self-cleaning)', () => {
   const updatedName = `test-student-updated-${Date.now()}`;
 
   test('TC-STU-002 new student registration', async ({ page }) => {
-    const studentsPage = new StudentsPage(page);
+    await login(page, PERSONAS.school.identifier, PERSONAS.school.password);
+    await openStudents(page);
 
-    origin = await loginAs(page, PERSONAS.school.identifier, PERSONAS.school.password);
-    await studentsPage.open();
-
-    const status = await studentsPage.addStudent('test-student-e2e', phoneA);
+    const status = await addStudent(page, 'test-student-e2e', phoneA);
 
     expect(status).toBe(201);
-    await expectRowOnAnyPage(page, studentsPage.row(phoneA));
+    await expectRowOnAnyPage(page, studentsRow(page, phoneA));
   });
 
   test('TC-STU-003 student re-registration fails for a duplicate phone number', async ({ page }) => {
-    const studentsPage = new StudentsPage(page);
+    await login(page, PERSONAS.school.identifier, PERSONAS.school.password);
+    await openStudents(page);
 
-    origin = await loginAs(page, PERSONAS.school.identifier, PERSONAS.school.password);
-    await studentsPage.open();
-
-    const status = await studentsPage.addStudent('test-student-e2e-retry', phoneA);
+    const status = await addStudent(page, 'test-student-e2e-retry', phoneA);
 
     expect(status).toBeGreaterThanOrEqual(400);
-    // The failed submit leaves the dialog open — close it before paging, as
-    // the modal overlay intercepts pager clicks.
+    // Close the dialog before paging: the modal overlay intercepts pager clicks.
     await page.keyboard.press('Escape');
-    await expect(studentsPage.dialog()).toBeHidden({ timeout: 5000 });
-    await gotoRowPage(page, studentsPage.row(phoneA));
-    await expect(studentsPage.row(phoneA)).toHaveCount(1);
+    await expect(studentsDialog(page)).toBeHidden({ timeout: 5000 });
+    await gotoRowPage(page, studentsRow(page, phoneA));
+    await expect(studentsRow(page, phoneA)).toHaveCount(1);
   });
 
   test('TC-STU-004 student name update', async ({ page }) => {
-    const studentsPage = new StudentsPage(page);
+    await login(page, PERSONAS.school.identifier, PERSONAS.school.password);
+    await openStudents(page);
 
-    origin = await loginAs(page, PERSONAS.school.identifier, PERSONAS.school.password);
-    await studentsPage.open();
-
-    await studentsPage.editStudent(phoneA);
-    const status = await studentsPage.saveEditName(updatedName);
+    await editStudent(page, phoneA);
+    const status = await saveEditName(page, updatedName);
 
     expect(status).toBe(200);
-    await gotoRowPage(page, studentsPage.row(phoneA));
-    await expect(studentsPage.row(phoneA)).toContainText(updatedName);
+    await gotoRowPage(page, studentsRow(page, phoneA));
+    await expect(studentsRow(page, phoneA)).toContainText(updatedName);
   });
 
   test('TC-STU-005 student phone number update to a new, unused number', async ({ page }) => {
-    const studentsPage = new StudentsPage(page);
+    await login(page, PERSONAS.school.identifier, PERSONAS.school.password);
+    await openStudents(page);
 
-    origin = await loginAs(page, PERSONAS.school.identifier, PERSONAS.school.password);
-    await studentsPage.open();
-
-    await studentsPage.editStudent(phoneA);
-    const status = await studentsPage.saveEditPhone(phoneANew);
+    await editStudent(page, phoneA);
+    const status = await saveEditPhone(page, phoneANew);
 
     expect(status).toBe(200);
-    await expectRowOnAnyPage(page, studentsPage.row(phoneANew));
+    await expectRowOnAnyPage(page, studentsRow(page, phoneANew));
   });
 
   test('TC-STU-006 student phone number update fails for an existing number', async ({ page }) => {
-    const studentsPage = new StudentsPage(page);
+    await login(page, PERSONAS.school.identifier, PERSONAS.school.password);
+    await openStudents(page);
 
-    origin = await loginAs(page, PERSONAS.school.identifier, PERSONAS.school.password);
-    await studentsPage.open();
-
-    const addStatus = await studentsPage.addStudent('test-student-e2e-b', phoneB);
+    const addStatus = await addStudent(page, 'test-student-e2e-b', phoneB);
     expect(addStatus).toBe(201);
 
-    await studentsPage.editStudent(phoneANew);
-    const status = await studentsPage.saveEditPhone(phoneB);
+    await editStudent(page, phoneANew);
+    const status = await saveEditPhone(page, phoneB);
 
     expect(status).toBeGreaterThanOrEqual(400);
-    // The failed PATCH leaves the edit dialog open — close it before paging,
-    // as the modal overlay intercepts pager clicks.
+    // Close the dialog before paging: the modal overlay intercepts pager clicks.
     await page.keyboard.press('Escape');
-    await expect(studentsPage.dialog()).toBeHidden({ timeout: 5000 });
-    await expectRowOnAnyPage(page, studentsPage.row(phoneANew));
+    await expect(studentsDialog(page)).toBeHidden({ timeout: 5000 });
+    await expectRowOnAnyPage(page, studentsRow(page, phoneANew));
   });
 
   test('TC-STU-007 student deletion', async ({ page }) => {
-    const studentsPage = new StudentsPage(page);
-
-    origin = await loginAs(page, PERSONAS.school.identifier, PERSONAS.school.password);
-    await studentsPage.open();
+    await login(page, PERSONAS.school.identifier, PERSONAS.school.password);
+    await openStudents(page);
 
     // Delete-confirm coverage: v2 added an explicit delete confirm for students.
-    const status = await studentsPage.deleteStudent(phoneANew);
+    const status = await deleteStudent(page, phoneANew);
     expect(status).toBe(200);
-    await expectRowAbsentOnAllPages(page, studentsPage.row(phoneANew));
+    await expectRowAbsentOnAllPages(page, studentsRow(page, phoneANew));
 
-    const cleanupStatus = await studentsPage.deleteStudent(phoneB);
+    const cleanupStatus = await deleteStudent(page, phoneB);
     expect(cleanupStatus).toBe(200);
-    await expectRowAbsentOnAllPages(page, studentsPage.row(phoneB));
+    await expectRowAbsentOnAllPages(page, studentsRow(page, phoneB));
   });
 
   test('TC-STU-008 student creation is blocked for an invalid phone number', async ({ page }) => {
-    const studentsPage = new StudentsPage(page);
-
-    origin = await loginAs(page, PERSONAS.school.identifier, PERSONAS.school.password);
-    await studentsPage.open();
+    await login(page, PERSONAS.school.identifier, PERSONAS.school.password);
+    await openStudents(page);
 
     // zod resolver throws on invalid data so no inline error renders; assert blocked submit instead.
     let studentMutations = 0;
@@ -167,26 +187,25 @@ test.describe('student CRUD (unique per run, self-cleaning)', () => {
       await route.continue();
     });
     await page.getByRole('button', { name: 'Add student' }).click();
-    const dialog = studentsPage.dialog();
+    const dialog = studentsDialog(page);
     await dialog.getByLabel('Name *', { exact: true }).fill('test-student-bad-phone');
     await dialog.getByLabel('Phone number *', { exact: true }).fill('12345');
     await dialog.getByRole('button', { name: 'Save', exact: true }).click();
     await page.waitForTimeout(1000);
     expect(studentMutations).toBe(0);
     await page.unroute('**/student*');
-    await expect(studentsPage.dialog()).toBeVisible();
+    await expect(studentsDialog(page)).toBeVisible();
     await page.keyboard.press('Escape');
-    await expect(studentsPage.dialog()).toBeHidden({ timeout: 5000 });
-    await expectRowAbsentOnAllPages(page, studentsPage.row('12345'));
+    await expect(studentsDialog(page)).toBeHidden({ timeout: 5000 });
+    await expectRowAbsentOnAllPages(page, studentsRow(page, '12345'));
   });
 
   test.afterAll(async ({ browser }) => {
-    await bestEffortCleanup(browser, origin, PERSONAS.school, async (page) => {
-      const studentsPage = new StudentsPage(page);
-      await studentsPage.open();
+    await bestEffortCleanup(browser, PERSONAS.school, async (page) => {
+      await openStudents(page);
       for (const phone of [phoneA, phoneANew, phoneB]) {
-        if (await gotoRowPage(page, studentsPage.row(phone))) {
-          await studentsPage.deleteStudent(phone);
+        if (await gotoRowPage(page, studentsRow(page, phone))) {
+          await deleteStudent(page, phone);
         }
       }
     });

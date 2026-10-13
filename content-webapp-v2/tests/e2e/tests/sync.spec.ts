@@ -1,67 +1,146 @@
-import { expect, test, type Page } from '@playwright/test';
-import { SyncPage } from '../pages/SyncPage';
+import { expect, test, type Page, type Response } from '@playwright/test';
+import { gotoLibrary, login } from '../helpers';
 
 const TENANT = { identifier: 'test@gmail.com', password: 'Test@123' };
 const TENANT2 = { identifier: 'nikunj.khakhkhar@iiitb.ac.in', password: 'Test@123' };
 
-async function loginAs(page: Page, identifier: string, password: string): Promise<void> {
-  await page.goto('/');
-  await page.getByLabel(/phone number or email/i).fill(identifier);
-  await page.locator('input[type="password"]').fill(password);
-  await page.getByRole('button', { name: 'Log in', exact: true }).click();
-  await page.waitForURL('**/home', { timeout: 15000 });
+const SYNC_JOBS_URL = /\/content-aggregators\/sync\/jobs(\?|$)/;
+const SETTLE_TIMEOUT = 15000;
+const RESPONSE_TIMEOUT = 30000;
+
+// JobsScreen renders one DataTable <tr> per job. Loading skeletons and the
+// empty state carry no StatusBadge, so badge-scoped rows never match a
+// placeholder - the v2 equivalent of the legacy skeleton guard.
+function jobRows(page: Page) {
+  return page.locator('table tbody tr').filter({ has: page.locator('[class*="Badge-root"]') });
 }
 
-// Sync All triggers a real, unbounded external sync — never clicked here.
+function noRunsMessage(page: Page) {
+  return page.getByText('No jobs yet.', { exact: true });
+}
+
+interface SyncJobsPayload {
+  jobs?: Array<{ job_id?: unknown }>;
+}
+
+function isSyncJobsPayload(value: unknown): value is SyncJobsPayload {
+  if (typeof value !== 'object' || value === null) return false;
+  const jobs = (value as { jobs?: unknown }).jobs;
+  return jobs === undefined || Array.isArray(jobs);
+}
+
+type PerCourseOutcome = 'items' | 'empty' | 'running';
+
+// Capture the tenant's own sync job ids from the response: the isolation signal
+// is that no id from one tenant ever appears in the other's list.
+async function captureSyncJobIds(response: Response): Promise<string[]> {
+  try {
+    const payload: unknown = await response.json();
+    if (!isSyncJobsPayload(payload) || !Array.isArray(payload.jobs)) return [];
+    return payload.jobs.flatMap((job) =>
+      typeof job?.job_id === 'string' && job.job_id !== '' ? [job.job_id] : [],
+    );
+  } catch {
+    return [];
+  }
+}
+
+async function settleJobsList(page: Page, responsePromise: Promise<Response>): Promise<string[]> {
+  const ids = await captureSyncJobIds(await responsePromise);
+  await page.getByRole('heading', { name: 'Jobs' }).waitFor({ timeout: SETTLE_TIMEOUT });
+  await Promise.race([
+    jobRows(page).first().waitFor({ timeout: SETTLE_TIMEOUT }),
+    noRunsMessage(page).waitFor({ timeout: SETTLE_TIMEOUT }),
+  ]);
+  return ids;
+}
+
+async function openJobs(page: Page): Promise<string[]> {
+  const responsePromise = page.waitForResponse((res) => SYNC_JOBS_URL.test(res.url()), {
+    timeout: RESPONSE_TIMEOUT,
+  });
+  await page.getByRole('link', { name: 'Jobs', exact: true }).click();
+  await page.waitForURL('**/jobs', { timeout: SETTLE_TIMEOUT });
+  return settleJobsList(page, responsePromise);
+}
+
+async function openHistory(page: Page): Promise<string[]> {
+  // Legacy /content/sync-history redirects to /jobs (see router.tsx).
+  const responsePromise = page.waitForResponse((res) => SYNC_JOBS_URL.test(res.url()), {
+    timeout: RESPONSE_TIMEOUT,
+  });
+  await page.goto('/content/sync-history');
+  await page.waitForURL('**/jobs', { timeout: SETTLE_TIMEOUT });
+  return settleJobsList(page, responsePromise);
+}
+
+async function openPerCourseDetail(page: Page, jobId: string): Promise<PerCourseOutcome> {
+  await page.goto(`/jobs/${encodeURIComponent(jobId)}`);
+  await page.waitForURL('**/jobs/*', { timeout: SETTLE_TIMEOUT });
+  await page.getByRole('button', { name: 'Back to Jobs' }).waitFor({ timeout: SETTLE_TIMEOUT });
+  await expect(page.locator('[class*="Badge-root"]').first()).toBeVisible({ timeout: SETTLE_TIMEOUT });
+
+  // Finished jobs gate per-course rows behind a toggle; running jobs show
+  // progress instead. Polling stays generous in both branches.
+  const toggle = page.getByRole('button', { name: 'Show per-course results' });
+  const finished = await toggle
+    .waitFor({ timeout: RESPONSE_TIMEOUT })
+    .then(() => true)
+    .catch(() => false);
+  if (!finished) {
+    await expect(page.getByText('Sync progress')).toBeVisible({ timeout: SETTLE_TIMEOUT });
+    return 'running';
+  }
+  await toggle.click();
+  const itemsTable = page.locator('table');
+  const emptyItems = page.getByText('No courses processed yet.', { exact: true });
+  await Promise.race([
+    itemsTable.first().waitFor({ timeout: SETTLE_TIMEOUT }),
+    emptyItems.waitFor({ timeout: SETTLE_TIMEOUT }),
+  ]);
+  if (await emptyItems.isVisible()) return 'empty';
+  return 'items';
+}
+
+// Sync All triggers a real, unbounded external sync - never clicked here.
 // TC-SYNC-001/002/003 are read-only checks of the Library/Jobs pages.
 // TC-SYNC-004 checks isolation by comparing each tenant's own sync job ids,
 // without triggering a new sync.
 
 test('TC-SYNC-001 Sync All is available to a tenant on the library page', async ({ page }) => {
-  const syncPage = new SyncPage(page);
-
-  await loginAs(page, TENANT.identifier, TENANT.password);
-  await syncPage.openLibrary();
-  await expect(syncPage.syncAllButton).toBeVisible();
+  await login(page, TENANT.identifier, TENANT.password);
+  await gotoLibrary(page);
+  await expect(page.getByRole('button', { name: 'Sync All' })).toBeVisible();
 });
 
 test('TC-SYNC-002/003 Jobs page shows past runs with status and per-course detail', async ({ page }) => {
-  const syncPage = new SyncPage(page);
+  await login(page, TENANT.identifier, TENANT.password);
+  const syncJobIds = await openJobs(page);
 
-  await loginAs(page, TENANT.identifier, TENANT.password);
-  await syncPage.openJobs();
-
-  const rowCount = await syncPage.jobRows.count();
-  if (rowCount === 0) {
-    await expect(syncPage.noRunsMessage).toBeVisible();
+  if ((await jobRows(page).count()) === 0) {
+    await expect(noRunsMessage(page)).toBeVisible();
     return;
   }
 
-  await expect(syncPage.firstJobStatus).toBeVisible();
-  const [firstSyncId] = syncPage.syncJobIds();
+  await expect(jobRows(page).first().locator('[class*="Badge-root"]')).toBeVisible();
   // Jobs merges every job type; with only remediation jobs present there is no
   // per-course detail to open, so the list assertions above are the coverage.
+  const [firstSyncId] = syncJobIds;
   if (!firstSyncId) return;
-  await syncPage.expandFirstJob();
-  const outcome = await syncPage.waitForPerCourseDetail();
+  const outcome = await openPerCourseDetail(page, firstSyncId);
   expect(['items', 'empty', 'running']).toContain(outcome);
 });
 
 test('TC-SYNC-004 sync history is isolated between tenants', async ({ page, browser }) => {
-  const syncPage = new SyncPage(page);
-
-  await loginAs(page, TENANT.identifier, TENANT.password);
-  await syncPage.openHistory();
-  const tenant1Ids = syncPage.syncJobIds();
+  await login(page, TENANT.identifier, TENANT.password);
+  const tenant1Ids = await openHistory(page);
 
   const baseURL = new URL(page.url()).origin;
   const tenant2Context = await browser.newContext({ baseURL });
   const tenant2Page = await tenant2Context.newPage();
-  const tenant2SyncPage = new SyncPage(tenant2Page);
 
-  await loginAs(tenant2Page, TENANT2.identifier, TENANT2.password);
-  await tenant2SyncPage.openHistory();
-  const tenant2Ids = tenant2SyncPage.syncJobIds();
+  await login(tenant2Page, TENANT2.identifier, TENANT2.password);
+  const tenant2Ids = await openHistory(tenant2Page);
   await tenant2Context.close();
 
   const overlap = tenant1Ids.filter((id) => tenant2Ids.includes(id));
