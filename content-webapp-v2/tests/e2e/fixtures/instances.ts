@@ -12,9 +12,6 @@ export const INSTANCES: Record<string, Instance> = {
   local: {
     baseURL: 'http://localhost:5173',
   },
-  onrender: {
-    baseURL: 'https://contentwebapp.onrender.com',
-  },
   dev: {
     baseURL: 'https://content-webapp-dev.a4i-lab.in',
   },

@@ -11,10 +11,9 @@ RUN npm ci
 COPY . .
 
 # ---- Set build-time environment variables ----
-# These env vars will be baked into the Vite static build
-ARG VITE_API_BASE_URL
+ARG REACT_APP_API_BASE_URL
 
-ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
+ENV VITE_API_BASE_URL=$REACT_APP_API_BASE_URL
 # Build app
 RUN npm run build
 

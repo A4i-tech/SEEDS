@@ -5,12 +5,15 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "test": "vitest run",
+    "test": "vitest run --coverage",
     "test:watch": "vitest",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "doctor": "npx react-doctor@latest"
+    "doctor": "npx react-doctor@latest",
+    "test:e2e": "playwright test",
+    "test:e2e:dev": "cross-env E2E_INSTANCE=dev playwright test",
+    "test:e2e:report": "playwright show-report"
   },
   "dependencies": {
     "@mantine/charts": "^9.7.1",
@@ -40,6 +43,8 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
     "@vitejs/plugin-react": "^6.1.1",
+    "@vitest/coverage-v8": "^5.0.4",
+    "cross-env": "^10.1.0",
     "jsdom": "^30.1.2",
     "oxlint": "^1.81.0",
     "react-doctor": "^0.9.17",

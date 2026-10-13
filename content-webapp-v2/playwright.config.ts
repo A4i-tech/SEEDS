@@ -27,8 +27,8 @@ export default defineConfig({
     screenshot: 'on',
     video: 'off',
   },
-  // Only spin up a local dev server when testing against localhost; remote
-  // instances (onrender, dev) are already running and reachable directly.
+  // Only spin up a local dev server when testing against localhost; the dev
+  // instance is already running and reachable directly.
   // v2 serves via `vite` (default port 5173), not CRA's `npm start` (:3000).
   webServer:
     instanceName === 'local'
