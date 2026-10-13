@@ -20,7 +20,7 @@ const ARTIFACT_LABELS = { docx: "Word", pdf: "PDF", tex: "LaTeX" };
 
 const RemediationTab = () => {
   const navigate = useNavigate();
-  const canDelete = getRole() !== USER_ROLES.TEXTBOOK_REMEDIATION_VOLUNTEER;
+  const canDelete = [USER_ROLES.TENANT, USER_ROLES.SCHOOL_ADMIN, USER_ROLES.CONTENT_CREATOR].includes(getRole());
   const { jobs, isLoading, isUploading, error, upload, remove } = useRemediationJobs();
   const fileRef = useRef(null);
   const [selectedFile, setSelectedFile] = useState(null);

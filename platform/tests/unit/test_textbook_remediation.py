@@ -19,7 +19,7 @@ def repo():
 async def _create(repo, tenant_id="tenant-a"):
     return await repo.create(
         job_id=ObjectId(), tenant_id=tenant_id, source_name="book.pdf",
-        source_url="https://blob/source.pdf", language="kn",
+        source_url="https://blob/source.pdf", language="kn", created_by="tester",
     )
 
 
@@ -251,7 +251,7 @@ async def test_create_job_uploads_the_pdf_and_stores_its_url(repo):
     blob = _StubBlob()
     result = await create_remediation_job(
         file=_StubUpload(b"%PDF-1.7 body"), language="kn", target_language="",
-        user={"tenant_id": "tenant-a"}, repo=repo, blob_provider=blob
+        user={"tenant_id": "tenant-a", "sub": "tester"}, repo=repo, blob_provider=blob
     )
     job = await repo.get("tenant-a", result["job_id"])
     assert job.source_url == f"https://blob/textbook-remediation/{job.job_id}/source.pdf"
@@ -264,7 +264,7 @@ async def test_create_job_uploads_the_pdf_and_stores_its_url(repo):
 async def test_create_job_stores_the_target_language_when_given(repo):
     result = await create_remediation_job(
         file=_StubUpload(b"%PDF-1.7 body"), language="kn", target_language="hi",
-        user={"tenant_id": "tenant-a"}, repo=repo, blob_provider=_StubBlob()
+        user={"tenant_id": "tenant-a", "sub": "tester"}, repo=repo, blob_provider=_StubBlob()
     )
     job = await repo.get("tenant-a", result["job_id"])
     assert job.target_language == "hi"
@@ -274,11 +274,22 @@ async def test_create_job_stores_the_target_language_when_given(repo):
 async def test_create_job_stores_and_exposes_the_creating_user(repo):
     result = await create_remediation_job(
         file=_StubUpload(b"%PDF-1.7 body"), language="kn", target_language="",
-        user={"tenant_id": "tenant-a", "email": "volunteer@seeds.org"}, repo=repo, blob_provider=_StubBlob()
+        user={"tenant_id": "tenant-a", "sub": "volunteer@seeds.org"}, repo=repo, blob_provider=_StubBlob()
     )
     job = await repo.get("tenant-a", result["job_id"])
     assert job.created_by == "volunteer@seeds.org"
     assert serialize_job(job)["created_by"] == "volunteer@seeds.org"
+
+
+@pytest.mark.asyncio
+async def test_create_job_uses_sub_even_when_email_and_name_are_present(repo):
+    result = await create_remediation_job(
+        file=_StubUpload(b"%PDF-1.7 body"), language="kn", target_language="",
+        user={"tenant_id": "tenant-a", "sub": "user-123", "email": "decoy@seeds.org", "name": "Decoy"},
+        repo=repo, blob_provider=_StubBlob(),
+    )
+    job = await repo.get("tenant-a", result["job_id"])
+    assert job.created_by == "user-123"
 
 
 @pytest.mark.asyncio
@@ -347,7 +358,7 @@ async def test_save_draft_and_verify_job(repo):
     res = await save_remediation_draft(
         created.job_id,
         DraftUpdateRequest(draft_md="# Corrected title\n\nParagraph text"),
-        user={"tenant_id": "tenant-a", "email": "volunteer@seeds.org"},
+        user={"tenant_id": "tenant-a", "sub": "volunteer@seeds.org"},
         repo=repo,
         blob_provider=blob,
     )
@@ -424,6 +435,7 @@ async def test_create_job_inserts_nothing_when_the_upload_fails(repo):
             repo, _FailingBlob(),
             tenant_id="tenant-a", source_name="book.pdf",
             data=io.BytesIO(b"%PDF-1.7"), language="kn", target_language=None,
+            created_by="tester",
         )
     assert await repo.list_jobs("tenant-a") == []
 
@@ -461,7 +473,7 @@ async def test_verify_job_uploads_go_under_the_verified_path(repo, monkeypatch):
     from app.services import textbook_remediation as remediation_service
 
     created = await _create(repo)
-    job = await repo.update_draft(created.job_id, "# Title\n\nBody")
+    job = await repo.update_draft(created.job_id, "# Title\n\nBody", last_edited_by="tester")
 
     def _fake_compile(markdown, out_dir):
         docx = out_dir / "remediated.docx"

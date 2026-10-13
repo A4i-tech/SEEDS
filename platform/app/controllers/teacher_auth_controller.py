@@ -19,6 +19,8 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/teacher", tags=["Auth"])
 
+_ALLOWED_TEACHER_REGISTER_ROLES = frozenset({UserRole.TEACHER.value, UserRole.CONTENT_CREATOR.value})
+
 
 @router.post("/login", summary="Teacher login", status_code=status.HTTP_200_OK)
 async def teacher_login(
@@ -44,8 +46,8 @@ async def teacher_register(
     current_user: dict[str, Any] = Depends(get_current_user),
     service: AuthService = Depends(get_auth_service),
 ) -> UserPublicResponse:
-    if body.role == UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER.value:
-        raise ForbiddenError("Only a tenant can create a textbook remediation volunteer")
+    if body.role not in _ALLOWED_TEACHER_REGISTER_ROLES:
+        raise ForbiddenError(f"school_admin cannot register a user with role {body.role!r}")
     data = TeacherCreate(
         name=body.name.strip(),
         email=body.phone_number,

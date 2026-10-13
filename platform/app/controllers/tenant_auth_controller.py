@@ -130,11 +130,11 @@ async def create_volunteer(
     service: AuthService = Depends(get_auth_service),
 ) -> UserPublicResponse:
     data = TeacherCreate(
-        name=body.name,
+        name=body.name.strip(),
         email=body.email,
         password=body.password,
         role=UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER.value,
-        tenant_id=current_user.get("sub", ""),
+        tenant_id=current_user["sub"],
     )
     user = await service.register_teacher(data)
     return UserPublicResponse.from_domain(user)

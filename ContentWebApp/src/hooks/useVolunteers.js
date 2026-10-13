@@ -1,25 +1,13 @@
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { volunteerService } from "../services/volunteerService";
+import { useFlashMessage } from "./useFlashMessage";
 import { getRole } from "../utils/authHelpers";
+import { USER_ROLES } from "../Constants";
 
 export const useVolunteers = (activeTab) => {
   const [volunteers, setVolunteers] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
-  const [message, setMessage] = useState("");
-  const [messageType, setMessageType] = useState("success");
-  const flashTimeoutRef = useRef(null);
-
-  const flash = useCallback((msg, type = "success") => {
-    setMessage(msg);
-    setMessageType(type);
-    clearTimeout(flashTimeoutRef.current);
-    flashTimeoutRef.current = setTimeout(() => {
-      setMessage("");
-      setMessageType("success");
-    }, 3000);
-  }, []);
-
-  useEffect(() => () => clearTimeout(flashTimeoutRef.current), []);
+  const { message, messageType, flashMessage } = useFlashMessage();
 
   const fetchVolunteers = useCallback(async () => {
     setIsLoading(true);
@@ -27,14 +15,14 @@ export const useVolunteers = (activeTab) => {
       const data = await volunteerService.getVolunteers();
       setVolunteers(data);
     } catch (error) {
-      console.error("Error fetching volunteers:", error);
+      flashMessage(error.message || "Failed to load volunteers.", "error");
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [flashMessage]);
 
   useEffect(() => {
-    if (activeTab === "registration" && getRole() === "tenant") {
+    if (activeTab === "registration" && getRole() === USER_ROLES.TENANT) {
       fetchVolunteers();
     }
   }, [activeTab, fetchVolunteers]);
@@ -42,20 +30,20 @@ export const useVolunteers = (activeTab) => {
   const createVolunteer = useCallback(
     async (name, email, password) => {
       if (!name || !email || !password) {
-        flash("Name, email, and password are required.", "error");
+        flashMessage("Name, email, and password are required.", "error");
         return false;
       }
       try {
         await volunteerService.createVolunteer(name, email, password);
-        flash("Volunteer created successfully!", "success");
+        flashMessage("Volunteer created successfully!", "success");
         await fetchVolunteers();
         return true;
       } catch (error) {
-        flash(error.message || "Failed to create volunteer.", "error");
+        flashMessage(error.message || "Failed to create volunteer.", "error");
         return false;
       }
     },
-    [fetchVolunteers, flash]
+    [fetchVolunteers, flashMessage]
   );
 
   return { volunteers, isLoading, message, messageType, createVolunteer };

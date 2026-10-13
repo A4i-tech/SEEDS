@@ -31,7 +31,12 @@ const AllContent = () => {
   const navigate = useNavigate();
   const { getAuthHeaders, logout, getCurrentUser } = useAuth();
   const isVolunteer = currentUserRole === USER_ROLES.TEXTBOOK_REMEDIATION_VOLUNTEER;
-  const canViewContent = currentUserRole !== null && !isVolunteer;
+  const canViewContent = [
+    USER_ROLES.TEACHER,
+    USER_ROLES.CONTENT_CREATOR,
+    USER_ROLES.TENANT,
+    USER_ROLES.SCHOOL_ADMIN,
+  ].includes(currentUserRole);
   const canViewRemediation =
     currentUserRole === USER_ROLES.TENANT ||
     currentUserRole === USER_ROLES.SCHOOL_ADMIN ||
@@ -49,7 +54,7 @@ const AllContent = () => {
     refreshContentAggregatorCourses,
     setContent,
     setIsFiltered,
-  } = useContent();
+  } = useContent(canViewContent);
 
   const { syncingAll, syncAllProgress, courseStates, syncAll, syncCourse } =
     useContentAggregatorSync(refreshContentAggregatorCourses);
@@ -118,7 +123,7 @@ const AllContent = () => {
 
   useEffect(() => {
     if (isVolunteer) {
-      if (activeTab !== "remediation") setActiveTab("remediation");
+      setActiveTab("remediation");
       return;
     }
     if (!canViewContent && activeTab === "content") {

@@ -115,7 +115,7 @@ async def create_remediation_job(
         data=file.file,
         language=language,
         target_language=target_language or None,
-        created_by=str(user.get("email") or user.get("name") or user.get("id") or "user"),
+        created_by=str(user["sub"]),
     )
     return {"job_id": job.job_id}
 
@@ -233,7 +233,7 @@ async def save_remediation_draft(
     blob_provider: BlobStorageProvider = Depends(get_blob_storage_provider),
 ) -> dict[str, object]:
     job = await _get_job(repo, str(user["tenant_id"]), job_id)
-    last_edited_by = str(user.get("email") or user.get("name") or user.get("id") or "user")
+    last_edited_by = str(user["sub"])
     return serialize_job(await save_draft(repo, blob_provider, job, payload.draft_md, last_edited_by))
 
 

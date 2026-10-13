@@ -97,7 +97,7 @@ async def create_job(
     data: IO[bytes],
     language: str,
     target_language: str | None,
-    created_by: str | None = None,
+    created_by: str,
 ) -> RemediationJob:
     job_id = ObjectId()
     url = await blob_provider.upload_file(
@@ -144,7 +144,7 @@ async def save_draft(
     blob_provider: BlobStorageProvider,
     job: RemediationJob,
     draft_md: str,
-    last_edited_by: str | None = None,
+    last_edited_by: str,
 ) -> RemediationJob:
     url = await blob_provider.upload_file(
         get_settings().azure_storage_container,
