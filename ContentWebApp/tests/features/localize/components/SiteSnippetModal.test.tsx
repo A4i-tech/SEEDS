@@ -10,7 +10,7 @@ const writeText = vi.fn()
 
 function renderModal(sdkCode: string, devToolsCode: string) {
   renderWithProviders(
-    <SiteSnippetModal opened title="Snippet" sdkCode={sdkCode} devToolsCode={devToolsCode} onClose={vi.fn()} />,
+    <SiteSnippetModal title="Snippet" sdkCode={sdkCode} devToolsCode={devToolsCode} onClose={vi.fn()} />,
   )
 }
 

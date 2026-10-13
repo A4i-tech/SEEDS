@@ -46,6 +46,7 @@ function SchoolFormModal({ school, onClose }: { school?: School; onClose: () => 
   const { t } = useTranslation();
   const { create, update } = useSchools();
   const config = MODE_CONFIG[school ? 'edit' : 'create'];
+  const mutation = school ? update : create;
   const form = useForm<SchoolFormValues>({
     initialValues: school ? { name: school.name, email: school.email, password: '' } : EMPTY_VALUES,
     validate: zodResolver(config.schema),
@@ -60,7 +61,7 @@ function SchoolFormModal({ school, onClose }: { school?: School; onClose: () => 
           body: {
             name: values.name,
             email: values.email,
-            ...(values.password && { password: values.password }),
+            password: values.password,
           },
         },
         options,
@@ -74,7 +75,8 @@ function SchoolFormModal({ school, onClose }: { school?: School; onClose: () => 
     <FormModal
       title={t(config.title)}
       submitLabel={t('registration.save')}
-      mutation={school ? update : create}
+      errorMessage={mutation.error && mutation.error.message}
+      isPending={mutation.isPending}
       onClose={onClose}
       onSubmit={form.onSubmit(handleSubmit)}
     >

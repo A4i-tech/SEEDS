@@ -48,7 +48,7 @@ function AudioEditor({ item, audioSrc, save, approve }: AudioEditorProps) {
         <Button variant="outline" loading={save.isPending} onClick={() => save.mutate(transcript)}>
           {t('review.editAction')}
         </Button>
-        <Button loading={approve.isPending} onClick={() => approve.mutate(transcript || undefined)}>
+        <Button loading={approve.isPending} onClick={() => approve.mutate(transcript)}>
           {t('review.approve')}
         </Button>
         <Button variant="subtle" onClick={() => void navigate({ to: `/review/audio/$id`, params: { id: item.id } })}>

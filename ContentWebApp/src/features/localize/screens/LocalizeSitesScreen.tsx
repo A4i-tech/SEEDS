@@ -64,13 +64,6 @@ export function LocalizeSitesScreen() {
   const snippetRow = rows.find((row) => row.id === snippetId);
 
   const siteDisplayName = (site: Website) => site.name || site.domain;
-  const snippetTitle = snippetRow && t('localize.snippetTitle', { name: siteDisplayName(snippetRow) });
-  const sdkCode = snippetRow
-    ? sdkSnippet(snippetRow.site_id, snippetRow.api_base, window.location.origin)
-    : undefined;
-  const devToolsCode = snippetRow
-    ? devToolsSnippet(snippetRow.site_id, snippetRow.api_base, window.location.origin)
-    : undefined;
 
   const openSite = (row: Website) =>
     void navigate({ to: '/localize/sites/$siteId/edit', params: { siteId: row.id } });
@@ -223,13 +216,14 @@ export function LocalizeSitesScreen() {
       >
         + {t('localize.addSite')}
       </Button>
-      <SiteSnippetModal
-        opened={snippetRow !== undefined}
-        title={snippetTitle}
-        sdkCode={sdkCode}
-        devToolsCode={devToolsCode}
-        onClose={() => setSnippetId('')}
-      />
+      {snippetRow && (
+        <SiteSnippetModal
+          title={t('localize.snippetTitle', { name: siteDisplayName(snippetRow) })}
+          sdkCode={sdkSnippet(snippetRow.site_id, snippetRow.api_base, window.location.origin)}
+          devToolsCode={devToolsSnippet(snippetRow.site_id, snippetRow.api_base, window.location.origin)}
+          onClose={() => setSnippetId('')}
+        />
+      )}
     </Stack>
   );
 }

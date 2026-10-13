@@ -5,7 +5,8 @@ export function FormModal({
   title,
   submitLabel,
   submitDisabled,
-  mutation,
+  errorMessage,
+  isPending,
   onClose,
   onSubmit,
   children,
@@ -13,20 +14,19 @@ export function FormModal({
   title: string;
   submitLabel: string;
   submitDisabled?: boolean;
-  mutation: { error: Error | null; isPending: boolean };
+  errorMessage: ReactNode;
+  isPending: boolean;
   onClose: () => void;
   onSubmit: FormEventHandler<HTMLFormElement>;
   children: ReactNode;
 }) {
-
-
   return (
     <Modal opened onClose={onClose} title={title} centered>
       <form onSubmit={onSubmit}>
         <Stack gap="md">
           {children}
-          {mutation.error && <Alert>{mutation.error.message}</Alert>}
-          <Button type="submit" loading={mutation.isPending} disabled={submitDisabled}>
+          {errorMessage && <Alert>{errorMessage}</Alert>}
+          <Button type="submit" loading={isPending} disabled={submitDisabled}>
             {submitLabel}
           </Button>
         </Stack>

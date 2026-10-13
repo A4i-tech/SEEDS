@@ -9,7 +9,7 @@ import {
 
 const BULK_APPROVE_TIMEOUT_MS = 5 * 60 * 1000;
 
-export async function listTranslations(siteId: string, route?: string): Promise<TranslationItem[]> {
+export async function listTranslations(siteId: string, route: string): Promise<TranslationItem[]> {
   const { data } = await apiClient.get('/translations/list', {
     params: { site_id: siteId, route },
   });
@@ -28,7 +28,7 @@ export async function approveTranslation(id: string, approval: { lang: string })
 
 export async function bulkApproveTranslations(
   siteId: string,
-  scope: { route?: string; lang?: string },
+  scope: { route: string; lang: string },
 ): Promise<BulkApproveResult> {
   const { data } = await apiClient.post(
     '/translations/bulk-approve',

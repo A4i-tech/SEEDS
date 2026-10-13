@@ -21,8 +21,7 @@ export function MakeAccessibleScreen() {
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const addFiles = (incoming: FileList | undefined) => {
-    if (!incoming) return;
+  const addFiles = (incoming: FileList) => {
     setFiles((prev) => [...prev, ...Array.from(incoming)].slice(0, 5));
   };
 

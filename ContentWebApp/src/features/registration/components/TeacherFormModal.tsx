@@ -40,6 +40,7 @@ export function TeacherFormModal({ teacher, onClose }: { teacher?: SchoolTeacher
   const { t } = useTranslation();
   const { register, update } = useTeachers();
   const config = MODE_CONFIG[teacher ? 'edit' : 'create'];
+  const mutation = teacher ? update : register;
   const form = useForm<TeacherFormValues>({
     initialValues: teacher
       ? { ...EMPTY_VALUES, name: teacher.name, phone_number: teacher.phone_number }
@@ -56,7 +57,7 @@ export function TeacherFormModal({ teacher, onClose }: { teacher?: SchoolTeacher
           body: {
             name: values.name,
             phone_number: values.phone_number,
-            ...(values.password && { password: values.password }),
+            password: values.password,
           },
         },
         options,
@@ -70,7 +71,8 @@ export function TeacherFormModal({ teacher, onClose }: { teacher?: SchoolTeacher
     <FormModal
       title={t(config.title)}
       submitLabel={t('registration.save')}
-      mutation={teacher ? update : register}
+      errorMessage={mutation.error && mutation.error.message}
+      isPending={mutation.isPending}
       onClose={onClose}
       onSubmit={form.onSubmit(handleSubmit)}
     >

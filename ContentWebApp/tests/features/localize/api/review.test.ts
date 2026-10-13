@@ -36,7 +36,7 @@ describe('localize review api (translationService port)', () => {
       '/translations/list',
       expect.objectContaining({ params: { site_id: 's1', route: '/' } }),
     );
-    const [, options] = mockedGet.mock.calls[0] as [string, { timeoutMs?: number } | undefined];
+    const [, options] = mockedGet.mock.calls[0];
     expect(options?.timeoutMs).toBeUndefined();
   });
 

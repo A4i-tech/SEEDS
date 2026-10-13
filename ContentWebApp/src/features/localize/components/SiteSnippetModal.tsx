@@ -18,31 +18,27 @@ function SnippetBlock({ code }: { code: string }) {
 }
 
 export function SiteSnippetModal({
-  opened,
   title,
   sdkCode,
   devToolsCode,
   onClose,
 }: {
-  opened: boolean;
   title: React.ReactNode;
-  sdkCode: string | undefined;
-  devToolsCode: string | undefined;
+  sdkCode: string;
+  devToolsCode: string;
   onClose: () => void;
 }) {
   const { t } = useTranslation();
   return (
-    <Modal opened={opened} onClose={onClose} title={title} centered>
-      {sdkCode !== undefined && devToolsCode !== undefined && (
-        <Stack gap="md">
-          <SnippetBlock code={sdkCode} />
-          <Text fw={700}>{t('localize.devtools')}</Text>
-          <Text size="sm" c="dimmed">
-            {t('localize.devtoolsHint')}
-          </Text>
-          <SnippetBlock code={devToolsCode} />
-        </Stack>
-      )}
+    <Modal opened onClose={onClose} title={title} centered>
+      <Stack gap="md">
+        <SnippetBlock code={sdkCode} />
+        <Text fw={700}>{t('localize.devtools')}</Text>
+        <Text size="sm" c="dimmed">
+          {t('localize.devtoolsHint')}
+        </Text>
+        <SnippetBlock code={devToolsCode} />
+      </Stack>
     </Modal>
   );
 }

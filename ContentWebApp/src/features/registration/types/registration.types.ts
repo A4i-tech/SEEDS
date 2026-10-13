@@ -10,9 +10,9 @@ export const schoolCreateSchema = z.object({
 export type SchoolCreate = z.infer<typeof schoolCreateSchema>;
 
 export const schoolUpdateSchema = z.object({
-  name: z.string().optional(),
-  email: z.string().optional(),
-  password: z.string().optional(),
+  name: z.string(),
+  email: z.string(),
+  password: z.string(),
 });
 
 export type SchoolUpdate = z.infer<typeof schoolUpdateSchema>;
@@ -22,7 +22,7 @@ export const schoolSchema = z.object({
   tenant_id: text,
   name: z.string(),
   email: text,
-  is_active: z.boolean().optional(),
+  is_active: z.boolean(),
   created_at: text,
   updated_at: text,
 });
@@ -50,9 +50,9 @@ export const teacherRegisterSchema = z.object({
 export type TeacherRegister = z.infer<typeof teacherRegisterSchema>;
 
 export const teacherUpdateSchema = z.object({
-  name: z.string().optional(),
-  phone_number: phoneNumber.optional(),
-  password: z.string().optional(),
+  name: z.string(),
+  phone_number: phoneNumber,
+  password: z.string(),
 });
 
 export type TeacherUpdate = z.infer<typeof teacherUpdateSchema>;
@@ -73,7 +73,7 @@ export const teacherSchema = z.object({
   tenant_id: text,
   school_id: text,
   tenant_name: text,
-  is_active: z.boolean().optional(),
+  is_active: z.boolean(),
   created_at: text,
   updated_at: text,
 });
@@ -88,8 +88,8 @@ export const studentCreateSchema = z.object({
 export type StudentCreate = z.infer<typeof studentCreateSchema>;
 
 export const studentUpdateSchema = z.object({
-  name: z.string().optional(),
-  phone_number: phoneNumber.optional(),
+  name: z.string(),
+  phone_number: phoneNumber,
 });
 
 export type StudentUpdate = z.infer<typeof studentUpdateSchema>;

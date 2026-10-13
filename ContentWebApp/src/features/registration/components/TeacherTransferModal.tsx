@@ -18,7 +18,8 @@ export function TransferModal({ teacher, onClose }: { teacher: SchoolTeacher; on
       title={t('registration.transferTeacher')}
       submitLabel={t('registration.transfer')}
       submitDisabled={!targetSchoolId}
-      mutation={transfer}
+      errorMessage={transfer.error && transfer.error.message}
+      isPending={transfer.isPending}
       onClose={onClose}
       onSubmit={(event) => {
         event.preventDefault();

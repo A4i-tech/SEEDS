@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { list, text } from '@shared/utils/schema';
+import { count, list, text } from '@shared/utils/schema';
 
 export const analyticsRequestSchema = z.object({
   start_date: z.string(),
@@ -8,23 +8,15 @@ export const analyticsRequestSchema = z.object({
 
 export type AnalyticsRequest = z.infer<typeof analyticsRequestSchema>;
 
-function toSeconds(value: string | number | null | undefined): number {
-  const seconds = Number(value ?? 0);
-  if (Number.isNaN(seconds)) throw new Error(`Invalid call duration: ${value}`);
-  return seconds;
-}
-
-const looseText = z.string().nullish().transform((value) => value ?? '');
-
 export const callLogSchema = z.object({
   phone_number: text,
-  duration: z.union([z.string(), z.number()]).nullish().transform(toSeconds),
+  duration: count,
   created_at: z.coerce.date(),
   user_actions: list(z.unknown()),
-  content_id: looseText,
-  audio_id: looseText,
-  content_name: looseText,
-  audio_name: looseText,
+  content_id: text,
+  audio_id: text,
+  content_name: text,
+  audio_name: text,
 });
 
 export type CallLog = z.infer<typeof callLogSchema>;

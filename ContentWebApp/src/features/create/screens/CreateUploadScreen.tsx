@@ -49,7 +49,7 @@ export function CreateUploadScreen() {
       onConfirm: () =>
         save.mutate({
           file,
-          payload: { type: experience, ...toLocalizedFields(localized), description: description || undefined },
+          payload: { type: experience, ...toLocalizedFields(localized), description },
         }),
     });
   };

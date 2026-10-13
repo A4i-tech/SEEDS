@@ -8,8 +8,8 @@ import type { AudioContentItem, ContentItem } from '../types/content.types';
 
 export function AudioPreview({ item }: { item: AudioContentItem }) {
   const { t } = useTranslation();
-  const [track] = item.audio_content;
-  const audioUrl = item.primary_audio_url || track?.audio_url || '';
+  const track = item.audio_content[0];
+  const audioUrl = track.audio_url;
   const audio = useQuery({
     queryKey: libraryKeys.contentAudio(item.id),
     queryFn: () => getContentSasUrl(audioUrl),
@@ -27,7 +27,7 @@ export function AudioPreview({ item }: { item: AudioContentItem }) {
       {audioUrl === '' && <Text c="dimmed">{t('library.audioMissing')}</Text>}
       {audioError && <Alert>{audioError}</Alert>}
       {!item.is_processed && <Text c="dimmed">{t('library.audioProcessing')}</Text>}
-      {track?.description && (
+      {track.description && (
         <Text size="sm" c="dimmed">
           {track.description}
         </Text>

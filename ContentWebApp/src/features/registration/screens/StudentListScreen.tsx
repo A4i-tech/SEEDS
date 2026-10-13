@@ -35,6 +35,7 @@ function StudentFormModal({ student, onClose }: { student?: Student; onClose: ()
   const { t } = useTranslation();
   const { create, update } = useStudents();
   const config = MODE_CONFIG[student ? 'edit' : 'create'];
+  const mutation = student ? update : create;
   const form = useForm<StudentFormValues>({
     initialValues: student ? { name: student.name, phone_number: student.phone_number } : EMPTY_VALUES,
     validate: zodResolver(config.schema),
@@ -50,7 +51,8 @@ function StudentFormModal({ student, onClose }: { student?: Student; onClose: ()
     <FormModal
       title={t(config.title)}
       submitLabel={t('registration.save')}
-      mutation={student ? update : create}
+      errorMessage={mutation.error && mutation.error.message}
+      isPending={mutation.isPending}
       onClose={onClose}
       onSubmit={form.onSubmit(handleSubmit)}
     >

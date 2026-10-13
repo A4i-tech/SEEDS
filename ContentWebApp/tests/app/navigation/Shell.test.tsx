@@ -30,7 +30,7 @@ describe('Shell', () => {
   })
 
   it('hides the Analytics nav link when the role is unknown', () => {
-    vi.mocked(useAnalyticsRole).mockReturnValue(undefined)
+    vi.mocked(useAnalyticsRole).mockReturnValue('')
     renderWithProviders(<Shell />)
     expect(screen.queryByRole('link', { name: 'Analytics' })).not.toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Localize' })).toBeInTheDocument()

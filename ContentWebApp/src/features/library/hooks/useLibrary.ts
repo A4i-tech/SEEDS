@@ -22,12 +22,12 @@ export function useLibrary() {
 
   const content = useQuery({
     queryKey: libraryKeys.content,
-    queryFn: () => getContentPage(undefined, 50),
+    queryFn: () => getContentPage('', 50),
     enabled,
   });
   const courses = useQuery({
     queryKey: libraryKeys.courses,
-    queryFn: () => getCourses(undefined, 50),
+    queryFn: () => getCourses(50),
     enabled,
   });
 

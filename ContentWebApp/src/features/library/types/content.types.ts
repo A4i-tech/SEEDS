@@ -2,15 +2,15 @@ import { z } from 'zod';
 import { text } from '@shared/utils/schema';
 
 const titleTextSchema = z.object({
-  english: z.string().nullable().optional(),
-  local: z.string().nullable().optional(),
-  audio_url: z.string().nullable().optional(),
+  english: z.string(),
+  local: z.string(),
+  audio_url: z.string().optional(),
 });
 
 const audioTrackSchema = z.object({
-  audio_url: z.string().nullable().optional(),
-  description: z.string().nullable().optional(),
-  duration_seconds: z.number().nullable().optional(),
+  audio_url: z.string().optional(),
+  description: z.string().optional(),
+  duration_seconds: z.number().optional(),
 });
 
 const EMPTY_TITLE_TEXT = { english: '', local: '', audio_url: '' };
@@ -52,16 +52,16 @@ const audioContentSchema = contentBaseResponseSchema.extend({
 const quizOptionSchema = z.object({
   id: z.string(),
   text: z.string(),
-  url: z.string().nullable().optional(),
+  url: z.string().optional(),
 });
 
 const quizQuestionSchema = z.object({
   question: z.object({
     id: z.string(),
     text: z.string(),
-    url: z.string().nullable().optional(),
+    url: z.string().optional(),
   }),
-  options: z.array(quizOptionSchema).optional(),
+  options: z.array(quizOptionSchema),
   correct_option_id: z.string(),
 });
 
@@ -73,8 +73,8 @@ const quizQuestionResponseSchema = z.object({
 
 export const quizContentSchema = contentBaseResponseSchema.extend({
   type: z.literal('quiz'),
-  positive_marks: z.number().optional(),
-  negative_marks: z.number().optional(),
+  positive_marks: z.number(),
+  negative_marks: z.number(),
   questions: z.array(quizQuestionResponseSchema).default([]),
 });
 
@@ -128,7 +128,7 @@ export const contentPageSchema = z.object({
   data: z.array(contentItemSchema),
   pagination: z.object({
     next_cursor: text,
-    has_more: z.boolean().optional(),
+    has_more: z.boolean(),
     limit: z.number(),
   }),
 });

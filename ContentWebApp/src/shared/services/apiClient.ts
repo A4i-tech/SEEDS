@@ -17,7 +17,7 @@ export function authHeaders(): Record<string, string> {
 }
 
 export interface RequestOptions {
-  params?: Record<string, string | number | boolean | undefined>;
+  params?: Record<string, string | number | boolean>;
   timeoutMs?: number;
 }
 
@@ -26,7 +26,7 @@ const DEFAULT_TIMEOUT_MS = 60000;
 function buildUrl(path: string, params: RequestOptions['params'] = {}): string {
   const query = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined) query.append(key, String(value));
+    query.append(key, String(value));
   }
   const suffix = query.toString();
   if (!suffix) return `${API_BASE_URL}${path}`;

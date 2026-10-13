@@ -28,7 +28,7 @@ export function useLocalizeReview({ siteId, route, lang }: LocalizeReviewScope) 
 
   const list = useQuery({
     queryKey: localizeKeys.review(siteId, route),
-    queryFn: () => listTranslations(siteId, route || undefined),
+    queryFn: () => listTranslations(siteId, route),
     enabled,
   });
 
@@ -62,7 +62,7 @@ export function useLocalizeReview({ siteId, route, lang }: LocalizeReviewScope) 
 
   const approveAll = useMutation({
     mutationFn: () =>
-      bulkApproveTranslations(siteId, { route: route || undefined, lang: lang || undefined }),
+      bulkApproveTranslations(siteId, { route, lang }),
     onSuccess: (result) => {
       notifications.show({ message: t('localize.approvedCount', { count: result.approved }) });
       invalidate();

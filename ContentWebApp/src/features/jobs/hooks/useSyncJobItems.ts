@@ -7,10 +7,9 @@ export function useSyncJobItems(jobId: string, enabled: boolean) {
   const status = useAuthStore((s) => s.status);
   return useInfiniteQuery({
     queryKey: jobKeys.syncItems(jobId),
-    queryFn: ({ pageParam }: { pageParam: string | undefined }) =>
-      getSyncJobItems(jobId, { limit: 50, after: pageParam }),
-    initialPageParam: undefined,
-    getNextPageParam: (lastPage) => lastPage.next_cursor,
+    queryFn: ({ pageParam }) => getSyncJobItems(jobId, { limit: 50, after: pageParam }),
+    initialPageParam: '',
+    getNextPageParam: (lastPage) => lastPage.next_cursor || undefined,
     enabled: status === 'authenticated' && enabled && jobId !== '',
   });
 }

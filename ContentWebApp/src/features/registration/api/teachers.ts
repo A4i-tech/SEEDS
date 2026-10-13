@@ -10,14 +10,9 @@ import {
   type TeacherUpdate,
 } from '../types/registration.types';
 
-const teacherResponseSchema = teacherSchema
-  .omit({ id: true })
-  .extend({ id: z.string().optional(), _id: z.string().optional() })
-  .transform(({ id, _id, ...rest }) => teacherSchema.parse({ ...rest, id: id ?? _id }));
-
 const transferResponseSchema = z.object({
   message: z.string(),
-  teacher: teacherResponseSchema,
+  teacher: teacherSchema,
 });
 
 export async function getTeachers(): Promise<SchoolTeacher[]> {
@@ -27,12 +22,12 @@ export async function getTeachers(): Promise<SchoolTeacher[]> {
 
 export async function registerTeacher(body: TeacherRegister): Promise<Teacher> {
   const { data } = await apiClient.post('/teacher/register', body);
-  return teacherResponseSchema.parse(data);
+  return teacherSchema.parse(data);
 }
 
 export async function updateTeacher(id: string, body: TeacherUpdate): Promise<Teacher> {
   const { data } = await apiClient.patch(`/teacher/${encodeURIComponent(id)}`, body);
-  return teacherResponseSchema.parse(data);
+  return teacherSchema.parse(data);
 }
 
 export async function deleteTeacher(id: string): Promise<void> {

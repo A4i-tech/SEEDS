@@ -137,7 +137,7 @@ export function Shell() {
 
       <MantineAppShell.Navbar p="xs" aria-label="Primary">
         {destinations
-          .filter(({ to }) => to !== '/analytics' || analyticsRole !== undefined)
+          .filter(({ to }) => to !== '/analytics' || analyticsRole !== '')
           .map(({ to, key, Icon }) => {
           const label = t(key);
           return (

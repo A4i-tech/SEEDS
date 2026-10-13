@@ -344,19 +344,17 @@ export async function fillQuizForm(page: Page, { title, theme, ...q }: QuizFormV
   await fillQuestion(page, 0, q);
 }
 
-export async function saveQuiz(page: Page): Promise<{ status: number; notice: string | null }> {
+export async function saveQuiz(page: Page): Promise<{ status: number; notice: string }> {
   const responsePromise = page.waitForResponse(
     (res) => res.url().includes('/content/quiz') && ['POST', 'PATCH'].includes(res.request().method()),
   );
   await page.getByRole('button', { name: 'Save to Library' }).click();
   const response = await responsePromise;
   const noticeLocator = page.getByText('Quiz saved to Library.');
-  let notice: string | null = null;
   try {
     await noticeLocator.waitFor({ state: 'visible', timeout: 10000 });
-    notice = await noticeLocator.textContent();
+    return { status: response.status(), notice: (await noticeLocator.textContent()) ?? '' };
   } catch {
-    notice = null;
+    return { status: response.status(), notice: '' };
   }
-  return { status: response.status(), notice };
 }

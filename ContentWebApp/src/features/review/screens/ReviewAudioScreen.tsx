@@ -8,7 +8,7 @@ export function ReviewAudioScreen() {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const { id = '' } = useParams({ strict: false });
-  const { state, audioUrl, approve } = useReviewAudio(id);
+  const { state, approve } = useReviewAudio(id);
 
   return (
     <Stack gap="md">
@@ -24,11 +24,11 @@ export function ReviewAudioScreen() {
       {state.status === 'done' && state.data.content.type === 'quiz' && <Alert>{t('review.wrongItem')}</Alert>}
       {state.status === 'done' && state.data.content.type !== 'quiz' && (
         <>
-          {!audioUrl && <Alert>{t('review.audioMissing')}</Alert>}
+          {!state.data.audio && <Alert>{t('review.audioMissing')}</Alert>}
           <Paper p="lg" radius="md">
             <Stack gap="xs">
               <Text fw={700}>{t('review.playback')}</Text>
-              {state.data.content.is_processed && audioUrl && (
+              {state.data.content.is_processed && state.data.audio && (
                 // eslint-disable-next-line jsx-a11y/media-has-caption
                 <Box component="audio" controls src={state.data.audio} w="100%" />
               )}
@@ -69,7 +69,7 @@ export function ReviewAudioScreen() {
             </Button>
             <Button
               loading={approve.isPending}
-              onClick={() => approve.mutate(state.data.content.description || undefined)}
+              onClick={() => approve.mutate(state.data.content.description)}
             >
               {t('review.approve')}
             </Button>

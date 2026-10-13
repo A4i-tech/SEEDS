@@ -32,7 +32,7 @@ export function useReviewText(jobId: string) {
   });
 
   const approve = useMutation({
-    mutationFn: (title?: string) => approveReview(jobId, title),
+    mutationFn: () => approveReview(jobId),
     onSuccess: () => {
       notifications.show({ message: t('review.approved') });
       void queryClient.invalidateQueries({ queryKey: jobKeys.all });

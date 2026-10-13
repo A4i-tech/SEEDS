@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { apiClient } from '@shared/services/apiClient';
 import { remediationJobSchema } from '@features/jobs/types/job.types';
 import { contentUpdateSchema } from '@features/library/types/content.types';
+import type { ContentUpdate } from '@features/library/types/content.types';
 
 export async function getArtifactMarkdown(jobId: string, name: 'raw' | 'corrected'): Promise<string> {
   const { data } = await apiClient.get<string>(
@@ -14,7 +15,7 @@ export async function saveReviewDraft(jobId: string, draftMd: string): Promise<v
   await apiClient.put(`/textbook-remediation/jobs/${encodeURIComponent(jobId)}/draft`, { draft_md: draftMd });
 }
 
-export async function approveReview(jobId: string, title?: string): Promise<void> {
+export async function approveReview(jobId: string, title = ''): Promise<void> {
   await apiClient.post(`/textbook-remediation/jobs/${encodeURIComponent(jobId)}/verify`, { title });
 }
 
@@ -69,7 +70,10 @@ export async function getReviewSummary(jobId: string): Promise<ReviewSummary> {
   return reviewSummarySchema.parse(data);
 }
 
-export async function updateReviewContent(id: string, patch: { description?: string }): Promise<void> {
+export async function updateReviewContent(
+  id: string,
+  patch: Partial<Pick<ContentUpdate, 'description'>>,
+): Promise<void> {
   const parsed = contentUpdateSchema.parse({ id, description: patch.description });
   await apiClient.patch(`/content/${encodeURIComponent(id)}`, parsed);
 }
@@ -82,7 +86,6 @@ export const reviewKeys = {
   detail: (jobId: string) => ['review', jobId, 'job'] as const,
   summary: (jobId: string) => ['review', jobId, 'summary'] as const,
   audio: (id: string) => ['review', 'audio', id] as const,
-  audioSas: (id: string) => ['review', 'audio', id, 'sas'] as const,
   quiz: (id: string) => ['review', 'quiz', id] as const,
   queue: ['review', 'queue'] as const,
   image: (jobId: string, imageName: string) => ['review', jobId, 'image', imageName] as const,

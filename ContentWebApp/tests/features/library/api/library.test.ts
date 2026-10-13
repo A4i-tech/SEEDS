@@ -40,15 +40,15 @@ describe('library api (contentService port)', () => {
         pagination: { next_cursor: 'c', has_more: true, limit: 20 },
       },
     });
-    const out = await getContentPage();
-    expect(mockedGet).toHaveBeenCalledWith('/content', { params: { limit: 20 } });
+    const out = await getContentPage('');
+    expect(mockedGet).toHaveBeenCalledWith('/content', { params: { cursor: '', limit: 20 } });
     expect(out.data.map((i) => i.id)).toEqual(['a1', 'b2']);
     expect(out.pagination.next_cursor).toBe('c');
     expect(out.pagination.has_more).toBe(true);
   });
 
   it('getContentPage includes cursor when provided', async () => {
-    mockedGet.mockResolvedValue({ data: { data: [], pagination: { limit: 10 } } });
+    mockedGet.mockResolvedValue({ data: { data: [], pagination: { next_cursor: '', has_more: false, limit: 10 } } });
     await getContentPage('CUR', 10);
     expect(mockedGet).toHaveBeenCalledWith('/content', { params: { cursor: 'CUR', limit: 10 } });
   });

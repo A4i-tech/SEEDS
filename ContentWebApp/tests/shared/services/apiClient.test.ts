@@ -135,9 +135,9 @@ describe('apiClient', () => {
     expect(fetchMock.mock.calls[0][0]).toBe('http://test-api/x?limit=10&cursor=abc');
   });
 
-  it('skips undefined params', async () => {
+  it('omits params the caller does not pass', async () => {
     fetchMock.mockResolvedValue(jsonResponse({}));
-    await apiClient.get('/x', { params: { limit: 2, cursor: undefined } });
+    await apiClient.get('/x', { params: { limit: 2 } });
     expect(fetchMock.mock.calls[0][0]).toBe('http://test-api/x?limit=2');
   });
 });

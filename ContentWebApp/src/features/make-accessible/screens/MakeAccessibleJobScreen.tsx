@@ -17,11 +17,7 @@ const METRIC_LABELS = [
 ] as const;
 
 function metricsSummary(metrics: RemediationJobDetail['metrics']): string {
-  return METRIC_LABELS.flatMap(([key, label]) => {
-    const value = metrics[key];
-    if (value === undefined) return [];
-    return [`${value} ${label}`];
-  }).join(' · ');
+  return METRIC_LABELS.map(([key, label]) => `${metrics[key]} ${label}`).join(' · ');
 }
 
 function RunningView({ job }: { job: RemediationJobDetail }) {
@@ -44,8 +40,8 @@ function RunningView({ job }: { job: RemediationJobDetail }) {
       <Stack gap="xs">
         <Text fw={700}>{t('makeAccessible.progressTitle')}</Text>
         {job.progress.message && <Text>{job.progress.message}</Text>}
-        {percent !== undefined && <Progress value={percent} aria-label={t('makeAccessible.progressTitle')} />}
-        {percent !== undefined && <Text size="sm">{t('makeAccessible.percent', { percent })}</Text>}
+        <Progress value={percent} aria-label={t('makeAccessible.progressTitle')} />
+        <Text size="sm">{t('makeAccessible.percent', { percent })}</Text>
       </Stack>
     </>
   );

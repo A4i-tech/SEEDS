@@ -33,14 +33,14 @@ export type Course = z.infer<typeof courseSchema>;
 const coursesResponseSchema = z.object({
   courses: z.array(courseSchema),
   next_cursor: text,
-  has_more: z.boolean().optional(),
+  has_more: z.boolean(),
 });
 
 const jobIdSchema = z.object({ jobId: z.string() });
 
-export async function getContentPage(cursor?: string, limit = 20) {
+export async function getContentPage(cursor: string, limit = 20) {
   const { data } = await apiClient.get('/content', {
-    params: { ...(cursor && { cursor }), limit },
+    params: { cursor, limit },
   });
   return contentPageSchema.parse(data);
 }
@@ -57,10 +57,8 @@ export async function updateContent(id: string, patch: ContentUpdate, isAudioUpl
   return contentItemSchema.parse(data);
 }
 
-export async function getCourses(cursor?: string, limit = 20) {
-  const { data } = await apiClient.get('/content-aggregators/courses', {
-    params: { ...(cursor && { cursor }), limit },
-  });
+export async function getCourses(limit = 20) {
+  const { data } = await apiClient.get('/content-aggregators/courses', { params: { limit } });
   return coursesResponseSchema.parse(data);
 }
 

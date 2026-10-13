@@ -10,7 +10,20 @@ const mockedPost = vi.mocked(apiClient.post);
 const mockedPatch = vi.mocked(apiClient.patch);
 const mockedDelete = vi.mocked(apiClient.delete);
 
-const teacher = (overrides = {}) => ({ id: 'te1', name: 'N', phone_number: '1', ...overrides });
+const teacher = (overrides = {}) => ({
+  id: 'te1',
+  role: 'teacher',
+  name: 'N',
+  email: '',
+  phone_number: '1',
+  tenant_id: 't1',
+  school_id: 's1',
+  tenant_name: '',
+  is_active: true,
+  created_at: '',
+  updated_at: '',
+  ...overrides,
+});
 
 describe('teachers api (teacherService port)', () => {
   beforeEach(() => {
@@ -19,10 +32,15 @@ describe('teachers api (teacherService port)', () => {
 
   it('updateTeacher PATCHes the trimmed body', async () => {
     mockedPatch.mockResolvedValue({ data: teacher({ name: 'Updated', phone_number: '918888888882' }) });
-    const result = await updateTeacher('teacher-1', { name: 'Updated', phone_number: '918888888882' });
+    const result = await updateTeacher('teacher-1', {
+      name: 'Updated',
+      phone_number: '918888888882',
+      password: '',
+    });
     expect(mockedPatch).toHaveBeenCalledWith('/teacher/teacher-1', {
       name: 'Updated',
       phone_number: '918888888882',
+      password: '',
     });
     expect(result.name).toBe('Updated');
     expect(result.phone_number).toBe('918888888882');

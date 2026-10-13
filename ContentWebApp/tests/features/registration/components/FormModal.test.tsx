@@ -11,7 +11,8 @@ function renderModal(overrides: Record<string, unknown> = {}) {
     <FormModal
       title="Add teacher"
       submitLabel="Save"
-      mutation={{ error: null, isPending: false }}
+      errorMessage=""
+      isPending={false}
       onClose={onClose}
       onSubmit={onSubmit}
       {...overrides}
@@ -37,7 +38,7 @@ describe('FormModal', () => {
   })
 
   it('shows the mutation error and disables submit while pending', () => {
-    renderModal({ mutation: { error: new Error('phone taken'), isPending: true } })
+    renderModal({ errorMessage: 'phone taken', isPending: true })
     expect(screen.getByText('phone taken')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
   })

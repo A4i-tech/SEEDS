@@ -27,7 +27,7 @@ export function AnalyticsScreen() {
   const { t } = useTranslation();
   const role = useAnalyticsRole();
 
-  if (role === undefined) {
+  if (role === '') {
     return (
       <Stack gap="md">
         <Title order={2}>{t('analytics.title')}</Title>

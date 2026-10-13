@@ -1,5 +1,4 @@
 import { Alert, Breadcrumbs, Button, Group, Paper, Progress, Stack, Text, Title } from '@mantine/core';
-import type { TFunction } from 'i18next';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { StatusBadge } from '@shared/components/StatusBadge';
@@ -12,19 +11,34 @@ import { SyncJobItemsTable } from '../components/SyncJobItemsTable';
 import { useJobs } from '../hooks/useJobs';
 import { terminalStatuses, useSyncJob } from '../hooks/useSyncJob';
 
-function toneFor(status: SyncJob['status'] | undefined): JobStatus {
+function toneFor(status: SyncJob['status']): JobStatus {
   if (status === 'completed') return 'done';
   if (status === 'failed') return 'failed';
   return 'running';
 }
 
-function jobDetailView(t: TFunction, row: JobRow | undefined, job: SyncJob | undefined) {
+interface JobDetailView {
+  title: string;
+  type: string;
+  tone: JobStatus;
+  updated: string;
+}
+
+function jobDetailView(row: JobRow): JobDetailView {
+  return { title: row.title, type: row.type, tone: row.status, updated: row.updated };
+}
+
+function syncJobDetailView(job: SyncJob): JobDetailView {
   return {
-    title: row?.title ?? (job === undefined ? t('jobs.detail.allCourses') : syncTitle(job)),
-    type: row?.type ?? 'course-sync',
-    tone: row?.status ?? toneFor(job?.status),
-    updated: job === undefined ? row?.updated : job.finished_at || job.started_at,
+    title: syncTitle(job),
+    type: 'course-sync',
+    tone: toneFor(job.status),
+    updated: job.finished_at || job.started_at,
   };
+}
+
+function percentOf(job: SyncJob): number {
+  return Math.round((job.processed / job.total_courses) * 100);
 }
 
 export function JobDetailScreen() {
@@ -32,33 +46,36 @@ export function JobDetailScreen() {
   const navigate = useNavigate();
   const { jobId = '' } = useParams({ strict: false });
   const rowsState = useJobs();
-  const row = rowsState.status === 'done' ? rowsState.data.find((r) => r.id === jobId) : undefined;
-  const isRemediation = row?.type === 'make-accessible';
+  const row = rowsState.status === 'done' && rowsState.data.find((r) => r.id === jobId);
+  const isRemediation = row && row.type === 'make-accessible';
   const jobState = toApiState(useSyncJob(jobId, !isRemediation));
-  const job = jobState.status === 'done' ? jobState.data : undefined;
+  const job = jobState.status === 'done' && jobState.data;
 
-  const finished = job !== undefined && terminalStatuses.has(job.status);
-  const percent = job ? Math.round((job.processed / job.total_courses) * 100) : 0;
-  const view = jobDetailView(t, row, job);
+  const finished = job && terminalStatuses.has(job.status);
+  const view = (job && syncJobDetailView(job)) || (row && jobDetailView(row));
 
   return (
     <Stack gap="md">
-      <Breadcrumbs aria-label="Breadcrumb">
-        <Text>{t('jobs.title')}</Text>
-        <Text>{view.title}</Text>
-      </Breadcrumbs>
+      {view && (
+        <>
+          <Breadcrumbs aria-label="Breadcrumb">
+            <Text>{t('jobs.title')}</Text>
+            <Text>{view.title}</Text>
+          </Breadcrumbs>
 
-      <Title order={2}>{view.title}</Title>
-      <Group gap="sm">
-        <Text c="dimmed">{t(`jobs.types.${view.type}`)}</Text>
-        <StatusBadge tone={view.tone} label={t(`jobs.statuses.${view.tone}`)} />
-        {view.updated && <Text c="dimmed">{formatRelativeTime(view.updated)}</Text>}
-      </Group>
+          <Title order={2}>{view.title}</Title>
+          <Group gap="sm">
+            <Text c="dimmed">{t(`jobs.types.${view.type}`)}</Text>
+            <StatusBadge tone={view.tone} label={t(`jobs.statuses.${view.tone}`)} />
+            {view.updated && <Text c="dimmed">{formatRelativeTime(view.updated)}</Text>}
+          </Group>
+        </>
+      )}
 
       {jobState.status === 'loading' && <Text c="dimmed">{t('common.loading')}</Text>}
       {jobState.status === 'error' && <LoadError error={jobState.error} />}
 
-      {isRemediation && (
+      {row && row.type === 'make-accessible' && (
         <Paper p="lg" radius="md">
           <Stack gap="xs" align="flex-start">
             <Text>{t('jobs.detail.remediationNote')}</Text>
@@ -78,13 +95,13 @@ export function JobDetailScreen() {
           {job.total_courses > 0 && (
             <>
               <Text>{t('jobs.detail.processedOf', { processed: job.processed, total: job.total_courses })}</Text>
-              <Progress value={percent} aria-label={t('jobs.detail.progressTitle')} />
-              <Text size="sm">{t('jobs.detail.percent', { percent })}</Text>
+              <Progress value={percentOf(job)} aria-label={t('jobs.detail.progressTitle')} />
+              <Text size="sm">{t('jobs.detail.percent', { percent: percentOf(job) })}</Text>
             </>
           )}
         </Stack>
       )}
-      {job?.status === 'completed' && (
+      {job && job.status === 'completed' && (
         <Text>
           {t('jobs.detail.summary', {
             saved: job.stats.saved,
@@ -94,7 +111,7 @@ export function JobDetailScreen() {
           })}
         </Text>
       )}
-      {job?.status === 'failed' && job.error && <Alert>{job.error}</Alert>}
+      {job && job.status === 'failed' && job.error && <Alert>{job.error}</Alert>}
 
       {finished && <SyncJobItemsTable jobId={jobId} />}
 

@@ -10,8 +10,7 @@ const DIFF_CLASS = { removed: classes.removed, added: classes.added, same: class
 
 const DIFF_PREFIX = { removed: '− ', added: '+ ', same: '' };
 
-function wrapSelection(textarea: HTMLTextAreaElement | null, before: string, after: string, linePrefix: string) {
-  if (!textarea) return '';
+function wrapSelection(textarea: HTMLTextAreaElement, before: string, after: string, linePrefix: string) {
   const { value, selectionStart, selectionEnd } = textarea;
   if (linePrefix) {
     const lineStart = value.lastIndexOf('\n', selectionStart - 1) + 1;
@@ -35,7 +34,8 @@ export function ReviewTextScreen() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const applyTool = (before: string, after: string, linePrefix: string) => {
-    setEdited(wrapSelection(textareaRef.current, before, after, linePrefix));
+    const textarea = textareaRef.current;
+    textarea && setEdited(wrapSelection(textarea, before, after, linePrefix));
   };
 
   return (
@@ -135,7 +135,7 @@ export function ReviewTextScreen() {
             <Button variant="outline" loading={save.isPending} onClick={() => save.mutate(edited || state.data.corrected)}>
               {t('review.editAction')}
             </Button>
-            <Button loading={approve.isPending} onClick={() => approve.mutate(undefined)}>
+            <Button loading={approve.isPending} onClick={() => approve.mutate()}>
               {t('review.approve')}
             </Button>
             <Button variant="subtle" onClick={() => void navigate({ to: '/review' })}>

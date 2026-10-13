@@ -12,9 +12,10 @@ export type { DateRange } from '../utils/analyticsDates';
 export type { CallSummary, ConferenceSummary, CountBin, DateRow, RecentConference } from '../utils/analyticsSummary';
 export { formatClock } from '../utils/analyticsSummary';
 
-export function useAnalyticsRole(): AnalyticsRole | undefined {
+export function useAnalyticsRole(): AnalyticsRole | '' {
   const parsed = analyticsRoleSchema.safeParse(useAuthStore((s) => s.role));
-  return parsed.success ? parsed.data : undefined;
+  if (!parsed.success) return '';
+  return parsed.data;
 }
 
 export function useAnalyticsRange(role: AnalyticsRole, range: DateRange) {

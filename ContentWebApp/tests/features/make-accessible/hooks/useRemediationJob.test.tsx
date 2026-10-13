@@ -26,7 +26,7 @@ const job = (overrides: Partial<RemediationJobDetail> = {}): RemediationJobDetai
   stage_count: 3,
   artifacts: {},
   counts: {},
-  progress: { message: '', percent: undefined },
+  progress: { message: '', percent: 0 },
   draft_remediated_md: '',
   verified_at: '',
   verified_by: '',
@@ -37,11 +37,11 @@ const job = (overrides: Partial<RemediationJobDetail> = {}): RemediationJobDetai
   created_at: '2026-01-01',
   finished_at: '',
   metrics: {
-    total_pages: undefined,
-    processed_pages: undefined,
-    diagrams_described: undefined,
-    tables_fixed: undefined,
-    flagged_items_count: undefined,
+    total_pages: 0,
+    processed_pages: 0,
+    diagrams_described: 0,
+    tables_fixed: 0,
+    flagged_items_count: 0,
   },
   ...overrides,
 })
@@ -92,17 +92,17 @@ describe('useRemediationJob', () => {
   })
 
   it('aborts the stream on unmount', async () => {
-    let signal: AbortSignal | undefined
+    const signals: AbortSignal[] = []
     vi.mocked(streamJob).mockImplementation((_url, _headers, _schema, _onJob, sig) => {
-      signal = sig
+      signals.push(sig)
       return new Promise(() => {})
     })
     const { result, unmount } = renderHookWithProviders(() => useRemediationJob('job-1'))
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
 
-    expect(signal?.aborted).toBe(false)
+    expect(signals[0].aborted).toBe(false)
     unmount()
-    expect(signal?.aborted).toBe(true)
+    expect(signals[0].aborted).toBe(true)
   })
 })
 

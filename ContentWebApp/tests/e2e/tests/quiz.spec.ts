@@ -25,7 +25,7 @@ test.beforeEach(({}, testInfo) => {
 test.describe.configure({ mode: 'serial' });
 
 interface QuizIds {
-  single: string | null;
+  single: string;
   multi: string;
   editNoNew: string;
   editNew: string;
@@ -46,7 +46,7 @@ const ROLES: Array<{ roleName: string; personaKey: 'tenant' | 'school' | 'conten
   {
     roleName: 'content creator',
     personaKey: 'contentCreator',
-    ids: { single: null, multi: 'TC-QUIZ-012', editNoNew: 'TC-QUIZ-013', editNew: 'TC-QUIZ-014', del: 'TC-QUIZ-015' },
+    ids: { single: '(setup)', multi: 'TC-QUIZ-012', editNoNew: 'TC-QUIZ-013', editNew: 'TC-QUIZ-014', del: 'TC-QUIZ-015' },
   },
 ];
 
@@ -56,7 +56,7 @@ for (const { roleName, personaKey, ids } of ROLES) {
     const multiId = uniqueId();
     const persona = PERSONAS[personaKey] as { identifier: string; password: string };
 
-    test(`${ids.single ?? '(setup)'} ${roleName} can create a quiz with a single question`, async ({ page }) => {
+    test(`${ids.single} ${roleName} can create a quiz with a single question`, async ({ page }) => {
       await login(page, persona.identifier, persona.password);
       await gotoLibrary(page);
       await gotoQuiz(page);
