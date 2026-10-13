@@ -6,6 +6,9 @@ on:
   schedule:
     - cron: "0 * * * *"
 
+concurrency:
+  group: ancestry-watch
+
 jobs:
   check:
     runs-on: ubuntu-latest

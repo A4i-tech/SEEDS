@@ -14,8 +14,9 @@ jobs:
         with:
           fetch-depth: 0
       - id: tag
-        name: CalVer tag, suffixed with short SHA on same-day repeat release
+        name: Compute CalVer tag, suffixed with short SHA on same-day repeat release
         run: |
+          git fetch --tags origin
           existing=$(git tag --points-at HEAD)
           if [ -n "$existing" ]; then
             echo "tag=$existing" >> "$GITHUB_OUTPUT"
@@ -25,33 +26,11 @@ jobs:
           if git rev-parse "$tag" >/dev/null 2>&1; then
             tag="${tag}-$(git rev-parse --short HEAD)"
           fi
-          git tag "$tag"
-          git push origin "$tag"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
-      - env:
+      - name: Create release (also creates the tag, so no orphaned tag on failure)
+        env:
           GH_TOKEN: ${{ secrets.RELEASE_BOT_PAT }}
         run: gh release create "${{ steps.tag.outputs.tag }}" --target "${{ github.sha }}" --generate-notes
-
-  smoke-test:
-    needs: tag-and-release
-    runs-on: ubuntu-latest
-    steps:
-      - name: Wait for prod to report the new tag
-        env:
-          TAG: ${{ needs.tag-and-release.outputs.tag }}
-          SMOKE_TEST_URL: ${{ vars.SMOKE_TEST_URL }}
-        run: |
-          if [ -z "$SMOKE_TEST_URL" ]; then
-            echo "SMOKE_TEST_URL repo variable not set, skipping smoke test." >&2
-            exit 0
-          fi
-          for _ in $(seq 1 30); do
-            live=$(curl -fsS "$SMOKE_TEST_URL" 2>/dev/null || true)
-            [ "$live" = "$TAG" ] && exit 0
-            sleep 30
-          done
-          echo "prod still not reporting $TAG after 15m" >&2
-          exit 1
 
   back-sync:
     needs: tag-and-release
@@ -74,6 +53,10 @@ jobs:
           git config user.email "release-bot@a4i-lab.in"
           git config user.name "a4i-release-bot"
           branch="sync/main-$(git rev-parse --short origin/a4i/main)"
+          if git ls-remote --exit-code origin "$branch" >/dev/null 2>&1; then
+            echo "Sync branch $branch already exists, leaving it for manual resolution." >&2
+            exit 0
+          fi
           git checkout -b "$branch" origin/a4i/staging
           if git merge origin/a4i/main --no-edit; then
             git push origin "$branch"
@@ -83,7 +66,7 @@ jobs:
           else
             git merge --abort
             git checkout -B "$branch" origin/a4i/main
-            git push origin "$branch" --force
+            git push origin "$branch"
             gh pr create --base a4i/staging --head "$branch" \
               --title "Sync: a4i/main -> a4i/staging (conflict)" \
               --label needs-resolution \

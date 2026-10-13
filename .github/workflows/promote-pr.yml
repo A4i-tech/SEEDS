@@ -21,11 +21,15 @@ jobs:
           number=$(gh pr list --base a4i/main --head a4i/staging --state open --json number --jq '.[0].number')
           notes=$(gh api "repos/${{ github.repository }}/releases/generate-notes" -f tag_name=next-release -f target_commitish=a4i/staging --jq .body)
           if [ -z "$number" ]; then
-            gh pr create --base a4i/main --head a4i/staging \
+            url=$(gh pr create --base a4i/main --head a4i/staging \
               --title "Release: a4i/staging -> a4i/main" \
-              --body "$notes" --label release
-            number=$(gh pr list --base a4i/main --head a4i/staging --state open --json number --jq '.[0].number')
+              --body "$notes" --label release)
+            number=$(gh pr view "$url" --json number --jq .number)
           else
             gh pr edit "$number" --body "$notes"
+          fi
+          if [ -z "$number" ]; then
+            echo "Could not determine promotion PR number." >&2
+            exit 1
           fi
           gh pr merge "$number" --auto --merge
