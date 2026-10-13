@@ -8,9 +8,6 @@ const SYNC_JOBS_URL = /\/content-aggregators\/sync\/jobs(\?|$)/;
 const SETTLE_TIMEOUT = 15000;
 const RESPONSE_TIMEOUT = 30000;
 
-// JobsScreen renders one DataTable <tr> per job. Loading skeletons and the
-// empty state carry no StatusBadge, so badge-scoped rows never match a
-// placeholder - the v2 equivalent of the legacy skeleton guard.
 function jobRows(page: Page) {
   return page.locator('table tbody tr').filter({ has: page.locator('[class*="Badge-root"]') });
 }
@@ -31,8 +28,6 @@ function isSyncJobsPayload(value: unknown): value is SyncJobsPayload {
 
 type PerCourseOutcome = 'items' | 'empty' | 'running';
 
-// Capture the tenant's own sync job ids from the response: the isolation signal
-// is that no id from one tenant ever appears in the other's list.
 async function captureSyncJobIds(response: Response): Promise<string[]> {
   try {
     const payload: unknown = await response.json();
@@ -65,7 +60,6 @@ async function openJobs(page: Page): Promise<string[]> {
 }
 
 async function openHistory(page: Page): Promise<string[]> {
-  // Legacy /content/sync-history redirects to /jobs (see router.tsx).
   const responsePromise = page.waitForResponse((res) => SYNC_JOBS_URL.test(res.url()), {
     timeout: RESPONSE_TIMEOUT,
   });
@@ -80,8 +74,6 @@ async function openPerCourseDetail(page: Page, jobId: string): Promise<PerCourse
   await page.getByRole('button', { name: 'Back to Jobs' }).waitFor({ timeout: SETTLE_TIMEOUT });
   await expect(page.locator('[class*="Badge-root"]').first()).toBeVisible({ timeout: SETTLE_TIMEOUT });
 
-  // Finished jobs gate per-course rows behind a toggle; running jobs show
-  // progress instead. Polling stays generous in both branches.
   const toggle = page.getByRole('button', { name: 'Show per-course results' });
   const finished = await toggle
     .waitFor({ timeout: RESPONSE_TIMEOUT })
@@ -102,11 +94,6 @@ async function openPerCourseDetail(page: Page, jobId: string): Promise<PerCourse
   return 'items';
 }
 
-// Sync All triggers a real, unbounded external sync - never clicked here.
-// TC-SYNC-001/002/003 are read-only checks of the Library/Jobs pages.
-// TC-SYNC-004 checks isolation by comparing each tenant's own sync job ids,
-// without triggering a new sync.
-
 test('TC-SYNC-001 Sync All is available to a tenant on the library page', async ({ page }) => {
   await login(page, TENANT.identifier, TENANT.password);
   await gotoLibrary(page);
@@ -123,8 +110,6 @@ test('TC-SYNC-002/003 Jobs page shows past runs with status and per-course detai
   }
 
   await expect(jobRows(page).first().locator('[class*="Badge-root"]')).toBeVisible();
-  // Jobs merges every job type; with only remediation jobs present there is no
-  // per-course detail to open, so the list assertions above are the coverage.
   const [firstSyncId] = syncJobIds;
   if (!firstSyncId) return;
   const outcome = await openPerCourseDetail(page, firstSyncId);

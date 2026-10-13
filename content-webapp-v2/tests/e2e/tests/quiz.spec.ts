@@ -19,13 +19,6 @@ import {
   waitForLibraryRow,
 } from '../helpers';
 
-// Quiz creation goes through the same async content-processing job as
-// Song/Story/etc. - like legacy, quiz tests skip waitUntilContentProcessed()
-// (no audio to process) and go straight to editContent() once the row appears.
-//
-// DELTA - quiz question editing has no v2 equivalent: ContentEditScreen marks
-// questions read-only. The legacy edit tests (option edits, adding questions)
-// are ported as title edits asserting the same PATCH 200.
 test.beforeEach(({}, testInfo) => {
   testInfo.setTimeout(Math.max(testInfo.timeout, 180000));
 });
@@ -63,9 +56,6 @@ for (const { roleName, personaKey, ids } of ROLES) {
     const multiId = uniqueId();
     const persona = PERSONAS[personaKey] as { identifier: string; password: string };
 
-    // The doc has no dedicated "content creator can create a single-question
-    // quiz" case (TC-QUIZ-012 starts at multi-question) - still create one
-    // here so the edit test (TC-QUIZ-013) has a target.
     test(`${ids.single ?? '(setup)'} ${roleName} can create a quiz with a single question`, async ({ page }) => {
       await login(page, persona.identifier, persona.password);
       await gotoLibrary(page);
@@ -119,7 +109,6 @@ for (const { roleName, personaKey, ids } of ROLES) {
       await waitForLibraryRow(page, multiId);
     });
 
-    // DELTA: question text is read-only in v2 - edits the title instead.
     test(`${ids.editNoNew} ${roleName} can edit a quiz without adding new questions`, async ({ page }) => {
       const editedTitle = `quiz-${singleId}-edited`;
       await login(page, persona.identifier, persona.password);
@@ -213,8 +202,6 @@ test('TC-QUIZ-016 quiz isolation for content creator from another school', async
   await page.waitForURL(/\/library/, { timeout: 15000 });
   await waitForLibraryRow(page, id);
 
-  // The content creator belongs to the same school as school@test-a4i.local, so
-  // isolation is asserted against a different school (A4I IIITB).
   const { context: schoolContext, page: schoolPage } = await loginInNewContext(
     browser,
     PERSONAS.schoolA4I.identifier,

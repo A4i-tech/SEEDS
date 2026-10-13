@@ -3,7 +3,6 @@ import { PERSONAS } from '../fixtures/instances';
 import { bestEffortCleanup } from '../fixtures/session';
 import { expectRowAbsentOnAllPages, expectRowOnAnyPage, gotoRowPage, login } from '../helpers';
 
-// Tenants render the school list directly at /registration; await the list GET so callers never race the initial fetch.
 async function openSchools(page: Page): Promise<void> {
   const schoolsFetched = page.waitForResponse(
     (res) => res.url().endsWith('/school') && res.request().method() === 'GET',
@@ -27,7 +26,6 @@ async function createSchool(page: Page, name: string, email: string, password: s
   const dialog = schoolsDialog(page);
   await dialog.getByLabel('Name *', { exact: true }).fill(name);
   await dialog.getByLabel('Email *', { exact: true }).fill(email);
-  // Only the create dialog is open here; its single password input avoids the ambiguous getByLabel('Password').
   await dialog.locator('input[type="password"]').fill(password);
   await dialog.getByRole('button', { name: 'Save', exact: true }).click();
 }
@@ -47,11 +45,9 @@ async function saveEdit(page: Page, name: string): Promise<void> {
 async function deleteSchool(page: Page, email: string): Promise<void> {
   await gotoRowPage(page, schoolsRow(page, email));
   await schoolsRow(page, email).getByRole('button', { name: 'Delete', exact: true }).click();
-  // v2 delete goes through a Mantine confirm modal (not window.confirm).
   await schoolsDialog(page).getByRole('button', { name: 'Delete', exact: true }).click();
 }
 
-// Self-contained + self-cleaning: unique school email per run, deleted at the end.
 test.describe.configure({ mode: 'serial' });
 
 test('TC-SCHOOL-001 existing schools are listed for a tenant', async ({ page }) => {
@@ -71,7 +67,6 @@ test.describe('school CRUD (unique per run, self-cleaning)', () => {
     await openSchools(page);
     await createSchool(page, 'test-school-e2e', uniqueEmail, 'Test@123');
 
-    // v2 shows a generic 'Saved.' notification (no per-action flash text).
     await expect(page.getByText('Saved.', { exact: true })).toBeVisible({ timeout: 10000 });
     await expectRowOnAnyPage(page, schoolsRow(page, uniqueEmail));
   });
@@ -81,9 +76,7 @@ test.describe('school CRUD (unique per run, self-cleaning)', () => {
     await openSchools(page);
     await createSchool(page, 'test-school-e2e-retry', uniqueEmail, 'Test@321');
 
-    // v2 surfaces the 409 as an Alert inside the still-open dialog.
     await expect(schoolsDialog(page).getByText(/already exists/i)).toBeVisible({ timeout: 10000 });
-    // Close the dialog before paging: the modal overlay intercepts pager clicks.
     await page.keyboard.press('Escape');
     await expect(schoolsDialog(page)).toBeHidden({ timeout: 5000 });
     await gotoRowPage(page, schoolsRow(page, uniqueEmail));
@@ -104,7 +97,6 @@ test.describe('school CRUD (unique per run, self-cleaning)', () => {
   test('TC-SCHOOL-005 school deletion', async ({ page }) => {
     await login(page, PERSONAS.tenant.identifier, PERSONAS.tenant.password);
     await openSchools(page);
-    // Delete-confirm coverage: v2 uses a Mantine confirm modal, no toast.
     await deleteSchool(page, uniqueEmail);
 
     await expectRowAbsentOnAllPages(page, schoolsRow(page, uniqueEmail));

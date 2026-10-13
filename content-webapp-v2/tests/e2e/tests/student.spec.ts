@@ -3,7 +3,6 @@ import { PERSONAS, uniquePhone } from '../fixtures/instances';
 import { bestEffortCleanup, loginInNewContext } from '../fixtures/session';
 import { expectRowAbsentOnAllPages, expectRowOnAnyPage, gotoRowPage, login } from '../helpers';
 
-// Both phone inputs are controlled with per-keystroke handling — verify the fill landed, retrying if not.
 async function fillAndVerify(locator: Locator, value: string, attempts = 3): Promise<void> {
   for (let i = 1; i <= attempts; i++) {
     await locator.fill(value);
@@ -12,7 +11,6 @@ async function fillAndVerify(locator: Locator, value: string, attempts = 3): Pro
   throw new Error(`fillAndVerify: "${value}" didn't stick after ${attempts} attempts`);
 }
 
-// Await the students list GET so callers never race the initial fetch; deliberately not swallowed.
 async function openStudents(page: Page): Promise<void> {
   const studentsFetched = page.waitForResponse(
     (res) => res.url().endsWith('/student') && res.request().method() === 'GET',
@@ -76,12 +74,10 @@ async function deleteStudent(page: Page, phone: string): Promise<number> {
     (res) => /\/student\//.test(res.url()) && res.request().method() === 'DELETE',
   );
   await studentsRow(page, phone).getByRole('button', { name: 'Delete', exact: true }).click();
-  // v2 delete goes through a Mantine confirm modal (legacy had no confirm for students).
   await studentsDialog(page).getByRole('button', { name: 'Delete', exact: true }).click();
   return (await response).status();
 }
 
-// Self-contained + self-cleaning: two generated phones per run (phoneA for the CRUD chain, phoneB as TC-STU-006's collision target).
 test.describe.configure({ mode: 'serial' });
 
 test('TC-STU-001 existing students are listed for a school', async ({ page }) => {
@@ -115,7 +111,6 @@ test.describe('student CRUD (unique per run, self-cleaning)', () => {
     const status = await addStudent(page, 'test-student-e2e-retry', phoneA);
 
     expect(status).toBeGreaterThanOrEqual(400);
-    // Close the dialog before paging: the modal overlay intercepts pager clicks.
     await page.keyboard.press('Escape');
     await expect(studentsDialog(page)).toBeHidden({ timeout: 5000 });
     await gotoRowPage(page, studentsRow(page, phoneA));
@@ -156,7 +151,6 @@ test.describe('student CRUD (unique per run, self-cleaning)', () => {
     const status = await saveEditPhone(page, phoneB);
 
     expect(status).toBeGreaterThanOrEqual(400);
-    // Close the dialog before paging: the modal overlay intercepts pager clicks.
     await page.keyboard.press('Escape');
     await expect(studentsDialog(page)).toBeHidden({ timeout: 5000 });
     await expectRowOnAnyPage(page, studentsRow(page, phoneANew));
@@ -166,7 +160,6 @@ test.describe('student CRUD (unique per run, self-cleaning)', () => {
     await login(page, PERSONAS.school.identifier, PERSONAS.school.password);
     await openStudents(page);
 
-    // Delete-confirm coverage: v2 added an explicit delete confirm for students.
     const status = await deleteStudent(page, phoneANew);
     expect(status).toBe(200);
     await expectRowAbsentOnAllPages(page, studentsRow(page, phoneANew));
@@ -180,7 +173,6 @@ test.describe('student CRUD (unique per run, self-cleaning)', () => {
     await login(page, PERSONAS.school.identifier, PERSONAS.school.password);
     await openStudents(page);
 
-    // zod resolver throws on invalid data so no inline error renders; assert blocked submit instead.
     let studentMutations = 0;
     await page.route('**/student*', async (route) => {
       if (route.request().method() === 'POST') studentMutations++;

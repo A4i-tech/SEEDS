@@ -3,7 +3,6 @@ import { PERSONAS, uniquePhone } from '../fixtures/instances';
 import { bestEffortCleanup, loginInNewContext } from '../fixtures/session';
 import { expectRowAbsentOnAllPages, expectRowOnAnyPage, gotoRowPage, login } from '../helpers';
 
-// Mantine TextInputs are controlled — verify the fill landed before proceeding.
 async function fillAndVerify(locator: Locator, value: string, attempts = 3): Promise<void> {
   for (let i = 1; i <= attempts; i++) {
     await locator.fill(value);
@@ -17,8 +16,6 @@ const ROLE_LABELS: Record<string, string> = {
   content_creator: 'Creator',
 };
 
-// Arm the wait for the table's own GET before navigating, so it can't resolve
-// too early or miss it. A failed list fetch fails here with a clear cause.
 async function openTeachers(page: Page): Promise<void> {
   const teachersFetched = page.waitForResponse(
     (res) => res.url().includes('/school/teachers') && res.request().method() === 'GET',
@@ -49,9 +46,7 @@ async function registerTeacher(
   const dialog = teacherDialog(page);
   await dialog.getByLabel('Name *', { exact: true }).fill(name);
   await fillAndVerify(dialog.getByLabel('Phone number *', { exact: true }), phone);
-  // Create dialog holds exactly one password input (edit dialog's is optional).
   await dialog.locator('input[type="password"]').fill(password);
-  // Create form defaults to teacher — touch the Mantine combobox only for a non-default role.
   if (role !== 'teacher') {
     await dialog.getByLabel('Role', { exact: true }).click();
     await page.getByRole('option', { name: ROLE_LABELS[role] ?? role, exact: true }).click();
@@ -74,7 +69,6 @@ async function saveEdit(page: Page, name: string): Promise<void> {
 async function deleteTeacher(page: Page, phone: string): Promise<void> {
   await gotoRowPage(page, teacherRow(page, phone));
   await teacherRow(page, phone).getByRole('button', { name: 'Remove', exact: true }).click();
-  // v2 delete goes through a Mantine confirm modal (not window.confirm).
   await teacherDialog(page).getByRole('button', { name: 'Remove', exact: true }).click();
 }
 
@@ -87,9 +81,6 @@ async function transferTeacher(page: Page, phone: string, targetSchoolName: stri
   await dialog.getByRole('button', { name: 'Transfer', exact: true }).click();
 }
 
-// IDEMPOTENCY: two generated phone numbers keep the CRUD chain and the transfer
-// chain independent and self-cleaning. TC-TCHR-006 permanently moves the teacher
-// to another school (no undo), so its block deletes it from the destination school.
 test.describe.configure({ mode: 'serial' });
 
 test('TC-TCHR-001 existing teachers and content creators are listed for a school', async ({ page }) => {
@@ -118,7 +109,6 @@ test.describe('teacher CRUD (unique per run, self-cleaning)', () => {
     await openTeachers(page);
     await registerTeacher(page, { name: 'test-teacher-e2e-retry', phone, password: 'Test@123' });
 
-    // v2 surfaces the 409 as an Alert inside the still-open dialog.
     await expect(teacherDialog(page).getByText(/already exists/i)).toBeVisible({ timeout: 10000 });
     await page.keyboard.press('Escape');
     await expect(teacherDialog(page)).toBeHidden({ timeout: 5000 });
@@ -148,7 +138,6 @@ test.describe('teacher CRUD (unique per run, self-cleaning)', () => {
   test('TC-TCHR-007 teacher registration is blocked for an invalid phone number', async ({ page }) => {
     await login(page, PERSONAS.school.identifier, PERSONAS.school.password);
     await openTeachers(page);
-    // zod resolver throws on invalid data so no inline error renders; assert blocked submit instead.
     let teacherMutations = 0;
     await page.route('**/teacher*', async (route) => {
       if (route.request().method() === 'POST') teacherMutations++;
@@ -192,9 +181,6 @@ test.describe('teacher transfer (unique per run, self-cleaning)', () => {
     await expect(page.getByText('Teacher transferred successfully')).toBeVisible({ timeout: 10000 });
     await expectRowAbsentOnAllPages(page, teacherRow(page, phone));
 
-    // A fresh context for A4I IIITB rather than logout+relogin on the same page —
-    // logout right after a mutating action was found to silently re-authenticate
-    // before the login form ever rendered (refresh-token leak, A4i-tech/.github#591).
     const { context: a4iContext, page: a4iPage } = await loginInNewContext(
       browser,
       PERSONAS.schoolA4I.identifier,
@@ -203,7 +189,6 @@ test.describe('teacher transfer (unique per run, self-cleaning)', () => {
     await openTeachers(a4iPage);
     await expectRowOnAnyPage(a4iPage, teacherRow(a4iPage, phone));
 
-    // No "transfer back" affordance in the product — delete from the destination school.
     await deleteTeacher(a4iPage, phone);
     await expectRowAbsentOnAllPages(a4iPage, teacherRow(a4iPage, phone));
     await a4iContext.close();

@@ -3,8 +3,6 @@ import { PERSONAS, uniquePhone } from '../fixtures/instances';
 import { bestEffortCleanup, loginInNewContext } from '../fixtures/session';
 import { expectRowAbsentOnAllPages, expectRowOnAnyPage, gotoLibrary, gotoRowPage, login } from '../helpers';
 
-// tr + exact-text: 'table tbody tr' + hasText substring-matches and can resolve
-// to a row without the expected action.
 function teacherRow(page: Page, phone: string) {
   return page.locator('tr', { has: page.getByText(phone, { exact: true }) });
 }
@@ -36,8 +34,6 @@ async function removeTeacher(page: Page, phone: string): Promise<void> {
   await page.getByRole('dialog').getByRole('button', { name: 'Remove' }).click();
 }
 
-// v2 reports register/update via a single 'Saved.' notification
-// (registration.saved), not the legacy per-role success strings.
 async function expectSaved(page: Page): Promise<void> {
   await expect(page.getByText('Saved.')).toBeVisible({ timeout: 10000 });
 }
@@ -71,12 +67,9 @@ test.describe('content creator CRUD (unique per run, self-cleaning)', () => {
       role: 'content_creator',
     });
 
-    // FormModal keeps the modal open with the server error in an Alert —
-    // assert the failure behaviorally (message text is backend-defined).
     const modal = page.getByRole('dialog');
     await expect(modal.getByRole('heading', { name: 'Add teacher' })).toBeVisible();
     await expect(modal.getByRole('alert')).toBeVisible({ timeout: 10000 });
-    // Close the dialog before paging: the modal overlay intercepts pager clicks.
     await page.keyboard.press('Escape');
     await expect(modal).toBeHidden({ timeout: 5000 });
     await gotoRowPage(page, teacherRow(page, phone));
@@ -104,7 +97,6 @@ test.describe('content creator CRUD (unique per run, self-cleaning)', () => {
     await gotoLibrary(page);
     await openTeachers(page);
 
-    // v2 delete shows no success notification — the row disappearing is the assertion.
     await removeTeacher(page, phone);
     await expectRowAbsentOnAllPages(page, teacherRow(page, phone));
   });
@@ -136,12 +128,9 @@ test.describe('content creator transfer (unique per run, self-cleaning)', () => 
     await modal.getByLabel('Target school').click();
     await page.getByRole('option', { name: 'A4I IIITB' }).click();
     await modal.getByRole('button', { name: 'Transfer' }).click();
-    // Transfer success text is backend-defined — assert the row movement instead.
-    // Dismiss the modal if a failed submit left it open (overlay blocks pager).
     await page.keyboard.press('Escape');
     await expectRowAbsentOnAllPages(page, teacherRow(page, phone));
 
-    // Fresh context for A4I IIITB rather than logout+relogin (refresh-token leak).
     const { context: a4iContext, page: a4iPage } = await loginInNewContext(
       browser,
       PERSONAS.schoolA4I.identifier,

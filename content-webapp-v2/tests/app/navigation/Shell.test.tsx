@@ -33,7 +33,6 @@ describe('Shell', () => {
     vi.mocked(useAnalyticsRole).mockReturnValue(undefined)
     renderWithProviders(<Shell />)
     expect(screen.queryByRole('link', { name: 'Analytics' })).not.toBeInTheDocument()
-    // Localize is ungated in v2 — it stays visible for every role.
     expect(screen.getByRole('link', { name: 'Localize' })).toBeInTheDocument()
   })
 })

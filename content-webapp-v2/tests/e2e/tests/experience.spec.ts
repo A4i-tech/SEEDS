@@ -56,8 +56,6 @@ for (const { type, prefix } of EXPERIENCES) {
       await waitUntilContentProcessed(page, id);
       expect(await updateContentTitle(page, `${type.toLowerCase()}-${updatedId}`)).toBe(200);
 
-      // Update propagation to the DOM isn't asserted - see content.spec.ts's
-      // TC-CONT-005 note. Cleanup targets whichever id is actually showing.
       await gotoLibrary(page);
       await deleteEitherId(page, updatedId, id);
       created.pop();
@@ -117,8 +115,6 @@ for (const { type, prefix } of EXPERIENCES) {
       expect(await saveUpload(page)).toBe(201);
       await waitForLibraryRow(page, id);
 
-      // Legacy logged out and back in as the other school; a fresh context
-      // asserts the same property with no logout dependency.
       const { context: a4iContext, page: a4iPage } = await loginInNewContext(
         browser,
         PERSONAS.schoolA4I.identifier,

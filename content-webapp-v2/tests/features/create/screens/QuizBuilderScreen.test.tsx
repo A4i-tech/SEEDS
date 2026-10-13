@@ -28,8 +28,6 @@ describe('QuizBuilderScreen', () => {
 
   it('renders metadata fields and one question by default', () => {
     renderWithProviders(<QuizBuilderScreen />)
-    // Role queries: visible labels carry a required "*" suffix, and each
-    // Option label is shared by a Radio and its TextInput.
     expect(screen.getByRole('textbox', { name: 'Quiz name' })).toBeInTheDocument()
     expect(screen.getByRole('textbox', { name: 'Theme' })).toBeInTheDocument()
     expect(screen.getByRole('combobox', { name: 'Language' })).toBeInTheDocument()

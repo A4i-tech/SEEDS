@@ -84,7 +84,6 @@ function extractedTexts(fetchMock: FetchMock): string[] {
         out.push(i.text),
       );
     } catch {
-      // ignore non-JSON bodies
     }
   }
   return out;

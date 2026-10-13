@@ -16,8 +16,6 @@ import { getLanguages } from '@shared/services/languages'
 import type { TranslationItem } from '@features/localize/types/localize.types'
 import { LocalizeReviewScreen } from '@features/localize/screens/LocalizeReviewScreen'
 
-// jsdom has no Font Loading API; Mantine's autosizing Textarea calls
-// document.fonts.addEventListener on mount.
 if (typeof document !== 'undefined' && !document.fonts) {
   Object.defineProperty(document, 'fonts', {
     configurable: true,
@@ -65,8 +63,6 @@ function makeItem(key: string, sourceText: string, translated?: string, status =
 let items: TranslationItem[]
 
 async function selectOption(inputPlaceholder: string, optionName: string) {
-  // Mantine keeps the dropdown hidden (display:none) in jsdom, so the
-  // option is queried with hidden:true and clicked via fireEvent.
   fireEvent.mouseDown(screen.getByPlaceholderText(inputPlaceholder))
   fireEvent.click(await screen.findByRole('option', { name: optionName, hidden: true }))
 }
