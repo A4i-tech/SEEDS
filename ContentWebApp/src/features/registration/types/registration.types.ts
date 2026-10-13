@@ -57,7 +57,7 @@ export const teacherUpdateSchema = z.object({
 
 export type TeacherUpdate = z.infer<typeof teacherUpdateSchema>;
 
-export const teacherTransferSchema = z.object({
+ const teacherTransferSchema = z.object({
   teacher_id: z.string(),
   target_school_id: z.string(),
 });

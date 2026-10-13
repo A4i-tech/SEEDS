@@ -1,6 +1,6 @@
 import { Button, FileInput, Group, Paper, Stack, Text, Textarea, Title } from '@mantine/core';
 import { useForm } from '@mantine/form';
-import { zodResolver } from 'mantine-form-zod-resolver';
+import { zodValidate } from '@shared/utils/schema';
 import { useTranslation } from 'react-i18next';
 import { z } from 'zod';
 import { openConfirmDialog } from '@shared/components/ConfirmDialog';
@@ -32,7 +32,7 @@ export function CreateUploadScreen() {
       localTheme: '',
       language: '',
     },
-    validate: zodResolver(uploadSchema),
+    validate: zodValidate(uploadSchema),
   });
 
   const confirmSave = (values: typeof form.values) => {

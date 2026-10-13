@@ -1,6 +1,6 @@
 import { PasswordInput, Select, TextInput } from '@mantine/core';
 import { useForm } from '@mantine/form';
-import { zodResolver } from 'mantine-form-zod-resolver';
+import { zodValidate } from '@shared/utils/schema';
 import { useTranslation } from 'react-i18next';
 import { FormModal } from './FormModal';
 import { useTeachers } from '../hooks/useTeachers';
@@ -10,7 +10,7 @@ import {
   type SchoolTeacher,
 } from '../types/registration.types';
 
-export type TeacherFormValues = {
+ type TeacherFormValues = {
   name: string;
   phone_number: string;
   password: string;
@@ -45,7 +45,7 @@ export function TeacherFormModal({ teacher, onClose }: { teacher?: SchoolTeacher
     initialValues: teacher
       ? { ...EMPTY_VALUES, name: teacher.name, phone_number: teacher.phone_number }
       : EMPTY_VALUES,
-    validate: zodResolver(config.schema),
+    validate: zodValidate(config.schema),
   });
 
   const handleSubmit = (values: TeacherFormValues) => {

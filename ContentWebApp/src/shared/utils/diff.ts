@@ -1,4 +1,4 @@
-export type DiffOp = { type: 'same' | 'removed' | 'added'; text: string };
+ type DiffOp = { type: 'same' | 'removed' | 'added'; text: string };
 
 export function diffLines(before: string, after: string): DiffOp[] {
   const a = before.split('\n');

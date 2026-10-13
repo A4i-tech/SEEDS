@@ -1,16 +1,16 @@
 import { z } from 'zod';
-import { count, list, text } from '@shared/utils/schema';
+import { list, text } from '@shared/utils/schema';
 
-export const analyticsRequestSchema = z.object({
+ const analyticsRequestSchema = z.object({
   start_date: z.string(),
   end_date: z.string(),
 });
 
 export type AnalyticsRequest = z.infer<typeof analyticsRequestSchema>;
 
-export const callLogSchema = z.object({
+ const callLogSchema = z.object({
   phone_number: text,
-  duration: count,
+  duration: text.transform(Number),
   created_at: z.coerce.date(),
   user_actions: list(z.unknown()),
   content_id: text,
@@ -30,14 +30,14 @@ export const analyticsResponseSchema = z.object({
 
 export type AnalyticsResponse = z.infer<typeof analyticsResponseSchema>;
 
-export const dashboardStatisticsSchema = z.object({
+ const dashboardStatisticsSchema = z.object({
   total_schools: z.number(),
   total_teachers: z.number(),
   total_students: z.number(),
   total_classes: z.number(),
 });
 
-export const schoolDashboardRowSchema = z.object({
+ const schoolDashboardRowSchema = z.object({
   id: z.string(),
   name: z.string(),
   teacher_count: z.number(),
@@ -52,7 +52,7 @@ export const tenantDashboardSchema = z.object({
 
 export type TenantDashboard = z.infer<typeof tenantDashboardSchema>;
 
-export const schoolProfileSchema = z.object({
+ const schoolProfileSchema = z.object({
   name: z.string(),
 });
 

@@ -1,7 +1,7 @@
 import { Button, Group, PasswordInput, Stack, Text, TextInput, Title } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { useForm } from '@mantine/form';
-import { zodResolver } from 'mantine-form-zod-resolver';
+import { zodValidate } from '@shared/utils/schema';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { DataTableColumn } from '@shared/components/DataTable';
@@ -49,7 +49,7 @@ function SchoolFormModal({ school, onClose }: { school?: School; onClose: () => 
   const mutation = school ? update : create;
   const form = useForm<SchoolFormValues>({
     initialValues: school ? { name: school.name, email: school.email, password: '' } : EMPTY_VALUES,
-    validate: zodResolver(config.schema),
+    validate: zodValidate(config.schema),
   });
 
   const handleSubmit = (values: SchoolFormValues) => {

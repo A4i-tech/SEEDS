@@ -1,6 +1,6 @@
 import { Alert, Anchor, Button, List, Paper, PasswordInput, Stack, Text, TextInput, Title } from '@mantine/core';
 import { useForm } from '@mantine/form';
-import { zodResolver } from 'mantine-form-zod-resolver';
+import { zodValidate } from '@shared/utils/schema';
 import { useMutation } from '@tanstack/react-query';
 import { useLinkProps, useNavigate, useSearch } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
@@ -50,7 +50,7 @@ export function RegisterScreen() {
 
   const form = useForm<RegisterValues>({
     initialValues: { tenantName: '', email: '', password: '', confirmPassword: '' },
-    validate: zodResolver(registerSchema),
+    validate: zodValidate(registerSchema),
   });
 
   const checks = passwordChecks(form.values.password);

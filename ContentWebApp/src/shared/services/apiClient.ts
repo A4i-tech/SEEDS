@@ -16,7 +16,7 @@ export function authHeaders(): Record<string, string> {
   return { Authorization: `Bearer ${authToken}` };
 }
 
-export interface RequestOptions {
+ interface RequestOptions {
   params?: Record<string, string | number | boolean>;
   timeoutMs?: number;
 }

@@ -23,45 +23,33 @@ export async function gotoLibrary(page: Page): Promise<void> {
 
 const SETTLE_MS = 250;
 
-function rangeNext(page: Page): Locator {
-  return page.getByRole('button', { name: 'Next', exact: true });
-}
-
-function rangePrev(page: Page): Locator {
-  return page.getByRole('button', { name: 'Previous', exact: true });
-}
-
 function pagesNav(page: Page): Locator {
   return page.locator('nav[aria-label="Pagination"]');
 }
 
-export async function gotoNextPage(page: Page): Promise<boolean> {
-  const nav = pagesNav(page);
-  if (await nav.count()) {
-    const next = nav.getByRole('button').last();
-    if ((await next.count()) === 0 || (await next.isDisabled())) return false;
-    await next.click();
-    await page.waitForTimeout(SETTLE_MS);
-    return true;
-  }
-  const next = rangeNext(page);
+// DataTable renders an empty aria-busy table with no pager until its rows arrive, so paging before then
+// would silently read "no next page" from a list that has not rendered yet.
+async function waitForTableLoaded(page: Page): Promise<void> {
+  await expect(page.locator('table:visible').first()).toBeVisible({ timeout: 15000 });
+  await expect(page.locator('table[aria-busy="true"]:visible')).toHaveCount(0, { timeout: 15000 });
+}
+
+async function gotoNextPage(page: Page): Promise<boolean> {
+  await waitForTableLoaded(page);
+  const next = pagesNav(page).getByRole('button', { name: 'Next', exact: true });
   if ((await next.count()) === 0 || (await next.isDisabled())) return false;
   await next.click();
   await page.waitForTimeout(SETTLE_MS);
   return true;
 }
 
-export async function gotoFirstPage(page: Page, maxPages = 5): Promise<void> {
-  const nav = pagesNav(page);
-  if (await nav.count()) {
-    const first = nav.getByRole('button', { name: '1', exact: true });
-    if (await first.count()) await first.click();
-    return;
-  }
-  const prev = rangePrev(page);
+async function gotoFirstPage(page: Page, maxPages = 5): Promise<void> {
+  await waitForTableLoaded(page);
+  const prev = pagesNav(page).getByRole('button', { name: 'Previous', exact: true });
   for (let i = 0; i < maxPages; i++) {
     if ((await prev.count()) === 0 || (await prev.isDisabled())) return;
     await prev.click();
+    await page.waitForTimeout(SETTLE_MS);
   }
 }
 
@@ -75,15 +63,20 @@ export async function gotoRowPage(page: Page, row: Locator, maxPages = 5): Promi
 }
 
 export async function expectRowOnAnyPage(page: Page, row: Locator, maxPages = 5): Promise<void> {
-  await gotoFirstPage(page, maxPages);
-  for (let i = 0; i < maxPages; i++) {
-    if (await row.count()) {
-      await expect(row.first()).toBeVisible();
-      return;
-    }
-    if (!(await gotoNextPage(page))) break;
-  }
-  await expect(row.first()).toBeVisible();
+  // Retry the whole walk: a list that refetched after a mutation can briefly still hold stale rows.
+  await expect
+    .poll(
+      async () => {
+        await gotoFirstPage(page, maxPages);
+        for (let i = 0; i < maxPages; i++) {
+          if (await row.count()) return true;
+          if (!(await gotoNextPage(page))) return false;
+        }
+        return false;
+      },
+      { timeout: 15000 },
+    )
+    .toBe(true);
 }
 
 export async function expectRowAbsentOnAllPages(page: Page, row: Locator, maxPages = 5): Promise<void> {
@@ -94,7 +87,7 @@ export async function expectRowAbsentOnAllPages(page: Page, row: Locator, maxPag
   }
 }
 
-export const TEST_AUDIO_PATH = path.join(import.meta.dirname, 'fixtures', 'files', 'test-audio.mp3');
+const TEST_AUDIO_PATH = path.join(import.meta.dirname, 'fixtures', 'files', 'test-audio.mp3');
 export const TEST_TEXT_PATH = path.join(import.meta.dirname, 'fixtures', 'files', 'test-notes.txt');
 
 const EXPERIENCE_OPTIONS: Record<string, RegExp> = {
@@ -104,7 +97,7 @@ const EXPERIENCE_OPTIONS: Record<string, RegExp> = {
   Snippet: /snippet/i,
 };
 
-export interface StoryFormValues {
+interface StoryFormValues {
   title: string;
   theme: string;
   language?: string;
@@ -292,7 +285,7 @@ export async function deleteContent(page: Page, title: string): Promise<void> {
 
 const QUIZ_OPTION_IDS = ['A', 'B', 'C', 'D'] as const;
 
-export interface QuizQuestionValues {
+interface QuizQuestionValues {
   question: string;
   optionA: string;
   optionB: string;
@@ -301,7 +294,7 @@ export interface QuizQuestionValues {
   correctIndex?: number;
 }
 
-export interface QuizFormValues extends QuizQuestionValues {
+interface QuizFormValues extends QuizQuestionValues {
   title: string;
   theme: string;
 }

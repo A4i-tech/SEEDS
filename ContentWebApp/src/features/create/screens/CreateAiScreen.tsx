@@ -1,7 +1,7 @@
 import { Button, Group, Paper, Stack, Textarea, Title } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { useDisclosure } from '@mantine/hooks';
-import { zodResolver } from 'mantine-form-zod-resolver';
+import { zodValidate } from '@shared/utils/schema';
 import { useTranslation } from 'react-i18next';
 import { useSearch } from '@tanstack/react-router';
 import { z } from 'zod';
@@ -40,7 +40,7 @@ export function CreateAiScreen() {
       localTheme: '',
       language: '',
     },
-    validate: zodResolver(aiSchema),
+    validate: zodValidate(aiSchema),
   });
 
   return (

@@ -1,6 +1,6 @@
 import { Alert, Breadcrumbs, Button, Checkbox, Group, Select, Stack, Text, Textarea, TextInput, Title } from '@mantine/core';
 import { useForm } from '@mantine/form';
-import { zodResolver } from 'mantine-form-zod-resolver';
+import { zodValidate } from '@shared/utils/schema';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -40,7 +40,7 @@ function EditForm({ item }: { item: ContentItem }) {
       is_teacher_app: item.is_teacher_app,
       audioUploaded: false,
     },
-    validate: zodResolver(contentUpdateSchema),
+    validate: zodValidate(contentUpdateSchema),
   });
 
   const save = useMutation({

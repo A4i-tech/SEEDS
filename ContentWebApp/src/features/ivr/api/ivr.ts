@@ -26,7 +26,7 @@ const fsmTransitionSchema = z.object({
   input: z.union([z.string(), z.number()]).nullish().transform((value) => value ?? ''),
 });
 
-export const fsmSchema = z.object({
+ const fsmSchema = z.object({
   states: z.array(fsmStateSchema),
   transitions: list(fsmTransitionSchema),
 });

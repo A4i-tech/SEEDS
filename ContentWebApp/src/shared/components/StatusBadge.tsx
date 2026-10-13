@@ -1,6 +1,6 @@
 import { Badge } from '@mantine/core';
 
-export type StatusTone = 'running' | 'needs-review' | 'done' | 'failed';
+ type StatusTone = 'running' | 'needs-review' | 'done' | 'failed';
 
 const TONES: Record<StatusTone, { bg: string; c: string }> = {
   running: { bg: 'var(--seeds-badge-subject-bg)', c: 'var(--seeds-badge-subject-text)' },

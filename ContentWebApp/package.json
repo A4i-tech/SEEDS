@@ -11,8 +11,8 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "doctor": "npx react-doctor@latest",
-    "test:e2e": "playwright test",
-    "test:e2e:dev": "cross-env E2E_INSTANCE=dev playwright test",
+    "test:e2e": "playwright test -c tests/e2e/playwright.config.ts",
+    "test:e2e:dev": "cross-env E2E_INSTANCE=dev playwright test -c tests/e2e/playwright.config.ts",
     "test:e2e:report": "playwright show-report"
   },
   "dependencies": {
@@ -26,7 +26,6 @@
     "@tanstack/react-router": "^1.170.41",
     "i18next": "^26.4.2",
     "lucide-react": "^1.52.0",
-    "mantine-form-zod-resolver": "^1.3.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-i18next": "^17.0.16",

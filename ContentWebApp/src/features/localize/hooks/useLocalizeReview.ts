@@ -14,7 +14,7 @@ import { localizeKeys } from '../types/localize.types';
 import { toApiState } from '@shared/utils/apiState';
 import { notifyApiError } from '@shared/utils/notifyApiError';
 
-export interface LocalizeReviewScope {
+ interface LocalizeReviewScope {
   siteId: string;
   route: string;
   lang: string;

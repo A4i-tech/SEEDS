@@ -34,8 +34,7 @@ export function ReviewTextScreen() {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const applyTool = (before: string, after: string, linePrefix: string) => {
-    const textarea = textareaRef.current;
-    textarea && setEdited(wrapSelection(textarea, before, after, linePrefix));
+    setEdited(wrapSelection(textareaRef.current!, before, after, linePrefix));
   };
 
   return (

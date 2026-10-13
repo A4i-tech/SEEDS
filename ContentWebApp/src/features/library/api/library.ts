@@ -16,7 +16,7 @@ export async function getContentSasUrl(audioUrl: string) {
   return sasUrlSchema.parse(data).url;
 }
 
-export const courseSchema = z.object({
+ const courseSchema = z.object({
   id: z.string(),
   name: z.string(),
   org: text,
@@ -88,7 +88,7 @@ const courseBlockSchema = z.object({
 
 export type CourseBlock = z.infer<typeof courseBlockSchema>;
 
-export const courseDetailSchema = z.object({
+ const courseDetailSchema = z.object({
   title: text,
   name: text,
   description: text,

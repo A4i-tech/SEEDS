@@ -134,24 +134,27 @@ export function DataTable<T>({
         </Text>
         {pageCount > 1 && onPageChange &&
           (footerLayout === 'range' ? (
-            <Group gap="xs">
-              <Button variant="subtle" size="sm" disabled={page <= 1} onClick={() => onPageChange?.(page - 1)}>
-                {t('common.previous')}
-              </Button>
-              <Button
-                variant="subtle"
-                size="sm"
-                disabled={page >= pageCount}
-                onClick={() => onPageChange?.(page + 1)}
-              >
-                {t('common.next')}
-              </Button>
-            </Group>
+            <nav aria-label="Pagination">
+              <Group gap="xs">
+                <Button variant="subtle" size="sm" disabled={page <= 1} onClick={() => onPageChange?.(page - 1)}>
+                  {t('common.previous')}
+                </Button>
+                <Button
+                  variant="subtle"
+                  size="sm"
+                  disabled={page >= pageCount}
+                  onClick={() => onPageChange?.(page + 1)}
+                >
+                  {t('common.next')}
+                </Button>
+              </Group>
+            </nav>
           ) : (
             <Pagination
               value={page}
               total={pageCount}
               onChange={onPageChange}
+              component="nav"
               aria-label="Pagination"
               previousIcon={() => t('common.previous')}
               nextIcon={() => t('common.next')}

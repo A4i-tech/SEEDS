@@ -61,9 +61,7 @@ const reviewSummarySchema = z.object({
   flagged_items: z.array(flaggedItemSchema),
 });
 
-export type ReviewSummary = z.infer<typeof reviewSummarySchema>;
-
-export async function getReviewSummary(jobId: string): Promise<ReviewSummary> {
+export async function getReviewSummary(jobId: string) {
   const { data } = await apiClient.get(
     `/textbook-remediation/jobs/${encodeURIComponent(jobId)}/review-summary`,
   );

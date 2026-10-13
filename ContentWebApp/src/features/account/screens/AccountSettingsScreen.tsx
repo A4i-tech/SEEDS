@@ -1,6 +1,6 @@
 import { Alert, Button, Paper, PasswordInput, Stack, Text, Title } from '@mantine/core';
 import { useForm } from '@mantine/form';
-import { zodResolver } from 'mantine-form-zod-resolver';
+import { zodValidate } from '@shared/utils/schema';
 import { useTranslation } from 'react-i18next';
 import { z } from 'zod';
 import { useChangePassword } from '../hooks/useAccount';
@@ -19,7 +19,7 @@ export function AccountSettingsScreen() {
 
   const form = useForm<PasswordValues>({
     initialValues: { current_password: '', new_password: '' },
-    validate: zodResolver(passwordSchema),
+    validate: zodValidate(passwordSchema),
   });
 
   return (

@@ -1,6 +1,6 @@
 import { Alert, Anchor, Button, Paper, PasswordInput, Stack, TextInput, Title } from '@mantine/core';
 import { useForm } from '@mantine/form';
-import { zodResolver } from 'mantine-form-zod-resolver';
+import { zodValidate } from '@shared/utils/schema';
 import { useLinkProps, useRouter, useSearch } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { z } from 'zod';
@@ -23,7 +23,7 @@ export function LoginScreen() {
 
   const form = useForm<LoginValues>({
     initialValues: { identifier: '', password: '' },
-    validate: zodResolver(loginSchema),
+    validate: zodValidate(loginSchema),
   });
 
   return (

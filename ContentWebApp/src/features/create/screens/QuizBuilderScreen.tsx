@@ -1,7 +1,7 @@
 import { useMediaQuery } from '@mantine/hooks';
 import { Button, Group, Paper, Radio, SegmentedControl, Stack, Text, TextInput, Title } from '@mantine/core';
 import { useForm } from '@mantine/form';
-import { zodResolver } from 'mantine-form-zod-resolver';
+import { zodValidate } from '@shared/utils/schema';
 import { useState } from 'react';
 import { z } from 'zod';
 import { useTranslation } from 'react-i18next';
@@ -45,7 +45,7 @@ export function QuizBuilderScreen() {
       language: '',
       questions: [blankQuestion()],
     },
-    validate: zodResolver(quizSchema),
+    validate: zodValidate(quizSchema),
   });
 
   return (

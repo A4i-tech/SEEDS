@@ -1,6 +1,6 @@
 import { Button, FileInput, Group, Input, Paper, Stack, Text, TextInput, Title } from '@mantine/core';
 import { useForm } from '@mantine/form';
-import { zodResolver } from 'mantine-form-zod-resolver';
+import { zodValidate } from '@shared/utils/schema';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { z } from 'zod';
@@ -45,7 +45,7 @@ export function CreateSourceScreen() {
       localTheme: '',
       language: '',
     },
-    validate: zodResolver(sourceSchema),
+    validate: zodValidate(sourceSchema),
   });
 
   const { file, draft, answer, questions } = form.values;

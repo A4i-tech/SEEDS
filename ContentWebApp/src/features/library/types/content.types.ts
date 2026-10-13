@@ -71,7 +71,7 @@ const quizQuestionResponseSchema = z.object({
   correct_option_id: z.string(),
 });
 
-export const quizContentSchema = contentBaseResponseSchema.extend({
+ const quizContentSchema = contentBaseResponseSchema.extend({
   type: z.literal('quiz'),
   positive_marks: z.number(),
   negative_marks: z.number(),
@@ -82,7 +82,7 @@ export const contentItemSchema = z.discriminatedUnion('type', [audioContentSchem
 export type ContentItem = z.infer<typeof contentItemSchema>;
 export type AudioContentItem = Exclude<ContentItem, { type: 'quiz' }>;
 
-export const quizCreateSchema = z.object({
+ const quizCreateSchema = z.object({
   type: z.string(),
   language: z.string(),
   title: titleTextSchema.optional(),
@@ -97,7 +97,7 @@ export const quizCreateSchema = z.object({
 
 export type QuizCreate = z.infer<typeof quizCreateSchema>;
 
-export const contentCreateSchema = z.object({
+ const contentCreateSchema = z.object({
   type: z.string(),
   language: z.string(),
   title: titleTextSchema.optional(),

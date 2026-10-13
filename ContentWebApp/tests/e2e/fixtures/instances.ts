@@ -4,11 +4,11 @@ export function authFile(persona: string): string {
   return path.join(import.meta.dirname, '..', '..', '..', 'playwright', '.auth', `${persona}.json`);
 }
 
-export interface Instance {
+ interface Instance {
   baseURL: string;
 }
 
-export const INSTANCES: Record<string, Instance> = {
+ const INSTANCES: Record<string, Instance> = {
   local: {
     baseURL: 'http://localhost:5173',
   },

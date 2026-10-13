@@ -4,7 +4,7 @@ import type { CourseBlock, CourseDetail } from '../api/library';
 import { blockLabel } from '../utils/courseLabels';
 import { ProblemBlock } from './ProblemBlock';
 
-export function BlockBody({ block, courseId }: { block: CourseBlock; courseId: string }) {
+ function BlockBody({ block, courseId }: { block: CourseBlock; courseId: string }) {
   const { t } = useTranslation();
   const [videoSrc] = block.student_view_data.sources;
   if (block.type === 'problem') return <ProblemBlock block={block} courseId={courseId} />;
