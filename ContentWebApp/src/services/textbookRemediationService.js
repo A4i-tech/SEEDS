@@ -46,6 +46,20 @@ export const textbookRemediationService = {
     );
   },
 
+  async getSourcePdf(jobId, { signal } = {}) {
+    return apiFetchBlob(
+      `${BASE}/jobs/${encodeURIComponent(jobId)}/artifacts/source`,
+      { headers: getAuthHeaders(), signal }
+    );
+  },
+
+  async getSourcePage(jobId, pageNum, { signal } = {}) {
+    return apiFetchBlob(
+      `${BASE}/jobs/${encodeURIComponent(jobId)}/pages/${encodeURIComponent(pageNum)}`,
+      { headers: getAuthHeaders(), signal }
+    );
+  },
+
   async getImage(jobId, imageName, { signal } = {}) {
     return apiFetchBlob(
       `${BASE}/jobs/${encodeURIComponent(jobId)}/images/${encodeURIComponent(imageName)}`,
