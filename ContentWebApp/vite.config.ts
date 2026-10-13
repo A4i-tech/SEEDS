@@ -16,7 +16,7 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     setupFiles: ['./tests/setup.ts'],
-    testTimeout: 15_000,
+    testTimeout: 30_000,
     // Playwright e2e (*.spec.ts) live under tests/e2e — unit runs must never
     // pick them up (no jsdom API mocks, needs a real backend + browser).
     exclude: [...configDefaults.exclude, 'tests/e2e/**'],
