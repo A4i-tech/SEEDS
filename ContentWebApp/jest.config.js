@@ -1,7 +1,7 @@
 // jest.config.js
 module.exports = {
   // Tells Jest where to find test files
-  roots: ["<rootDir>/tests", "<rootDir>/src"],
+  roots: ["<rootDir>/tests"],
 
   // The testMatch pattern is relative to the `roots` directory
   testMatch: ["**/?(*.)+(spec|test).[jt]s?(x)"],
