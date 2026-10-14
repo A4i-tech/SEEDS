@@ -126,10 +126,14 @@ describe("apiFetch", () => {
     jest.useRealTimers();
   });
 
-  it("passes no abort signal when timeoutMs is not set", async () => {
+  it("passes abort signal with default timeout when timeoutMs is not set", async () => {
     global.fetch.mockResolvedValue(fakeResponse({ ok: true, contentType: "text/plain", text: "hi" }));
     await apiFetch("/x", { method: "GET" });
-    expect(global.fetch).toHaveBeenCalledWith("/x", { credentials: "include", method: "GET" });
+    expect(global.fetch).toHaveBeenCalledWith("/x", {
+      credentials: "include",
+      method: "GET",
+      signal: expect.any(AbortSignal),
+    });
   });
 
   it("does not clear auth on other error statuses", async () => {

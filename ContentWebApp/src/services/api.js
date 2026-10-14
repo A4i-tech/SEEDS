@@ -88,14 +88,14 @@ export const initSession = async () => {
  * @param {Object} options - Fetch options
  * @returns {Promise<any>} - Parsed JSON response
  */
-export const apiFetch = async (url, { timeoutMs, ...options } = {}, _isRetry = false) => {
-  const controller = timeoutMs ? new AbortController() : null;
-  const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
+export const apiFetch = async (url, { timeoutMs = 15000, ...options } = {}, _isRetry = false) => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(url, {
       credentials: "include",
       ...options,
-      ...(controller ? { signal: controller.signal } : {}),
+      signal: controller.signal,
     });
 
     if (!response.ok) {
@@ -132,7 +132,7 @@ export const apiFetch = async (url, { timeoutMs, ...options } = {}, _isRetry = f
     const message = error.name === "AbortError" ? "Request timed out" : error.message || "Network request failed";
     throw new ApiError(message, 0, null);
   } finally {
-    if (timer) clearTimeout(timer);
+    clearTimeout(timer);
   }
 };
 
