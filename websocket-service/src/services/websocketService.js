@@ -34,6 +34,23 @@ function scalePosition(position, fromLength, toLength) {
 }
 
 /**
+ * Fetches the *speed* variant blob for *baseBlobName*, treating an empty
+ * blob as unavailable. Returns null (and logs the fallback warning) when
+ * the variant cannot be fetched, so callers fall back to the 1.0x base.
+ */
+async function fetchVariantOrFallback(containerName, baseBlobName, speed, id) {
+  const variantBlobName = getVariantBlobName(baseBlobName, speed);
+  try {
+    const data = await azureBlobService.getBlobData(containerName, variantBlobName);
+    if (!data.length) throw new Error("empty variant blob");
+    return { data, resolvedSpeed: speed };
+  } catch (error) {
+    logger.warn(`No ${speed}x variant for ID: ${id} (${variantBlobName}); falling back to 1.0x`, error);
+    return null;
+  }
+}
+
+/**
  * Resolves the blob data for *speed*, using the per-connection variant cache
  * when available. Falls back to the cached 1.0x base blob (and reports
  * resolvedSpeed: 1.0) if the requested variant is missing.
@@ -43,16 +60,10 @@ async function loadVariant(audioState, speed, id) {
   if (audioState.variantCache.has(speed)) {
     return { data: audioState.variantCache.get(speed), resolvedSpeed: speed };
   }
-  const variantBlobName = getVariantBlobName(audioState.baseBlobName, speed);
-  try {
-    const data = await azureBlobService.getBlobData(audioState.containerName, variantBlobName);
-    if (!data.length) throw new Error("empty variant blob");
-    audioState.variantCache.set(speed, data);
-    return { data, resolvedSpeed: speed };
-  } catch (error) {
-    logger.warn(`No ${speed}x variant for ID: ${id} (${variantBlobName}); falling back to 1.0x`, error);
-    return { data: audioState.variantCache.get(1.0), resolvedSpeed: 1.0 };
-  }
+  const result = await fetchVariantOrFallback(audioState.containerName, audioState.baseBlobName, speed, id);
+  if (!result) return { data: audioState.variantCache.get(1.0), resolvedSpeed: 1.0 };
+  audioState.variantCache.set(speed, result.data);
+  return result;
 }
 
 /**
@@ -97,16 +108,13 @@ async function playAudioContent(id, blobUrl) {
 
     logger.info(`playAudioContent called for ID: ${id}, Blob URL: ${blobUrl.substring(0,5)}, speed: ${requestedSpeed}`);
 
-    const variantBlobName = requestedSpeed !== 1.0 ? getVariantBlobName(blobName, requestedSpeed) : null;
-    const [baseBlobData, variantBlobData] = await Promise.all([
+    const [baseBlobData, variantResult] = await Promise.all([
       azureBlobService.getBlobData(containerName, blobName),
-      variantBlobName
-        ? azureBlobService.getBlobData(containerName, variantBlobName).catch((error) => {
-            logger.warn(`No ${requestedSpeed}x variant for ID: ${id} (${variantBlobName}); falling back to 1.0x`, error);
-            return null;
-          })
+      requestedSpeed !== 1.0
+        ? fetchVariantOrFallback(containerName, blobName, requestedSpeed, id)
         : null,
     ]);
+    const variantBlobData = variantResult ? variantResult.data : null;
     logger.info(`Blob downloaded for ID: ${id}, size: ${baseBlobData ? baseBlobData.length : 'null'} bytes`);
     state.audioContentState.baseDurationSeconds = baseBlobData ? baseBlobData.length / AUDIO_BYTES_PER_SECOND : 0;
     state.audioContentState.variantCache.set(1.0, baseBlobData);
