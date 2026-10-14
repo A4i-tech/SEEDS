@@ -25,12 +25,7 @@ class LocalizationPage {
     return this.page.locator('[data-testid="sdk-snippet"], pre, code').first().innerText();
   }
 
-  // Signature fixed by the ticket to { route, lang }, so the site itself isn't
-  // identified by name here — the shared tenant persona's site list accumulates
-  // across every E2E run, so instead of trusting a derived/guessed label we try
-  // each registered site in turn and keep the first one whose page picker
-  // actually offers `route` (only the site this spec just registered will).
-  async approveAllPendingTranslations({ route, lang }) {
+  async approveAllPendingTranslations({ siteLabel, route, lang }) {
     const page = this.page;
     await page.getByRole('button', { name: /translate & review/i }).click();
 
@@ -40,36 +35,11 @@ class LocalizationPage {
     const langTrigger = triggers.nth(2);
 
     await siteTrigger.click();
-    const siteLabels = await page.getByRole('option').allTextContents();
-    await page.keyboard.press('Escape');
+    await page.getByRole('option', { name: siteLabel, exact: true }).click();
 
-    let matched = false;
-    for (const siteLabel of siteLabels) {
-      await siteTrigger.click();
-      await page.getByRole('option', { name: siteLabel, exact: true }).click();
+    await pageTrigger.click();
+    await page.getByRole('option', { name: route, exact: true }).click();
 
-      await pageTrigger.click();
-      const routeOption = page.getByRole('option', { name: route, exact: true });
-      const hasRoute = await routeOption
-        .waitFor({ state: 'visible', timeout: 5000 })
-        .then(() => true)
-        .catch(() => false);
-      if (hasRoute) {
-        await routeOption.click();
-        matched = true;
-        break;
-      }
-      await page.keyboard.press('Escape');
-    }
-    if (!matched) {
-      throw new Error(`No registered site exposes page route "${route}" for review`);
-    }
-
-    // The language option's visible label is a display name (e.g. "French"),
-    // not the raw code, and isn't available anywhere in this page's own markup
-    // to match against safely. Since the site was registered with exactly one
-    // enabled language, the picker has exactly one option here — fail loud
-    // instead of guessing a label if that ever stops being true.
     await langTrigger.click();
     const langOptions = page.getByRole('option');
     const langCount = await langOptions.count();

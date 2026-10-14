@@ -36,7 +36,7 @@ test('registered site serves extracted and translated content through the embedd
     return page.evaluate(() => window.__translationSdkInitialized === true);
   }, { timeout: 15000 }).toBe(true);
 
-  await loc.approveAllPendingTranslations({ route: '/e2e-sdk-test-page.html', lang: 'fr' });
+  await loc.approveAllPendingTranslations({ siteLabel: domain, route: '/e2e-sdk-test-page.html', lang: 'fr' });
 
   await page.reload();
   await page.evaluate(() => localStorage.setItem('translationSdk.lang', 'fr'));
