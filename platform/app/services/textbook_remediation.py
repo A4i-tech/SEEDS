@@ -64,6 +64,7 @@ def serialize_job(job: RemediationJob) -> dict[str, object]:
         created_at=job.created_at,
         created_by=job.created_by,
         last_edited_by=job.last_edited_by,
+        assigned_to=job.assigned_to,
         finished_at=job.finished_at,
         target_language=job.target_language,
         translation_error=job.translation_error,

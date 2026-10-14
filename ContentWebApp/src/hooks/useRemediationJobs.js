@@ -92,5 +92,17 @@ export const useRemediationJobs = () => {
     }
   }, []);
 
-  return { jobs, isLoading, isUploading, error, upload, remove, reload: load };
+  const assign = useCallback(
+    async (jobId, volunteerId) => {
+      setError(null);
+      try {
+        upsert(await textbookRemediationService.assignJob(jobId, volunteerId));
+      } catch (assignError) {
+        setError(assignError.message);
+      }
+    },
+    [upsert]
+  );
+
+  return { jobs, isLoading, isUploading, error, upload, remove, assign, reload: load };
 };

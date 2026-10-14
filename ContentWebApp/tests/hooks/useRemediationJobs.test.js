@@ -8,6 +8,7 @@ jest.mock("../../src/services/textbookRemediationService", () => ({
     getJob: jest.fn(),
     createJob: jest.fn(),
     streamJob: jest.fn(),
+    assignJob: jest.fn(),
   },
 }));
 
@@ -108,6 +109,35 @@ test("surfaces a failed listing", async () => {
   const { result } = renderHook(() => useRemediationJobs());
 
   await waitFor(() => expect(result.current.error).toBe("network down"));
+});
+
+test("assigning a job updates it in place with the returned assignee", async () => {
+  textbookRemediationService.getJobs.mockResolvedValue({ jobs: [job({ assigned_to: null })] });
+  textbookRemediationService.assignJob.mockResolvedValue(job({ assigned_to: "vol-1" }));
+
+  const { result } = renderHook(() => useRemediationJobs());
+  await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+  await act(async () => {
+    await result.current.assign("job-1", "vol-1");
+  });
+
+  expect(textbookRemediationService.assignJob).toHaveBeenCalledWith("job-1", "vol-1");
+  expect(result.current.jobs[0].assigned_to).toBe("vol-1");
+});
+
+test("surfaces a failed assignment", async () => {
+  textbookRemediationService.getJobs.mockResolvedValue({ jobs: [job()] });
+  textbookRemediationService.assignJob.mockRejectedValue(new Error("volunteer_id must be an existing textbook remediation volunteer in this tenant"));
+
+  const { result } = renderHook(() => useRemediationJobs());
+  await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+  await act(async () => {
+    await result.current.assign("job-1", "someone-else");
+  });
+
+  expect(result.current.error).toBe("volunteer_id must be an existing textbook remediation volunteer in this tenant");
 });
 
 test("aborts every stream on unmount", async () => {

@@ -4,7 +4,7 @@ import { useFlashMessage } from "./useFlashMessage";
 import { getRole } from "../utils/authHelpers";
 import { USER_ROLES } from "../Constants";
 
-export const useVolunteers = (activeTab) => {
+export const useVolunteers = () => {
   const [volunteers, setVolunteers] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const { message, messageType, flashMessage } = useFlashMessage();
@@ -22,10 +22,10 @@ export const useVolunteers = (activeTab) => {
   }, [flashMessage]);
 
   useEffect(() => {
-    if (activeTab === "registration" && getRole() === USER_ROLES.TENANT) {
+    if (getRole() === USER_ROLES.TENANT) {
       fetchVolunteers();
     }
-  }, [activeTab, fetchVolunteers]);
+  }, [fetchVolunteers]);
 
   const createVolunteer = useCallback(
     async (name, email, password) => {

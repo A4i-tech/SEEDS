@@ -57,8 +57,13 @@ class TextbookRemediationRepository:
         doc = await self._col.find_one({"_id": _oid(job_id), "tenant_id": tenant_id, "deleted_at": None})
         return RemediationJob.from_doc(doc) if doc else None
 
-    async def list_jobs(self, tenant_id: str, *, limit: int = 20) -> list[RemediationJob]:
-        docs = await self._col.find({"tenant_id": tenant_id, "deleted_at": None}).sort("created_at", -1).to_list(length=limit)
+    async def list_jobs(
+        self, tenant_id: str, *, limit: int = 20, assigned_to: str | None = None
+    ) -> list[RemediationJob]:
+        query: dict[str, object] = {"tenant_id": tenant_id, "deleted_at": None}
+        if assigned_to is not None:
+            query["assigned_to"] = assigned_to
+        docs = await self._col.find(query).sort("created_at", -1).to_list(length=limit)
         jobs = []
         for d in docs:
             try:
@@ -71,6 +76,16 @@ class TextbookRemediationRepository:
         doc = await self._col.find_one_and_update(
             {"_id": _oid(job_id), "tenant_id": tenant_id},
             {"$set": {"deleted_at": datetime.now(UTC).isoformat()}},
+            return_document=ReturnDocument.AFTER,
+        )
+        return RemediationJob.from_doc(doc) if doc else None
+
+    async def set_assignment(
+        self, tenant_id: str, job_id: str, assigned_to: str | None
+    ) -> RemediationJob | None:
+        doc = await self._col.find_one_and_update(
+            {"_id": _oid(job_id), "tenant_id": tenant_id, "deleted_at": None},
+            {"$set": {"assigned_to": assigned_to}},
             return_document=ReturnDocument.AFTER,
         )
         return RemediationJob.from_doc(doc) if doc else None

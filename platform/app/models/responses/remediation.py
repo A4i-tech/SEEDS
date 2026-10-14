@@ -32,6 +32,7 @@ class RemediationJobResponse(BaseModel):
     created_at: str
     created_by: str | None
     last_edited_by: str | None
+    assigned_to: str | None
     finished_at: str | None
     target_language: str | None
     translation_error: str | None

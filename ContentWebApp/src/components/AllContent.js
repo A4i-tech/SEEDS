@@ -96,7 +96,7 @@ const AllContent = () => {
     message: volunteerMessage,
     messageType: volunteerMessageType,
     createVolunteer,
-  } = useVolunteers(activeTab);
+  } = useVolunteers();
 
   const ivrURL = process.env.REACT_APP_API_BASE_URL;
   const canViewRegistration =
@@ -235,7 +235,7 @@ const AllContent = () => {
 
         {canViewContent && activeTab === "ivr" && <IVRTab />}
 
-        {canViewRemediation && activeTab === "remediation" && <RemediationTab />}
+        {canViewRemediation && activeTab === "remediation" && <RemediationTab volunteers={volunteers} />}
 
         {canViewAnalytics && activeTab === "analytics" && <AnalyticsTab />}
 

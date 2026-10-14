@@ -120,6 +120,7 @@ class RemediationJob(BaseModel):
     created_at: str = ""
     created_by: str | None = None
     last_edited_by: str | None = None
+    assigned_to: str | None = None
     finished_at: str | None = None
     target_language: str | None = None
     translation_error: str | None = None
