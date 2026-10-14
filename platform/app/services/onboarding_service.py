@@ -119,7 +119,7 @@ class OnboardingService:
     async def _ensure_domains_unclaimed(self, domains: list[str], own_website_id: str = "") -> None:
         for domain in domains:
             existing = await self._websites.find_by_domain(domain)
-            if existing is not None and str(existing["_id"]) != own_website_id:
+            if existing and str(existing["_id"]) != own_website_id:
                 raise ConflictError(f"Website with domain {domain!r}")
 
     def _base_url(self) -> str:
