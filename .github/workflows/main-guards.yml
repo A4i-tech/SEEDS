@@ -24,8 +24,6 @@ jobs:
           esac
 
   ancestry-gate:
-    # Content check not --is-ancestor: a release merge commit is never reachable from
-    # staging by hash, so ancestry would false-block every release, not just hotfixes.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

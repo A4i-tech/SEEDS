@@ -34,7 +34,12 @@ jobs:
       - name: Create release (also creates the tag, so no orphaned tag on failure)
         env:
           GH_TOKEN: ${{ secrets.RELEASE_BOT_PAT }}
-        run: gh release create "${{ steps.tag.outputs.tag }}" --target "${{ github.sha }}" --generate-notes
+        run: |
+          tag="${{ steps.tag.outputs.tag }}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            exit 0
+          fi
+          gh release create "$tag" --target "${{ github.sha }}" --generate-notes
 
   back-sync:
     needs: tag-and-release
@@ -59,9 +64,9 @@ jobs:
           branch="sync/main-$(git rev-parse --short origin/a4i/main)"
           force=""
           if git ls-remote --exit-code origin "$branch" >/dev/null 2>&1; then
-            open_pr=$(gh pr list --head "$branch" --state all --json number --jq '.[0].number')
+            open_pr=$(gh pr list --head "$branch" --state open --json number --jq '.[0].number')
             if [ -n "$open_pr" ]; then
-              echo "Sync branch $branch already exists with PR #$open_pr, leaving it for manual resolution." >&2
+              echo "Sync branch $branch already has open PR #$open_pr, leaving it for manual resolution." >&2
               exit 0
             fi
             echo "Sync branch $branch exists with no PR (prior run failed before opening one), rebuilding it." >&2
@@ -77,7 +82,7 @@ jobs:
             git merge --abort
             git checkout -B "$branch" origin/a4i/main
             git push origin "$branch" $force
-            gh pr create --base a4i/staging --head "$branch" \
+            gh pr create --base a4i/staging --head "$branch" --draft \
               --title "Sync: a4i/main -> a4i/staging (conflict)" \
               --label needs-resolution \
               --body "This branch is origin/a4i/main as-is, a plain merge into staging conflicted. Pull this branch, run \`git merge origin/a4i/staging\`, resolve, push, then merge via Create a merge commit. Do not force-push staging or main."
