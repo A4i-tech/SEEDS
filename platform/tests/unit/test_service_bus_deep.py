@@ -139,6 +139,40 @@ class TestServiceBusProviderNullHandles:
             await p.initialize()
         assert p._initialized is True
 
+    @pytest.mark.asyncio
+    async def test_concurrent_initialize_runs_once(self) -> None:
+        from app.providers.service_bus import ServiceBusProvider
+
+        p = ServiceBusProvider()
+        p._do_initialize = AsyncMock(side_effect=lambda: setattr(p, "_initialized", True))
+
+        await asyncio.gather(p.initialize(), p.initialize())
+
+        p._do_initialize.assert_awaited_once()
+
+    @pytest.mark.asyncio
+    async def test_failed_initialize_closes_handles_and_assigns_none(self) -> None:
+        from app.providers.service_bus import ServiceBusProvider
+
+        mock_settings = MagicMock()
+        mock_settings.azure_service_bus_connection_string = "Endpoint=sb://x"
+        p = ServiceBusProvider()
+
+        with (
+            patch("app.platform.settings.get_settings", return_value=mock_settings),
+            patch(
+                "app.providers.service_bus._AzureQueueHandle.initialize",
+                new=AsyncMock(side_effect=RuntimeError("boom")),
+            ),
+            patch("app.providers.service_bus._AzureQueueHandle.close", new=AsyncMock()) as close,
+            pytest.raises(RuntimeError, match="boom"),
+        ):
+            await p.initialize()
+
+        assert close.await_count == 4
+        assert p._call_webhook is None
+        assert p._initialized is False
+
 
 # ---------------------------------------------------------------------------
 # _AzureQueueHandle — unit tests with mock client
