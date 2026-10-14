@@ -1,8 +1,8 @@
-import { onboardingService } from "./onboardingService";
-import { apiFetch } from "./api";
+import { onboardingService } from "../../src/services/onboardingService";
+import { apiFetch } from "../../src/services/api";
 
-jest.mock("./api", () => ({ apiFetch: jest.fn() }));
-jest.mock("../utils/authHelpers", () => ({ getAuthHeaders: () => ({ Authorization: "Bearer t" }) }));
+jest.mock("../../src/services/api", () => ({ apiFetch: jest.fn() }));
+jest.mock("../../src/utils/authHelpers", () => ({ getAuthHeaders: () => ({ Authorization: "Bearer t" }) }));
 
 test("createSite posts to /websites with no timeout override", async () => {
   apiFetch.mockResolvedValue({ id: "1", domain: "example.com", site_id: "s1", api_base: "https://api" });
