@@ -31,6 +31,7 @@ class ItemType(StrEnum):
     TEXT = "text"
     PLAINTEXT = "plaintext"
     VIDEO = "video"
+    IMAGE = "image"
     QUIZ = "quiz"
     DISCUSSION = "discussion"
     OTHER = "other"
@@ -88,6 +89,19 @@ class VideoContent:
             sources=list(d["sources"]), streams=d["streams"],
             poster_url=d["poster_url"], transcript_languages=dict(d["transcript_languages"]),
         )
+
+
+@dataclass(frozen=True)
+class ImageContent:
+    image_url: str
+    alt_text: str
+
+    def to_dict(self) -> dict[str, str]:
+        return {"image_url": self.image_url, "alt_text": self.alt_text}
+
+    @classmethod
+    def from_dict(cls, d: dict[str, object]) -> ImageContent:
+        return cls(image_url=d["image_url"], alt_text=d["alt_text"])
 
 
 @dataclass(frozen=True)
@@ -159,13 +173,13 @@ class OtherContent:
 
 
 ContentPayload = (
-    TextContent | VideoContent | QuizContent | DiscussionContent | OtherContent
+    TextContent | VideoContent | ImageContent | QuizContent | DiscussionContent | OtherContent
     | AudioContent | BrailleContent
 )
 RawItemPayload = str | dict[str, object]
 
 _CONTENT_TYPE_BY_ITEM_TYPE: dict[ItemType, type[ContentPayload]] = {
-    ItemType.TEXT: TextContent, ItemType.PLAINTEXT: TextContent, ItemType.VIDEO: VideoContent,
+    ItemType.TEXT: TextContent, ItemType.PLAINTEXT: TextContent, ItemType.VIDEO: VideoContent, ItemType.IMAGE: ImageContent,
     ItemType.QUIZ: QuizContent, ItemType.DISCUSSION: DiscussionContent, ItemType.OTHER: OtherContent,
     ItemType.AUDIO: AudioContent, ItemType.BRAILLE: BrailleContent,
 }
