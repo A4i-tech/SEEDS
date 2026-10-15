@@ -139,6 +139,7 @@ from app.controllers.textbook_remediation_controller import (  # noqa: E402
     _get_job,
     assign_remediation_job,
     create_remediation_job,
+    delete_remediation_job,
     get_remediation_artifact,
     get_remediation_findings,
     get_remediation_image,
@@ -146,8 +147,6 @@ from app.controllers.textbook_remediation_controller import (  # noqa: E402
     get_review_summary,
     list_remediation_jobs,
     require_remediation_access,
-    require_remediation_delete_access,
-    require_remediation_upload_access,
     save_remediation_draft,
     stream_remediation_job,
     translate_remediation_job,
@@ -202,22 +201,24 @@ async def test_remediation_access_allows_the_textbook_remediation_volunteer():
 
 
 @pytest.mark.asyncio
-async def test_remediation_delete_access_blocks_the_textbook_remediation_volunteer():
-    with pytest.raises(ForbiddenError):
-        await require_remediation_delete_access(user={"role": "textbook_remediation_volunteer"})
+async def test_remediation_management_requires_the_tenant_role():
+    import inspect
+
+    from app.platform.auth.dependencies import require_tenant
+
+    for fn in (create_remediation_job, delete_remediation_job, assign_remediation_job):
+        assert inspect.signature(fn).parameters["user"].default.dependency is require_tenant
+
+    for role in ("school_admin", "content_creator", "textbook_remediation_volunteer", "teacher"):
+        with pytest.raises(ForbiddenError):
+            await require_tenant(user={"role": role})
+    assert await require_tenant(user={"role": "tenant"}) == {"role": "tenant"}
 
 
 @pytest.mark.asyncio
-async def test_remediation_delete_access_allows_tenant_school_admin_and_content_creator():
-    for role in ("tenant", "school_admin", "content_creator"):
-        assert await require_remediation_delete_access(user={"role": role}) == {"role": role}
-
-
-@pytest.mark.asyncio
-async def test_list_jobs_is_tenant_scoped_for_a_volunteer(repo):
+async def test_list_jobs_is_tenant_scoped(repo):
     job = await _create(repo)
-    user = {"role": "textbook_remediation_volunteer", "tenant_id": "tenant-a"}
-    assert [j.job_id for j in await repo.list_jobs(user["tenant_id"])] == [job.job_id]
+    assert [j.job_id for j in await repo.list_jobs("tenant-a")] == [job.job_id]
     assert await repo.list_jobs("tenant-b") == []
 
 
@@ -322,9 +323,16 @@ async def test_all_single_job_endpoints_404_for_an_unassigned_volunteer(repo):
 
 
 @pytest.mark.asyncio
-async def test_create_job_dependency_blocks_the_volunteer():
-    with pytest.raises(ForbiddenError):
-        await require_remediation_upload_access(user={"role": "textbook_remediation_volunteer"})
+async def test_get_job_fails_closed_when_the_volunteer_token_has_no_sub(repo):
+    created = await _create(repo)
+    user = {"role": "textbook_remediation_volunteer", "tenant_id": "tenant-a"}
+    with pytest.raises(KeyError):
+        await _get_job(repo, user, created.job_id)
+
+
+class _StubDb:
+    def __getitem__(self, _key):
+        return None
 
 
 class _FakeUserRepo:
@@ -405,19 +413,12 @@ async def test_unassign_revokes_volunteer_access_immediately(repo):
     assert (await _get_job(repo, volunteer, created.job_id)).job_id == created.job_id
 
     result = await assign_remediation_job(
-        created.job_id, AssignJobRequest(volunteer_id=None), user=admin, repo=repo, db=None,
+        created.job_id, AssignJobRequest(volunteer_id=None), user=admin, repo=repo, db=_StubDb(),
     )
     assert result["assigned_to"] is None
 
     with pytest.raises(NotFoundError):
         await _get_job(repo, volunteer, created.job_id)
-
-
-def test_assign_job_request_requires_the_volunteer_id_field():
-    import pydantic
-
-    with pytest.raises(pydantic.ValidationError):
-        AssignJobRequest()
 
 
 @pytest.mark.asyncio
@@ -452,10 +453,9 @@ async def test_volunteer_is_rejected_from_non_remediation_endpoints():
 
 
 @pytest.mark.asyncio
-async def test_get_rejects_a_job_from_a_different_tenant_for_a_volunteer(repo):
+async def test_get_rejects_a_job_from_a_different_tenant(repo):
     job = await _create(repo)
-    user = {"role": "textbook_remediation_volunteer", "tenant_id": "tenant-b"}
-    assert await repo.get(str(user["tenant_id"]), job.job_id) is None
+    assert await repo.get("tenant-b", job.job_id) is None
 
 
 @pytest.mark.asyncio
@@ -582,14 +582,35 @@ async def test_save_draft_and_verify_job(repo):
     verified = await verify_remediation_job(
         created.job_id,
         VerifyJobRequest(title="TN Maths Grade 5 Verified"),
-        user={"tenant_id": "tenant-a", "email": "reviewer@seeds.org"},
+        user={"tenant_id": "tenant-a", "sub": "reviewer-1"},
         repo=repo,
         blob_provider=blob,
     )
     assert verified["status"] == "verified"
     assert verified["title"] == "TN Maths Grade 5 Verified"
-    assert verified["verified_by"] == "reviewer@seeds.org"
+    assert verified["verified_by"] == "reviewer-1"
     assert verified["verified_at"] is not None
+
+
+@pytest.mark.asyncio
+async def test_verify_job_uses_sub_even_when_email_and_name_are_present(repo):
+    created = await _create(repo)
+    blob = _StubBlob()
+    await save_remediation_draft(
+        created.job_id,
+        DraftUpdateRequest(draft_md="# Title\n\nBody"),
+        user={"tenant_id": "tenant-a", "sub": "reviewer-1"},
+        repo=repo,
+        blob_provider=blob,
+    )
+    verified = await verify_remediation_job(
+        created.job_id,
+        VerifyJobRequest(title="x"),
+        user={"tenant_id": "tenant-a", "sub": "reviewer-1", "email": "decoy@seeds.org", "name": "Decoy"},
+        repo=repo,
+        blob_provider=blob,
+    )
+    assert verified["verified_by"] == "reviewer-1"
 
 
 @pytest.mark.asyncio

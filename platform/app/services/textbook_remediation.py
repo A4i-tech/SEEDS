@@ -25,12 +25,14 @@ from app.models.responses.remediation import (
     RemediationJobResponse,
     ReviewSummaryResponse,
 )
+from app.models.user import UserRole
 from app.platform.error_handling import NotFoundError, ValidationError
 from app.platform.settings import get_settings
 from app.providers.blob_storage import BlobStorageProvider
 from app.remediation.render import compile_docx_tex_pdf
 from app.remediation.translate import run_translation
 from app.repositories.textbook_remediation_repository import TextbookRemediationRepository
+from app.repositories.user_repository import UserRepository
 
 logger = logging.getLogger(__name__)
 
@@ -113,6 +115,28 @@ async def create_job(
         target_language=target_language,
         created_by=created_by,
     )
+
+
+async def assign_job(
+    repo: TextbookRemediationRepository,
+    user_repo: UserRepository,
+    tenant_id: str,
+    job_id: str,
+    volunteer_id: str | None,
+) -> RemediationJob:
+    if volunteer_id is not None:
+        volunteer = await user_repo.find_by_id(volunteer_id)
+        if (
+            volunteer is None
+            or volunteer.role != UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER
+            or str(volunteer.tenant_id) != tenant_id
+        ):
+            raise ValidationError("volunteer_id must be an existing textbook remediation volunteer in this tenant")
+
+    updated = await repo.set_assignment(tenant_id, job_id, volunteer_id)
+    if updated is None:
+        raise NotFoundError("Remediation job", job_id)
+    return updated
 
 
 async def artifact_bytes(

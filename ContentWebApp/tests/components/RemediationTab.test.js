@@ -61,11 +61,14 @@ test("tenant sees the upload card and an assignee control", async () => {
   expect(screen.getByRole("button", { name: /delete/i })).toBeInTheDocument();
 });
 
-test("volunteer sees neither the upload card nor assignee controls", async () => {
-  getRole.mockReturnValue("textbook_remediation_volunteer");
-  render(<RemediationTab volunteers={volunteers} />);
+test.each([["school_admin"], ["content_creator"], ["textbook_remediation_volunteer"]])(
+  "%s sees neither the upload card nor assignee controls",
+  async (role) => {
+    getRole.mockReturnValue(role);
+    render(<RemediationTab volunteers={volunteers} />);
 
-  expect(screen.queryByText("Upload Textbook")).not.toBeInTheDocument();
-  expect(screen.queryByText("Assigned to")).not.toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: /delete/i })).not.toBeInTheDocument();
-});
+    expect(screen.queryByText("Upload Textbook")).not.toBeInTheDocument();
+    expect(screen.queryByText("Assigned to")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /delete/i })).not.toBeInTheDocument();
+  }
+);

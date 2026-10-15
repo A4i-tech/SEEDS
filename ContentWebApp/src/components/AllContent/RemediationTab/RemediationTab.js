@@ -20,7 +20,7 @@ const ARTIFACT_LABELS = { docx: "Word", pdf: "PDF", tex: "LaTeX" };
 
 const RemediationTab = ({ volunteers = [] }) => {
   const navigate = useNavigate();
-  const canManage = [USER_ROLES.TENANT, USER_ROLES.SCHOOL_ADMIN, USER_ROLES.CONTENT_CREATOR].includes(getRole());
+  const isTenant = getRole() === USER_ROLES.TENANT;
   const { jobs, isLoading, isUploading, error, upload, remove, assign } = useRemediationJobs();
   const assigneeOptions = [
     { value: "", label: "Unassigned" },
@@ -71,7 +71,7 @@ const RemediationTab = ({ volunteers = [] }) => {
         </div>
       </div>
 
-      {canManage && (
+      {isTenant && (
         <div className="registration-card" style={{ alignItems: "center", marginBottom: "16px" }}>
           <div className="registration-title" style={{ textAlign: "center", textTransform: "uppercase" }}>
             Upload Textbook
@@ -124,7 +124,7 @@ const RemediationTab = ({ volunteers = [] }) => {
                 <th className="table-header">Status</th>
                 <th className="table-header">Stage</th>
                 <th className="table-header">Artifacts</th>
-                {canManage && <th className="table-header">Assigned to</th>}
+                {isTenant && <th className="table-header">Assigned to</th>}
                 <th className="table-header">Actions</th>
               </tr>
             </thead>
@@ -181,7 +181,7 @@ const RemediationTab = ({ volunteers = [] }) => {
                       <span className="table-cell-secondary">—</span>
                     )}
                   </td>
-                  {canManage && (
+                  {isTenant && (
                     <td className="table-cell">
                       <Select
                         id={`remediation-assignee-${job.job_id}`}
@@ -198,7 +198,7 @@ const RemediationTab = ({ volunteers = [] }) => {
                         ...(job.status !== JOB_STATUS.RUNNING && job.status !== JOB_STATUS.FAILED
                           ? [{ key: "edit", label: "Edit", variant: "edit", onClick: () => navigate(`/content/remediation/${job.job_id}`) }]
                           : []),
-                        ...(canManage
+                        ...(isTenant
                           ? [
                               {
                                 key: "delete",

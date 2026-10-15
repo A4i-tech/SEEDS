@@ -126,6 +126,36 @@ test("assigning a job updates it in place with the returned assignee", async () 
   expect(result.current.jobs[0].assigned_to).toBe("vol-1");
 });
 
+test("a slower first assignment response cannot overwrite a faster second one", async () => {
+  textbookRemediationService.getJobs.mockResolvedValue({ jobs: [job({ assigned_to: null })] });
+  let resolveFirst;
+  textbookRemediationService.assignJob
+    .mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          resolveFirst = () => resolve(job({ assigned_to: "vol-1" }));
+        })
+    )
+    .mockResolvedValueOnce(job({ assigned_to: "vol-2" }));
+
+  const { result } = renderHook(() => useRemediationJobs());
+  await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+  let firstCall;
+  act(() => {
+    firstCall = result.current.assign("job-1", "vol-1");
+  });
+  await act(async () => {
+    await result.current.assign("job-1", "vol-2");
+  });
+  resolveFirst();
+  await act(async () => {
+    await firstCall;
+  });
+
+  expect(result.current.jobs[0].assigned_to).toBe("vol-2");
+});
+
 test("surfaces a failed assignment", async () => {
   textbookRemediationService.getJobs.mockResolvedValue({ jobs: [job()] });
   textbookRemediationService.assignJob.mockRejectedValue(new Error("volunteer_id must be an existing textbook remediation volunteer in this tenant"));

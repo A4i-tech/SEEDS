@@ -10,6 +10,7 @@ export const useRemediationJobs = () => {
   const [error, setError] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const controllersRef = useRef({});
+  const assignRequestRef = useRef({});
 
   const upsert = useCallback((job) => {
     setJobs((previous) => {
@@ -95,10 +96,13 @@ export const useRemediationJobs = () => {
   const assign = useCallback(
     async (jobId, volunteerId) => {
       setError(null);
+      const requestId = (assignRequestRef.current[jobId] || 0) + 1;
+      assignRequestRef.current[jobId] = requestId;
       try {
-        upsert(await textbookRemediationService.assignJob(jobId, volunteerId));
+        const updated = await textbookRemediationService.assignJob(jobId, volunteerId);
+        if (assignRequestRef.current[jobId] === requestId) upsert(updated);
       } catch (assignError) {
-        setError(assignError.message);
+        if (assignRequestRef.current[jobId] === requestId) setError(assignError.message);
       }
     },
     [upsert]

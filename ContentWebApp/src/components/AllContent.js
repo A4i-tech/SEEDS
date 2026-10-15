@@ -96,7 +96,7 @@ const AllContent = () => {
     message: volunteerMessage,
     messageType: volunteerMessageType,
     createVolunteer,
-  } = useVolunteers();
+  } = useVolunteers(activeTab);
 
   const ivrURL = process.env.REACT_APP_API_BASE_URL;
   const canViewRegistration =
