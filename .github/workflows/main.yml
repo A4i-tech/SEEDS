@@ -21,6 +21,20 @@ jobs:
             changed:
               - 'ContentWebApp/**'
 
+  detect-teacherwebapp-changes:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/a4i/staging'
+    outputs:
+      changed: ${{ steps.filter.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            changed:
+              - 'teacher-webapp/**'
+
   ci-workflow:
     uses: ./.github/workflows/ci.yml
     with:
@@ -43,6 +57,12 @@ jobs:
     needs: [deploy-staging-workflow, detect-contentwebapp-changes]
     if: github.ref == 'refs/heads/a4i/staging' && needs.detect-contentwebapp-changes.outputs.changed == 'true'
     uses: ./.github/workflows/contentwebapp-e2e.yml
+    secrets: inherit
+
+  teacherwebapp-e2e-workflow:
+    needs: [deploy-staging-workflow, detect-teacherwebapp-changes]
+    if: github.ref == 'refs/heads/a4i/staging' && needs.detect-teacherwebapp-changes.outputs.changed == 'true'
+    uses: ./.github/workflows/teacher-webapp-e2e.yml
     secrets: inherit
 
   deploy-main-workflow:
@@ -76,6 +96,7 @@ jobs:
       - deploy-websocket-service-staging-workflow
       - deploy-staging-workflow
       - contentwebapp-e2e-workflow
+      - teacherwebapp-e2e-workflow
       - deploy-main-workflow
       - run-android-tests
       - deploy-android
@@ -96,6 +117,7 @@ jobs:
             "deploy-websocket-service-staging-workflow": "Websocket",
             "deploy-staging-workflow": "Backend Staging",
             "contentwebapp-e2e-workflow": "E2E",
+            "teacherwebapp-e2e-workflow": "Teacher WebApp E2E",
             "deploy-main-workflow": "Backend",
             "deploy-android": "Android"
           }'

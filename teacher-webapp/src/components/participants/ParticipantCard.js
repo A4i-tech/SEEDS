@@ -45,6 +45,8 @@ export const ParticipantCard = ({
 
   return (
     <Box
+      data-testid="participant-card"
+      data-phone={participant.phoneNumber}
       sx={{
         display: "flex",
         alignItems: "center",
