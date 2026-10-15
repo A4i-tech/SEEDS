@@ -172,7 +172,7 @@ traces
 // Trace correlation and session for a specific WebSocket connection
 traces
 | where cloud_RoleName == "websocket-service"
-| where customDimensions.sessionId == "connection1" or customDimensions.correlationId == "connection1"
+| where customDimensions.sessionId == "connection1"
 | order by timestamp desc
 
 // Exceptions logged by the websocket service
