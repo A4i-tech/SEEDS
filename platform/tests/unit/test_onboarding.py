@@ -274,6 +274,27 @@ async def test_website_indexes_are_unique(mock_db):
         await repo.create(TENANT, "p1", "acme.com", "site-2")
 
 
+async def test_additional_domains_has_a_lookup_index_and_a_unique_partial_index(mock_db):
+    await WebsiteRepository.ensure_indexes(mock_db)
+
+    indexes = await mock_db["websites"].index_information()
+
+    assert "unique" not in indexes["additional_domains_1"]
+    assert indexes["additional_domains_unique"]["unique"] is True
+    assert indexes["additional_domains_unique"]["partialFilterExpression"] == {"additional_domains.0": {"$exists": True}}
+
+
+async def test_duplicate_key_on_additional_domains_is_mapped_to_a_conflict(onboarding_service):
+    website = await onboarding_service.register_website(TENANT, None, "acme.com")
+    onboarding_service._websites.create = AsyncMock(side_effect=DuplicateKeyError("duplicate"))
+    onboarding_service._websites.update = AsyncMock(side_effect=DuplicateKeyError("duplicate"))
+
+    with pytest.raises(ConflictError, match="extra.com"):
+        await onboarding_service.register_website(TENANT, None, "other.com", additional_domains=["extra.com"])
+    with pytest.raises(ConflictError, match="extra.com"):
+        await onboarding_service.update_website(website.id, TENANT, {"additional_domains": ["extra.com"]})
+
+
 async def test_register_website_with_languages_stores_them(onboarding_service):
     project = await onboarding_service.create_project(TENANT, "Acme Corp")
     website = await onboarding_service.register_website(

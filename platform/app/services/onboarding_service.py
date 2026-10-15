@@ -70,7 +70,8 @@ class OnboardingService:
             if project is None:
                 raise NotFoundError("Project", project_id)
 
-        await self._ensure_domains_unclaimed([domain, *additional_domains])
+        domains = [domain, *additional_domains]
+        await self._ensure_domains_unclaimed(domains)
 
         site_id = str(uuid.uuid4())
         try:
@@ -78,7 +79,7 @@ class OnboardingService:
                 tenant_id, project_id, domain, site_id, name, status, languages, additional_domains
             )
         except DuplicateKeyError as exc:
-            raise ConflictError(f"Website with domain {domain!r}") from exc
+            raise ConflictError(f"Website with domain {', '.join(domains)}") from exc
         return WebsiteResponse.from_doc(website, api_base=self._base_url())
 
     async def get_website(self, website_id: str, tenant_id: str) -> WebsiteResponse:
@@ -108,7 +109,7 @@ class OnboardingService:
         try:
             updated = await self._websites.update(website_id, tenant_id, fields)
         except DuplicateKeyError as exc:
-            raise ConflictError(f"Website with domain {fields.get('domain')!r}") from exc
+            raise ConflictError(f"Website with domain {', '.join(claimed)}") from exc
         return WebsiteResponse.from_doc(updated, api_base=self._base_url())
 
     async def delete_website(self, website_id: str, tenant_id: str) -> None:

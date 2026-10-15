@@ -21,6 +21,30 @@ class WebsiteRepository(BaseRepository):
         await col.create_index("site_id", unique=True)
         await col.create_index("domain", unique=True)
         await col.create_index("additional_domains")
+        await cls._ensure_additional_domains_unique_index(col)
+
+    @staticmethod
+    async def _ensure_additional_domains_unique_index(col: Any) -> None:
+        cursor = await col.aggregate(
+            [
+                {"$unwind": "$additional_domains"},
+                {"$group": {"_id": "$additional_domains", "site_ids": {"$addToSet": "$site_id"}}},
+                {"$match": {"$expr": {"$gt": [{"$size": "$site_ids"}, 1]}}},
+            ]
+        )
+        duplicates = await cursor.to_list(length=None)
+        if duplicates:
+            claims = "; ".join(f"{d['_id']} -> {sorted(d['site_ids'])}" for d in duplicates)
+            raise RuntimeError(
+                "Cannot create the unique websites.additional_domains index: domains claimed by more "
+                f"than one website: {claims}. Resolve the duplicates manually and restart."
+            )
+        await col.create_index(
+            "additional_domains",
+            name="additional_domains_unique",
+            unique=True,
+            partialFilterExpression={"additional_domains.0": {"$exists": True}},
+        )
 
     async def create(
         self,
