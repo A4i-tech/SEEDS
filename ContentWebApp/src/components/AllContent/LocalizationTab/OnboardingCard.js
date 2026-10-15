@@ -39,7 +39,7 @@ export function OnboardingCard({ loc }) {
         domain: cleanDomain,
         name: resolvedName,
         status: "Active",
-        languages: selectedLanguages,
+        languages: selectedLanguages.map((code) => ({ code, enabled: true })),
       });
       setResult(site);
     } catch (err) {

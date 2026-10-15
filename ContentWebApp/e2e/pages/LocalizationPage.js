@@ -6,7 +6,8 @@ class LocalizationPage {
   }
 
   async gotoLocalizationTab() {
-    await this.page.getByRole('tab', { name: /localization/i }).click();
+    await this.page.goto('/content');
+    await this.page.getByRole('button', { name: 'Localization', exact: true }).click();
   }
 
   async registerSite({ domain, name, languageCodes }) {
@@ -49,6 +50,11 @@ class LocalizationPage {
       );
     }
     await langOptions.first().click();
+
+    // Generation runs server-side after scope selection and can take up to
+    // GENERATE_TIMEOUT_MS (5 minutes); wait for a real segment row before
+    // approving so "Approve all" has something to approve.
+    await page.locator('table.content-table tbody tr').first().waitFor({ timeout: 300000 });
 
     await page.getByRole('button', { name: 'Approve all' }).click();
   }
