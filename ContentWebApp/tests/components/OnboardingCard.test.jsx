@@ -19,7 +19,7 @@ test("derives a name from the domain when the Name field is left empty", async (
   fireEvent.click(screen.getByRole("button", { name: /register website/i }));
   await waitFor(() => expect(loc.handleCreateSite).toHaveBeenCalled());
   expect(loc.handleCreateSite.mock.calls[0][0].name).toBe("Example School");
-  expect(loc.handleCreateSite.mock.calls[0][0].languages).toEqual(["en"]);
+  expect(loc.handleCreateSite.mock.calls[0][0].languages).toEqual([{ code: "en", enabled: true }]);
 });
 
 test("uses the typed Name field verbatim when provided", async () => {
@@ -30,7 +30,7 @@ test("uses the typed Name field verbatim when provided", async () => {
   fireEvent.click(screen.getByRole("button", { name: /register website/i }));
   await waitFor(() => expect(loc.handleCreateSite).toHaveBeenCalled());
   expect(loc.handleCreateSite.mock.calls[0][0].name).toBe("My School");
-  expect(loc.handleCreateSite.mock.calls[0][0].languages).toEqual(["en"]);
+  expect(loc.handleCreateSite.mock.calls[0][0].languages).toEqual([{ code: "en", enabled: true }]);
 });
 
 test("registration is blocked when no language is selected", () => {
@@ -45,5 +45,5 @@ test("registration proceeds once a language is checked", async () => {
   fireEvent.click(screen.getByLabelText("fr"));
   fireEvent.click(screen.getByRole("button", { name: /register website/i }));
   await waitFor(() => expect(loc.handleCreateSite).toHaveBeenCalled());
-  expect(loc.handleCreateSite.mock.calls[0][0].languages).toEqual(["fr"]);
+  expect(loc.handleCreateSite.mock.calls[0][0].languages).toEqual([{ code: "fr", enabled: true }]);
 });
