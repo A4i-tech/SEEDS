@@ -346,7 +346,7 @@ async def test_bulk_approve_pending_surfaces_partial_write_failures(
     async def _boom(_ops):
         raise BulkWriteError({"writeErrors": [{"index": 0, "errmsg": "boom"}]})
 
-    monkeypatch.setattr(translation_service._repo, "bulk_approve", _boom)
+    monkeypatch.setattr(translation_service._repo, "bulk_write", _boom)
 
     res = await translation_service.bulk_approve_pending("site1", TENANT, "rev@example.com")
     assert res["failed"] == 1
