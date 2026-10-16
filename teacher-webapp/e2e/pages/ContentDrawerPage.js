@@ -48,6 +48,12 @@ class ContentDrawerPage {
   async getCurrentTime() {
     return this.audio.evaluate((el) => el.currentTime);
   }
+
+  async getPreservesPitch() {
+    return this.audio.evaluate((el) =>
+      el.preservesPitch ?? el.mozPreservesPitch ?? el.webkitPreservesPitch
+    );
+  }
 }
 
 module.exports = { ContentDrawerPage };

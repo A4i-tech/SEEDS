@@ -245,6 +245,7 @@ test('TC-TCONT-010 selecting a playback speed changes the audio playback rate', 
       async () => contentDrawerPage.getPlaybackRate(),
       { timeout: 10000 }
     ).toBe(rate);
+    expect(await contentDrawerPage.getPreservesPitch()).toBe(true);
   }
 });
 

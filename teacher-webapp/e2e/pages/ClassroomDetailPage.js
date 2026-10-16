@@ -5,6 +5,8 @@ class ClassroomDetailPage {
     this.page = page;
     this.editButton = page.getByRole('button', { name: 'Edit Classroom' });
     this.startConferenceButton = page.getByRole('button', { name: 'Start Conference' });
+    this.callScreenHeading = page.getByRole('heading', { name: 'Details' });
+    this.endConferenceButton = page.getByRole('button', { name: 'End Conference' });
   }
 
   async goto(classroomId) {

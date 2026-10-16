@@ -91,8 +91,8 @@ test('TC-TNEG-004 selecting content shows an error when the audio URL fetch fail
   await expect(page.getByText(/failed to load audio/i)).toBeVisible({ timeout: 10000 });
 });
 
-// TC-TNEG-005: Verify saving a classroom with a duplicate student surfaces a validation error
-test('TC-TNEG-005 saving a classroom with a duplicate student shows a validation error', async ({ page }) => {
+// TC-TNEG-005: Verify a student already assigned to a saved classroom cannot be added again as a duplicate
+test('TC-TNEG-005 a student already assigned to a classroom cannot be re-added as a duplicate', async ({ page }) => {
   const classroomListPage = new ClassroomListPage(page);
   const classroomFormPage = new ClassroomFormPage(page);
   const name = uniqueClassroomName();
@@ -101,15 +101,20 @@ test('TC-TNEG-005 saving a classroom with a duplicate student shows a validation
   await classroomListPage.openCreate();
   await classroomFormPage.fillName(name);
   const addedLabel = await classroomFormPage.addFirstAvailableStudent();
-  test.skip(!addedLabel, 'No students registered for this teacher account to verify duplicate validation');
-
-  await page.route('**/class', (route) =>
-    route.fulfill({ status: 400, body: JSON.stringify({ message: 'Duplicate students are not allowed' }) }),
-  );
+  test.skip(!addedLabel, 'No students registered for this teacher account to verify duplicate prevention');
+  const studentName = addedLabel.split(' - ')[0];
   await classroomFormPage.submit();
+  await classroomListPage.heading.waitFor();
 
-  await expect(page.getByText(/duplicate students are not allowed/i)).toBeVisible({ timeout: 10000 });
+  await classroomListPage.editClassroom(name);
+  await classroomFormPage.nameInput.waitFor();
+  await classroomFormPage.studentSearchInput.fill(studentName);
+  await expect(page.getByRole('option', { name: addedLabel })).not.toBeVisible({ timeout: 5000 });
+  await page.keyboard.press('Escape');
+
   await expect(classroomFormPage.nameInput).toBeVisible();
+  await classroomFormPage.submit();
+  await classroomListPage.heading.waitFor();
 });
 
 // TC-TNEG-006: Verify Content Library pagination stops fetching once the last page is reached

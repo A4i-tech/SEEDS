@@ -75,3 +75,22 @@ test('TC-TCONF-003 Start Conference button is disabled until a student is select
   await classroomDetailPage.toggleStudent(studentNames[0]);
   await expect(classroomDetailPage.startConferenceButton).toBeEnabled();
 });
+
+// TC-TCONF-START: Verify Start Conference reaches the real call screen against the real backend
+test('TC-TCONF-START starting a conference against the real backend reaches the call screen', async ({ page }) => {
+  const classroomListPage = new ClassroomListPage(page);
+  const classroomDetailPage = new ClassroomDetailPage(page);
+  const { name, studentNames } = await createClassroomWithStudents(page, 1);
+  test.skip(studentNames.length < 1, 'No students registered for this teacher account to verify conference start');
+
+  await classroomListPage.viewClassroom(name);
+  await classroomDetailPage.editButton.waitFor();
+
+  await classroomDetailPage.toggleStudent(studentNames[0]);
+  await classroomDetailPage.startConference();
+
+  await expect(classroomDetailPage.callScreenHeading).toBeVisible({ timeout: 15000 });
+  await expect(classroomDetailPage.endConferenceButton).toBeVisible();
+
+  await classroomDetailPage.endConferenceButton.click();
+});
