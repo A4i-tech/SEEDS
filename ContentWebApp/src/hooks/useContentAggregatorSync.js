@@ -8,8 +8,8 @@ import { USER_ROLES } from "../Constants";
  * any job still running on mount (e.g. after a logout/login or page reload).
  */
 export const useContentAggregatorSync = (onSettled) => {
-  const [syncingAll, setSyncingAll] = useState(false);
-  const [syncAllProgress, setSyncAllProgress] = useState(null);
+  const [runningSources, setRunningSources] = useState({});
+  const [progressBySource, setProgressBySource] = useState({});
   const [courseStates, setCourseStates] = useState({});
   const controllersRef = useRef({});
 
@@ -64,35 +64,54 @@ export const useContentAggregatorSync = (onSettled) => {
     [stopFollowing]
   );
 
-  const syncAll = useCallback(async () => {
-    setSyncingAll(true);
-    setSyncAllProgress({ processed: 0, total: 0 });
-    try {
-      const { job_id } = await contentAggregatorService.syncAll();
-      followJob("__all__", job_id, {
-        setRunning: setSyncingAll,
-        onProgress: (job) => setSyncAllProgress({ processed: job.processed, total: job.total_courses }),
+  const syncingAll = Object.values(runningSources).some(Boolean);
+  const syncAllProgress = syncingAll
+    ? Object.values(progressBySource).reduce(
+        (sum, p) => ({ processed: sum.processed + p.processed, total: sum.total + p.total }),
+        { processed: 0, total: 0 }
+      )
+    : null;
+
+  const followAllSyncJob = useCallback(
+    (source, job_id, onDone) => {
+      setRunningSources((prev) => ({ ...prev, [source]: true }));
+      setProgressBySource((prev) => ({ ...prev, [source]: { processed: 0, total: 0 } }));
+      followJob(`__all__:${source}`, job_id, {
+        setRunning: (running) => setRunningSources((prev) => ({ ...prev, [source]: running })),
+        onProgress: (job) =>
+          setProgressBySource((prev) => ({ ...prev, [source]: { processed: job.processed, total: job.total_courses } })),
         onDone: (job) => {
-          setSyncAllProgress(null);
-          if (job.status === "completed") {
-            alert(`Subodha sync complete: ${job.processed}/${job.total_courses} courses processed.`);
-            onSettled?.();
-          } else {
-            alert(`Subodha sync failed: ${job.error || "Unknown error"}`);
-          }
+          setProgressBySource((prev) => ({ ...prev, [source]: { processed: 0, total: 0 } }));
+          onDone(job);
         },
       });
+    },
+    [followJob]
+  );
+
+  const syncAll = useCallback(async () => {
+    try {
+      const { job_ids } = await contentAggregatorService.syncAll();
+      Object.entries(job_ids).forEach(([source, job_id]) =>
+        followAllSyncJob(source, job_id, (job) => {
+          if (job.status === "completed") {
+            alert(`${source} sync complete: ${job.processed}/${job.total_courses} courses processed.`);
+            onSettled?.();
+          } else {
+            alert(`${source} sync failed: ${job.error || "Unknown error"}`);
+          }
+        })
+      );
     } catch (error) {
-      setSyncingAll(false);
-      alert(`Failed to start Subodha sync: ${error.message}`);
+      alert(`Failed to start sync: ${error.message}`);
     }
-  }, [onSettled, followJob]);
+  }, [onSettled, followAllSyncJob]);
 
   const syncCourse = useCallback(
-    async (courseId, name) => {
+    async (courseId, name, source) => {
       setCourseStates((prev) => ({ ...prev, [courseId]: "running" }));
       try {
-        const { job_id } = await contentAggregatorService.syncCourse(courseId);
+        const { job_id } = await contentAggregatorService.syncCourse(courseId, source);
         followJob(courseId, job_id, {
           setRunning: (running) =>
             setCourseStates((prev) => ({ ...prev, [courseId]: running ? "running" : prev[courseId] })),
@@ -122,15 +141,8 @@ export const useContentAggregatorSync = (onSettled) => {
         if (cancelled) return;
         jobs.forEach((job) => {
           if (job.scope === "all") {
-            setSyncingAll(true);
-            setSyncAllProgress({ processed: job.processed, total: job.total_courses });
-            followJob("__all__", job.job_id, {
-              setRunning: setSyncingAll,
-              onProgress: (updated) => setSyncAllProgress({ processed: updated.processed, total: updated.total_courses }),
-              onDone: (finished) => {
-                setSyncAllProgress(null);
-                if (finished.status === "completed") onSettled?.();
-              },
+            followAllSyncJob(job.source, job.job_id, (finished) => {
+              if (finished.status === "completed") onSettled?.();
             });
           } else if (job.scope === "course" && job.course_id) {
             setCourseStates((prev) => ({ ...prev, [job.course_id]: "running" }));
@@ -145,13 +157,13 @@ export const useContentAggregatorSync = (onSettled) => {
           }
         });
       } catch (error) {
-        console.error("Failed to check active Subodha sync jobs:", error);
+        console.error("Failed to check active sync jobs:", error);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [onSettled, followJob]);
+  }, [onSettled, followJob, followAllSyncJob]);
 
   return { syncingAll, syncAllProgress, courseStates, syncAll, syncCourse };
 };

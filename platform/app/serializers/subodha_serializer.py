@@ -6,6 +6,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 
 from app.aggregators.models import CanonicalNode, ItemType, NodeKind
@@ -116,16 +117,8 @@ class LegacyCourseDoc:
         }
 
 
-async def _resolve_markdown(node: CanonicalNode, blob: BlobStorageProvider) -> str | None:
-    url = getattr(node.content, "markdown_url", None)
-    if not url:
-        return None
-    data = await blob.download_from_url(url)
-    return await _sign_blob_urls(data.decode("utf-8"), blob)
-
-
-async def _resolve_html(node: CanonicalNode, blob: BlobStorageProvider) -> str:
-    url = getattr(node.content, "raw_html_url", None)
+async def _resolve(node: CanonicalNode, blob: BlobStorageProvider, attr: str) -> str:
+    url = getattr(node.content, attr, None)
     if not url:
         return ""
     data = await blob.download_from_url(url)
@@ -143,11 +136,11 @@ async def _to_legacy_block(node: CanonicalNode, blob: BlobStorageProvider) -> Le
             "poster": content.poster_url, "transcript_languages": content.transcript_languages,
         }
     elif node.item_type == ItemType.TEXT:
-        markdown = await _resolve_markdown(node, blob)
+        markdown = await _resolve(node, blob, "markdown_url") or None
         if markdown is None:
-            html = await _resolve_html(node, blob)  # pandoc-conversion-failure fallback
+            html = await _resolve(node, blob, "raw_html_url")  # pandoc-conversion-failure fallback
     else:
-        html = await _resolve_html(node, blob)
+        html = await _resolve(node, blob, "raw_html_url")
     return LegacyBlock(
         block_id=node.source_id, type=node.native_type, display_name=node.display_name,
         html=html, markdown=markdown, student_view_data=student_view_data, lms_url=node.lms_url or "",
@@ -183,7 +176,11 @@ def _build_outline(
     return outline, ordered_items
 
 
-async def to_course_doc(nodes: list[CanonicalNode], blob: BlobStorageProvider) -> LegacyCourseDoc:
+async def to_course_doc(
+    nodes: list[CanonicalNode],
+    blob: BlobStorageProvider,
+    to_block: Callable[[CanonicalNode, BlobStorageProvider], Awaitable[LegacyBlock]] = _to_legacy_block,
+) -> LegacyCourseDoc:
     root = next((n for n in nodes if n.parent_id is None), None)
     if root is None:
         raise ValueError("course tree has no root node (parent_id is None)")
@@ -200,7 +197,7 @@ async def to_course_doc(nodes: list[CanonicalNode], blob: BlobStorageProvider) -
             items_by_parent.setdefault(n.parent_id, []).append(n)
 
     outline, item_nodes = _build_outline(containers_by_parent, items_by_parent, root.source_id)
-    blocks = list(await asyncio.gather(*(_to_legacy_block(n, blob) for n in item_nodes)))
+    blocks = list(await asyncio.gather(*(to_block(n, blob) for n in item_nodes)))
 
     return LegacyCourseDoc(
         source_id=root.source_id, source_type=root.source_type, content_hash=meta.get("content_hash"),

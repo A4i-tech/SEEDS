@@ -2,14 +2,17 @@ import { SEEDS_URL } from "../Constants";
 import { getAuthHeaders } from "../utils/authHelpers";
 import { apiFetch, buildQueryString, streamSse } from "./api";
 
+const root = `${SEEDS_URL}/content-aggregators`;
+const base = (source) => `${root}/${source}`;
+
 export const contentAggregatorService = {
   /**
    * Fetch all courses previously synced from Subodha.
    * @returns {Promise<Array>}
    */
-  async getCourses(cursor = null, limit = 20) {
+  async getCourses(source, cursor = null, limit = 20) {
     const query = buildQueryString({ cursor, limit });
-    return apiFetch(`${SEEDS_URL}/content-aggregators/courses?${query}`, {
+    return apiFetch(`${base(source)}/courses?${query}`, {
       method: "GET",
       headers: getAuthHeaders(),
     });
@@ -21,7 +24,7 @@ export const contentAggregatorService = {
    * @returns {Promise<{jobId: string}>}
    */
   async syncAll() {
-    return apiFetch(`${SEEDS_URL}/content-aggregators/sync`, {
+    return apiFetch(`${root}/sync`, {
       method: "POST",
       headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
       body: JSON.stringify({ onlyNew: true }),
@@ -33,8 +36,8 @@ export const contentAggregatorService = {
    * @param {string} courseId
    * @returns {Promise<{jobId: string}>}
    */
-  async syncCourse(courseId) {
-    return apiFetch(`${SEEDS_URL}/content-aggregators/sync/course/${encodeURIComponent(courseId)}`, {
+  async syncCourse(courseId, source) {
+    return apiFetch(`${base(source)}/sync/course/${encodeURIComponent(courseId)}`, {
       method: "POST",
       headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
       body: JSON.stringify({}),
@@ -47,7 +50,7 @@ export const contentAggregatorService = {
    * @returns {Promise<Object>}
    */
   async getSyncStatus(jobId) {
-    return apiFetch(`${SEEDS_URL}/content-aggregators/sync/status/${encodeURIComponent(jobId)}`, {
+    return apiFetch(`${root}/sync/status/${encodeURIComponent(jobId)}`, {
       method: "GET",
       headers: getAuthHeaders(),
     });
@@ -58,8 +61,8 @@ export const contentAggregatorService = {
    * @param {string} courseId
    * @returns {Promise<Object>}
    */
-  async getCourse(courseId) {
-    return apiFetch(`${SEEDS_URL}/content-aggregators/courses/${encodeURIComponent(courseId)}`, {
+  async getCourse(courseId, source) {
+    return apiFetch(`${base(source)}/courses/${encodeURIComponent(courseId)}`, {
       method: "GET",
       headers: getAuthHeaders(),
     });
@@ -70,8 +73,8 @@ export const contentAggregatorService = {
    * @param {string} courseId
    * @returns {Promise<Object>}
    */
-  async deleteCourse(courseId) {
-    return apiFetch(`${SEEDS_URL}/content-aggregators/courses/${encodeURIComponent(courseId)}`, {
+  async deleteCourse(courseId, source) {
+    return apiFetch(`${base(source)}/courses/${encodeURIComponent(courseId)}`, {
       method: "DELETE",
       headers: getAuthHeaders(),
     });
@@ -85,9 +88,9 @@ export const contentAggregatorService = {
    * @param {{question: string, choices: Array<{value: string, text: string}>}} payload
    * @returns {Promise<Object>}
    */
-  async updateProblemBlock(courseId, blockId, payload) {
+  async updateProblemBlock(courseId, blockId, payload, source) {
     return apiFetch(
-      `${SEEDS_URL}/content-aggregators/courses/${encodeURIComponent(courseId)}/blocks/${encodeURIComponent(blockId)}`,
+      `${base(source)}/courses/${encodeURIComponent(courseId)}/blocks/${encodeURIComponent(blockId)}`,
       {
         method: "PATCH",
         headers: { ...getAuthHeaders(), "Content-Type": "application/json" },
@@ -102,7 +105,7 @@ export const contentAggregatorService = {
    * @returns {Promise<{jobs: Array<Object>}>}
    */
   async getActiveJobs() {
-    return apiFetch(`${SEEDS_URL}/content-aggregators/sync/jobs/active`, {
+    return apiFetch(`${root}/sync/jobs/active`, {
       method: "GET",
       headers: getAuthHeaders(),
     });
@@ -115,7 +118,7 @@ export const contentAggregatorService = {
    */
   async getSyncJobs({ limit = 20, scope, courseId } = {}) {
     const qs = buildQueryString({ limit, scope, courseId });
-    return apiFetch(`${SEEDS_URL}/content-aggregators/sync/jobs${qs ? `?${qs}` : ""}`, {
+    return apiFetch(`${root}/sync/jobs${qs ? `?${qs}` : ""}`, {
       method: "GET",
       headers: getAuthHeaders(),
     });
@@ -130,7 +133,7 @@ export const contentAggregatorService = {
   async getSyncJobItems(jobId, { limit = 50, after } = {}) {
     const qs = buildQueryString({ limit, after });
     return apiFetch(
-      `${SEEDS_URL}/content-aggregators/sync/status/${encodeURIComponent(jobId)}/items${qs ? `?${qs}` : ""}`,
+      `${root}/sync/status/${encodeURIComponent(jobId)}/items${qs ? `?${qs}` : ""}`,
       { method: "GET", headers: getAuthHeaders() }
     );
   },
@@ -146,7 +149,7 @@ export const contentAggregatorService = {
    */
   async streamJob(jobId, onEvent, { signal } = {}) {
     return streamSse(
-      `${SEEDS_URL}/content-aggregators/sync/stream/${encodeURIComponent(jobId)}`,
+      `${root}/sync/stream/${encodeURIComponent(jobId)}`,
       onEvent,
       { headers: getAuthHeaders(), signal }
     );
