@@ -20,6 +20,10 @@ class ContentJobRepository(BaseRepository):
     def __init__(self, db: AsyncDatabase) -> None:
         self._col = db[self.COLLECTION]
 
+    @classmethod
+    async def ensure_indexes(cls, db: AsyncDatabase) -> None:
+        await db[cls.COLLECTION].create_index("status")
+
     async def create(self, content_id: str) -> str:
         """Insert a pending job for *content_id* and return its string _id."""
         job_doc: dict[str, Any] = {

@@ -183,7 +183,7 @@ async def test_update_website_checks_config_before_anything_else(onboarding_serv
     from app.platform.settings import Settings
     from app.services import onboarding_service as onboarding_service_module
 
-    monkeypatch.setattr(onboarding_service_module, "get_settings", lambda: Settings())
+    monkeypatch.setattr(onboarding_service_module, "get_settings", lambda: Settings(base_url=""))
 
     with pytest.raises(ConfigurationError):
         await onboarding_service.update_website("000000000000000000000000", TENANT, {"name": "x"})
