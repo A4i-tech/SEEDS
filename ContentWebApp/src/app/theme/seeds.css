@@ -1,0 +1,67 @@
+:root {
+  --seeds-text-primary: #1a1d1e;
+  --seeds-text-secondary: #434849;
+  --seeds-bg-page: #f4f6f7;
+  --seeds-bg-surface: #ffffff;
+  --seeds-border-default: #b2b8b9;
+  --seeds-brandmark-bg: #235265;
+  --seeds-nav-topbar-bg: #1b404e;
+  --seeds-nav-topbar-text: #ffffff;
+  --seeds-subnav-text-active: #1b404e;
+  --seeds-subnav-bg-active: #dfebf0;
+  --seeds-btn-primary-bg: #235265;
+  --seeds-btn-primary-text: #ffffff;
+  --seeds-btn-secondary-border: #235265;
+  --seeds-btn-secondary-text: #235265;
+  --seeds-btn-tertiary-text: #235265;
+  --seeds-btn-destructive-bg: #9e241c;
+  --seeds-btn-destructive-text: #ffffff;
+  --seeds-table-border: #b2b8b9;
+  --seeds-table-header-bg: #f4f6f7;
+  --seeds-table-header-text: #434849;
+  --seeds-card-border: #b2b8b9;
+  --seeds-badge-easy-bg: #dcf3e3;
+  --seeds-badge-easy-text: #166534;
+  --seeds-badge-hard-bg: #fbe0dd;
+  --seeds-badge-hard-text: #9e241c;
+  --seeds-badge-neutral-bg: #e4e8e9;
+  --seeds-badge-neutral-text: #434849;
+  --seeds-badge-subject-bg: #dfebf0;
+  --seeds-badge-subject-text: #1b404e;
+  --seeds-badge-warning-bg: #fbebcf;
+  --seeds-badge-warning-text: #7a4e00;
+  --seeds-pagebtn-active-bg: #235265;
+  --seeds-pagebtn-active-text: #ffffff;
+  --seeds-eyebrow-text: #355b3b;
+  --seeds-chart-1: #4caf50;
+  --seeds-chart-2: #2f7de1;
+  --seeds-chart-3: #f59a4a;
+  --seeds-chart-4: #9b4fd9;
+}
+
+html body {
+  background-color: var(--seeds-bg-page);
+  color: var(--seeds-text-primary);
+}
+
+[data-mantine-color-scheme='dark'] {
+  --seeds-bg-page: var(--mantine-color-body);
+  --seeds-bg-surface: var(--mantine-color-default);
+  --seeds-text-primary: var(--mantine-color-text);
+  --seeds-text-secondary: var(--mantine-color-dimmed);
+  --seeds-border-default: var(--mantine-color-default-border);
+  --seeds-card-border: var(--mantine-color-default-border);
+  --seeds-table-border: var(--mantine-color-default-border);
+  --seeds-table-header-bg: var(--mantine-color-default);
+  --seeds-table-header-text: var(--mantine-color-text);
+  --seeds-subnav-text-active: var(--mantine-color-text);
+  --seeds-subnav-bg-active: var(--mantine-color-default-hover);
+  --seeds-btn-secondary-border: var(--mantine-color-default-border);
+  --seeds-btn-secondary-text: var(--mantine-color-text);
+  --seeds-btn-tertiary-text: var(--mantine-color-text);
+  --seeds-eyebrow-text: var(--mantine-color-dimmed);
+}
+
+.topbar.topbar {
+  padding-top: env(safe-area-inset-top);
+}
