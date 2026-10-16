@@ -280,8 +280,9 @@ class TestLifespan:
         monkeypatch.setattr(lifespan_module, "get_database", lambda: MagicMock())
         monkeypatch.setattr(lifespan_module, "close_subodha_client", AsyncMock())
 
-        _patch_repo(monkeypatch, "app.repositories.content_aggregator_sync_job_repository", "ContentAggregatorSyncJobRepository", reconcile=0)
-        _patch_repo(monkeypatch, "app.repositories.textbook_remediation_repository", "TextbookRemediationRepository", reconcile=0)
+        _patch_repo(monkeypatch, "app.repositories.content_aggregator_sync_job_repository", "ContentAggregatorSyncJobRepository", ensure_indexes=True, reconcile=0)
+        _patch_repo(monkeypatch, "app.repositories.content_job_repository", "ContentJobRepository", ensure_indexes=True)
+        _patch_repo(monkeypatch, "app.repositories.textbook_remediation_repository", "TextbookRemediationRepository", ensure_indexes=True, reconcile=0)
         _patch_repo(monkeypatch, "app.repositories.website_repository", "WebsiteRepository", ensure_indexes=True)
         _patch_repo(monkeypatch, "app.repositories.translation_repository", "TranslationRepository", ensure_indexes=True)
         _patch_repo(monkeypatch, "app.repositories.translation_version_repository", "TranslationVersionRepository", ensure_indexes=True)
@@ -405,7 +406,7 @@ class TestLifespan:
 
     async def test_logs_reconciled_content_aggregator_jobs(self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
         self._patch_common(monkeypatch, app_mode="api")
-        _patch_repo(monkeypatch, "app.repositories.content_aggregator_sync_job_repository", "ContentAggregatorSyncJobRepository", reconcile=3)
+        _patch_repo(monkeypatch, "app.repositories.content_aggregator_sync_job_repository", "ContentAggregatorSyncJobRepository", ensure_indexes=True, reconcile=3)
         fake_app = SimpleNamespace(state=SimpleNamespace())
 
         with caplog.at_level(logging.INFO, logger="app.platform.lifespan"):
@@ -416,7 +417,7 @@ class TestLifespan:
 
     async def test_logs_reconciled_textbook_remediation_jobs(self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
         self._patch_common(monkeypatch, app_mode="consumer")
-        _patch_repo(monkeypatch, "app.repositories.textbook_remediation_repository", "TextbookRemediationRepository", reconcile=2)
+        _patch_repo(monkeypatch, "app.repositories.textbook_remediation_repository", "TextbookRemediationRepository", ensure_indexes=True, reconcile=2)
         fake_app = SimpleNamespace(state=SimpleNamespace())
 
         with caplog.at_level(logging.INFO, logger="app.platform.lifespan"):
