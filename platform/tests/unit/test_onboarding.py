@@ -1,6 +1,8 @@
 
 from __future__ import annotations
 
+import importlib.util
+from pathlib import Path
 from unittest.mock import AsyncMock
 
 import pytest
@@ -8,7 +10,7 @@ from pydantic import ValidationError as PydanticValidationError
 from pymongo.errors import DuplicateKeyError
 
 from app.models.requests.onboarding_requests import WebsiteCreateRequest, WebsiteUpdateRequest
-from app.platform.error_handling import ConflictError, NotFoundError
+from app.platform.error_handling import ConflictError, NotFoundError, ServiceUnavailableError
 from app.repositories.website_repository import WebsiteRepository
 from app.services.onboarding_service import OnboardingService
 from tests.support.mongomock_async import AsyncMongoMockClient
@@ -286,6 +288,47 @@ async def test_domain_indexes_include_unique_partial_indexes_for_additional_and_
     assert indexes["claimed_domains_unique"]["partialFilterExpression"] == {"claimed_domains.0": {"$exists": True}}
 
 
+async def test_domain_writes_are_paused_while_a_website_lacks_claimed_domains(onboarding_service, mock_db):
+    website = await onboarding_service.register_website(TENANT, None, "a.com")
+    await mock_db["websites"].insert_one({"tenant_id": TENANT, "site_id": "legacy", "domain": "Legacy.com"})
+
+    with pytest.raises(ServiceUnavailableError):
+        await onboarding_service.register_website(TENANT, None, "b.com")
+    with pytest.raises(ServiceUnavailableError):
+        await onboarding_service.update_website(website.id, TENANT, {"domain": "c.com"})
+    with pytest.raises(ServiceUnavailableError):
+        await onboarding_service.update_website(website.id, TENANT, {"additional_domains": ["d.com"]})
+    renamed = await onboarding_service.update_website(website.id, TENANT, {"name": "Renamed"})
+
+    assert renamed.name == "Renamed"
+    assert await mock_db["websites"].count_documents({}) == 2
+
+    await mock_db["websites"].update_one({"site_id": "legacy"}, {"$set": {"claimed_domains": ["legacy.com"]}})
+    assert (await onboarding_service.register_website(TENANT, None, "b.com")).domain == "b.com"
+
+
+async def test_domain_writes_are_also_paused_for_null_or_malformed_claims(onboarding_service, mock_db):
+    for claims in (None, "legacy.com", 5):
+        await mock_db["websites"].delete_many({})
+        await mock_db["websites"].insert_one(
+            {"tenant_id": TENANT, "site_id": "odd", "domain": "legacy.com", "claimed_domains": claims}
+        )
+        with pytest.raises(ServiceUnavailableError):
+            await onboarding_service.register_website(TENANT, None, "new.com")
+
+    await mock_db["websites"].update_one({"site_id": "odd"}, {"$set": {"claimed_domains": ["legacy.com"]}})
+    assert (await onboarding_service.register_website(TENANT, None, "new.com")).domain == "new.com"
+
+
+async def test_pre_check_recognizes_a_migrated_site_by_its_normalized_claim(onboarding_service, mock_db):
+    await mock_db["websites"].insert_one(
+        {"tenant_id": TENANT, "site_id": "legacy", "domain": "X.com", "claimed_domains": ["x.com"]}
+    )
+
+    with pytest.raises(ConflictError):
+        await onboarding_service.register_website(TENANT, None, "x.com")
+
+
 async def test_claimed_domains_follow_domain_and_additional_domains(onboarding_service, mock_db):
     website = await onboarding_service.register_website(TENANT, None, "a.com", additional_domains=["b.com", "a.com"])
     stored = lambda: mock_db["websites"].find_one({"site_id": website.site_id})  # noqa: E731
@@ -400,3 +443,80 @@ async def test_list_projects_only_returns_the_callers_own_projects(onboarding_se
 
     assert [p.name for p in mine] == ["Acme Corp"]
     assert [p.name for p in theirs] == ["Other Corp"]
+
+
+def _load_claims_migration():
+    path = Path(__file__).resolve().parents[2] / "migrations" / "021_website_claimed_domains.py"
+    spec = importlib.util.spec_from_file_location("migration_021_unit", path)
+    migration = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(migration)
+    return migration
+
+
+class _FakeMongoClient:
+    used: list[str]
+
+    def __init__(self, *_args, **_kwargs):
+        pass
+
+    def __getitem__(self, name):
+        type(self).used.append(name)
+        return name
+
+    async def close(self):
+        pass
+
+
+def _fake_run(**overrides):
+    result = {"duplicates": {}, "unnormalizable": {}, "conflicts": [], "remaining": 0, "strict": True, **overrides}
+
+    async def fake_run(db, dry_run):
+        return result
+
+    return fake_run
+
+
+@pytest.mark.parametrize(
+    ("uri", "expected_db"),
+    [
+        ("mongodb://localhost:27017/zz_explicit?retryWrites=true", "zz_explicit"),
+        ("mongodb://localhost:27017", "seeds_platform"),
+    ],
+)
+async def test_claims_migration_targets_the_database_the_application_uses(monkeypatch, uri, expected_db):
+    import pymongo
+
+    migration = _load_claims_migration()
+    _FakeMongoClient.used = []
+    monkeypatch.setattr(pymongo, "AsyncMongoClient", _FakeMongoClient)
+    monkeypatch.setattr(migration, "run", _fake_run())
+
+    await migration.migrate(uri, dry_run=False)
+
+    assert _FakeMongoClient.used == [expected_db]
+
+
+@pytest.mark.parametrize(
+    "problem",
+    [
+        {"unnormalizable": {"s1": ["5"]}},
+        {"duplicates": {"x.com": ["s1", "s2"]}},
+        {"conflicts": [{"site_id": "s1", "error": "changed concurrently, re-run"}]},
+        {"remaining": 1},
+        {"strict": False},
+    ],
+)
+async def test_claims_migration_exits_non_zero_unless_everything_was_verified(monkeypatch, problem):
+    import pymongo
+
+    migration = _load_claims_migration()
+    _FakeMongoClient.used = []
+    monkeypatch.setattr(pymongo, "AsyncMongoClient", _FakeMongoClient)
+
+    monkeypatch.setattr(migration, "run", _fake_run())
+    await migration.migrate("mongodb://localhost:27017/zz_ok", dry_run=False)
+
+    monkeypatch.setattr(migration, "run", _fake_run(**problem))
+    with pytest.raises(SystemExit) as excinfo:
+        await migration.migrate("mongodb://localhost:27017/zz_bad", dry_run=False)
+    assert excinfo.value.code == 1

@@ -14,6 +14,7 @@ from app.platform.error_handling import (
     ConfigurationError,
     ConflictError,
     NotFoundError,
+    ServiceUnavailableError,
 )
 from app.platform.settings import get_settings
 from app.repositories.project_repository import ProjectRepository
@@ -69,6 +70,7 @@ class OnboardingService:
         additional_domains: Sequence[str] = (),
     ) -> WebsiteResponse:
         self._base_url()
+        await self._ensure_claims_migrated()
 
         if project_id is not None:
             project = await self._projects.find_by_id_and_tenant(project_id, tenant_id)
@@ -107,6 +109,8 @@ class OnboardingService:
         if website is None:
             raise NotFoundError("Website", website_id)
 
+        if "domain" in fields or "additional_domains" in fields:
+            await self._ensure_claims_migrated()
         claimed = [fields["domain"]] if "domain" in fields else []
         claimed += fields.get("additional_domains", ())
         await self._ensure_domains_unclaimed(claimed, str(website["_id"]))
@@ -122,9 +126,15 @@ class OnboardingService:
         if not deleted:
             raise NotFoundError("Website", website_id)
 
+    async def _ensure_claims_migrated(self) -> None:
+        if await self._websites.has_unclaimed_websites():
+            raise ServiceUnavailableError(
+                "Website domain changes are paused until the claimed_domains migration (021) completes"
+            )
+
     async def _ensure_domains_unclaimed(self, domains: list[str], own_website_id: str = "") -> None:
         for domain in domains:
-            existing = await self._websites.find_by_domain(domain)
+            existing = await self._websites.find_claiming(domain)
             if existing and str(existing["_id"]) != own_website_id:
                 raise ConflictError(f"Website with domain {domain!r}")
 

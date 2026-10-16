@@ -107,3 +107,18 @@ async def test_update_on_a_legacy_website_without_additional_domains_preserves_e
     assert not body.get("additional_domains")
     stored = await mock_db["websites"].find_one({"_id": inserted.inserted_id})
     assert "additional_domains" not in stored
+
+
+async def test_http_domain_writes_return_503_until_every_website_has_claimed_domains(client, mock_db):
+    created = (await _register(client)).json()
+    await mock_db["websites"].insert_one({"tenant_id": "tenant-1", "site_id": "legacy", "domain": "legacy.com"})
+
+    registered = await _register(client, domain="other.com")
+    moved = await client.put(f"/websites/{created['id']}", json={"domain": "moved.com"}, headers=_auth())
+    renamed = await client.put(f"/websites/{created['id']}", json={"name": "Renamed"}, headers=_auth())
+    deleted = await client.delete(f"/websites/{created['id']}", headers=_auth())
+
+    assert registered.status_code == 503 and moved.status_code == 503
+    assert "migration" in registered.json()["message"]
+    assert renamed.status_code == 200
+    assert deleted.status_code == 200

@@ -2,29 +2,47 @@
 """
 Migration 021 — Backfill websites.claimed_domains and enforce unique domain claims.
 
-claimed_domains = [domain, *additional_domains], normalized (trimmed, lowercased,
-deduplicated). The unique partial index `claimed_domains_unique` makes MongoDB
-reject two websites claiming the same hostname in any combination of the primary
-`domain` and `additional_domains`.
+claimed_domains is derived from `domain` and `additional_domains` (lowercased,
+deduplicated; see app.platform.domain.claimed_domains). The unique partial index
+`claimed_domains_unique` makes MongoDB reject two websites claiming the same hostname
+in any combination of the primary `domain` and `additional_domains`. A collection
+validator (installed here) requires every website to carry claims that match its
+domains, so no writer can bypass the index with a missing or stale claimed_domains.
+
+How concurrent writes are handled
+    * Maintenance window: until no website lacks claimed_domains, the application refuses
+      every register / domain update with HTTP 503 (OnboardingService._ensure_claims_migrated).
+      The check reads the shared database, so it covers every application instance, and no
+      domain claim can be acquired while legacy websites are still unclaimed.
+    * Older application versions ignore that check, so the collection validator is installed
+      first. From then on MongoDB rejects their inserts and updates that leave claimed_domains
+      missing or stale.
+    * Success is reported only after a final verification: no duplicates, no website missing
+      or with stale claims, validator in strict mode.
 
 Deployment order:
-    1. Deploy the application version that writes claimed_domains to every instance
-       (older instances create websites without it, which bypasses the index).
-    2. Run this migration (--dry-run first).
-    3. Re-run it once; it must report 0 websites without claimed_domains.
+    1. Deploy the application version that includes the gate to every instance. Domain
+       registration and domain edits return 503 from this point until step 3 completes.
+    2. Run this migration (--dry-run first), immediately after the deployment.
+    3. It exits 0 only when verification passed; any other exit code means the maintenance
+       window is still open and the migration must be fixed and re-run.
 
 Steps:
-    1. Read every website and compute its normalized claims.
-    2. If any hostname is claimed by more than one website, print each hostname with
-       its site_ids and stop. Nothing is written, deleted or rewritten; resolve the
-       duplicates manually and re-run.
-    3. Create the website indexes (including the unique claimed_domains index) before
-       backfilling, so concurrent writes are already guarded while documents are updated.
+    1. Read every website and compute normalized claims. If any hostname is claimed by more
+       than one website, print each hostname with its site_ids and stop before writing
+       anything. Nothing is deleted or rewritten; resolve the duplicates manually and re-run.
+    2. Create the website indexes, then install the claims validator in `moderate` mode.
+    3. Re-read and re-check for duplicates (catches writes made while step 2 ran).
     4. Backfill claimed_domains per document with a compare-and-set on the fields it was
        computed from, retrying when a concurrent update changed them.
+    5. Switch the validator to `strict`, then verify in rounds until nothing is missing or
+       stale. A duplicate-key error or an exhausted retry is reported as a conflict and the
+       migration exits non-zero.
 
-Idempotent: documents whose claimed_domains already match are not touched. Safe to
-re-run after a failure or interruption.
+Idempotent and restartable: documents whose claimed_domains already match are not touched,
+and every step can be repeated after a failure or interruption. The gate stays closed for
+as long as any website lacks claimed_domains, so an interrupted run is never mistaken for a
+finished one.
 
 Usage:
     python migrations/021_website_claimed_domains.py [--dry-run] [--mongo-uri URI]
@@ -45,12 +63,19 @@ if _PROJECT_ROOT not in sys.path:
 
 COLLECTION = "websites"
 MAX_ATTEMPTS = 5
+MAX_ROUNDS = 5
+CONFIRM_DELAY_SECONDS = 1.0
 
 
 def _claims(doc: dict[str, Any]) -> list[str]:
-    raw = [doc.get("domain"), *(doc.get("additional_domains") or [])]
-    normalized = (value.strip().lower() for value in raw if isinstance(value, str))
-    return list(dict.fromkeys(value for value in normalized if value))
+    from app.platform.domain import claimed_domains
+
+    domain = doc.get("domain")
+    additional = doc.get("additional_domains")
+    return claimed_domains(
+        domain if isinstance(domain, str) else None,
+        [value for value in additional if isinstance(value, str)] if isinstance(additional, list) else None,
+    )
 
 
 def find_duplicate_claims(docs: list[dict[str, Any]]) -> dict[str, list[str]]:
@@ -61,8 +86,35 @@ def find_duplicate_claims(docs: list[dict[str, Any]]) -> dict[str, list[str]]:
     return {domain: sorted(sites) for domain, sites in sorted(owners.items()) if len(sites) > 1}
 
 
+def _malformed_values(doc: dict[str, Any]) -> list[Any]:
+    from app.platform.domain import DOMAIN_RE
+
+    domain = doc.get("domain")
+    additional = doc.get("additional_domains")
+    malformed = [] if isinstance(domain, str) and DOMAIN_RE.fullmatch(domain) else [domain]
+    if isinstance(additional, list):
+        malformed += [
+            value
+            for value in additional
+            if not (isinstance(value, str) and value == value.lower() and DOMAIN_RE.fullmatch(value))
+        ]
+    elif additional is not None:
+        malformed.append(additional)
+    return malformed
+
+
+def find_unnormalizable(docs: list[dict[str, Any]]) -> dict[str, list[str]]:
+    bad: dict[str, list[str]] = {}
+    for doc in docs:
+        malformed = _malformed_values(doc)
+        if malformed:
+            bad[str(doc.get("site_id") or doc["_id"])] = [repr(value) for value in malformed]
+    return bad
+
+
 def _is_current(doc: dict[str, Any]) -> bool:
-    return "claimed_domains" in doc and sorted(doc["claimed_domains"]) == sorted(_claims(doc))
+    claims = doc.get("claimed_domains")
+    return isinstance(claims, list) and sorted(map(str, claims)) == sorted(_claims(doc))
 
 
 def _guard(doc: dict[str, Any]) -> dict[str, Any]:
@@ -70,37 +122,42 @@ def _guard(doc: dict[str, Any]) -> dict[str, Any]:
     return {"_id": doc["_id"], "domain": doc.get("domain"), "additional_domains": additional}
 
 
-async def run(db: Any, dry_run: bool) -> dict[str, Any]:
+def succeeded(result: dict[str, Any]) -> bool:
+    blockers = result["duplicates"] or result["unnormalizable"] or result["conflicts"] or result["remaining"]
+    return not blockers and result["strict"]
+
+
+def _report_problems(result: dict[str, Any]) -> None:
+    if result["unnormalizable"]:
+        _report_unnormalizable(result["unnormalizable"])
+    if result["duplicates"]:
+        _report_duplicates(result["duplicates"])
+
+
+def _report_unnormalizable(bad: dict[str, list[str]]) -> None:
+    print("Websites with an invalid domain or additional_domains cannot be backfilled; fix them manually.")
+    print("(wrong type, empty, whitespace, not a hostname, or an additional domain with uppercase letters)")
+    for site_id, values in bad.items():
+        print(f"  site_id {site_id} -> {values}")
+
+
+def _report_duplicates(duplicates: dict[str, list[str]]) -> None:
+    print("Duplicate domain claims found; nothing was backfilled:")
+    for domain, sites in duplicates.items():
+        print(f"  {domain} -> site_ids {sites}")
+
+
+def _print_summary(result: dict[str, Any]) -> None:
+    print(f"Backfilled {result['backfilled']} document(s).")
+    for conflict in result["conflicts"]:
+        print(f"  CONFLICT site_id={conflict['site_id']}: {conflict['error']}")
+    print(f"Websites without current claimed_domains: {result['remaining']}")
+
+
+async def _backfill(col: Any, docs: list[dict[str, Any]], result: dict[str, Any]) -> None:
     from pymongo.errors import DuplicateKeyError
 
-    from app.repositories.website_repository import WebsiteRepository
-
-    col = db[COLLECTION]
-    docs = await col.find({}).to_list(length=None)
-    result: dict[str, Any] = {
-        "total": len(docs),
-        "duplicates": find_duplicate_claims(docs),
-        "backfilled": 0,
-        "conflicts": [],
-        "remaining": 0,
-    }
-
-    if result["duplicates"]:
-        print("Duplicate domain claims found; nothing was written:")
-        for domain, sites in result["duplicates"].items():
-            print(f"  {domain} -> site_ids {sites}")
-        return result
-
-    stale = [doc for doc in docs if not _is_current(doc)]
-    print(f"{len(docs)} website(s), {len(stale)} need claimed_domains backfilled.")
-    if dry_run:
-        print(f"[DRY-RUN] {len(stale)} document(s) would be updated; no indexes created.")
-        result["remaining"] = len(stale)
-        return result
-
-    await WebsiteRepository.ensure_indexes(db)
-
-    for doc in stale:
+    for doc in docs:
         for _ in range(MAX_ATTEMPTS):
             try:
                 updated = await col.update_one(_guard(doc), {"$set": {"claimed_domains": _claims(doc)}})
@@ -116,30 +173,104 @@ async def run(db: Any, dry_run: bool) -> dict[str, Any]:
         else:
             result["conflicts"].append({"site_id": doc.get("site_id"), "error": "changed concurrently, re-run"})
 
-    result["remaining"] = await col.count_documents({"claimed_domains": {"$exists": False}})
-    print(f"Backfilled {result['backfilled']} document(s).")
-    for conflict in result["conflicts"]:
-        print(f"  CONFLICT site_id={conflict['site_id']}: {conflict['error']}")
-    print(f"Websites without claimed_domains: {result['remaining']}")
+
+async def _read_with_confirmed_duplicates(col: Any) -> tuple[list[dict[str, Any]], dict[str, list[str]]]:
+    docs = await col.find({}).to_list(length=None)
+    duplicates = find_duplicate_claims(docs)
+    if duplicates:
+        await asyncio.sleep(CONFIRM_DELAY_SECONDS)
+        docs = await col.find({}).to_list(length=None)
+        duplicates = find_duplicate_claims(docs)
+    return docs, duplicates
+
+
+async def _count_not_current(col: Any) -> int:
+    return len([doc for doc in await col.find({}).to_list(length=None) if not _is_current(doc)])
+
+
+async def run(db: Any, dry_run: bool) -> dict[str, Any]:
+    from app.repositories.website_repository import WebsiteRepository
+
+    col = db[COLLECTION]
+    docs, duplicates = await _read_with_confirmed_duplicates(col)
+    result: dict[str, Any] = {
+        "total": len(docs),
+        "duplicates": duplicates,
+        "unnormalizable": find_unnormalizable(docs),
+        "backfilled": 0,
+        "conflicts": [],
+        "remaining": 0,
+        "strict": False,
+    }
+
+    if result["unnormalizable"] or result["duplicates"]:
+        _report_problems(result)
+        return result
+
+    stale = [doc for doc in docs if not _is_current(doc)]
+    print(f"{len(docs)} website(s), {len(stale)} need claimed_domains backfilled.")
+    if dry_run:
+        print(f"[DRY-RUN] {len(stale)} document(s) would be updated; no indexes or validator created.")
+        result["remaining"] = len(stale)
+        return result
+
+    await WebsiteRepository.ensure_indexes(db)
+    if await WebsiteRepository.claims_validator_level(db) != "strict":
+        await WebsiteRepository.set_claims_validator(db, "moderate")
+
+    docs, result["duplicates"] = await _read_with_confirmed_duplicates(col)
+    if result["duplicates"]:
+        _report_duplicates(result["duplicates"])
+        return result
+
+    await _backfill(col, [doc for doc in docs if not _is_current(doc)], result)
+    if result["conflicts"]:
+        result["remaining"] = await _count_not_current(col)
+        _print_summary(result)
+        return result
+
+    await WebsiteRepository.set_claims_validator(db, "strict")
+    result["strict"] = True
+
+    for _ in range(MAX_ROUNDS):
+        docs, result["duplicates"] = await _read_with_confirmed_duplicates(col)
+        if result["duplicates"]:
+            _report_duplicates(result["duplicates"])
+            return result
+        stale = [doc for doc in docs if not _is_current(doc)]
+        if not stale:
+            break
+        await _backfill(col, stale, result)
+        if result["conflicts"]:
+            break
+
+    result["remaining"] = await _count_not_current(col)
+    _print_summary(result)
     return result
 
 
 async def migrate(mongo_uri: str, dry_run: bool) -> None:
     from pymongo import AsyncMongoClient
 
+    from app.platform.database import _extract_db_name
+
     client: AsyncMongoClient = AsyncMongoClient(mongo_uri)  # type: ignore[type-arg]
-    try:
-        db_name = client.get_default_database().name if "/" in mongo_uri.rsplit("?", 1)[0] else "seeds"
-    except Exception:
-        db_name = "seeds"
+    db_name = _extract_db_name(mongo_uri)
+    print(f"Database: {db_name}")
 
     try:
         result = await run(client[db_name], dry_run)
     finally:
         await client.close()
 
-    if result["duplicates"] or result["conflicts"] or (not dry_run and result["remaining"]):
+    if dry_run:
+        if result["duplicates"] or result["unnormalizable"]:
+            sys.exit(1)
+        return
+    if not succeeded(result):
+        print("Migration did NOT complete; website domain changes stay paused (HTTP 503) until it does.")
         sys.exit(1)
+    print("Migration complete and verified.")
 
 
 def _resolve_mongo_uri(cli_uri: str | None) -> str:
@@ -166,7 +297,7 @@ def _resolve_mongo_uri(cli_uri: str | None) -> str:
 
 def main() -> None:
     sys.stdout.reconfigure(encoding="utf-8")  # type: ignore[attr-defined]
-    parser = argparse.ArgumentParser(description="Backfill websites.claimed_domains and create its unique index.")
+    parser = argparse.ArgumentParser(description="Backfill websites.claimed_domains and enforce unique domain claims.")
     parser.add_argument("--dry-run", action="store_true", help="Preview changes without writing.")
     parser.add_argument("--mongo-uri", default=None, help="MongoDB connection URI.")
     args = parser.parse_args()

@@ -18,3 +18,8 @@ def normalize_domain(domain: str) -> str:
 
 def normalize_domains(domains: list[str]) -> list[str]:
     return list(dict.fromkeys(normalize_domain(domain) for domain in domains))
+
+
+def claimed_domains(domain: str | None, additional_domains: list[str] | None) -> list[str]:
+    tokens = [(domain or "").lower(), *(value.lower() for value in additional_domains or [])]
+    return list(dict.fromkeys(token for token in tokens if token))
