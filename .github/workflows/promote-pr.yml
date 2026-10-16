@@ -1,0 +1,35 @@
+name: Promotion PR
+
+on:
+  push:
+    branches: [a4i/staging]
+  workflow_dispatch:
+
+concurrency:
+  group: promote-pr
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Open or refresh the staging -> main promotion PR
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_BOT_PAT }}
+        run: |
+          number=$(gh pr list --base a4i/main --head a4i/staging --state open --json number,isCrossRepository --jq '[.[] | select(.isCrossRepository | not)][0].number')
+          notes=$(gh api "repos/${{ github.repository }}/releases/generate-notes" -f tag_name=next-release -f target_commitish=a4i/staging --jq .body)
+          if [ -z "$number" ]; then
+            url=$(gh pr create --base a4i/main --head a4i/staging \
+              --title "Release: a4i/staging -> a4i/main" \
+              --body "$notes" --label release)
+            number=$(gh pr view "$url" --json number --jq .number)
+          else
+            gh pr edit "$number" --body "$notes"
+          fi
+          if [ -z "$number" ]; then
+            echo "Could not determine promotion PR number." >&2
+            exit 1
+          fi
+          gh pr merge "$number" --auto --merge
