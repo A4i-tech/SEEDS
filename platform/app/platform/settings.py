@@ -4,7 +4,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -50,6 +50,24 @@ class Settings(BaseSettings):
     # Legacy env names from JS (TTS_SUBSCRIPTION_KEY, TTS_REGION)
     tts_subscription_key: str = Field(default="", repr=False)
     tts_region: str = ""
+
+    storage_backend: Literal["azure", "s3"] = "s3"
+
+    @field_validator("storage_backend", mode="before")
+    @classmethod
+    def _storage_backend_supported(cls, value: object) -> object:
+        # Old env.example files set STORAGE_BACKEND=mongodb for an unused Cosmos option
+        if value not in ("azure", "s3"):
+            raise ValueError(
+                f"STORAGE_BACKEND={value} is not supported for blob storage. "
+                "Set STORAGE_BACKEND to s3 or azure."
+            )
+        return value
+
+    s3_endpoint_url: str = ""
+    s3_access_key_id: str = ""
+    s3_secret_access_key: str = Field(default="", repr=False)
+    s3_region: str = "us-east-1"
 
     azure_blob_sas_enabled: bool = True
     azure_storage_account_name: str = ""

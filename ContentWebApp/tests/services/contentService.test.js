@@ -144,4 +144,35 @@ describe("contentService", () => {
       expect(out.title.english).toBe("X");
     });
   });
+
+  describe("uploadAudio", () => {
+    it("posts the file as multipart without a JSON content type", async () => {
+      apiFetch.mockResolvedValue({ audio_url: "http://store/input-container/a.mp3" });
+      const file = new File(["x"], "a.mp3", { type: "audio/mpeg" });
+
+      const url = await contentService.uploadAudio("a.mp3", file);
+
+      const [target, options] = apiFetch.mock.calls[0];
+      expect(target).toBe(`${SEEDS_URL}/content/audio`);
+      expect(options.method).toBe("POST");
+      expect(options.headers).toEqual({ Authorization: "Bearer test-token" });
+      expect(options.body.get("blob_name")).toBe("a.mp3");
+      expect(options.body.get("file")).toBeInstanceOf(File);
+      expect(url).toBe("http://store/input-container/a.mp3");
+    });
+  });
+
+  describe("getAudioUrl", () => {
+    it("asks the backend for the signed url of a variant", async () => {
+      apiFetch.mockResolvedValue({ url: "http://store/x?sig=1" });
+
+      const url = await contentService.getAudioUrl("c1", "final");
+
+      expect(apiFetch).toHaveBeenCalledWith(
+        `${SEEDS_URL}/content/audioUrl?content_id=c1&variant=final`,
+        expect.objectContaining({ method: "GET" })
+      );
+      expect(url).toBe("http://store/x?sig=1");
+    });
+  });
 });

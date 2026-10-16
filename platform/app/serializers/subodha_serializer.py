@@ -9,6 +9,7 @@ import re
 from dataclasses import dataclass
 
 from app.aggregators.models import CanonicalNode, ItemType, NodeKind
+from app.platform.settings import get_settings
 from app.providers.blob_storage import BlobStorageProvider
 
 logger = logging.getLogger(__name__)
@@ -17,11 +18,17 @@ logger = logging.getLogger(__name__)
 # blob-storage URLs baked in at sync time, but the storage account has public
 # access disabled — every blob URL needs a fresh SAS token before the browser
 # can load it, regardless of which syntax wraps it.
-_BLOB_URL_RE = re.compile(r"https://[^\s)\"'<>]+\.blob\.core\.windows\.net/[^\s)\"'<>]+")
+# Match legacy Azure-hosted URLs and the current backend's asset-container URLs.
+_AZURE_BLOB_URL = r"https://[^\s)\"'<>]+\.blob\.core\.windows\.net/"
+
+
+def _blob_url_re(blob: BlobStorageProvider) -> re.Pattern[str]:
+    asset_base = blob.blob_url(get_settings().subodha_asset_container, "")
+    return re.compile(rf"(?:{_AZURE_BLOB_URL}|{re.escape(asset_base)})[^\s)\"'<>]+")
 
 
 async def _sign_blob_urls(text: str, blob: BlobStorageProvider) -> str:
-    urls = list(set(_BLOB_URL_RE.findall(text)))
+    urls = list(set(_blob_url_re(blob).findall(text)))
     if not urls:
         return text
     signed = await asyncio.gather(

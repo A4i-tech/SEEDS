@@ -15,8 +15,9 @@ pydantic = {extras = ["email"], version = ">=2.6"}
 python-jose = {extras = ["cryptography"], version = ">=3.3"}
 passlib = {extras = ["bcrypt"], version = ">=1.7"}
 azure-servicebus = ">=7.12"
-azure-storage-blob = ">=12.19"
+azure-storage-blob = {version = ">=12.19", optional = true}
 azure-identity = ">=1.15"
+boto3 = ">=1.36"
 azure-monitor-opentelemetry = ">=1.2"
 opentelemetry-instrumentation-fastapi = ">=0.44b0"
 opentelemetry-instrumentation-httpx = ">=0.44b0"
@@ -48,6 +49,9 @@ liblouis = [
     { url = "https://github.com/daiverd/liblouis/releases/download/python-wheel-poc-v0.2/liblouis-3.38.0-py3-none-manylinux_2_34_x86_64.whl", markers = "sys_platform == 'linux'" },
     { url = "https://github.com/daiverd/liblouis/releases/download/python-wheel-poc-v0.2/liblouis-3.38.0-py3-none-win_amd64.whl", markers = "sys_platform == 'win32'" },
 ]
+
+[tool.poetry.extras]
+azure = ["azure-storage-blob"]
 
 [tool.poetry.group.test.dependencies]
 pytest = ">=8.0"

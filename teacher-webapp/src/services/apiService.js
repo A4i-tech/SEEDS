@@ -1,5 +1,4 @@
 import { API_ENDPOINTS } from "../constants/apiEndpoints";
-import { APP_CONFIG } from "../config/appConfig";
 import axiosInstance from "./axiosInstance";
 import { normalizePhoneNumber } from "../utils/phoneUtils";
 import { ContentPageDto } from "../dto/ContentDto";
@@ -131,10 +130,7 @@ export const unmuteAll = async (confId) => {
 };
 
 export const playAudio = async (confId, url) => {
-  const audioUrl =
-    url ??
-    `https://${APP_CONFIG.STORAGE_ACCOUNT_NAME}.blob.core.windows.net/output-container/25/1.0.wav`;
-  const response = await axiosInstance.put(API_ENDPOINTS.CONFERENCE.PLAY_AUDIO(confId, audioUrl));
+  const response = await axiosInstance.put(API_ENDPOINTS.CONFERENCE.PLAY_AUDIO(confId, url));
   return response;
 };
 

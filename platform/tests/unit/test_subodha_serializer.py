@@ -21,6 +21,9 @@ class FakeBlob:
     async def download_from_url(self, blob_url: str) -> bytes:
         return self._files[blob_url]
 
+    def blob_url(self, container: str, blob_name: str) -> str:
+        return f"https://storage.test/{container}/{blob_name}"
+
     async def get_sas_url_from_blob_url(self, blob_url: str, expiry_hours: int = 1) -> str:
         if blob_url in self._sign_failures:
             raise RuntimeError("signing failed")
@@ -230,3 +233,15 @@ async def test_to_course_doc_leaves_image_url_untouched_if_signing_fails():
     doc = (await to_course_doc([course, chapter, seq, vert, html_item], blob)).to_dict()
 
     assert doc["blocks"][0]["markdown"] == markdown
+
+
+@pytest.mark.asyncio
+async def test_sign_blob_urls_signs_current_backend_asset_urls_and_ignores_other_hosts():
+    from app.serializers.subodha_serializer import _sign_blob_urls
+
+    asset = "https://storage.test/subodha/courses/c1/assets/img.png"
+    other = "https://example.com/subodha/courses/c1/assets/img.png"
+
+    result = await _sign_blob_urls(f"![a]({asset}) ![b]({other})", FakeBlob({}))
+
+    assert result == f"![a]({asset}?sas=signed) ![b]({other})"

@@ -20,7 +20,7 @@ from app.aggregators.subodha_adapter import SubodhaAdapter
 from app.aggregators.sync_job_models import SyncItemResult, SyncStats
 from app.platform.auth.dependencies import get_db
 from app.platform.settings import get_settings
-from app.providers.blob_storage import BlobStorageProvider
+from app.providers.blob_storage import BlobStorageProvider, get_blob_storage_provider
 from app.providers.subodha_client import SubodhaClient, SubodhaCourse, get_subodha_client
 from app.repositories.content_aggregator_item_override_repository import (
     ContentAggregatorItemOverrideRepository,
@@ -63,7 +63,7 @@ async def fetch_and_store_assets(
     settings = get_settings()
     container = settings.subodha_asset_container
     safe_course_id = re.sub(r"[:/+]", "_", course_id)
-    blob_provider = BlobStorageProvider()
+    blob_provider = get_blob_storage_provider()
     semaphore = asyncio.Semaphore(settings.subodha_asset_concurrency)
     url_map: dict[str, str] = {}
     stats = {"saved": 0, "failed": 0}
@@ -74,7 +74,7 @@ async def fetch_and_store_assets(
             blob_name = f"courses/{safe_course_id}/assets/{file_name}"
             try:
                 if await blob_provider.exists(container, blob_name):
-                    url_map[relative_url] = blob_provider.get_container_client(container).get_blob_client(blob_name).url
+                    url_map[relative_url] = blob_provider.blob_url(container, blob_name)
                 else:
                     data = await client.fetch_asset(relative_url, session_cookie)
                     content_type = mimetypes.guess_type(file_name)[0] or "application/octet-stream"
@@ -102,7 +102,7 @@ class SubodhaService:
         self._repo = ContentAggregatorRepository(db)
         self._override_repo = ContentAggregatorItemOverrideRepository(db)
         self._sync_jobs = sync_jobs if sync_jobs is not None else get_sync_job_service(db)
-        self._blob = blob if blob is not None else BlobStorageProvider()
+        self._blob = blob if blob is not None else get_blob_storage_provider()
         self._client = client if client is not None else get_subodha_client()
         self._settings = get_settings()
         self._adapter = SubodhaAdapter()

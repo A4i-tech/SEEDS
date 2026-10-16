@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
-import { BlockBlobClient } from "@azure/storage-blob";
 import { useNavigate } from "react-router-dom";
 import { v4 as uuidv4 } from "uuid";
-import { SEEDS_URL, AUDIO_BASE_URL } from "../Constants";
+import { SEEDS_URL } from "../Constants";
 import { getAuthHeaders } from "../utils/authHelpers";
 import { useAuth } from "../hooks/useAuth";
 import { isMp3File } from "../utils/fileValidators";
@@ -172,11 +171,16 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
         answerAudioFile: "",
       };
       setMetadata(quizMetadata);
+      const loadAudio = (variant, setSrc) =>
+        contentService.getAudioUrl(content.id, variant).then(setSrc).catch((error) => {
+          console.error("Error fetching audio URL:", error);
+          setSrc(undefined);
+        });
       if (contentType !== "Riddle") {
-        setAudioSrc(`${AUDIO_BASE_URL}/${content.id}.mp3`);
+        loadAudio("original", setAudioSrc);
       } else {
-        setAudioSrc(`${AUDIO_BASE_URL}/${content.id}/question.mp3`);
-        setAnswerAudioSrc(`${AUDIO_BASE_URL}/${content.id}/answer.mp3`);
+        loadAudio("original_question", setAudioSrc);
+        loadAudio("original_answer", setAnswerAudioSrc);
       }
       fetchTitlesUnderTheme(quizMetadata.language, quizMetadata.theme.english);
     }
@@ -296,58 +300,30 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
     delete newMetadata["audioFile"];
     delete newMetadata["answerAudioFile"];
 
-    // Get SAS tokens and populate audioContent with input-container URLs before sending to backend
     const audioContentArray = [];
-    let sasUrl = null;
-    let sasUrlAnswer = null;
-    let filename = null;
-    let answerFilename = null;
 
-    if (metadata.audioFile) {
-      const extname = metadata.audioFile.split(".").pop();
-      filename = `${_id}.${extname}`;
-      if (contentType === "Riddle") {
-        filename = `${_id}_question.${extname}`;
+    try {
+      if (metadata.audioFile) {
+        const extname = metadata.audioFile.split(".").pop();
+        const filename = contentType === "Riddle" ? `${_id}_question.${extname}` : `${_id}.${extname}`;
+        audioContentArray.push({
+          description: "",
+          audio_url: await contentService.uploadAudio(filename, file),
+        });
       }
-      const res = await fetch(
-        `${SEEDS_URL}/content/sasToken?` +
-          new URLSearchParams({
-            blob_name: filename,
-          }),
-        {
-          method: "GET",
-          headers: getAuthHeaders(),
-        }
-      );
-      sasUrl = (await res.json()).sas_token;
-      // Extract base URL (input-container URL) without SAS token
-      const inputContainerUrl = sasUrl.split("?")[0];
-      audioContentArray.push({
-        description: "",
-        audio_url: inputContainerUrl,
-      });
-    }
 
-    if (metadata.answerAudioFile) {
-      const answerExtname = metadata.answerAudioFile.split(".").pop();
-      answerFilename = `${_id}_answer.${answerExtname}`;
-      const resAnswer = await fetch(
-        `${SEEDS_URL}/content/sasToken?` +
-          new URLSearchParams({
-            blob_name: answerFilename,
-          }),
-        {
-          method: "GET",
-          headers: getAuthHeaders(),
-        }
-      );
-      sasUrlAnswer = (await resAnswer.json()).sas_token;
-      // Extract base URL (input-container URL) without SAS token
-      const inputContainerUrlAnswer = sasUrlAnswer.split("?")[0];
-      audioContentArray.push({
-        description: "",
-        audio_url: inputContainerUrlAnswer,
-      });
+      if (metadata.answerAudioFile) {
+        const answerExtname = metadata.answerAudioFile.split(".").pop();
+        audioContentArray.push({
+          description: "",
+          audio_url: await contentService.uploadAudio(`${_id}_answer.${answerExtname}`, answerFile),
+        });
+      }
+    } catch (error) {
+      console.error("Error uploading audio:", error);
+      setUploadError(`Audio upload failed: ${error.message}`);
+      setIsSaveButtonDisabled(false);
+      return;
     }
 
     // Populate audioContent array in metadata
@@ -357,36 +333,6 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
 
     const tenantName = await getCurrentUser();
     newMetadata.createdBy = tenantName || newMetadata.createdBy;
-
-    // Upload files to Azure Blob Storage FIRST, before sending metadata to backend
-    // This ensures files are available when the background job starts processing
-    if (metadata.audioFile && sasUrl) {
-      const client = new BlockBlobClient(sasUrl);
-      const metadataProperties = {
-        experience: contentType,
-      };
-      if (!metadata.answerAudioFile) {
-        metadataProperties["isfinalaudio"] = "true";
-      } else {
-        metadataProperties["isfinalaudio"] = "false";
-      }
-      if (contentType === "Riddle") {
-        metadataProperties["Question"] = "true";
-      }
-      await client.uploadBrowserData(file, {
-        metadata: metadataProperties,
-      });
-    }
-    if (metadata.answerAudioFile && sasUrlAnswer) {
-      const clientAnswer = new BlockBlobClient(sasUrlAnswer);
-      await clientAnswer.uploadBrowserData(answerFile, {
-        metadata: {
-          experience: contentType,
-          Question: "false",
-          isfinalaudio: "true",
-        },
-      });
-    }
 
     // Send metadata to backend with populated audioContent AFTER files are uploaded
     if (content) {

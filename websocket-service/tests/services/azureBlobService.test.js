@@ -1,10 +1,11 @@
 const azureBlobService = require('../../src/services/azureBlobService');
 
 jest.mock('../../src/config/azureConfig', () => ({
-    blobServiceClient: { getContainerClient: jest.fn() }
+    getBlobServiceClient: jest.fn()
 }));
 
-const { blobServiceClient } = require('../../src/config/azureConfig');
+const { getBlobServiceClient } = require('../../src/config/azureConfig');
+const blobServiceClient = { getContainerClient: jest.fn() };
 
 describe('AzureBlobService', () => {
     let mockContainerClient, mockBlobClient, mockDownloadResponse;
@@ -22,6 +23,7 @@ describe('AzureBlobService', () => {
         };
         mockBlobClient = { download: jest.fn().mockResolvedValue(mockDownloadResponse) };
         mockContainerClient = { getBlobClient: jest.fn().mockReturnValue(mockBlobClient) };
+        getBlobServiceClient.mockReturnValue(blobServiceClient);
         blobServiceClient.getContainerClient.mockReturnValue(mockContainerClient);
     });
 

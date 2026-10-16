@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 from app.platform.settings import get_settings
+from app.providers.blob_storage import get_blob_storage_provider
 from app.providers.vonage_actions.base.action import Action
 from app.providers.vonage_actions.connect_action import VonageConnectAction
 from app.providers.vonage_actions.input_action import InputAction
@@ -29,18 +30,11 @@ logger = logging.getLogger(__name__)
 class FSM:
     """IVR Finite State Machine."""
 
-    STORAGE_ACCOUNT_BASE_URL: str = ""  # set at construction from settings
+    STORAGE_ACCOUNT_BASE_URL: str = ""  # set at construction from the storage provider
 
     def __init__(self, fsm_id: str) -> None:
 
-        settings = get_settings()
-        storage_account_name = settings.azure_storage_account_name
-        if storage_account_name:
-            self.STORAGE_ACCOUNT_BASE_URL = (
-                f"https://{storage_account_name}.blob.core.windows.net/pull-model-menus/"
-            )
-        else:
-            self.STORAGE_ACCOUNT_BASE_URL = ""
+        self.STORAGE_ACCOUNT_BASE_URL = get_blob_storage_provider().blob_url("pull-model-menus", "")
 
         NO_OPTION_URL = (
             f"{self.STORAGE_ACCOUNT_BASE_URL}"

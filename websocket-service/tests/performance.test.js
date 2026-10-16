@@ -1,10 +1,10 @@
 const websocketService = require('../src/services/websocketService');
-const azureBlobService = require('../src/services/azureBlobService');
+const blobStorage = require('../src/services/blobStorage');
 const connectionManager = require('../src/services/connectionManager');
 const { createMockConnection, createMockAudioData, captureConsole } = require('./utils/testHelpers');
 
 // Mock dependencies
-jest.mock('../src/services/azureBlobService');
+jest.mock('../src/services/blobStorage');
 jest.mock('../src/services/connectionManager');
 
 describe('Performance Tests', () => {
@@ -50,7 +50,7 @@ describe('Performance Tests', () => {
     describe('Audio Streaming Performance', () => {
         it('should handle large audio files efficiently', async () => {
             const largeAudioData = createMockAudioData(1024 * 1024);
-            azureBlobService.getBlobData.mockResolvedValue(largeAudioData);
+            blobStorage.getBlobData.mockResolvedValue(largeAudioData);
             const connection = createMockConnection('test-client');
             mockConnections.set('test-client', connection);
 
@@ -74,7 +74,7 @@ describe('Performance Tests', () => {
         it('should handle multiple concurrent audio streams', async () => {
             const numStreams = 10;
             const audioData = createMockAudioData(10240);
-            azureBlobService.getBlobData.mockResolvedValue(audioData);
+            blobStorage.getBlobData.mockResolvedValue(audioData);
             const connections = [];
 
             for (let i = 0; i < numStreams; i++) {
@@ -108,7 +108,7 @@ describe('Performance Tests', () => {
             const connection = createMockConnection('test-client');
             mockConnections.set('test-client', connection);
             const largeAudioData = createMockAudioData(1024 * 1024);
-            azureBlobService.getBlobData.mockResolvedValue(largeAudioData);
+            blobStorage.getBlobData.mockResolvedValue(largeAudioData);
 
             // Track the connection state throughout the test
             for (let i = 0; i < 5; i++) {

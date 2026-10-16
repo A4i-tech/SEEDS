@@ -15,9 +15,10 @@ SECURITY:
 from __future__ import annotations
 
 import logging
-from typing import Any
+import re
+from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 
 from app.models.requests.content_requests import (
     ContentCreateRequest,
@@ -31,8 +32,8 @@ from app.models.responses.content import (
     ContentItem,
     ContentPageResponse,
     PaginationInfo,
-    SasTokenResponse,
     SasUrlResponse,
+    UploadedAudioResponse,
     WebsiteExtractResponse,
     WebsiteTranslationResponse,
 )
@@ -48,6 +49,8 @@ from app.services.sdk_hash import sdk_hash_text
 from app.services.translation_service import TranslationService, get_translation_service
 
 logger = logging.getLogger(__name__)
+
+_MAX_AUDIO_UPLOAD_BYTES = 50 * 1024 * 1024
 
 router = APIRouter(prefix="/content", tags=["Content"])
 
@@ -188,24 +191,56 @@ async def get_sas_url(
 
 
 # ---------------------------------------------------------------------------
-# GET /content/sasToken
+# GET /content/audioUrl
+# ---------------------------------------------------------------------------
+
+_AUDIO_VARIANTS = {
+    "final": ("output-container", "{id}/1.0.wav"),
+    "question": ("output-container", "{id}/question/1.0.wav"),
+    "answer": ("output-container", "{id}/answer/1.0.wav"),
+    "original": ("output-original", "{id}.mp3"),
+    "original_question": ("output-original", "{id}/question.mp3"),
+    "original_answer": ("output-original", "{id}/answer.mp3"),
+}
+
+
+@router.get("/audioUrl", summary="Get SAS URL for a content audio file")
+async def get_audio_url(
+    content_id: str = Query(...),
+    variant: Literal["final", "question", "answer", "original", "original_question", "original_answer"] = Query(...),
+    user: dict[str, Any] = Depends(_require_content_read),
+    service: ContentService = Depends(get_content_service),
+) -> SasUrlResponse:
+    if not await service.get_content_by_id(content_id, user.get("tenant_id", ""), _read_school_id(user)):
+        raise NotFoundError("Content", content_id)
+    container, name = _AUDIO_VARIANTS[variant]
+    blob_url = get_blob_storage_provider().blob_url(container, name.format(id=content_id))
+    return SasUrlResponse(url=await _get_sas_url(blob_url))
+
+
+# ---------------------------------------------------------------------------
+# POST /content/audio
 # ---------------------------------------------------------------------------
 
 
-@router.get("/sasToken", summary="Get upload SAS token for MP3 blob")
-async def get_sas_token(
-    blob_name: str = Query(...),
+@router.post("/audio", summary="Upload an MP3 for content processing")
+async def upload_audio(
+    blob_name: str = Form(...),
+    file: UploadFile = File(...),
     user: dict[str, Any] = Depends(_require_content_write),
-) -> SasTokenResponse:
-    if not blob_name or not blob_name.lower().endswith(".mp3"):
+) -> UploadedAudioResponse:
+    if not re.fullmatch(r"[\w.-]+\.mp3", blob_name) or ".." in blob_name:
         raise HTTPException(status_code=400, detail="Only .mp3 files are allowed.")
+    if file.size is None or file.size > _MAX_AUDIO_UPLOAD_BYTES:
+        raise HTTPException(status_code=413, detail="Audio file is larger than 50 MB. Upload a smaller file.")
     try:
-        provider = get_blob_storage_provider()
-        sas_url = await provider.get_upload_sas_url("input-container", blob_name, expiry_hours=1)
+        url = await get_blob_storage_provider().upload_file(
+            "input-container", blob_name, file.file, "audio/mpeg"
+        )
     except Exception as exc:
-        logger.error("get_sas_token failed", extra={"blob_name": blob_name, "err": str(exc)})
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return SasTokenResponse(sas_token=sas_url)
+        logger.error("upload_audio failed", extra={"blob_name": blob_name, "err": str(exc)})
+        raise HTTPException(status_code=500, detail=f"Failed to upload audio: {exc}") from exc
+    return UploadedAudioResponse(audio_url=url)
 
 
 # ---------------------------------------------------------------------------

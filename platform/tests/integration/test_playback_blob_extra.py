@@ -185,24 +185,15 @@ class TestBlobStoragePure:
 
     def test_extract_blob_path_without_extension(self) -> None:
         """BlobStorageProvider.extract_blob_path_without_extension strips extension."""
-        mock_settings = MagicMock()
-        mock_settings.azure_blob_sas_enabled = False
-        mock_settings.azure_storage_account_name = "testaccount"
-        mock_settings.azure_storage_account_key = ""
-        mock_settings.azure_storage_connection_string = ""
+        from app.providers.s3_blob_storage import S3BlobStorageProvider
 
-        with patch("app.providers.blob_storage.get_settings", return_value=mock_settings):
-            from app.providers.blob_storage import BlobStorageProvider
-            provider = BlobStorageProvider.__new__(BlobStorageProvider)
-            provider._account_name = "testaccount"
-            provider._account_key = ""
-            provider._connection_string = ""
+        provider = S3BlobStorageProvider.__new__(S3BlobStorageProvider)
 
-            result = provider.extract_blob_path_without_extension(
-                "https://testaccount.blob.core.windows.net/audio/test.mp3"
-            )
-            assert ".mp3" not in result
-            assert "test" in result
+        result = provider.extract_blob_path_without_extension(
+            "https://testaccount.blob.core.windows.net/audio/test.mp3"
+        )
+        assert ".mp3" not in result
+        assert "test" in result
 
     def test_sas_generator_disabled_returns_original(self) -> None:
         from app.providers.blob_storage import SASGenerator

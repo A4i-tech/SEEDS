@@ -24,7 +24,10 @@ os.environ.setdefault(
 def clear_settings_cache():
     """Clear the lru_cache on get_settings before each test to prevent cache poisoning."""
     from app.platform.settings import get_settings
+    from app.providers import blob_storage
 
     get_settings.cache_clear()
+    blob_storage._provider = None
     yield
     get_settings.cache_clear()
+    blob_storage._provider = None
