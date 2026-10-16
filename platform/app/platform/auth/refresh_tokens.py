@@ -156,7 +156,6 @@ async def rotate[ClaimsT](
 
     now = datetime.now(tz=UTC)
     claims = await verify_owner_active(consumed.owner_id, consumed.claims)
-
     access_token, access_expires_in = await build_access_token(consumed.owner_id, claims)
 
     new_refresh_token = generate_refresh_token()

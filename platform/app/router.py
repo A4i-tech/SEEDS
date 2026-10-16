@@ -46,6 +46,7 @@ from app.controllers import (
     user_controller,
     # Webhooks (split from webhook_controller)
     webhook_controller,
+    webhook_registration_controller,
     websocket_controller,
 )
 
@@ -71,12 +72,12 @@ api_router.include_router(class_controller.router)
 api_router.include_router(content_controller.router)
 api_router.include_router(audit_controller.router)
 api_router.include_router(content_aggregator_controller.router)
+api_router.include_router(content_aggregator_auth_controller.router)
 api_router.include_router(textbook_remediation_controller.router)
 api_router.include_router(translation_controller.router)
 api_router.include_router(onboarding_controller.router)
 api_router.include_router(glossary_controller.router)
 api_router.include_router(language_controller.router)
-api_router.include_router(content_aggregator_auth_controller.router)
 
 # Calls
 api_router.include_router(conference_controller.router)
@@ -89,6 +90,7 @@ api_router.include_router(participants_controller.router)
 
 # Webhooks
 api_router.include_router(webhook_controller.router)
+api_router.include_router(webhook_registration_controller.router)
 api_router.include_router(ivr_webhook_controller.router)
 
 # Other
