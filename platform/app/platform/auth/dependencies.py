@@ -13,11 +13,11 @@ import logging
 from collections.abc import AsyncGenerator
 from typing import Any
 
-from fastapi import Depends, Request
+from fastapi import Depends, Request, Response
 from fastapi.security import OAuth2PasswordBearer
 from pymongo.asynchronous.database import AsyncDatabase
 
-from app.platform.auth.jwt import verify_token
+from app.platform.auth.jwt import parse_expires_delta, verify_token
 from app.platform.auth.providers.firebase_provider import verify_firebase_token
 from app.platform.database import get_database
 from app.platform.error_handling import ForbiddenError, NotFoundError, UnauthorizedError
@@ -28,6 +28,29 @@ from app.repositories.conference_repository import ConferenceOwnershipRepository
 logger = logging.getLogger(__name__)
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token", auto_error=False)
+
+REFRESH_COOKIE_NAME = "refresh_token"
+
+
+def set_refresh_cookie(response: Response, refresh_token: str) -> None:
+    settings = get_settings()
+    max_age = int(parse_expires_delta(settings.refresh_token_expires_in).total_seconds())
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
+    response.set_cookie(
+        key=REFRESH_COOKIE_NAME,
+        value=refresh_token,
+        httponly=True,
+        secure=settings.refresh_cookie_secure,
+        samesite=settings.refresh_cookie_samesite,
+        domain=settings.refresh_cookie_domain or None,
+        path="/auth",
+        max_age=max_age,
+    )
+
+
+def clear_refresh_cookie(response: Response) -> None:
+    response.delete_cookie(key=REFRESH_COOKIE_NAME, path="/auth")
 
 
 # ---------------------------------------------------------------------------
@@ -99,7 +122,7 @@ async def get_current_user(
 
     # Attach to request state for logging / telemetry middleware
     request.state.user_id = user.get("sub", "")
-    request.state.tenant_id = user.get("tenant_id", "")
+    request.state.tenant_id = user.get("tenant_id")
 
     return user
 
