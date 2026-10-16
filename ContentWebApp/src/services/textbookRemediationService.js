@@ -112,4 +112,12 @@ export const textbookRemediationService = {
       body: JSON.stringify({ target_language: targetLanguage }),
     });
   },
+
+  async assignJob(jobId, volunteerId) {
+    return apiFetch(`${BASE}/jobs/${encodeURIComponent(jobId)}/assignment`, {
+      method: "PUT",
+      headers: getAuthHeaders(),
+      body: JSON.stringify({ volunteer_id: volunteerId || null }),
+    });
+  },
 };
