@@ -21,7 +21,6 @@ const NowPlayingBanner = ({ audioContentState }) => {
 
   return (
     <Box
-      data-testid="now-playing-banner"
       sx={{
         px: 2,
         py: 1.25,

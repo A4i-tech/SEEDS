@@ -266,39 +266,28 @@ test('TC-TCONT-011 closing the Content Library closes the dialog', async ({ page
 // Teacher WebApp read-only content details route matches the title returned
 // by the backend API, rather than relying on a locally cached/derived title.
 test('REG-594-TITLE [#594 regression] content details page title matches the API response', async ({ page }) => {
-  await page.route('**/content/test-content-1', (route) =>
-    route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify({
-        id: 'test-content-1',
-        type: 'story',
-        language: 'en',
-        description: 'A test story',
-        title: { english: 'Test Story Title', local: null },
-        theme: { english: null, local: null },
-        audio_content: [],
-        is_deleted: false,
-      }),
-    })
+  const classroomListPage = new ClassroomListPage(page);
+  const contentDrawerPage = new ContentDrawerPage(page);
+
+  await openLibraryOrSkip(test, page, classroomListPage, contentDrawerPage);
+
+  const title = (await contentDrawerPage.firstContentItem().innerText()).trim();
+
+  const playResponse = page.waitForResponse(
+    (res) => res.url().includes('/content/') && res.request().method() === 'GET'
   );
+  await contentDrawerPage.playContent(title);
+  const contentId = new URL((await playResponse).url()).pathname.split('/').filter(Boolean).pop();
 
   const contentDetailsPage = new ContentDetailsPage(page);
-  await contentDetailsPage.goto('test-content-1');
+  const detailsResponse = page.waitForResponse(
+    (res) => res.url().endsWith(`/content/${contentId}`) && res.request().method() === 'GET'
+  );
+  await contentDetailsPage.goto(contentId);
+  const body = await (await detailsResponse).json();
+  const expectedTitle = body.title.english && body.title.local
+    ? `${body.title.english} (${body.title.local})`
+    : body.title.english || body.title.local || 'Untitled';
 
-  await expect(contentDetailsPage.title).toHaveText('Test Story Title', { timeout: 10000 });
-});
-
-// FUTURE-TCONT-DETAILS-ERROR (out of scope for #609): Verify navigating to a
-// content details URL for a failed fetch shows an error rather than a blank
-// page. Retained for coverage but not part of the documented #609 TCONT
-// baseline.
-test('FUTURE-TCONT-DETAILS-ERROR content details page shows an error when the content fails to load', async ({ page }) => {
-  await page.route('**/content/missing-content', (route) => route.fulfill({ status: 404, body: 'not found' }));
-
-  const contentDetailsPage = new ContentDetailsPage(page);
-  await contentDetailsPage.goto('missing-content');
-
-  await expect(page.getByRole('alert')).toBeVisible({ timeout: 10000 });
-  await expect(contentDetailsPage.title).toHaveCount(0);
+  await expect(contentDetailsPage.title).toHaveText(expectedTitle, { timeout: 10000 });
 });

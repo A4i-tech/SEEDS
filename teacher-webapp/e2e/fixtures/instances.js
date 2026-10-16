@@ -44,10 +44,4 @@ function uniqueClassroomName() {
   return `E2E Classroom ${Date.now()}-${classroomCounter}`;
 }
 
-let phoneCounter = 0;
-function uniquePhone() {
-  phoneCounter += 1;
-  return `9${String(Date.now() + phoneCounter).slice(-9)}`;
-}
-
-module.exports = { INSTANCES, getInstance, PERSONAS, authFile, uniqueClassroomName, uniquePhone };
+module.exports = { INSTANCES, getInstance, PERSONAS, authFile, uniqueClassroomName };

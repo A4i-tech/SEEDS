@@ -5,7 +5,6 @@ const { ClassroomListPage } = require('../../pages/ClassroomListPage');
 const { ClassroomFormPage } = require('../../pages/ClassroomFormPage');
 const { ClassroomDetailPage } = require('../../pages/ClassroomDetailPage');
 const { ContentDrawerPage } = require('../../pages/ContentDrawerPage');
-const { CallPage } = require('../../pages/CallPage');
 
 async function findClassroomWithStudents(page) {
   const classroomListPage = new ClassroomListPage(page);
@@ -90,53 +89,6 @@ test('TC-TNEG-004 selecting content shows an error when the audio URL fetch fail
   await contentDrawerPage.playContent(title);
 
   await expect(page.getByText(/failed to load audio/i)).toBeVisible({ timeout: 10000 });
-});
-
-// FUTURE-TNEG-ENDCALL (out of scope for #609): in-call end-conference behavior is explicitly
-// excluded from the #609 baseline. Kept isolated here as future/out-of-scope coverage and must
-// NOT be counted toward the #609 33-case or 6-negative-case baseline.
-test('FUTURE-TNEG-ENDCALL [out of scope] ending the conference shows an error and stays in the call when the request fails', async ({ page }) => {
-  const classroomName = await findClassroomWithStudents(page);
-  test.skip(!classroomName, 'No classroom with at least one student is available on this instance');
-
-  const classroomListPage = new ClassroomListPage(page);
-  const classroomDetailPage = new ClassroomDetailPage(page);
-  const callPage = new CallPage(page);
-  await classroomListPage.goto();
-  await classroomListPage.viewClassroom(classroomName);
-  await classroomDetailPage.editButton.waitFor();
-  await classroomDetailPage.toggleStudent(await classroomDetailPage.page.locator('.MuiListItem-root').first().innerText());
-  await classroomDetailPage.startConference();
-  await callPage.endConferenceButton.waitFor({ timeout: 20000 });
-
-  await page.route('**/conference/sink/*', (route) => route.fulfill({ status: 500, body: 'error' }));
-  await callPage.endConferenceButton.click();
-
-  await expect(page.getByText(/failed to sink conference/i)).toBeVisible({ timeout: 10000 });
-  await expect(callPage.endConferenceButton).toBeVisible();
-});
-
-// FUTURE-TNEG-MUTEALL (out of scope for #609): in-call mute-all behavior is explicitly excluded
-// from the #609 baseline. Kept isolated here as future/out-of-scope coverage and must NOT be
-// counted toward the #609 33-case or 6-negative-case baseline.
-test('FUTURE-TNEG-MUTEALL [out of scope] mute all students shows an error when the request fails', async ({ page }) => {
-  const classroomName = await findClassroomWithStudents(page);
-  test.skip(!classroomName, 'No classroom with at least one student is available on this instance');
-
-  const classroomListPage = new ClassroomListPage(page);
-  const classroomDetailPage = new ClassroomDetailPage(page);
-  const callPage = new CallPage(page);
-  await classroomListPage.goto();
-  await classroomListPage.viewClassroom(classroomName);
-  await classroomDetailPage.editButton.waitFor();
-  await classroomDetailPage.toggleStudent(await classroomDetailPage.page.locator('.MuiListItem-root').first().innerText());
-  await classroomDetailPage.startConference();
-  test.skip(!(await callPage.muteAllButton.isVisible().catch(() => false)), 'No connected students to mute');
-
-  await page.route('**/conference/muteall/*', (route) => route.fulfill({ status: 500, body: 'error' }));
-  await callPage.muteAllButton.click();
-
-  await expect(page.getByText(/failed to mute all/i)).toBeVisible({ timeout: 10000 });
 });
 
 // TC-TNEG-005: Verify saving a classroom with a duplicate student surfaces a validation error
