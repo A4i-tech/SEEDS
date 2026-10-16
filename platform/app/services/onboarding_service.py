@@ -20,6 +20,11 @@ from app.repositories.project_repository import ProjectRepository
 from app.repositories.website_repository import WebsiteRepository
 
 
+def _duplicate_domain_error(exc: DuplicateKeyError, domains: Sequence[str]) -> ConflictError:
+    key_value = (exc.details or {}).get("keyValue") or {}
+    return ConflictError(f"Website with domain {next(iter(key_value.values()), ', '.join(domains))}")
+
+
 class OnboardingService:
     def __init__(self, db: AsyncDatabase) -> None:
         self._projects = ProjectRepository(db)
@@ -79,7 +84,7 @@ class OnboardingService:
                 tenant_id, project_id, domain, site_id, name, status, languages, additional_domains
             )
         except DuplicateKeyError as exc:
-            raise ConflictError(f"Website with domain {', '.join(domains)}") from exc
+            raise _duplicate_domain_error(exc, domains) from exc
         return WebsiteResponse.from_doc(website, api_base=self._base_url())
 
     async def get_website(self, website_id: str, tenant_id: str) -> WebsiteResponse:
@@ -109,7 +114,7 @@ class OnboardingService:
         try:
             updated = await self._websites.update(website_id, tenant_id, fields)
         except DuplicateKeyError as exc:
-            raise ConflictError(f"Website with domain {', '.join(claimed)}") from exc
+            raise _duplicate_domain_error(exc, claimed) from exc
         return WebsiteResponse.from_doc(updated, api_base=self._base_url())
 
     async def delete_website(self, website_id: str, tenant_id: str) -> None:

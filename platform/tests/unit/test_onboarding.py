@@ -274,7 +274,7 @@ async def test_website_indexes_are_unique(mock_db):
         await repo.create(TENANT, "p1", "acme.com", "site-2")
 
 
-async def test_additional_domains_has_a_lookup_index_and_a_unique_partial_index(mock_db):
+async def test_domain_indexes_include_unique_partial_indexes_for_additional_and_claimed_domains(mock_db):
     await WebsiteRepository.ensure_indexes(mock_db)
 
     indexes = await mock_db["websites"].index_information()
@@ -282,6 +282,21 @@ async def test_additional_domains_has_a_lookup_index_and_a_unique_partial_index(
     assert "unique" not in indexes["additional_domains_1"]
     assert indexes["additional_domains_unique"]["unique"] is True
     assert indexes["additional_domains_unique"]["partialFilterExpression"] == {"additional_domains.0": {"$exists": True}}
+    assert indexes["claimed_domains_unique"]["unique"] is True
+    assert indexes["claimed_domains_unique"]["partialFilterExpression"] == {"claimed_domains.0": {"$exists": True}}
+
+
+async def test_claimed_domains_follow_domain_and_additional_domains(onboarding_service, mock_db):
+    website = await onboarding_service.register_website(TENANT, None, "a.com", additional_domains=["b.com", "a.com"])
+    stored = lambda: mock_db["websites"].find_one({"site_id": website.site_id})  # noqa: E731
+    assert sorted((await stored())["claimed_domains"]) == ["a.com", "b.com"]
+
+    await onboarding_service.update_website(website.id, TENANT, {"domain": "c.com"})
+    assert sorted((await stored())["claimed_domains"]) == ["a.com", "b.com", "c.com"]
+
+    await onboarding_service.update_website(website.id, TENANT, {"name": "$domain", "additional_domains": []})
+    doc = await stored()
+    assert doc["claimed_domains"] == ["c.com"] and doc["name"] == "$domain"
 
 
 async def test_duplicate_key_on_additional_domains_is_mapped_to_a_conflict(onboarding_service):

@@ -8,6 +8,24 @@ from pymongo.asynchronous.database import AsyncDatabase
 
 from app.repositories.base_repository import BaseRepository
 
+_CLAIMED_DOMAINS = {
+    "$setUnion": [
+        {
+            "$filter": {
+                "input": {
+                    "$map": {
+                        "input": {"$concatArrays": [{"$split": ["$domain", " "]}, {"$ifNull": ["$additional_domains", []]}]},
+                        "as": "d",
+                        "in": {"$toLower": "$$d"},
+                    }
+                },
+                "as": "d",
+                "cond": {"$ne": ["$$d", ""]},
+            }
+        }
+    ]
+}
+
 
 class WebsiteRepository(BaseRepository):
     COLLECTION = "websites"
@@ -22,6 +40,12 @@ class WebsiteRepository(BaseRepository):
         await col.create_index("domain", unique=True)
         await col.create_index("additional_domains")
         await cls._ensure_additional_domains_unique_index(col)
+        await col.create_index(
+            "claimed_domains",
+            name="claimed_domains_unique",
+            unique=True,
+            partialFilterExpression={"claimed_domains.0": {"$exists": True}},
+        )
 
     @staticmethod
     async def _ensure_additional_domains_unique_index(col: Any) -> None:
@@ -63,6 +87,7 @@ class WebsiteRepository(BaseRepository):
             "project_id": project_id,
             "domain": domain,
             "additional_domains": list(additional_domains),
+            "claimed_domains": list(dict.fromkeys([domain, *additional_domains])),
             "site_id": site_id,
             "name": name,
             "status": status,
@@ -91,9 +116,10 @@ class WebsiteRepository(BaseRepository):
 
     async def update(self, website_id: str, tenant_id: str, fields: dict[str, Any]) -> dict[str, Any] | None:
         fields = {**fields, "updated_at": datetime.now(UTC)}
-        await self._col.update_one(
-            {"_id": self._to_id(website_id), "tenant_id": tenant_id}, {"$set": fields}
-        )
+        pipeline: list[dict[str, Any]] = [{"$set": {key: {"$literal": value} for key, value in fields.items()}}]
+        if "domain" in fields or "additional_domains" in fields:
+            pipeline.append({"$set": {"claimed_domains": _CLAIMED_DOMAINS}})
+        await self._col.update_one({"_id": self._to_id(website_id), "tenant_id": tenant_id}, pipeline)
         return await self.find_by_id_and_tenant(website_id, tenant_id)
 
     async def delete(self, website_id: str, tenant_id: str) -> bool:
