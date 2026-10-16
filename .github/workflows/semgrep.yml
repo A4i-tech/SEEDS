@@ -76,4 +76,22 @@ jobs:
               | @tsv
             ' semgrep-full.json | column -t -s $'\t'
             echo '```'
+            echo
+            echo "### Detail (file:line)"
+            echo
+            echo '```'
+            jq -r '
+              .results
+              | sort_by(.extra.severity, .path, .start.line)
+              | (["SEVERITY","RULE","FILE","LINE"], (.[] | [.extra.severity, .check_id, .path, .start.line]))
+              | @tsv
+            ' semgrep-full.json | column -t -s $'\t'
+            echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload full-repo findings
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: semgrep-full-report
+          path: semgrep-full.json
