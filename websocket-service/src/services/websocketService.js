@@ -84,7 +84,7 @@ async function playAudioContent(id, blobUrl) {
 
     const { containerName, blobName } = parseBlobUrl(blobUrl);
     const blobData = await azureBlobService.getBlobData(containerName, blobName);
-    logger.info(`Blob downloaded for ID: ${id}, size: ${blobData.length} bytes`);
+    log.info(`Blob downloaded for ID: ${id}, size: ${blobData.length} bytes`, { eventType: "blob_downloaded" });
     state.audioContentState.blobData = blobData;
     state.audioContentState.durationSeconds = blobData.length / AUDIO_BYTES_PER_SECOND;
 
@@ -92,17 +92,12 @@ async function playAudioContent(id, blobUrl) {
     const channelFree = !state.currentAudioType || state.currentAudioType === "audioContent";
     if (channelFree) {
       state.currentAudioType = "audioContent";
-      const { containerName, blobName } = parseBlobUrl(blobUrl);
-      const blobData = await azureBlobService.getBlobData(containerName, blobName);
-      log.info(`Blob downloaded for ID: ${id}, size: ${blobData ? blobData.length : 'null'} bytes`, { eventType: "blob_downloaded" });
-      state.audioContentState.blobData = blobData;
-      state.audioContentState.durationSeconds = blobData ? blobData.length / AUDIO_BYTES_PER_SECOND : 0;
-
       sendPlaybackStatus(id, PlaybackStatus.PLAYING);
       log.info(`Starting audio content playback for ID: ${id}`, { eventType: "audio_playback_start" });
       sendAudioContentChunks(ws, id, blobData, state, currentPlaybackId);
     } else {
-      // Keep audio content in paused state
+      // Keep audio content loaded but paused so it can be resumed once system audio releases the channel
+      state.audioContentState.playing = false;
       sendPlaybackStatus(id, PlaybackStatus.PAUSED, PlaybackRefusal.PLAY_DEFERRED_SYSTEM_AUDIO);
       log.info(
         `Audio content playback paused for ID: ${id} due to system audio content in progress`,

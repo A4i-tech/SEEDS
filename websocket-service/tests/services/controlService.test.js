@@ -8,14 +8,7 @@ jest.mock("../../src/services/websocketService");
 jest.mock("../../src/services/connectionManager");
 
 function findLoggedEntry(spy, message) {
-  const call = spy.mock.calls.find((c) => {
-    try {
-      return JSON.parse(c[0]).message === message;
-    } catch {
-      return false;
-    }
-  });
-  return call && JSON.parse(call[0]);
+  return spy.mock.calls.map((c) => JSON.parse(c[0])).find((e) => e.message === message);
 }
 
 describe("ControlService", () => {

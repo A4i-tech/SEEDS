@@ -94,6 +94,7 @@ describe("WebSocketService", () => {
       expect(connectionManager.getConnection).toHaveBeenCalledWith(
         "test-client"
       );
+      expect(azureBlobService.getBlobData).toHaveBeenCalledTimes(1);
       expect(azureBlobService.getBlobData).toHaveBeenCalledWith(
         "container",
         "audio.wav"

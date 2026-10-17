@@ -154,7 +154,7 @@ The service logs key events for easier tracking and debugging:
 
 ### Environment Variables
 
-- **`OTEL_SERVICE_NAME`** (set to `websocket-service` in deployment): sets `cloud_RoleName` in Application Insights. Without it the role shows as `unknown_service:node`.
+- `cloud_RoleName` in Application Insights is always `websocket-service` (set in code), regardless of environment.
 - **`LOG_LEVEL`** (optional): Minimum log level to emit — one of `debug`, `info`, `warn`, `error`. Defaults to `info` if unset or unrecognized.
 - **`APPLICATIONINSIGHTS_CONNECTION_STRING`** (optional): Azure Application Insights connection string. When set, all logs are also forwarded to Application Insights (`trackTrace`, or `trackException` for errors) If unset, logs are still written as JSON to stdout/stderr, but nothing is sent to Azure.
 
