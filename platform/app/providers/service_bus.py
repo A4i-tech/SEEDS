@@ -228,12 +228,15 @@ class ServiceBusProvider:
         self._call_event: _AzureQueueHandle | None = None
         self._sync_jobs: _AzureQueueHandle | None = None
         self._initialized = False
+        self._init_lock = asyncio.Lock()
 
     async def initialize(self) -> None:
-        if self._initialized:
-            logger.warning("ServiceBusProvider already initialized")
-            return
+        async with self._init_lock:
+            if self._initialized:
+                return
+            await self._do_initialize()
 
+    async def _do_initialize(self) -> None:
         from app.platform.settings import get_settings  # noqa: PLC0415
 
         settings = get_settings()
@@ -246,17 +249,19 @@ class ServiceBusProvider:
             self._initialized = True
             return
 
-        self._call_webhook = _AzureQueueHandle(conn_str, settings.call_webhook_queue_name)
-        self._dtmf_input = _AzureQueueHandle(conn_str, settings.dtmf_input_queue_name)
-        self._call_event = _AzureQueueHandle(conn_str, settings.call_event_queue_name)
-        self._sync_jobs = _AzureQueueHandle(conn_str, settings.sync_jobs_queue_name)
+        handles = [
+            _AzureQueueHandle(conn_str, settings.call_webhook_queue_name),
+            _AzureQueueHandle(conn_str, settings.dtmf_input_queue_name),
+            _AzureQueueHandle(conn_str, settings.call_event_queue_name),
+            _AzureQueueHandle(conn_str, settings.sync_jobs_queue_name),
+        ]
+        results = await asyncio.gather(*(h.initialize() for h in handles), return_exceptions=True)
+        failures = [r for r in results if isinstance(r, BaseException)]
+        if failures:
+            await asyncio.gather(*(h.close() for h in handles), return_exceptions=True)
+            raise failures[0]
 
-        await asyncio.gather(
-            self._call_webhook.initialize(),
-            self._dtmf_input.initialize(),
-            self._call_event.initialize(),
-            self._sync_jobs.initialize(),
-        )
+        self._call_webhook, self._dtmf_input, self._call_event, self._sync_jobs = handles
         self._initialized = True
         logger.info("ServiceBusProvider initialized (4 queues)")
 
