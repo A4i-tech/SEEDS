@@ -71,23 +71,35 @@ import logging
 import os
 import subprocess  # nosec B404 — used safely with list form, no shell=True
 import tempfile
+from datetime import datetime
 from pathlib import Path
 
 from pymongo.asynchronous.database import AsyncDatabase
 
+from app.models.requests.webhook_registration_requests import WebhookEventType
 from app.repositories.content_job_repository import ContentJobRepository
 from app.repositories.content_repository import ContentRepository
-from app.services.webhook_delivery_service import dispatch_terminal_event
+from app.services.webhook_delivery_service import get_webhook_delivery_service
 
 logger = logging.getLogger(__name__)
 
-_background_tasks: set[asyncio.Task] = set()
 
-
-def _fire_and_forget(coro) -> None:
-    task = asyncio.create_task(coro)
-    _background_tasks.add(task)
-    task.add_done_callback(_background_tasks.discard)
+async def _dispatch_job_webhook(
+    db: AsyncDatabase,
+    job_id,
+    content_id,
+    event: WebhookEventType,
+    *,
+    at: datetime,
+    error: str | None = None,
+) -> None:
+    job: dict = {"_id": job_id, "content_id": content_id}
+    if event is WebhookEventType.JOB_COMPLETED:
+        job["completed_at"] = at
+    elif event is WebhookEventType.JOB_FAILED:
+        job["failed_at"] = at
+        job["reason"] = error
+    await get_webhook_delivery_service(db).dispatch_terminal_event(job, event)
 
 
 # Maximum processing time per job
@@ -418,12 +430,14 @@ async def _process_audio_content_job(
                 update_fields["theme"] = content_doc["theme"]
 
             await content_repo.save_processed(content_id, update_fields)
-            await job_repo.mark_completed(job_id)
+            completed_at = await job_repo.mark_completed(job_id)
             logger.info(
                 "content_job: completed job_id=%s content_id=%s (attempt %d)",
                 job_id, content_id, attempt,
             )
-            _fire_and_forget(dispatch_terminal_event(db, content_id, "job.completed", job_id=job_id))
+            await _dispatch_job_webhook(
+                db, job_id, content_id, WebhookEventType.JOB_COMPLETED, at=completed_at
+            )
             return  # success — exit retry loop
 
         except _TRANSIENT_ERRORS as exc:
@@ -438,7 +452,7 @@ async def _process_audio_content_job(
             else:
                 logger.error(
                     "content_job: max retries exhausted job_id=%s content_id=%s — %s",
-                    job_id, content_id, exc,
+                    job_id, content_id, exc, exc_info=True,
                 )
                 break
 
@@ -456,10 +470,10 @@ async def _process_audio_content_job(
         "content_job: dead-lettering job_id=%s content_id=%s reason=%r",
         job_id, content_id, error_msg,
     )
-    await job_repo.mark_failed(job_id, error_msg)
-    _fire_and_forget(dispatch_terminal_event(db, content_id, "job.failed", job_id=job_id, error=error_msg))
-    if last_exc is not None:
-        raise last_exc
+    failed_at = await job_repo.mark_failed(job_id, error_msg)
+    await _dispatch_job_webhook(
+        db, job_id, content_id, WebhookEventType.JOB_FAILED, at=failed_at, error=error_msg
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -530,11 +544,21 @@ class ContentJobConsumer:
                         content_id = job_doc.get("content_id")
                         reason = "Job exceeded timeout of 5 minutes"
                         logger.error("content_job: timeout job_id=%s", job_id)
-                        await job_repo.mark_failed(job_id, reason)
-                        _fire_and_forget(dispatch_terminal_event(self._db, content_id, "job.failed", job_id=job_id, error=reason))
+                        failed_at = await job_repo.mark_failed(job_id, reason)
+                        await _dispatch_job_webhook(
+                            self._db,
+                            job_id,
+                            content_id,
+                            WebhookEventType.JOB_FAILED,
+                            at=failed_at,
+                            error=reason,
+                        )
                     except Exception as exc:  # noqa: BLE001
-                        # Already dead-lettered inside _process_audio_content_job
-                        logger.debug("content_job: job processing exception handled: %s", exc)
+                        job_id = job_doc.get("_id")
+                        logger.error(
+                            "content_job: unexpected exception job_id=%s — %s",
+                            job_id, exc, exc_info=True,
+                        )
                 else:
                     # No pending jobs — wait before polling again
                     await asyncio.sleep(POLL_INTERVAL_SECONDS)

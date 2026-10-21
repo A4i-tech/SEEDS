@@ -321,8 +321,7 @@ async def test_content_job_dead_letter_on_failure(mock_db):
 
     job_doc = await mock_db["content_jobs"].find_one({"_id": job_id})
 
-    with pytest.raises(RuntimeError):
-        await _process_audio_content_job(job_doc, ContentJobRepository(mock_db), ContentRepository(mock_db), mock_blob, mock_db)
+    await _process_audio_content_job(job_doc, ContentJobRepository(mock_db), ContentRepository(mock_db), mock_blob, mock_db)
 
     # Verify job dead-lettered
     failed_job = await mock_db["content_jobs"].find_one({"_id": job_id})

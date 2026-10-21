@@ -9,24 +9,25 @@ import pytest
 from bson import ObjectId
 from httpx import ASGITransport, AsyncClient
 
-import app.controllers.webhook_registration_controller as webhook_registration_controller
+import app.models.requests.webhook_registration_requests as webhook_registration_requests
 import app.services.webhook_delivery_service as webhook_delivery_service
 from app.main import app
+from app.models.requests.webhook_registration_requests import WebhookEventType
 from app.platform.auth.dependencies import get_db
-from app.repositories.content_aggregator_webhook_delivery_repository import (
-    ContentAggregatorWebhookDeliveryRepository,
-)
 from app.repositories.content_aggregator_webhook_repository import (
     ContentAggregatorWebhookRepository,
 )
+from app.services.webhook_delivery_service import get_webhook_delivery_service
 from tests.support.mongomock_async import AsyncMongoMockClient
 from tests.support.webhook_test_receiver import WebhookTestReceiver
 
 
 @pytest.fixture
-def mock_db():
+async def mock_db():
     client = AsyncMongoMockClient()
-    return client["test_seeds"]
+    db = client["test_seeds"]
+    await ContentAggregatorWebhookRepository.ensure_indexes(db)
+    return db
 
 
 @pytest.fixture(autouse=True)
@@ -38,7 +39,7 @@ def _override_db(mock_db):
 
 @pytest.fixture(autouse=True)
 def _allow_local_http_url(monkeypatch):
-    monkeypatch.setattr(webhook_registration_controller, "_validate_url", lambda url: None)
+    monkeypatch.setattr(webhook_registration_requests, "_require_https", lambda url: url)
 
 
 @pytest.fixture(autouse=True)
@@ -62,19 +63,13 @@ async def client():
 
 
 async def _drain(mock_db) -> None:
-    """Run the delivery consumer's claim+attempt loop until no due work remains.
-
-    Mirrors WebhookDeliveryConsumer._run_loop without the poll sleep, so tests
-    can assert end-to-end outcomes synchronously.
-    """
-    webhook_repo = ContentAggregatorWebhookRepository(mock_db)
-    delivery_repo = ContentAggregatorWebhookDeliveryRepository(mock_db)
+    service = get_webhook_delivery_service(mock_db)
     while True:
-        now_iso = datetime.now(UTC).isoformat()
-        attempt_doc = await delivery_repo.claim_due(now_iso, now_iso)
-        if attempt_doc is None:
+        now = datetime.now(UTC)
+        attempt = await service.claim_due(now, now)
+        if attempt is None:
             return
-        await webhook_delivery_service.attempt_delivery(attempt_doc, webhook_repo, delivery_repo)
+        await service.attempt_delivery(attempt)
 
 
 async def _register_client_and_webhook(client, receiver, *, events=("job.completed", "job.failed")):
@@ -114,8 +109,9 @@ async def test_completed_job_delivers_webhook_with_valid_signature(client, recei
     tenant_id, webhook, _ = await _register_client_and_webhook(client, receiver)
     content_id = await _seed_content(mock_db, tenant_id)
 
-    await webhook_delivery_service.dispatch_terminal_event(
-        mock_db, content_id, "job.completed", job_id="job-1"
+    service = get_webhook_delivery_service(mock_db)
+    await service.dispatch_terminal_event(
+        {"_id": "job-1", "content_id": content_id}, WebhookEventType.JOB_COMPLETED
     )
     await _drain(mock_db)
 
@@ -137,16 +133,18 @@ async def test_completed_job_delivers_webhook_with_valid_signature(client, recei
     deliveries = await mock_db["contentAggregatorWebhookDeliveries"].find({}).to_list(length=None)
     assert len(deliveries) == 1
     assert deliveries[0]["succeeded"] is True
-    assert deliveries[0]["responseCode"] == 200
-    assert deliveries[0]["attemptNumber"] == 1
+    assert deliveries[0]["response_code"] == 200
+    assert deliveries[0]["attempt_number"] == 1
 
 
 async def test_failed_job_delivers_webhook_with_error(client, receiver, mock_db):
     tenant_id, webhook, _ = await _register_client_and_webhook(client, receiver)
     content_id = await _seed_content(mock_db, tenant_id)
 
-    await webhook_delivery_service.dispatch_terminal_event(
-        mock_db, content_id, "job.failed", job_id="job-2", error="boom"
+    service = get_webhook_delivery_service(mock_db)
+    await service.dispatch_terminal_event(
+        {"_id": "job-2", "content_id": content_id, "reason": "processing_failed"},
+        WebhookEventType.JOB_FAILED,
     )
     await _drain(mock_db)
 
@@ -163,18 +161,19 @@ async def test_retry_then_success_records_all_attempts(client, receiver, mock_db
     receiver.queue_response_code(500)
     receiver.queue_response_code(500)
 
-    await webhook_delivery_service.dispatch_terminal_event(
-        mock_db, content_id, "job.completed", job_id="job-3"
+    service = get_webhook_delivery_service(mock_db)
+    await service.dispatch_terminal_event(
+        {"_id": "job-3", "content_id": content_id}, WebhookEventType.JOB_COMPLETED
     )
     await _drain(mock_db)
 
     assert receiver.request_count == 3
-    deliveries = await mock_db["contentAggregatorWebhookDeliveries"].find({}).sort("attemptNumber", 1).to_list(
+    deliveries = await mock_db["contentAggregatorWebhookDeliveries"].find({}).sort("attempt_number", 1).to_list(
         length=None
     )
-    assert [d["attemptNumber"] for d in deliveries] == [1, 2, 3]
+    assert [d["attempt_number"] for d in deliveries] == [1, 2, 3]
     assert [d["succeeded"] for d in deliveries] == [False, False, True]
-    assert deliveries[0]["responseCode"] == 500
+    assert deliveries[0]["response_code"] == 500
 
     doc = await mock_db["contentAggregatorWebhooks"].find_one({"_id": ObjectId(webhook["webhookId"])})
     assert doc["status"] == "active"
@@ -187,8 +186,9 @@ async def test_exhausted_retries_dead_letters_and_disables_webhook(client, recei
     for _ in range(6):
         receiver.queue_response_code(500)
 
-    await webhook_delivery_service.dispatch_terminal_event(
-        mock_db, content_id, "job.completed", job_id="job-4"
+    service = get_webhook_delivery_service(mock_db)
+    await service.dispatch_terminal_event(
+        {"_id": "job-4", "content_id": content_id}, WebhookEventType.JOB_COMPLETED
     )
     await _drain(mock_db)
 
@@ -209,8 +209,9 @@ async def test_deleted_webhook_receives_no_delivery(client, receiver, mock_db):
     )
     assert del_resp.status_code == 204
 
-    await webhook_delivery_service.dispatch_terminal_event(
-        mock_db, content_id, "job.completed", job_id="job-5"
+    service = get_webhook_delivery_service(mock_db)
+    await service.dispatch_terminal_event(
+        {"_id": "job-5", "content_id": content_id}, WebhookEventType.JOB_COMPLETED
     )
     await _drain(mock_db)
 
@@ -237,8 +238,9 @@ async def test_multiple_webhooks_fan_out_and_one_failure_does_not_block_other(cl
             bad_receiver.queue_response_code(500)
 
         content_id = await _seed_content(mock_db, tenant_id)
-        await webhook_delivery_service.dispatch_terminal_event(
-            mock_db, content_id, "job.completed", job_id="job-6"
+        service = get_webhook_delivery_service(mock_db)
+        await service.dispatch_terminal_event(
+            {"_id": "job-6", "content_id": content_id}, WebhookEventType.JOB_COMPLETED
         )
         await _drain(mock_db)
 

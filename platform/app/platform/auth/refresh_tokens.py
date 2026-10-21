@@ -18,6 +18,10 @@ logger = logging.getLogger(__name__)
 REPLAY_GRACE_WINDOW = timedelta(seconds=10)
 
 
+def _as_utc(value: datetime) -> datetime:
+    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+
+
 def generate_refresh_token() -> str:
     return secrets.token_urlsafe(32)
 
@@ -87,7 +91,7 @@ class RefreshTokenStore[ClaimsT](Protocol):
 
     async def cache_replay(self, token_id: str, pair: TokenPair) -> None: ...
 
-    async def revoke_all_for_owner(self, owner_id: str, *, reason: str = "revoked") -> None: ...
+    async def revoke_all_for_owner(self, owner_id: str, *, reason: str) -> None: ...
 
 
 type VerifyOwnerActive[ClaimsT] = Callable[[str, ClaimsT], Awaitable[ClaimsT]]
@@ -122,6 +126,23 @@ async def issue_pair[ClaimsT](
     }
 
 
+async def handle_reuse_detected[ClaimsT](
+    store: RefreshTokenStore[ClaimsT],
+    exc: RefreshTokenReusedError,
+    reuse_counter_name: str,
+) -> None:
+    logger.warning(
+        "refresh_tokens: revoked refresh token replayed — owner_id=%s",
+        exc.owner_id,
+        extra={
+            "event": "refresh_token_reuse_detected",
+            "owner_id": exc.owner_id,
+        },
+    )
+    get_counter(reuse_counter_name).add(1, {"owner_id": exc.owner_id})
+    await store.revoke_all_for_owner(exc.owner_id, reason="consumed")
+
+
 async def rotate[ClaimsT](
     store: RefreshTokenStore[ClaimsT],
     refresh_token: str,
@@ -142,20 +163,12 @@ async def rotate[ClaimsT](
     except RefreshTokenRevokedError:
         raise UnauthorizedError("Invalid refresh token") from None
     except RefreshTokenReusedError as exc:
-        logger.warning(
-            "refresh_tokens: revoked refresh token replayed — owner_id=%s",
-            exc.owner_id,
-            extra={
-                "event": "refresh_token_reuse_detected",
-                "owner_id": exc.owner_id,
-            },
-        )
-        get_counter(reuse_counter_name).add(1, {"owner_id": exc.owner_id})
-        await store.revoke_all_for_owner(exc.owner_id, reason="consumed")
+        await handle_reuse_detected(store, exc, reuse_counter_name)
         raise UnauthorizedError("Invalid refresh token") from None
 
     now = datetime.now(tz=UTC)
     claims = await verify_owner_active(consumed.owner_id, consumed.claims)
+
     access_token, access_expires_in = await build_access_token(consumed.owner_id, claims)
 
     new_refresh_token = generate_refresh_token()

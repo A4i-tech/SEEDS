@@ -3,88 +3,105 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any, ClassVar
 
-from bson import ObjectId
-from bson.errors import InvalidId
-from fastapi import Depends
 from pymongo import ReturnDocument
 from pymongo.asynchronous.database import AsyncDatabase
+from pymongo.errors import DuplicateKeyError
 
-from app.platform.auth.dependencies import get_db
+from app.models.content_aggregator import Webhook
+from app.models.requests.webhook_registration_requests import (
+    WebhookEventType,
+    WebhookStatus,
+)
+from app.repositories.base_repository import BaseRepository
+
+SECRET_ENCRYPTED_FIELD = "secret_encrypted"
+DEFAULT_WEBHOOK_LIMIT = 5
 
 
-class ContentAggregatorWebhookRepository:
+class ContentAggregatorWebhookRepository(BaseRepository):
     COLLECTION_NAME: ClassVar[str] = "contentAggregatorWebhooks"
-    SECRET_ENCRYPTED_FIELD: ClassVar[str] = "secret_encrypted"
 
     def __init__(self, db: AsyncDatabase) -> None:
         self._col = db[self.COLLECTION_NAME]
 
-    async def count_for_client(self, client_id: str) -> int:
-        return await self._col.count_documents({"client_id": client_id})
+    @classmethod
+    async def ensure_indexes(cls, db: AsyncDatabase) -> None:
+        await db[cls.COLLECTION_NAME].create_index("client_id")
+        await db[cls.COLLECTION_NAME].create_index([("client_id", 1), ("slot", 1)], unique=True)
 
-    async def create(self, client_id: str, url: str, secret_encrypted: str, events: list[str]) -> dict[str, Any]:
-        now = datetime.now(UTC).isoformat()
-        doc = {
+    async def create(
+        self,
+        client_id: str,
+        url: str,
+        secret_encrypted: str,
+        events: list[WebhookEventType],
+        limit: int = DEFAULT_WEBHOOK_LIMIT,
+    ) -> Webhook | None:
+        now = datetime.now(UTC)
+        doc: dict[str, Any] = {
             "client_id": client_id,
             "url": url,
-            "secret_encrypted": secret_encrypted,
-            "events": events,
-            "status": "active",
+            SECRET_ENCRYPTED_FIELD: secret_encrypted,
+            "events": [e.value for e in events],
+            "status": WebhookStatus.ACTIVE.value,
             "created_at": now,
             "updated_at": now,
         }
-        result = await self._col.insert_one(doc)
-        doc["_id"] = result.inserted_id
-        return doc
+        for slot in range(limit):
+            doc["slot"] = slot
+            try:
+                result = await self._col.insert_one(doc)
+            except DuplicateKeyError:
+                continue
+            doc["_id"] = result.inserted_id
+            return Webhook.from_mongo(doc)
+        return None
 
-    async def list_for_client(self, client_id: str) -> list[dict[str, Any]]:
-        return await self._col.find({"client_id": client_id}).sort("created_at", 1).to_list(length=None)
+    async def list_for_client(self, client_id: str) -> list[Webhook]:
+        docs = await self._col.find({"client_id": client_id}).sort("created_at", 1).to_list(length=None)
+        return [Webhook.from_mongo(d) for d in docs]
 
-    async def get_for_client(self, client_id: str, webhook_id: str) -> dict[str, Any] | None:
-        try:
-            oid = ObjectId(webhook_id)
-        except InvalidId:
-            return None
-        return await self._col.find_one({"_id": oid, "client_id": client_id})
+    async def get_for_client(self, client_id: str, webhook_id: str) -> Webhook | None:
+        doc = await self._col.find_one({"_id": self._to_id(webhook_id), "client_id": client_id})
+        return Webhook.from_mongo(doc) if doc is not None else None
 
-    async def find_active_for_client_and_event(self, client_id: str, event: str) -> list[dict[str, Any]]:
-        return await self._col.find(
-            {"client_id": client_id, "status": "active", "events": event}
+    async def find_active_for_clients_and_event(
+        self, client_ids: list[str], event: WebhookEventType
+    ) -> list[Webhook]:
+        docs = await self._col.find(
+            {
+                "client_id": {"$in": client_ids},
+                "status": WebhookStatus.ACTIVE.value,
+                "events": event.value,
+            }
         ).to_list(length=None)
+        return [Webhook.from_mongo(d) for d in docs]
 
-    async def find_active_for_clients_and_event(self, client_ids: list[str], event: str) -> list[dict[str, Any]]:
-        if not client_ids:
-            return []
-        return await self._col.find(
-            {"client_id": {"$in": client_ids}, "status": "active", "events": event}
-        ).to_list(length=None)
-
-    async def disable(self, webhook_id: Any) -> None:
+    async def disable(self, webhook_id: str) -> None:
         await self._col.update_one(
-            {"_id": webhook_id},
-            {"$set": {"status": "disabled", "updated_at": datetime.now(UTC).isoformat()}},
+            {"_id": self._to_id(webhook_id)},
+            {"$set": {"status": WebhookStatus.DISABLED.value, "updated_at": datetime.now(UTC)}},
         )
 
-    async def update_for_client(self, client_id: str, webhook_id: str, fields: dict[str, Any]) -> dict[str, Any] | None:
-        try:
-            oid = ObjectId(webhook_id)
-        except InvalidId:
-            return None
-        fields["updated_at"] = datetime.now(UTC).isoformat()
-        return await self._col.find_one_and_update(
-            {"_id": oid, "client_id": client_id},
+    async def update_for_client(
+        self,
+        client_id: str,
+        webhook_id: str,
+        *,
+        updates: dict[str, Any] | None = None,
+        secret_encrypted: str | None = None,
+    ) -> Webhook | None:
+        fields: dict[str, Any] = {"updated_at": datetime.now(UTC), **(updates or {})}
+        if secret_encrypted is not None:
+            fields[SECRET_ENCRYPTED_FIELD] = secret_encrypted
+
+        doc = await self._col.find_one_and_update(
+            {"_id": self._to_id(webhook_id), "client_id": client_id},
             {"$set": fields},
             return_document=ReturnDocument.AFTER,
         )
+        return Webhook.from_mongo(doc) if doc is not None else None
 
     async def delete_for_client(self, client_id: str, webhook_id: str) -> bool:
-        try:
-            oid = ObjectId(webhook_id)
-        except InvalidId:
-            return False
-        result = await self._col.delete_one({"_id": oid, "client_id": client_id})
+        result = await self._col.delete_one({"_id": self._to_id(webhook_id), "client_id": client_id})
         return result.deleted_count > 0
-
-
-def get_content_aggregator_webhook_repo(db: AsyncDatabase = Depends(get_db)) -> ContentAggregatorWebhookRepository:
-    return ContentAggregatorWebhookRepository(db)

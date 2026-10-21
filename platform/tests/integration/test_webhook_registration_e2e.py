@@ -5,13 +5,18 @@ from httpx import ASGITransport, AsyncClient
 
 from app.main import app
 from app.platform.auth.dependencies import get_db
+from app.repositories.content_aggregator_webhook_repository import (
+    ContentAggregatorWebhookRepository,
+)
 from tests.support.mongomock_async import AsyncMongoMockClient
 
 
 @pytest.fixture
-def mock_db():
+async def mock_db():
     client = AsyncMongoMockClient()
-    return client["test_seeds"]
+    db = client["test_seeds"]
+    await ContentAggregatorWebhookRepository.ensure_indexes(db)
+    return db
 
 
 @pytest.fixture(autouse=True)
