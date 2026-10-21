@@ -83,4 +83,31 @@ describe('logger', () => {
     logger.info('after');
     expect(lastEntry()).toMatchObject({ message: 'after' });
   });
+
+  it('masks sensitive keys', () => {
+    const { logger, lastEntry } = loadLogger();
+    logger.info('login', { authToken: 'abc', password: 'p', apiKey: 'k', sessionId: 's1' });
+    expect(lastEntry()).toMatchObject({ authToken: '***', password: '***', apiKey: '***', sessionId: 's1' });
+  });
+
+  it('masks sensitive keys in child context', () => {
+    const { logger, lastEntry } = loadLogger();
+    logger.child({ secret: 'x', sessionId: 's1' }).info('hi');
+    expect(lastEntry()).toMatchObject({ secret: '***', sessionId: 's1' });
+  });
+
+  it('error() with an Error adds exception fields for App Insights', () => {
+    const { logger, lastEntry } = loadLogger();
+    logger.error('failed', new Error('boom'));
+    const entry = lastEntry();
+    expect(entry).toMatchObject({ 'exception.type': 'Error', 'exception.message': 'failed boom' });
+    expect(entry['exception.stacktrace']).toContain('Error: boom');
+  });
+
+  it('logs without an Error carry no exception fields', () => {
+    const { logger, lastEntry } = loadLogger();
+    logger.error('failed', { eventType: 'e' });
+    logger.warn('careful');
+    expect(lastEntry()).not.toHaveProperty('exception.stacktrace');
+  });
 });

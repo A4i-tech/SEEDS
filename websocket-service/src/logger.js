@@ -21,11 +21,31 @@ if (connectionString) {
 
 const winston = require('winston');
 
+const SENSITIVE_KEYS = /token|password|secret|authorization|apikey|connectionstring/i;
+
+const maskSensitive = winston.format((info) => {
+  for (const key of Object.keys(info)) {
+    if (SENSITIVE_KEYS.test(key)) info[key] = '***';
+  }
+  return info;
+});
+
+const otelException = winston.format((info) => {
+  if (info.stack) {
+    info['exception.type'] = info.name || 'Error';
+    info['exception.message'] = info.message;
+    info['exception.stacktrace'] = info.stack;
+  }
+  return info;
+});
+
 module.exports = winston.createLogger({
   level: (process.env.LOG_LEVEL || 'info').toLowerCase(),
   format: winston.format.combine(
     winston.format.timestamp(),
     winston.format.errors({ stack: true }),
+    maskSensitive(),
+    otelException(),
     winston.format.json()
   ),
   defaultMeta: { service: 'websocket-service' },
