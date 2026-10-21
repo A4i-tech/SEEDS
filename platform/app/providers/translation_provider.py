@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 from abc import ABC, abstractmethod
 from functools import cache
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
-import aiohttp
 import openai
+from azure.core.credentials import AzureKeyCredential
+from azure.core.exceptions import AzureError
 
 if TYPE_CHECKING:
     from app.platform.settings import Settings
@@ -33,7 +33,6 @@ class TranslationProvider(ABC):
 
 _TRANSIENT_STATUS_CODES = {408, 429, 500, 502, 503, 504}
 _MAX_ATTEMPTS = 3
-_BASE_BACKOFF_SECONDS = 1.0
 _MAX_BATCH_ITEMS = 100
 _MAX_BATCH_CHARS = 50_000
 
@@ -53,74 +52,46 @@ def _chunk_for_request(texts: list[str]) -> list[list[str]]:
     return chunks
 
 
-async def _post_json_with_retry(label: str, url: str, **request_kwargs: Any) -> Any:
-    last_error: Exception | None = None
-    async with aiohttp.ClientSession() as session:
-        for attempt in range(_MAX_ATTEMPTS):
-            try:
-                async with session.post(url, **request_kwargs) as resp:
-                    if resp.status == 200:
-                        return await resp.json(content_type=None)
-                    error_text = await resp.text()
-                    if resp.status not in _TRANSIENT_STATUS_CODES:
-                        raise RuntimeError(f"{label} error {resp.status}: {error_text}")
-                    last_error = RuntimeError(f"{label} error {resp.status}: {error_text}")
-            except (aiohttp.ClientError, TimeoutError) as exc:
-                last_error = exc
-
-            if attempt < _MAX_ATTEMPTS - 1:
-                await asyncio.sleep(_BASE_BACKOFF_SECONDS * (2**attempt))
-
-    logger.warning("%s failed after %d attempts (%s); skipping item(s)", label, _MAX_ATTEMPTS, last_error)
-    raise TransientTranslationError(str(last_error))
-
-
 class AzureTranslationProvider(TranslationProvider):
-
-    _API_VERSION = "3.0"
-    _DEFAULT_ENDPOINT = "https://api.cognitive.microsofttranslator.com"
-
-    def __init__(self, key: str, region: str, endpoint: str = "") -> None:
+    def __init__(self, key: str, region: str) -> None:
         if not key:
             raise ValueError("Azure Translator requires a subscription key (AZURE_TRANSLATION_KEY).")
         if not region:
             raise ValueError("Azure Translator requires a region (TTS_REGION).")
-        self._key = key
-        self._region = region
-        self._endpoint = (endpoint or self._DEFAULT_ENDPOINT).rstrip("/")
+        try:
+            from azure.ai.translation.text.aio import TextTranslationClient
+        except ImportError as exc:
+            raise RuntimeError(
+                "TRANSLATION_PROVIDER=azure needs the azure-ai-translation-text package. "
+                "Install it with `poetry install --extras azure`."
+            ) from exc
+        self._client = TextTranslationClient(
+            credential=AzureKeyCredential(key), region=region, retry_total=_MAX_ATTEMPTS - 1
+        )
 
     async def translate(self, text: str, source_lang: str, target_lang: str) -> str:
-        results = await self.translate_batch([text], source_lang, target_lang)
-        return results[0]
+        return (await self.translate_batch([text], source_lang, target_lang))[0]
 
     async def translate_batch(
         self, texts: list[str], source_lang: str, target_lang: str
     ) -> list[str]:
-        if not texts:
-            return []
-
         results: list[str] = []
         for chunk in _chunk_for_request(texts):
-            results.extend(await self._translate_batch_request(chunk, source_lang, target_lang))
+            results.extend(await self._request(chunk, source_lang, target_lang))
         return results
 
-    async def _translate_batch_request(
-        self, texts: list[str], source_lang: str, target_lang: str
-    ) -> list[str]:
-        url = f"{self._endpoint}/translate"
-        params = {"api-version": self._API_VERSION, "to": target_lang}
-        if source_lang:
-            params["from"] = source_lang
-        headers = {
-            "Ocp-Apim-Subscription-Key": self._key,
-            "Ocp-Apim-Subscription-Region": self._region,
-            "Content-Type": "application/json",
-        }
-        body = [{"Text": t} for t in texts]
-        data = await _post_json_with_retry(
-            "Azure Translator", url, params=params, json=body, headers=headers
-        )
-        return [item["translations"][0]["text"] for item in data]
+    async def _request(self, texts: list[str], source_lang: str, target_lang: str) -> list[str]:
+        try:
+            data = await self._client.translate(
+                body=texts, to_language=[target_lang], from_language=source_lang or None
+            )
+        except AzureError as exc:
+            status = getattr(exc, "status_code", None)
+            if status is not None and status not in _TRANSIENT_STATUS_CODES:
+                raise
+            logger.warning("Azure Translator failed after %d attempts (%s); skipping item(s)", _MAX_ATTEMPTS, exc)
+            raise TransientTranslationError(str(exc)) from exc
+        return [item.translations[0].text for item in data]
 
 
 _OPENAI_SYSTEM_PROMPT = (
@@ -198,12 +169,14 @@ def _openai_provider(base_url: str, api_key: str, model: str) -> OpenAITranslati
     return OpenAITranslationProvider(base_url, api_key, model)
 
 
+@cache
+def _azure_provider(key: str, region: str) -> AzureTranslationProvider:
+    return AzureTranslationProvider(key, region)
+
+
 def get_translation_provider(settings: Settings) -> TranslationProvider:
     if settings.translation_provider == "azure":
-        return AzureTranslationProvider(
-            settings.azure_translation_key,
-            settings.azure_translation_region,
-        )
+        return _azure_provider(settings.azure_translation_key, settings.azure_translation_region)
     return _openai_provider(
         settings.translation_effective_base_url,
         settings.translation_effective_api_key,
