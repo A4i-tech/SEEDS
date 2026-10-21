@@ -7,7 +7,9 @@ Covers: auth_controller (tenant), school/classroom endpoints,
 
 from __future__ import annotations
 
+import http.cookiejar
 import os
+import urllib.request
 from datetime import UTC, datetime, timedelta
 
 os.environ.setdefault("SECRET_KEY", "test-secret-key-for-integration-tests-32ch")
@@ -27,6 +29,23 @@ from app.platform.auth.dependencies import get_db
 from app.platform.auth.hashing import hash_password, verify_password
 from app.platform.auth.jwt import create_access_token
 from tests.support.mongomock_async import AsyncMongoMockClient
+
+
+def _cookie_would_be_sent(set_cookie_header: str, path: str) -> bool:
+    """RFC 6265 path-matching check using the stdlib cookie jar (real browser semantics)."""
+
+    class _FakeResponse:
+        def info(self):
+            return self
+
+        def get_all(self, name, default=None):
+            return [set_cookie_header] if name.lower() == "set-cookie" else default
+
+    jar = http.cookiejar.CookieJar()
+    jar.extract_cookies(_FakeResponse(), urllib.request.Request(f"https://testserver{path}"))
+    out_req = urllib.request.Request(f"https://testserver{path}")
+    jar.add_cookie_header(out_req)
+    return out_req.has_header("Cookie")
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -187,6 +206,19 @@ class TestTenantAuth:
 
         refresh_resp = await client.post("/auth/token/refresh")
         assert refresh_resp.status_code == 401
+
+    @pytest.mark.asyncio
+    async def test_refresh_cookie_path_covers_teacher_tenant_and_auth_routes(self, client, mock_db):
+        await _seed_tenant(mock_db, email="cookiepath@ext.com")
+        login_resp = await client.post("/auth/login", json={
+            "identifier": "cookiepath@ext.com",
+            "password": "tenantpass",
+        })
+        assert login_resp.status_code == 200
+        set_cookie = login_resp.headers["set-cookie"]
+
+        for path in ("/auth/token/refresh", "/teacher/logout", "/tenant/logout"):
+            assert _cookie_would_be_sent(set_cookie, path), f"refresh cookie not sent to {path}"
 
     @pytest.mark.asyncio
     async def test_tenant_names_public(self, client, mock_db):
