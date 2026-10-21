@@ -14,10 +14,6 @@ from app.platform.auth.refresh_tokens import (
 from app.repositories.base_repository import BaseRepository
 
 
-def _as_utc(value: datetime) -> datetime:
-    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
-
-
 @dataclass(frozen=True)
 class NewRefreshToken:
     token_id: str

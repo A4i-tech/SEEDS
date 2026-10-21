@@ -16,7 +16,7 @@ from app.models.content_aggregator import (
 )
 from app.platform.auth import refresh_tokens
 from app.platform.auth.hashing import hash_refresh_token, verify_password
-from app.platform.auth.refresh_tokens import ConsumedToken, TokenPair
+from app.platform.auth.refresh_tokens import ConsumedToken, TokenPair, _as_utc
 from app.platform.error_handling import AppError, UnauthorizedError
 from app.platform.settings import Settings
 from app.repositories.integration_client_repository import IntegrationClientRepository
@@ -27,10 +27,6 @@ from app.repositories.integration_token_repository import (
 from app.services.content_aggregator import _jwt
 
 logger = logging.getLogger(__name__)
-
-
-def _as_utc(value: datetime) -> datetime:
-    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
 
 
 class IntegrationClaims(TypedDict):

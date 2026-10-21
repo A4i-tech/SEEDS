@@ -18,6 +18,10 @@ logger = logging.getLogger(__name__)
 REPLAY_GRACE_WINDOW = timedelta(seconds=10)
 
 
+def _as_utc(value: datetime) -> datetime:
+    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+
+
 def generate_refresh_token() -> str:
     return secrets.token_urlsafe(32)
 
@@ -87,7 +91,7 @@ class RefreshTokenStore[ClaimsT](Protocol):
 
     async def cache_replay(self, token_id: str, pair: TokenPair) -> None: ...
 
-    async def revoke_all_for_owner(self, owner_id: str, *, reason: str = "revoked") -> None: ...
+    async def revoke_all_for_owner(self, owner_id: str, *, reason: str) -> None: ...
 
 
 type VerifyOwnerActive[ClaimsT] = Callable[[str, ClaimsT], Awaitable[ClaimsT]]

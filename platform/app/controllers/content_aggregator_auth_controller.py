@@ -26,15 +26,20 @@ def get_content_aggregator_auth(
     return ContentAggregatorAuth(db, settings)
 
 
+def _set_no_store_headers(response: Response) -> None:
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["Pragma"] = "no-cache"
+
+
 def _oauth_error(error: str, description: str, status_code: int) -> JSONResponse:
-    headers = {"Cache-Control": "no-store", "Pragma": "no-cache"}
-    if status_code == 401:
-        headers["WWW-Authenticate"] = "Bearer"
-    return JSONResponse(
+    response = JSONResponse(
         status_code=status_code,
         content={"error": error, "error_description": description},
-        headers=headers,
     )
+    _set_no_store_headers(response)
+    if status_code == 401:
+        response.headers["WWW-Authenticate"] = "Bearer"
+    return response
 
 
 @router.post("/token", summary="Exchange client_id/client_secret for a JWT", response_model=None)
@@ -54,8 +59,7 @@ async def issue_token(
     except AppError as exc:
         error = "invalid_scope" if exc.code == "SCOPE_INSUFFICIENT" else "invalid_client"
         return _oauth_error(error, exc.message, exc.status_code)
-    response.headers["Cache-Control"] = "no-store"
-    response.headers["Pragma"] = "no-cache"
+    _set_no_store_headers(response)
     return AggregatorTokenResponse.model_validate(result)
 
 
@@ -74,8 +78,7 @@ async def refresh_token(
     except AppError as exc:
         error = "invalid_grant" if exc.code == "REFRESH_TOKEN_EXPIRED" else "invalid_client"
         return _oauth_error(error, exc.message, exc.status_code)
-    response.headers["Cache-Control"] = "no-store"
-    response.headers["Pragma"] = "no-cache"
+    _set_no_store_headers(response)
     return AggregatorTokenResponse.model_validate(result)
 
 
