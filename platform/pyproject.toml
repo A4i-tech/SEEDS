@@ -42,6 +42,7 @@ pypdf = ">=4.0"
 langdetect = "^1.0.9"
 pycountry = ">=24.6"
 omni-ingest = "1.0.0"
+openai = ">=3.8.0"
 fastmcp = "<4.0"
 lancedb = "0.38.0"
 liblouis = [
