@@ -16,12 +16,9 @@ from app.platform.auth.refresh_tokens import (
     RefreshTokenReusedError,
     RefreshTokenRevokedError,
     TokenPair,
+    _as_utc,
 )
 from app.repositories.base_repository import BaseRepository
-
-
-def _as_utc(value: datetime) -> datetime:
-    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
 
 
 class UserRefreshTokenRepository(BaseRepository):
