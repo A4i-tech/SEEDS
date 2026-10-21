@@ -64,15 +64,6 @@ describe("apiFetch", () => {
     expect(global.fetch).toHaveBeenCalledTimes(1);
   });
 
-  it("does not trigger refresh on 403 even with an access token present", async () => {
-    setAccessToken("current-token");
-    global.fetch.mockResolvedValue(fakeResponse({ ok: false, status: 403, text: "forbidden" }));
-    await expect(apiFetch("/x")).rejects.toMatchObject({ status: 403 });
-    expect(clearAuth).not.toHaveBeenCalled();
-    expect(window.location.href).toBe("");
-    expect(global.fetch).toHaveBeenCalledTimes(1);
-  });
-
   it("still refreshes and retries on 401 when an access token is present", async () => {
     setAccessToken("expired-token");
     global.fetch

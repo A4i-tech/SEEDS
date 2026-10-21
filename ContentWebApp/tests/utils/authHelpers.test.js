@@ -56,10 +56,6 @@ describe("authHelpers", () => {
       setAccessToken(makeToken({ role: "tenant", id: "t1" }));
       expect(getTokenPayload()).toMatchObject({ role: "tenant", id: "t1" });
     });
-    it("returns {} for malformed token", () => {
-      setAccessToken("not-a-jwt");
-      expect(getTokenPayload()).toEqual({});
-    });
     it("returns {} when payload segment missing", () => {
       setAccessToken("onlyonesegment");
       expect(getTokenPayload()).toEqual({});

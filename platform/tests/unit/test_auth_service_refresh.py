@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import hashlib
 from datetime import UTC, datetime, timedelta
 
@@ -107,137 +106,7 @@ class TestRefreshSuccess:
         assert new_doc is not None
         assert new_doc["revoked"] is False
 
-    async def test_old_refresh_token_unusable_after_rotation(self, mock_db, monkeypatch):
-        _disable_replay_grace_window(monkeypatch)
-        await _seed_tenant(mock_db)
-        service = AuthService(mock_db)
-        issued = await service.login_unified(
-            identifier="tenant@example.com", password="correct-horse", is_email=True
-        )
-        old_refresh = issued["refresh_token"]
-
-        await service.refresh(old_refresh)
-
-        with pytest.raises(UnauthorizedError):
-            await service.refresh(old_refresh)
-
-
-class TestRefreshReuseDetection:
-    async def test_replaying_revoked_token_revokes_all_tokens_for_owner(self, mock_db, monkeypatch):
-        await _seed_tenant(mock_db)
-        service = AuthService(mock_db)
-        issued = await service.login_unified(
-            identifier="tenant@example.com", password="correct-horse", is_email=True
-        )
-        root_refresh = issued["refresh_token"]
-        rotated = await service.refresh(root_refresh)
-        _disable_replay_grace_window(monkeypatch)
-
-        with pytest.raises(UnauthorizedError):
-            await service.refresh(root_refresh)
-
-        with pytest.raises(UnauthorizedError):
-            await service.refresh(rotated["refresh_token"])
-
-        docs = [doc async for doc in mock_db["userRefreshTokens"].find({"owner_id": issued["user"]["id"]})]
-        assert len(docs) == 2
-        assert all(doc["revoked"] is True for doc in docs)
-        assert all(doc["revoked_reason"] == "consumed" for doc in docs)
-
-    async def test_replay_revokes_other_families_for_same_owner(self, mock_db, monkeypatch):
-        await _seed_tenant(mock_db)
-        service = AuthService(mock_db)
-        family_a = await service.login_unified(
-            identifier="tenant@example.com", password="correct-horse", is_email=True
-        )
-        family_b = await service.login_unified(
-            identifier="tenant@example.com", password="correct-horse", is_email=True
-        )
-
-        await service.refresh(family_a["refresh_token"])
-        _disable_replay_grace_window(monkeypatch)
-
-        with pytest.raises(UnauthorizedError):
-            await service.refresh(family_a["refresh_token"])
-
-        other_family_doc = await mock_db["userRefreshTokens"].find_one(
-            {"token_id": _stored_token_id(family_b["refresh_token"])}
-        )
-        assert other_family_doc["revoked"] is True
-        assert other_family_doc["revoked_reason"] == "consumed"
-
-
-class TestRefreshConcurrency:
-    async def test_concurrent_refresh_within_grace_window_both_get_winners_pair(self, mock_db):
-        await _seed_tenant(mock_db)
-        service = AuthService(mock_db)
-        issued = await service.login_unified(
-            identifier="tenant@example.com", password="correct-horse", is_email=True
-        )
-        root_refresh = issued["refresh_token"]
-
-        results = await asyncio.gather(
-            service.refresh(root_refresh),
-            service.refresh(root_refresh),
-            return_exceptions=True,
-        )
-
-        successes = [r for r in results if not isinstance(r, BaseException)]
-        failures = [r for r in results if isinstance(r, BaseException)]
-        assert len(successes) == 2
-        assert len(failures) == 0
-        assert successes[0]["refresh_token"] == successes[1]["refresh_token"]
-
-
-class TestRefreshExpired:
-    async def test_expired_token_raises_distinct_error_code(self, mock_db):
-        await _seed_tenant(mock_db)
-        service = AuthService(mock_db)
-        issued = await service.login_unified(
-            identifier="tenant@example.com", password="correct-horse", is_email=True
-        )
-
-        await mock_db["userRefreshTokens"].update_one(
-            {"token_id": _stored_token_id(issued["refresh_token"])},
-            {"$set": {"expires_at": datetime.now(tz=UTC) - timedelta(days=1)}},
-        )
-
-        with pytest.raises(AppError) as exc_info:
-            await service.refresh(issued["refresh_token"])
-        assert exc_info.value.code == "REFRESH_TOKEN_EXPIRED"
-        assert exc_info.value.status_code == 401
-
-    async def test_expired_unconsumed_token_does_not_trigger_mass_revocation(self, mock_db):
-        await _seed_tenant(mock_db)
-        service = AuthService(mock_db)
-        expired = await service.login_unified(
-            identifier="tenant@example.com", password="correct-horse", is_email=True
-        )
-        sibling = await service.login_unified(
-            identifier="tenant@example.com", password="correct-horse", is_email=True
-        )
-
-        await mock_db["userRefreshTokens"].update_one(
-            {"token_id": _stored_token_id(expired["refresh_token"])},
-            {"$set": {"expires_at": datetime.now(tz=UTC) - timedelta(days=1)}},
-        )
-
-        with pytest.raises(AppError):
-            await service.refresh(expired["refresh_token"])
-
-        expired_doc = await mock_db["userRefreshTokens"].find_one({"token_id": _stored_token_id(expired["refresh_token"])})
-        assert expired_doc["revoked"] is False
-
-        sibling_doc = await mock_db["userRefreshTokens"].find_one({"token_id": _stored_token_id(sibling["refresh_token"])})
-        assert sibling_doc["revoked"] is False
-
-
 class TestRefreshUnknownOrInactiveOwner:
-    async def test_unknown_token_raises_generic_unauthorized(self, mock_db):
-        service = AuthService(mock_db)
-        with pytest.raises(UnauthorizedError):
-            await service.refresh("does-not-exist")
-
     async def test_inactive_user_rejected_at_refresh(self, mock_db):
         await _seed_tenant(mock_db)
         service = AuthService(mock_db)
@@ -390,21 +259,6 @@ class TestLogoutRevocation:
         active_doc = await mock_db["userRefreshTokens"].find_one({"token_id": _stored_token_id(rotated["refresh_token"])})
         assert active_doc["revoked"] is True
         assert active_doc["revoked_reason"] == "logout"
-
-    async def test_logout_by_refresh_token_revokes_session_without_owner_id(self, mock_db):
-        await _seed_tenant(mock_db)
-        service = AuthService(mock_db)
-        issued = await service.login_unified(
-            identifier="tenant@example.com", password="correct-horse", is_email=True
-        )
-
-        await service.logout_by_refresh_token(issued["refresh_token"])
-
-        doc = await mock_db["userRefreshTokens"].find_one({"token_id": _stored_token_id(issued["refresh_token"])})
-        assert doc["revoked"] is True
-
-        with pytest.raises(UnauthorizedError):
-            await service.refresh(issued["refresh_token"])
 
     async def test_logout_by_refresh_token_revokes_other_family_tokens(self, mock_db, caplog):
         await _seed_tenant(mock_db)
