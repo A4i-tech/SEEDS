@@ -106,15 +106,6 @@ class IVRRepository(BaseRepository):
     # Ongoing IVR state (stream playback tracking)
     # ------------------------------------------------------------------
 
-    @classmethod
-    async def ensure_ongoing_indexes(cls, db: AsyncDatabase, ttl_seconds: int) -> None:
-        col = db[cls.ONGOING_COLLECTION]
-        await col.create_index("updated_at", expireAfterSeconds=ttl_seconds)
-        await col.update_many(
-            {"updated_at": {"$exists": False}},
-            [{"$set": {"updated_at": {"$ifNull": ["$created_at", "$$NOW"]}}}],
-        )
-
     async def find_ongoing_state(self, conversation_id: str) -> dict[str, Any] | None:
         return await self._ongoing_col.find_one({"_id": conversation_id})
 

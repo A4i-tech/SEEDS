@@ -5,7 +5,7 @@ import asyncio
 import base64
 import logging
 import os
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import vonage
@@ -155,18 +155,13 @@ class IVRService:
         settings = get_settings()
 
         ongoing_col = self._db["ongoingIVRState"]
-        existing = await ongoing_col.find_one({"phone_number": phone_number})
-        if existing:
-            existing_state = IVRCallStateMongoDoc.from_mongo(existing)
-            stale_minutes = int(os.environ.get("STALE_WAIT_IN_MINUTES", "60"))
-            age_minutes = (datetime.now() - existing_state.created_at).total_seconds() / 60
-            if age_minutes > stale_minutes:
-                await ongoing_col.delete_one({"_id": existing_state.id})
-            else:
-                return {
-                    "status_code": 400,
-                    "message": f"IVR already in progress for {phone_number}",
-                }
+        cutoff = datetime.now(UTC) - timedelta(minutes=settings.stale_wait_in_minutes)
+        if await ongoing_col.find_one({"phone_number": phone_number, "updated_at": {"$gte": cutoff}}):
+            return {
+                "status_code": 400,
+                "message": f"IVR already in progress for {phone_number}",
+            }
+        await ongoing_col.delete_many({"phone_number": phone_number, "updated_at": {"$lt": cutoff}})
 
         if settings.ivr_daily_listening_limit_seconds > 0:
             today = get_ist_date_string()
