@@ -6,6 +6,7 @@ import aiohttp
 import openai
 import pytest
 from aiohttp import web
+from azure.core.exceptions import HttpResponseError, ServiceRequestError
 from pydantic import ValidationError
 
 from app.platform.settings import Settings
@@ -150,6 +151,44 @@ async def test_openai_non_transient_error_is_not_retried(local_server):
     with pytest.raises(openai.BadRequestError):
         await provider.translate("a", "en", "hi")
     assert calls["n"] == 1
+
+
+class _FakeResponse:
+    def __init__(self, status_code):
+        self.status_code = status_code
+        self.reason = "x"
+
+
+def _azure_provider_raising(exc):
+    provider = AzureTranslationProvider("k", "r")
+
+    async def translate(**_):
+        raise exc
+
+    provider._client.translate = translate
+    return provider
+
+
+async def test_azure_translate_returns_texts():
+    provider = AzureTranslationProvider("k", "r")
+
+    async def translate(body, to_language, from_language):
+        assert to_language == ["hi"] and from_language == "en"
+        return [type("I", (), {"translations": [type("T", (), {"text": f"[hi] {t}"})()]})() for t in body]
+
+    provider._client.translate = translate
+    assert await provider.translate_batch(["a", "b"], "en", "hi") == ["[hi] a", "[hi] b"]
+
+
+@pytest.mark.parametrize("exc", [HttpResponseError(response=_FakeResponse(503)), ServiceRequestError("down")])
+async def test_azure_transient_error(exc):
+    with pytest.raises(TransientTranslationError):
+        await _azure_provider_raising(exc).translate("a", "en", "hi")
+
+
+async def test_azure_non_transient_error_is_raised():
+    with pytest.raises(HttpResponseError):
+        await _azure_provider_raising(HttpResponseError(response=_FakeResponse(401))).translate("a", "en", "hi")
 
 
 @pytest.mark.parametrize("kwargs,cls", [
