@@ -133,6 +133,14 @@ class TestCreateCallWithRetry:
         assert provider._client.voice.create_call.call_count == 1
 
     @pytest.mark.asyncio
+    async def test_non_429_client_error_not_retried(self) -> None:
+        provider = make_provider()
+        provider._client.voice.create_call = MagicMock(side_effect=ClientError("401 unauthorized"))
+        with pytest.raises(ClientError):
+            await provider._create_call_with_retry({"to": []}, "123", max_retries=5)
+        assert provider._client.voice.create_call.call_count == 1
+
+    @pytest.mark.asyncio
     async def test_exhausts_retries_and_raises(self) -> None:
         provider = make_provider()
         provider._client.voice.create_call = MagicMock(

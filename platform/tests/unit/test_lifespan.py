@@ -282,7 +282,7 @@ class TestLifespan:
 
         _patch_repo(monkeypatch, "app.repositories.content_aggregator_sync_job_repository", "ContentAggregatorSyncJobRepository", ensure_indexes=True, reconcile=0)
         _patch_repo(monkeypatch, "app.repositories.content_job_repository", "ContentJobRepository", ensure_indexes=True)
-        _patch_repo(monkeypatch, "app.repositories.textbook_remediation_repository", "TextbookRemediationRepository", ensure_indexes=True, reconcile=0)
+        self._textbook_remediation_repo_mock = _patch_repo(monkeypatch, "app.repositories.textbook_remediation_repository", "TextbookRemediationRepository", ensure_indexes=True, reconcile=0)
         _patch_repo(monkeypatch, "app.repositories.website_repository", "WebsiteRepository", ensure_indexes=True)
         _patch_repo(monkeypatch, "app.repositories.translation_repository", "TranslationRepository", ensure_indexes=True)
         _patch_repo(monkeypatch, "app.repositories.translation_version_repository", "TranslationVersionRepository", ensure_indexes=True)
@@ -314,6 +314,9 @@ class TestLifespan:
 
         lifespan_module.close_database.assert_awaited_once()
         lifespan_module.close_subodha_client.assert_awaited_once()
+        lifespan_module.get_sync_job_service.return_value.reconcile_interrupted_jobs.assert_not_awaited()
+        self._textbook_remediation_repo_mock.return_value.reconcile_interrupted_jobs.assert_not_awaited()
+        lifespan_module._make_consumer_tasks.assert_not_called()
 
     async def test_consumer_mode_starts_tasks_and_reconciles(self, monkeypatch: pytest.MonkeyPatch) -> None:
         task = asyncio.get_event_loop().create_task(asyncio.sleep(10))
@@ -326,6 +329,7 @@ class TestLifespan:
 
         assert task.cancelled() is True
         assert task.done() is True
+        lifespan_module._make_consumer_tasks.assert_called_once_with(fake_app.state.conference_manager)
 
     async def test_consumer_task_creation_failure_reraises(self, monkeypatch: pytest.MonkeyPatch) -> None:
         self._patch_common(monkeypatch, app_mode="all")

@@ -128,6 +128,9 @@ class TestRemoveParticipantEvent:
 
     async def test_removes_student_and_announces_to_remaining(self) -> None:
         conf = _make_conf(teacher_phone="+111", student_phones=["+222", "+333"])
+        conf.state.participants["+444"] = Participant(
+            name="Student", phone_number="+444", role=Role.STUDENT, call_status=CallStatus.DISCONNECTED, is_muted=True,
+        )
         event = RemoveParticipantEvent(phone_number="+222", conf_call=conf)
 
         await event.execute_event()
@@ -136,6 +139,7 @@ class TestRemoveParticipantEvent:
         args = conf.communication_api.play_announcement_to_conference.call_args.args
         assert args[0] == "Student has left"
         assert "+222" not in args[1]
+        assert "+444" not in args[1]
         conf.communication_api.remove_participant.assert_awaited_once_with("+222")
         assert "+222" not in conf.state.participants
         entry = conf.state.action_history[-1]
@@ -197,6 +201,19 @@ class TestAddParticipantEvent:
         participant = conf.state.participants["+222"]
         assert participant.call_status == CallStatus.CONNECTING
         assert participant.name == "Bob"
+
+    async def test_reconnects_disconnected_participant_with_no_name_keeps_stored_name(self) -> None:
+        conf = _make_conf(teacher_phone="+111", student_phones=["+222"])
+        conf.state.participants["+222"].call_status = CallStatus.DISCONNECTED
+        conf.state.participants["+222"].name = "Alice"
+        event = AddParticipantEvent(phone_number="+222", name=None, conf_call=conf)
+
+        await event.execute_event()
+
+        conf.communication_api.add_participant.assert_awaited_once_with("+222", announce_text=None)
+        participant = conf.state.participants["+222"]
+        assert participant.call_status == CallStatus.CONNECTING
+        assert participant.name == "Alice"
 
     async def test_already_connected_participant_is_left_untouched(self) -> None:
         conf = _make_conf(teacher_phone="+111", student_phones=["+222"])
