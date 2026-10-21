@@ -17,6 +17,7 @@ from app.platform.auth.webhook_secret import encrypt_secret
 from app.platform.error_handling import AppError, NotFoundError
 from app.repositories.content_aggregator_webhook_repository import (
     ContentAggregatorWebhookRepository,
+    WebhookUpdateFields,
 )
 
 logger = logging.getLogger(__name__)
@@ -75,7 +76,9 @@ class WebhookRegistrationService:
         if body.rotate_secret:
             secret, encrypted = _new_secret()
 
-        updates = body.model_dump(mode="json", exclude_none=True, exclude={"rotate_secret"})
+        updates: WebhookUpdateFields = body.model_dump(
+            mode="json", exclude_none=True, exclude={"rotate_secret"}
+        )
         webhook = await self._repo.update_for_client(
             client_id, webhook_id, updates=updates, secret_encrypted=encrypted
         )

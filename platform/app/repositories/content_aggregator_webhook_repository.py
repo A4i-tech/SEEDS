@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Any, ClassVar
+from typing import Any, ClassVar, TypedDict
 
 from pymongo import ReturnDocument
 from pymongo.asynchronous.database import AsyncDatabase
@@ -16,6 +16,12 @@ from app.repositories.base_repository import BaseRepository
 
 SECRET_ENCRYPTED_FIELD = "secret_encrypted"
 DEFAULT_WEBHOOK_LIMIT = 5
+
+
+class WebhookUpdateFields(TypedDict, total=False):
+    url: str
+    events: list[str]
+    status: str
 
 
 class ContentAggregatorWebhookRepository(BaseRepository):
@@ -88,7 +94,7 @@ class ContentAggregatorWebhookRepository(BaseRepository):
         client_id: str,
         webhook_id: str,
         *,
-        updates: dict[str, Any] | None = None,
+        updates: WebhookUpdateFields | None = None,
         secret_encrypted: str | None = None,
     ) -> Webhook | None:
         fields: dict[str, Any] = {"updated_at": datetime.now(UTC), **(updates or {})}

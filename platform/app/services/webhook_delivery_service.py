@@ -198,12 +198,9 @@ class WebhookDeliveryService:
         delay = WEBHOOK_RETRY_DELAYS_SECONDS[attempt.attempt_number - 1]
         try:
             await self._delivery_repo.create_pending(
-                webhook_id=attempt.webhook_id,
-                content_id=attempt.content_id,
-                event=attempt.event,
-                tenant_id=attempt.tenant_id,
-                client_id=attempt.client_id,
-                payload_data=attempt.payload_data,
+                **attempt.model_dump(
+                    include={"webhook_id", "content_id", "event", "tenant_id", "client_id", "payload_data"}
+                ),
                 attempt_number=attempt.attempt_number + 1,
                 next_attempt_at=datetime.now(UTC) + timedelta(seconds=delay),
             )
