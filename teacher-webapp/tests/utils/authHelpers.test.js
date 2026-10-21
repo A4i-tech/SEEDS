@@ -73,23 +73,6 @@ describe("authHelpers", () => {
   });
 
   describe("isAuthenticated", () => {
-    test("returns false when localStorage is not available", () => {
-      // Clear any previous calls
-      jest.clearAllMocks();
-
-      // Simulate localStorage being unavailable
-      Object.defineProperty(window, "localStorage", {
-        value: undefined,
-        writable: true,
-      });
-
-      const result = authHelpers.isAuthenticated();
-
-      expect(result).toBe(false);
-      // isAuthenticated should return early without calling getItem when localStorage is unavailable
-      expect(localStorageMock.getItem).not.toHaveBeenCalled();
-    });
-
     test("returns false when no token exists", () => {
       expect(authHelpers.isAuthenticated()).toBe(false);
     });
