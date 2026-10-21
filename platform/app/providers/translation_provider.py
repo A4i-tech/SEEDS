@@ -4,9 +4,11 @@ import asyncio
 import json
 import logging
 from abc import ABC, abstractmethod
+from functools import cache
 from typing import TYPE_CHECKING, Any
 
 import aiohttp
+import openai
 
 if TYPE_CHECKING:
     from app.platform.settings import Settings
@@ -53,20 +55,21 @@ def _chunk_for_request(texts: list[str]) -> list[list[str]]:
 
 async def _post_json_with_retry(label: str, url: str, **request_kwargs: Any) -> Any:
     last_error: Exception | None = None
-    for attempt in range(_MAX_ATTEMPTS):
-        try:
-            async with aiohttp.ClientSession() as session, session.post(url, **request_kwargs) as resp:
-                if resp.status == 200:
-                    return await resp.json(content_type=None)
-                error_text = await resp.text()
-                if resp.status not in _TRANSIENT_STATUS_CODES:
-                    raise RuntimeError(f"{label} error {resp.status}: {error_text}")
-                last_error = RuntimeError(f"{label} error {resp.status}: {error_text}")
-        except (aiohttp.ClientError, TimeoutError) as exc:
-            last_error = exc
+    async with aiohttp.ClientSession() as session:
+        for attempt in range(_MAX_ATTEMPTS):
+            try:
+                async with session.post(url, **request_kwargs) as resp:
+                    if resp.status == 200:
+                        return await resp.json(content_type=None)
+                    error_text = await resp.text()
+                    if resp.status not in _TRANSIENT_STATUS_CODES:
+                        raise RuntimeError(f"{label} error {resp.status}: {error_text}")
+                    last_error = RuntimeError(f"{label} error {resp.status}: {error_text}")
+            except (aiohttp.ClientError, TimeoutError) as exc:
+                last_error = exc
 
-        if attempt < _MAX_ATTEMPTS - 1:
-            await asyncio.sleep(_BASE_BACKOFF_SECONDS * (2**attempt))
+            if attempt < _MAX_ATTEMPTS - 1:
+                await asyncio.sleep(_BASE_BACKOFF_SECONDS * (2**attempt))
 
     logger.warning("%s failed after %d attempts (%s); skipping item(s)", label, _MAX_ATTEMPTS, last_error)
     raise TransientTranslationError(str(last_error))
@@ -131,8 +134,9 @@ class OpenAITranslationProvider(TranslationProvider):
     def __init__(self, base_url: str, api_key: str, model: str) -> None:
         if not model:
             raise ValueError("OpenAI translation requires a model name (TRANSLATION_MODEL).")
-        self._url = f"{base_url.rstrip('/')}/chat/completions"
-        self._api_key = api_key
+        self._client = openai.AsyncOpenAI(
+            base_url=base_url, api_key=api_key or "unused", max_retries=_MAX_ATTEMPTS - 1, timeout=60
+        )
         self._model = model
 
     async def translate(self, text: str, source_lang: str, target_lang: str) -> str:
@@ -152,33 +156,46 @@ class OpenAITranslationProvider(TranslationProvider):
 
     async def _request(self, texts: list[str], source_lang: str, target_lang: str) -> list[str]:
         source = source_lang if source_lang and source_lang != "auto" else "the language you detect"
-        body = {
-            "model": self._model,
-            "temperature": 0,
-            "response_format": {"type": "json_object"},
-            "messages": [
-                {
-                    "role": "system",
-                    "content": _OPENAI_SYSTEM_PROMPT.format(source=source, target=target_lang),
-                },
-                {"role": "user", "content": json.dumps({"texts": texts}, ensure_ascii=False)},
-            ],
-        }
-        headers = {"Authorization": f"Bearer {self._api_key}", "Content-Type": "application/json"}
-        data = await _post_json_with_retry("OpenAI translation", self._url, json=body, headers=headers)
         try:
-            translations = json.loads(data["choices"][0]["message"]["content"])["translations"]
+            response = await self._client.chat.completions.create(
+                model=self._model,
+                temperature=0,
+                response_format={"type": "json_object"},
+                messages=[
+                    {
+                        "role": "system",
+                        "content": _OPENAI_SYSTEM_PROMPT.format(source=source, target=target_lang),
+                    },
+                    {"role": "user", "content": json.dumps({"texts": texts}, ensure_ascii=False)},
+                ],
+            )
+        except (openai.APIConnectionError, openai.APIStatusError) as exc:
+            if isinstance(exc, openai.APIStatusError) and exc.status_code not in _TRANSIENT_STATUS_CODES:
+                raise
+            logger.warning("OpenAI translation failed after %d attempts (%s); skipping item(s)", _MAX_ATTEMPTS, exc)
+            raise TransientTranslationError(str(exc)) from exc
+        try:
+            translations = json.loads(response.choices[0].message.content)["translations"]
         except (KeyError, IndexError, TypeError, ValueError) as exc:
-            raise TransientTranslationError(
+            message = (
                 f"OpenAI translation reply is not the expected JSON ({exc}). "
                 "Check that TRANSLATION_MODEL supports JSON output."
-            ) from exc
+            )
+            logger.warning(message)
+            raise TransientTranslationError(message) from exc
         if not isinstance(translations, list) or len(translations) != len(texts) or not all(isinstance(t, str) for t in translations):
-            raise TransientTranslationError(
+            message = (
                 f"OpenAI translation returned the wrong number or type of items (sent {len(texts)}). "
                 "Retry, or use a more capable TRANSLATION_MODEL."
             )
+            logger.warning(message)
+            raise TransientTranslationError(message)
         return translations
+
+
+@cache
+def _openai_provider(base_url: str, api_key: str, model: str) -> OpenAITranslationProvider:
+    return OpenAITranslationProvider(base_url, api_key, model)
 
 
 def get_translation_provider(settings: Settings) -> TranslationProvider:
@@ -187,7 +204,7 @@ def get_translation_provider(settings: Settings) -> TranslationProvider:
             settings.azure_translation_key,
             settings.azure_translation_region,
         )
-    return OpenAITranslationProvider(
+    return _openai_provider(
         settings.translation_effective_base_url,
         settings.translation_effective_api_key,
         settings.translation_model,

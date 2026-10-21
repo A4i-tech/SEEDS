@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 
 import aiohttp
+import openai
 import pytest
 from aiohttp import web
 from pydantic import ValidationError
@@ -26,14 +27,6 @@ async def mock_server():
             pass
     except (aiohttp.ClientError, TimeoutError, OSError):
         pytest.skip("mock model server at http://localhost:8000/v1 does not answer")
-
-
-@pytest.fixture
-def no_sleep(monkeypatch):
-    async def _instant(_seconds):
-        return None
-
-    monkeypatch.setattr(tp.asyncio, "sleep", _instant)
 
 
 @pytest.fixture
@@ -119,7 +112,7 @@ async def test_openai_invalid_reply_raises(local_server, content):
         await provider.translate("a", "en", "hi")
 
 
-async def test_openai_retries_on_500(local_server, no_sleep):
+async def test_openai_retries_on_500(local_server):
     calls = {"n": 0}
 
     async def handler(request):
@@ -133,7 +126,7 @@ async def test_openai_retries_on_500(local_server, no_sleep):
     assert calls["n"] == 3
 
 
-async def test_openai_gives_up_after_max_attempts(local_server, no_sleep):
+async def test_openai_gives_up_after_max_attempts(local_server):
     calls = {"n": 0}
 
     async def handler(request):
@@ -146,14 +139,31 @@ async def test_openai_gives_up_after_max_attempts(local_server, no_sleep):
     assert calls["n"] == tp._MAX_ATTEMPTS
 
 
-def test_selector_openai():
-    settings = Settings(translation_provider="openai", translation_model="m")
-    assert isinstance(get_translation_provider(settings), OpenAITranslationProvider)
+async def test_openai_non_transient_error_is_not_retried(local_server):
+    calls = {"n": 0}
+
+    async def handler(request):
+        calls["n"] += 1
+        return web.Response(status=400, text="bad request")
+
+    provider = OpenAITranslationProvider(await local_server(handler), "k", "m")
+    with pytest.raises(openai.BadRequestError):
+        await provider.translate("a", "en", "hi")
+    assert calls["n"] == 1
 
 
-def test_selector_azure():
-    settings = Settings(translation_provider="azure", azure_translation_key="k", tts_region="r")
-    assert isinstance(get_translation_provider(settings), AzureTranslationProvider)
+@pytest.mark.parametrize("kwargs,cls", [
+    ({"translation_provider": "openai", "translation_model": "m"}, OpenAITranslationProvider),
+    ({"translation_provider": "azure", "azure_translation_key": "k", "tts_region": "r"}, AzureTranslationProvider),
+])
+def test_selector(kwargs, cls):
+    assert isinstance(get_translation_provider(Settings(**kwargs)), cls)
+
+
+@pytest.mark.parametrize("key,region,match", [("", "test-region", "AZURE_TRANSLATION_KEY"), ("key", "", "TTS_REGION")])
+def test_azure_provider_requires_credentials(key, region, match):
+    with pytest.raises(ValueError, match=match):
+        AzureTranslationProvider(key, region)
 
 
 def test_default_provider_is_openai():
