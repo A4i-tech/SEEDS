@@ -2,7 +2,7 @@ import React, { useState, useMemo } from "react";
 import { Breadcrumb } from "../AllContent/shared/Breadcrumb";
 import { SequentialPlayer } from "./SequentialPlayer";
 
-export function OutlineNavigator({ outline, blockMap, courseId, courseTitle, onBlockChange, onBackToContent }) {
+export function OutlineNavigator({ outline, blockMap, courseId, source, courseTitle, onBlockChange, onBackToContent }) {
   const [selected, setSelected] = useState(null);
   const [collapsed, setCollapsed] = useState({});
 
@@ -27,6 +27,7 @@ export function OutlineNavigator({ outline, blockMap, courseId, courseTitle, onB
         onNavigateSequential={(newFlatIndex) => setSelected(flatSequentials[newFlatIndex])}
         blockMap={blockMap}
         courseId={courseId}
+        source={source}
         courseTitle={courseTitle}
         onBlockChange={onBlockChange}
         onBackToContent={onBackToContent}

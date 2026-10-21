@@ -4,9 +4,11 @@ import { contentAggregatorService } from "../services/contentAggregatorService";
 
 const PAGE_SIZE = 20;
 
-const mapContentAggregatorCourse = (course) => ({
+const AGGREGATOR_SOURCES = ["subodha", "hexis"];
+
+const mapContentAggregatorCourse = (course, source) => ({
   id: course.id,
-  source: "subodha",
+  source,
   title: { english: course.name, local: "" },
   theme: { english: "", local: "" },
   language: course.language,
@@ -26,7 +28,7 @@ export const useContent = () => {
     hasMore: false,
   });
   const [coursePaginationInfo, setCoursePaginationInfo] = useState({
-    nextCursor: null,
+    nextCursors: {},
     hasMore: false,
   });
   const [isLoading, setIsLoading] = useState(false);
@@ -34,19 +36,30 @@ export const useContent = () => {
   const isFilteredRef = useRef(isFiltered);
   isFilteredRef.current = isFiltered;
 
-  const loadContentAggregatorCourses = useCallback(async (cursor = null) => {
-    const { courses, next_cursor: nextCursor, has_more: hasMore } = await contentAggregatorService.getCourses(
-      cursor
+  const loadContentAggregatorCourses = useCallback(async (cursors = {}) => {
+    const perSource = await Promise.all(
+      AGGREGATOR_SOURCES.map(async (source) => {
+        const { courses, next_cursor: nextCursor, has_more: hasMore } = await contentAggregatorService.getCourses(
+          source,
+          cursors[source]
+        );
+        return { source, courses: courses.map((course) => mapContentAggregatorCourse(course, source)), nextCursor, hasMore };
+      })
     );
-    const mapped = courses.map(mapContentAggregatorCourse);
+    const mapped = perSource.flatMap((s) => s.courses);
+    const nextCursors = {};
+    perSource.forEach((s) => {
+      if (s.nextCursor) nextCursors[s.source] = s.nextCursor;
+    });
     setAllContent((prevAll) => {
-      const merged = cursor
-        ? [...prevAll, ...mapped]
-        : [...prevAll.filter((item) => item.source !== "subodha"), ...mapped];
+      const merged =
+        Object.keys(cursors).length > 0
+          ? [...prevAll, ...mapped]
+          : [...prevAll.filter((item) => item.type !== "content-aggregator"), ...mapped];
       if (!isFilteredRef.current) setContent(merged);
       return merged;
     });
-    setCoursePaginationInfo({ nextCursor, hasMore });
+    setCoursePaginationInfo({ nextCursors, hasMore: perSource.some((s) => s.hasMore) });
   }, []);
 
   useEffect(() => {
@@ -128,10 +141,10 @@ export const useContent = () => {
       return;
     }
 
-    if (coursePaginationInfo.hasMore && coursePaginationInfo.nextCursor) {
+    if (coursePaginationInfo.hasMore && Object.keys(coursePaginationInfo.nextCursors).length > 0) {
       setIsLoading(true);
       try {
-        await loadContentAggregatorCourses(coursePaginationInfo.nextCursor);
+        await loadContentAggregatorCourses(coursePaginationInfo.nextCursors);
       } finally {
         setIsLoading(false);
       }
@@ -164,12 +177,12 @@ export const useContent = () => {
     []
   );
 
-  const deleteContentAggregatorCourse = useCallback(async (courseId, name) => {
+  const deleteContentAggregatorCourse = useCallback(async (courseId, name, source) => {
     if (!window.confirm(`Remove the synced copy of "${name || courseId}"? It can be re-synced later.`)) {
       return;
     }
     try {
-      await contentAggregatorService.deleteCourse(courseId);
+      await contentAggregatorService.deleteCourse(courseId, source);
       setContent((prev) => prev.filter((item) => item.id !== courseId));
       setAllContent((prev) => prev.filter((item) => item.id !== courseId));
       alert("Course removed successfully.");

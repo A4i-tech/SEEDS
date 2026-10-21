@@ -4,9 +4,21 @@ Coverage for dtmf_consumer, quiz FSM builder, lifespan helpers.
 
 from __future__ import annotations
 
+import json
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+import app.platform.lifespan as lifespan_mod
+import app.services.audio.transcriber as t
+from app.platform import lifespan
+from app.platform.lifespan import _make_consumer_tasks
+from app.providers.websocket_client import WebsocketClientProvider
+from app.services.audio.transcriber import AudioTranscriber
+from app.services.fsm.fsm import FSM
+from app.services.fsm.instantiation.insti import _SimpleQuizData
+from app.services.fsm.instantiation.quiz import Quiz, _Menu, _Option
+from app.services.fsm.state import State
 
 # ---------------------------------------------------------------------------
 # Quiz FSM builder
@@ -16,8 +28,6 @@ import pytest
 class TestQuizBuilder:
     def _make_quiz_data(self):
         """Build a minimal _SimpleQuizData for testing."""
-        from app.services.fsm.instantiation.insti import _SimpleQuizData
-
         data = {
             "id": "quiz_test_1",
             "language": "english",
@@ -50,15 +60,11 @@ class TestQuizBuilder:
         return _SimpleQuizData(data)
 
     def test_quiz_option_creation(self) -> None:
-        from app.services.fsm.instantiation.quiz import _Option
-
         opt = _Option(key=1, value="Option A")
         assert opt.key == 1
         assert opt.value == "Option A"
 
     def test_quiz_menu_creation(self) -> None:
-        from app.services.fsm.instantiation.quiz import _Menu, _Option
-
         opt = _Option(key=1, value="A")
         menu = _Menu(description="Quiz menu", options=[opt], level=0)
         assert menu.description == "Quiz menu"
@@ -67,18 +73,12 @@ class TestQuizBuilder:
         assert len(d["options"]) == 1
 
     def test_quiz_instantiation(self) -> None:
-        from app.services.fsm.instantiation.quiz import Quiz
-
         quiz_data = self._make_quiz_data()
         quiz = Quiz(quiz_data)
         assert quiz.type == "quiz"
         assert quiz.move_forward_key == "1"
 
     def test_quiz_generate_states(self) -> None:
-        from app.services.fsm.fsm import FSM
-        from app.services.fsm.instantiation.quiz import Quiz
-        from app.services.fsm.state import State
-
         quiz_data = self._make_quiz_data()
         quiz = Quiz(quiz_data)
 
@@ -101,8 +101,6 @@ class TestQuizBuilder:
         assert len(fsm.states) > 1
 
     def test_quiz_get_initial_state(self) -> None:
-        from app.services.fsm.instantiation.quiz import Quiz
-
         quiz_data = self._make_quiz_data()
         quiz = Quiz(quiz_data)
 
@@ -111,8 +109,6 @@ class TestQuizBuilder:
         assert state.id == "quiz_start"
 
     def test_quiz_get_correct_option_state(self) -> None:
-        from app.services.fsm.instantiation.quiz import Quiz
-
         quiz_data = self._make_quiz_data()
         quiz = Quiz(quiz_data)
 
@@ -120,8 +116,6 @@ class TestQuizBuilder:
         assert state is not None
 
     def test_quiz_get_incorrect_option_state(self) -> None:
-        from app.services.fsm.instantiation.quiz import Quiz
-
         quiz_data = self._make_quiz_data()
         quiz = Quiz(quiz_data)
 
@@ -136,8 +130,6 @@ class TestQuizBuilder:
 
 class TestLifespanHelpers:
     def test_get_conference_manager_raises_when_not_initialized(self) -> None:
-        from app.platform import lifespan
-
         original_mgr = lifespan._conference_manager
         lifespan._conference_manager = None
         try:
@@ -147,23 +139,18 @@ class TestLifespanHelpers:
             lifespan._conference_manager = original_mgr
 
     def test_lifespan_has_expected_functions(self) -> None:
-        from app.platform import lifespan
-
         assert callable(lifespan.get_conference_manager)
         assert callable(lifespan.lifespan)
 
     def test_lifespan_global_conference_manager_none_initially(self) -> None:
         """If manager not set by lifespan startup, it is None."""
-        import app.platform.lifespan as lifespan_mod
         # In test mode without full startup, _conference_manager may be None
         # or may have been set. Just check it exists.
         assert hasattr(lifespan_mod, "_conference_manager")
 
     @pytest.mark.asyncio
     async def test_make_consumer_tasks_includes_dtmf_consumer(self) -> None:
-        from app.platform.lifespan import _make_consumer_tasks
-
-        with patch("app.platform.database.get_database", return_value=MagicMock()):
+        with patch("app.platform.lifespan.get_database", return_value=MagicMock()):
             tasks = _make_consumer_tasks(conference_manager=None)
         try:
             names = {t.get_name() for t in tasks}
@@ -181,8 +168,6 @@ class TestLifespanHelpers:
 class TestWebsocketClientDispatch:
     @pytest.mark.asyncio
     async def test_dispatch_non_json_returns_early(self) -> None:
-        from app.providers.websocket_client import WebsocketClientProvider
-
         # Reset singleton for clean test
         WebsocketClientProvider._instance = None
         provider = WebsocketClientProvider()
@@ -193,10 +178,6 @@ class TestWebsocketClientDispatch:
 
     @pytest.mark.asyncio
     async def test_dispatch_no_conf_manager_returns_early(self) -> None:
-        import json
-
-        from app.providers.websocket_client import WebsocketClientProvider
-
         provider = WebsocketClientProvider()
         provider._conference_manager = None
 
@@ -206,10 +187,6 @@ class TestWebsocketClientDispatch:
 
     @pytest.mark.asyncio
     async def test_dispatch_conf_not_found_returns_early(self) -> None:
-        import json
-
-        from app.providers.websocket_client import WebsocketClientProvider
-
         provider = WebsocketClientProvider()
         provider._conference_manager = MagicMock()
         provider._conference_manager.get_conference = MagicMock(return_value=None)
@@ -226,16 +203,12 @@ class TestWebsocketClientDispatch:
 
 class TestAudioTranscriberImport:
     def test_transcriber_module_importable(self) -> None:
-        import app.services.audio.transcriber as t
         assert t is not None
 
     def test_transcriber_class_exists(self) -> None:
-        from app.services.audio.transcriber import AudioTranscriber
         assert AudioTranscriber is not None
 
     def test_transcriber_instantiation_no_api_key(self) -> None:
-        from app.services.audio.transcriber import AudioTranscriber
-
         mock_settings = MagicMock()
         mock_settings.openai_api_key = ""
 
@@ -248,8 +221,6 @@ class TestAudioTranscriberImport:
 
     def test_transcriber_normalize_audio_empty(self) -> None:
         """Test that normalize audio handles empty bytes."""
-        from app.services.audio.transcriber import AudioTranscriber
-
         mock_settings = MagicMock()
         mock_settings.openai_api_key = ""
 

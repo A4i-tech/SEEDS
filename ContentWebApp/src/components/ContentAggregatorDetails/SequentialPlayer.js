@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { Breadcrumb } from "../AllContent/shared/Breadcrumb";
 import { Pagination } from "./Pagination";
+import { Pager } from "./Pager";
 import { UnitBlocks } from "./UnitBlocks";
 
 export function SequentialPlayer({
@@ -11,6 +12,7 @@ export function SequentialPlayer({
   onNavigateSequential,
   blockMap,
   courseId,
+  source,
   courseTitle,
   onBlockChange,
   onBackToContent,
@@ -33,27 +35,12 @@ export function SequentialPlayer({
           { label: sequential.display_name },
         ]}
       />
-      <div className="content-aggregator-pager">
-        <button
-          type="button"
-          className="secondary-button"
-          onClick={() => onNavigateSequential(seqIndex - 1)}
-          disabled={seqIndex === 0}
-        >
-          ← Previous
-        </button>
-        <span className="content-aggregator-pager-position">
-          {seqIndex + 1} / {seqCount}: {sequential.display_name}
-        </span>
-        <button
-          type="button"
-          className="secondary-button"
-          onClick={() => onNavigateSequential(seqIndex + 1)}
-          disabled={seqIndex === seqCount - 1}
-        >
-          Next →
-        </button>
-      </div>
+      <Pager
+        current={seqIndex}
+        total={seqCount}
+        label={sequential.display_name}
+        onChange={onNavigateSequential}
+      />
       <div key={unitIndex} className="content-aggregator-unit-fade">
         <div className="content-aggregator-unit-title-row">
           <h4>{vertical ? vertical.display_name : "No content in this section"}</h4>
@@ -63,7 +50,7 @@ export function SequentialPlayer({
             </a>
           )}
         </div>
-        {vertical && <UnitBlocks blocks={verticalBlocks} courseId={courseId} onBlockChange={onBlockChange} />}
+        {vertical && <UnitBlocks blocks={verticalBlocks} courseId={courseId} source={source} onBlockChange={onBlockChange} />}
       </div>
       <Pagination current={unitIndex} total={verticals.length} onChange={setUnitIndex} />
     </div>

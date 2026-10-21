@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from bson import ObjectId
+from bson.errors import InvalidId
 from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.content import Content
@@ -25,6 +26,30 @@ def _oid(id_str: str | None) -> ObjectId | None:
     if id_str is None:
         return None
     return ObjectId(id_str)
+
+
+def _is_object_id(id_str: str) -> bool:
+    try:
+        ObjectId(id_str)
+        return True
+    except InvalidId:
+        return False
+
+
+def _content_id_conditions(content_id: str) -> list[dict]:
+    """Match a partner-supplied id against either `content_id` or the Mongo `_id`."""
+    conditions: list[dict] = [{"content_id": content_id}]
+    if _is_object_id(content_id):
+        conditions.append({"_id": ObjectId(content_id)})
+    return conditions
+
+
+def _after_cursor(creation_time: int, key: str | None) -> dict:
+    """Exclusive page boundary: strictly older, tie-broken by `content_id`."""
+    clause: dict = {"creation_time": {"$lt": creation_time}}
+    if key is not None:
+        clause = {"$or": [clause, {"creation_time": creation_time, "content_id": {"$lt": key}}]}
+    return clause
 
 
 class ContentRepository(BaseRepository):
@@ -76,6 +101,46 @@ class ContentRepository(BaseRepository):
     ) -> dict | None:
         q = {**self._tenant_query(tenant_id, school_id), "_id": ObjectId(content_id)}
         return await self._col.find_one(q)
+
+    async def find_by_content_id(self, content_id: str, tenant_id: str) -> dict | None:
+        """Find own content by partner-supplied id (`content_id` or Mongo `_id`)."""
+        q = {**self._tenant_query(tenant_id, None), "$or": _content_id_conditions(content_id)}
+        return await self._col.find_one(q)
+
+    async def search_content(
+        self,
+        tenant_id: str,
+        *,
+        content_ids: list[str] | None = None,
+        language: str | None = None,
+        theme: str | None = None,
+        exp_name: str | None = None,
+        only_teacher_app: bool = False,
+        after_creation_time: int | None = None,
+        after_key: str | None = None,
+        limit: int = 16,
+    ) -> list[dict]:
+        """Filtered content list for the partner API — filters are applied independently."""
+        q = self._tenant_query(tenant_id, None)
+        clauses: list[dict] = []
+        if content_ids:
+            oids = [ObjectId(i) for i in content_ids if _is_object_id(i)]
+            clauses.append({"$or": [{"content_id": {"$in": content_ids}}] + ([{"_id": {"$in": oids}}] if oids else [])})
+        if language:
+            q["language"] = language
+        if theme:
+            q["theme.english"] = urllib.parse.unquote(theme)
+        if exp_name:
+            q["type"] = exp_name.lower()
+        if only_teacher_app:
+            q["is_teacher_app"] = True
+        if after_creation_time is not None:
+            clauses.append(_after_cursor(after_creation_time, after_key))
+        if clauses:
+            q["$and"] = clauses
+        return await (
+            self._col.find(q).sort([("creation_time", -1), ("content_id", -1)]).to_list(length=limit)
+        )
 
     # ------------------------------------------------------------------
     # List reads
