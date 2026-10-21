@@ -149,5 +149,5 @@ async def list_volunteers(
     current_user: dict[str, Any] = Depends(require_tenant),
     service: AuthService = Depends(get_auth_service),
 ) -> list[UserPublicResponse]:
-    users = await service.list_volunteers(current_user.get("sub", ""))
+    users = await service.list_volunteers(current_user["sub"])
     return [UserPublicResponse.from_domain(u) for u in users]

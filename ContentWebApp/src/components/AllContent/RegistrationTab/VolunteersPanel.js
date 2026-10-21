@@ -22,6 +22,10 @@ const VolunteersPanel = ({ volunteers, isLoading, onCreateVolunteer, message, me
     }
   };
 
+  const showSkeleton = isLoading && volunteers.length === 0;
+  const showEmpty = !showSkeleton && volunteers.length === 0;
+  const showTable = !showSkeleton && volunteers.length > 0;
+
   return (
     <div className="card registration-flex-card">
       <div>
@@ -69,13 +73,13 @@ const VolunteersPanel = ({ volunteers, isLoading, onCreateVolunteer, message, me
 
       <div className="teachers-section">
         <h3 className="teachers-section-title">Volunteers</h3>
-        {isLoading && volunteers.length === 0 ? (
+        {showSkeleton && (
           <div className="table-wrapper">
             <TableSkeleton columns={["Name", "Email"]} />
           </div>
-        ) : volunteers.length === 0 ? (
-          <div className="no-teachers">No volunteers yet.</div>
-        ) : (
+        )}
+        {showEmpty && <div className="no-teachers">No volunteers yet.</div>}
+        {showTable && (
           <div className="table-wrapper">
             <table className="content-table">
               <thead>

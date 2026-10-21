@@ -30,6 +30,7 @@ os.environ.setdefault("DB_CONNECTION", "")
 
 import pytest
 import pytest_asyncio
+from bson import ObjectId
 from httpx import ASGITransport, AsyncClient
 
 from app.main import app
@@ -134,6 +135,28 @@ def _tenant_token(user_id: str) -> str:
     })
 
 
+async def _seed_volunteer(mock_db, email: str = "volunteer@test.com") -> dict:
+    """Insert a textbook remediation volunteer user and return its dict."""
+    doc = {
+        "role": UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER.value,
+        "name": "Test Volunteer",
+        "email": email,
+        "tenant_id": "tenant001",
+        "is_active": True,
+    }
+    result = await mock_db["users"].insert_one(doc)
+    doc["_id"] = str(result.inserted_id)
+    return doc
+
+
+def _volunteer_token(user_id: str, tenant_id: str = "tenant001") -> str:
+    return create_access_token({
+        "sub": user_id,
+        "role": "textbook_remediation_volunteer",
+        "tenant_id": tenant_id,
+    })
+
+
 # ---------------------------------------------------------------------------
 # Tests: Teacher Auth
 # ---------------------------------------------------------------------------
@@ -227,6 +250,88 @@ async def test_get_teacher_with_token(client, mock_db):
     body = resp.json()
     assert "hashed_password" not in body
     assert body["name"] == "Test Teacher"
+
+
+@pytest.mark.asyncio
+async def test_remediation_me_with_volunteer_token(client, mock_db):
+    """GET /textbook-remediation/me with a volunteer token returns the volunteer's own profile."""
+    volunteer = await _seed_volunteer(mock_db)
+    token = _volunteer_token(volunteer["_id"])
+
+    resp = await client.get(
+        "/textbook-remediation/me",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "hashed_password" not in body
+    assert body["name"] == "Test Volunteer"
+    assert body["role"] == "textbook_remediation_volunteer"
+
+
+@pytest.mark.asyncio
+async def test_remediation_me_requires_auth(client):
+    """GET /textbook-remediation/me without a token returns 401."""
+    resp = await client.get("/textbook-remediation/me")
+    assert resp.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_tenant_me_unchanged_for_tenant_role(client, mock_db):
+    """Regression: /tenant/me behavior for the tenant role is unaffected by adding /textbook-remediation/me."""
+    tenant = await _seed_tenant(mock_db)
+    token = _tenant_token(tenant["_id"])
+
+    resp = await client.get(
+        "/tenant/me",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["name"] == "Test Tenant"
+
+
+@pytest.mark.asyncio
+async def test_tenant_me_rejects_volunteer_token(client, mock_db):
+    """/tenant/me stays tenant-only — a volunteer token must still get 403, proving no widening occurred."""
+    volunteer = await _seed_volunteer(mock_db)
+    token = _volunteer_token(volunteer["_id"])
+
+    resp = await client.get(
+        "/tenant/me",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_list_volunteers_scopes_by_authenticated_sub(client, mock_db):
+    """GET /tenant/volunteers must use the authenticated tenant's sub claim, not any other
+    field, so a tenant only ever sees its own volunteers."""
+    own_tenant = await _seed_tenant(mock_db, email="owner@test.com")
+    other_tenant = await _seed_tenant(mock_db, email="other@test.com")
+    await mock_db["users"].insert_one({
+        "role": UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER.value,
+        "name": "Mine",
+        "email": "mine@test.com",
+        "tenant_id": ObjectId(own_tenant["_id"]),
+        "is_active": True,
+    })
+    await mock_db["users"].insert_one({
+        "role": UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER.value,
+        "name": "Theirs",
+        "email": "theirs@test.com",
+        "tenant_id": ObjectId(other_tenant["_id"]),
+        "is_active": True,
+    })
+
+    token = _tenant_token(own_tenant["_id"])
+    resp = await client.get(
+        "/tenant/volunteers",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 200
+    emails = {v["email"] for v in resp.json()}
+    assert emails == {"mine@test.com"}
 
 
 # ---------------------------------------------------------------------------

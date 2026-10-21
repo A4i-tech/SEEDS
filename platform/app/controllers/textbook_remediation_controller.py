@@ -18,6 +18,7 @@ from app.models.responses.remediation import (
     RemediationJobResponse,
     ReviewSummaryResponse,
 )
+from app.models.responses.user import UserPublicResponse
 from app.models.user import UserRole
 from app.platform.auth.dependencies import get_db, require_role, require_tenant
 from app.platform.error_handling import NotFoundError, ValidationError
@@ -28,6 +29,7 @@ from app.repositories.textbook_remediation_repository import (
     get_textbook_remediation_repo,
 )
 from app.repositories.user_repository import UserRepository
+from app.services.auth_service import AuthService, get_auth_service
 from app.services.language_registry import SUPPORTED_LANGUAGES
 from app.services.textbook_remediation import (
     artifact_bytes as _artifact_bytes,
@@ -91,6 +93,15 @@ async def _get_job(repo: TextbookRemediationRepository, user: dict[str, object],
     if _is_volunteer(user) and job.assigned_to != str(user["sub"]):
         raise NotFoundError("Remediation job", job_id)
     return job
+
+
+@router.get("/me", response_model=UserPublicResponse, response_model_exclude_none=True, summary="Get current textbook remediation user's own profile")
+async def remediation_me(
+    current_user: dict[str, object] = Depends(require_remediation_access),
+    service: AuthService = Depends(get_auth_service),
+) -> UserPublicResponse:
+    user = await service.get_user_profile(str(current_user["sub"]), "User")
+    return UserPublicResponse.from_domain(user)
 
 
 @router.post("/jobs", status_code=202, response_model=CreateRemediationJobResponse, summary="Upload a textbook PDF and queue it for remediation")
@@ -167,10 +178,9 @@ async def stream_remediation_job(
     repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
 ) -> StreamingResponse:
     await _get_job(repo, user, job_id)
-    tenant_id = str(user["tenant_id"])
 
     async def _format() -> AsyncIterator[str]:
-        async for event in subscribe(repo, tenant_id, job_id):
+        async for event in subscribe(repo, user, job_id):
             yield f"data: {json.dumps(event, default=str)}\n\n"
 
     return StreamingResponse(_format(), media_type="text/event-stream")

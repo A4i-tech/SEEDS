@@ -24,9 +24,10 @@ const job = (overrides = {}) => ({
 });
 
 const mockAssign = jest.fn();
+let mockJobs = [job()];
 jest.mock("../../src/hooks/useRemediationJobs", () => ({
   useRemediationJobs: () => ({
-    jobs: [job()],
+    jobs: mockJobs,
     isLoading: false,
     isUploading: false,
     error: null,
@@ -48,6 +49,7 @@ beforeAll(() => {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockJobs = [job()];
   textbookRemediationService.getLanguages.mockResolvedValue({ languages: [] });
 });
 
@@ -59,6 +61,31 @@ test("tenant sees the upload card and an assignee control", async () => {
   expect(screen.getByText("Assigned to")).toBeInTheDocument();
   expect(screen.getByText("Unassigned")).toBeInTheDocument();
   expect(screen.getByRole("button", { name: /delete/i })).toBeInTheDocument();
+});
+
+test("assigned volunteer still in the list shows their name", async () => {
+  getRole.mockReturnValue("tenant");
+  mockJobs = [job({ assigned_to: "vol-1" })];
+  render(<RemediationTab volunteers={volunteers} />);
+
+  expect(screen.getByText("Volunteer One")).toBeInTheDocument();
+});
+
+test("assigned volunteer missing from the loaded list shows a fallback label", async () => {
+  getRole.mockReturnValue("tenant");
+  mockJobs = [job({ assigned_to: "vol-missing" })];
+  render(<RemediationTab volunteers={volunteers} />);
+
+  expect(screen.getByText("Assigned volunteer")).toBeInTheDocument();
+  expect(screen.queryByText("Unassigned")).not.toBeInTheDocument();
+});
+
+test("unassigned job still shows Unassigned", async () => {
+  getRole.mockReturnValue("tenant");
+  mockJobs = [job({ assigned_to: null })];
+  render(<RemediationTab volunteers={volunteers} />);
+
+  expect(screen.getByText("Unassigned")).toBeInTheDocument();
 });
 
 test.each([["school_admin"], ["content_creator"], ["textbook_remediation_volunteer"]])(

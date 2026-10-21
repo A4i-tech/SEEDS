@@ -26,6 +26,11 @@ const RemediationTab = ({ volunteers = [] }) => {
     { value: "", label: "Unassigned" },
     ...volunteers.map((volunteer) => ({ value: volunteer.id, label: volunteer.name })),
   ];
+  const volunteerIds = new Set(volunteers.map((volunteer) => volunteer.id));
+  const getAssigneeOptions = (assignedTo) =>
+    assignedTo && !volunteerIds.has(assignedTo)
+      ? [...assigneeOptions, { value: assignedTo, label: "Assigned volunteer" }]
+      : assigneeOptions;
   const fileRef = useRef(null);
   const [selectedFile, setSelectedFile] = useState(null);
   const [targetLanguage, setTargetLanguage] = useState("");
@@ -187,7 +192,7 @@ const RemediationTab = ({ volunteers = [] }) => {
                         id={`remediation-assignee-${job.job_id}`}
                         value={job.assigned_to || ""}
                         onChange={(volunteerId) => assign(job.job_id, volunteerId || null)}
-                        options={assigneeOptions}
+                        options={getAssigneeOptions(job.assigned_to)}
                         placeholder="Unassigned"
                       />
                     </td>
