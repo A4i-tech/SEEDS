@@ -126,6 +126,23 @@ async def issue_pair[ClaimsT](
     }
 
 
+async def handle_reuse_detected[ClaimsT](
+    store: RefreshTokenStore[ClaimsT],
+    exc: RefreshTokenReusedError,
+    reuse_counter_name: str,
+) -> None:
+    logger.warning(
+        "refresh_tokens: revoked refresh token replayed — owner_id=%s",
+        exc.owner_id,
+        extra={
+            "event": "refresh_token_reuse_detected",
+            "owner_id": exc.owner_id,
+        },
+    )
+    get_counter(reuse_counter_name).add(1, {"owner_id": exc.owner_id})
+    await store.revoke_all_for_owner(exc.owner_id, reason="consumed")
+
+
 async def rotate[ClaimsT](
     store: RefreshTokenStore[ClaimsT],
     refresh_token: str,
@@ -146,16 +163,7 @@ async def rotate[ClaimsT](
     except RefreshTokenRevokedError:
         raise UnauthorizedError("Invalid refresh token") from None
     except RefreshTokenReusedError as exc:
-        logger.warning(
-            "refresh_tokens: revoked refresh token replayed — owner_id=%s",
-            exc.owner_id,
-            extra={
-                "event": "refresh_token_reuse_detected",
-                "owner_id": exc.owner_id,
-            },
-        )
-        get_counter(reuse_counter_name).add(1, {"owner_id": exc.owner_id})
-        await store.revoke_all_for_owner(exc.owner_id, reason="consumed")
+        await handle_reuse_detected(store, exc, reuse_counter_name)
         raise UnauthorizedError("Invalid refresh token") from None
 
     now = datetime.now(tz=UTC)
