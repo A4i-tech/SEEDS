@@ -154,9 +154,9 @@ The service logs key events for easier tracking and debugging:
 
 ### Environment Variables
 
-- `cloud_RoleName` in Application Insights is always `websocket-service` (set in code), regardless of environment.
+- **`OTEL_SERVICE_NAME`** (deployment setting): set to `websocket-service` so `cloud_RoleName` in Application Insights is `websocket-service`. Until it is set, `cloud_RoleName` is `unknown_service:node` in kube-dev and the App Service site name in prod (`web-socket-service-main`), and the `cloud_RoleName == "websocket-service"` queries below return no rows.
 - **`LOG_LEVEL`** (optional): Minimum log level to emit — one of `debug`, `info`, `warn`, `error`. Defaults to `info` if unset or unrecognized.
-- **`APPLICATIONINSIGHTS_CONNECTION_STRING`** (optional): Azure Application Insights connection string. When set, all logs are also forwarded to Application Insights (`trackTrace`, or `trackException` for errors) If unset, logs are still written as JSON to stdout/stderr, but nothing is sent to Azure.
+- **`APPLICATIONINSIGHTS_CONNECTION_STRING`** (optional): Azure Application Insights connection string. When set, winston output is auto-collected by Application Insights. If unset, logs are still written as JSON to stdout/stderr, but nothing is sent to Azure.
 
 ### Sample KQL Queries
 

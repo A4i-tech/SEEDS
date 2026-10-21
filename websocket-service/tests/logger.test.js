@@ -1,14 +1,17 @@
 'use strict';
 
-function parseLoggedLine(spy) {
-  const calls = spy.mock.calls;
-  return JSON.parse(calls[calls.length - 1][0]);
+const MESSAGE = Symbol.for('message');
+
+function loadLogger() {
+  const logger = require('../src/logger');
+  const spy = jest.spyOn(logger.transports[0], 'log').mockImplementation((info, callback) => callback());
+  const lastEntry = () => JSON.parse(spy.mock.calls[spy.mock.calls.length - 1][0][MESSAGE]);
+  return { logger, spy, lastEntry };
 }
 
-describe('logger — dev mode', () => {
+describe('logger', () => {
   beforeEach(() => {
     jest.resetModules();
-    process.env.NODE_ENV = 'development';
     delete process.env.APPLICATIONINSIGHTS_CONNECTION_STRING;
     delete process.env.LOG_LEVEL;
   });
@@ -17,210 +20,67 @@ describe('logger — dev mode', () => {
     jest.restoreAllMocks();
   });
 
-  it('info() writes structured JSON to console.log', () => {
-    const spy = jest.spyOn(console, 'log').mockImplementation(() => {}).mockClear();
-    const logger = require('../src/logger');
+  it('info() writes structured JSON with service and timestamp', () => {
+    const { logger, lastEntry } = loadLogger();
     logger.info('hello');
-    const entry = parseLoggedLine(spy);
-    expect(entry).toMatchObject({ level: 'info', service: 'websocket-service', message: 'hello' });
-    expect(entry.timestamp).toEqual(expect.any(String));
+    expect(lastEntry()).toMatchObject({ level: 'info', service: 'websocket-service', message: 'hello' });
+    expect(lastEntry().timestamp).toEqual(expect.any(String));
   });
 
   it('info() includes properties in the entry', () => {
-    const spy = jest.spyOn(console, 'log').mockImplementation(() => {}).mockClear();
-    const logger = require('../src/logger');
+    const { logger, lastEntry } = loadLogger();
     logger.info('hello', { sessionId: 'abc' });
-    expect(parseLoggedLine(spy)).toMatchObject({ message: 'hello', sessionId: 'abc' });
+    expect(lastEntry()).toMatchObject({ message: 'hello', sessionId: 'abc' });
   });
 
-  it('warn() writes structured JSON to console.warn', () => {
-    const spy = jest.spyOn(console, 'warn').mockImplementation(() => {}).mockClear();
-    const logger = require('../src/logger');
-    logger.warn('careful');
-    expect(parseLoggedLine(spy)).toMatchObject({ level: 'warn', message: 'careful' });
+  it('error() with an Error includes its message, stack and extra properties', () => {
+    const { logger, lastEntry } = loadLogger();
+    logger.error('failed', Object.assign(new Error('boom'), { eventType: 'some_error' }));
+    const entry = lastEntry();
+    expect(entry).toMatchObject({ level: 'error', message: 'failed boom', eventType: 'some_error' });
+    expect(entry.stack).toContain('Error: boom');
   });
 
-  it('error() writes structured JSON to console.error with error message', () => {
-    const spy = jest.spyOn(console, 'error').mockImplementation(() => {}).mockClear();
-    const logger = require('../src/logger');
-    const err = new Error('boom');
-    logger.error('broke', err);
-    expect(parseLoggedLine(spy)).toMatchObject({ level: 'error', message: 'broke', error: 'boom' });
+  it('error() without an Error logs the properties', () => {
+    const { logger, lastEntry } = loadLogger();
+    logger.error('failed', { eventType: 'some_error' });
+    expect(lastEntry()).toMatchObject({ level: 'error', message: 'failed', eventType: 'some_error' });
   });
 
-  it('error() handles null error gracefully', () => {
-    const spy = jest.spyOn(console, 'error').mockImplementation(() => {}).mockClear();
-    const logger = require('../src/logger');
-    logger.error('broke', null);
-    expect(parseLoggedLine(spy)).toMatchObject({ level: 'error', message: 'broke', error: null });
-  });
-
-  it('masks sensitive property keys', () => {
-    const spy = jest.spyOn(console, 'log').mockImplementation(() => {}).mockClear();
-    const logger = require('../src/logger');
-    logger.info('auth ok', { token: 'secret-value', userId: '42' });
-    const entry = parseLoggedLine(spy);
-    expect(entry.token).toBe('***');
-    expect(entry.userId).toBe('42');
-  });
-
-  it('debug() is suppressed by default level (info)', () => {
-    const spy = jest.spyOn(console, 'log').mockImplementation(() => {}).mockClear();
-    const logger = require('../src/logger');
-    logger.debug('verbose');
+  it('debug() is suppressed by the default level (info)', () => {
+    const { logger, spy } = loadLogger();
+    logger.debug('hidden');
     expect(spy).not.toHaveBeenCalled();
   });
 
-  it('debug() logs when LOG_LEVEL=debug', () => {
-    jest.resetModules();
-    process.env.LOG_LEVEL = 'debug';
-    const spy = jest.spyOn(console, 'log').mockImplementation(() => {}).mockClear();
-    const logger = require('../src/logger');
-    logger.debug('verbose');
-    expect(parseLoggedLine(spy)).toMatchObject({ level: 'debug', message: 'verbose' });
+  it.each(['debug', 'DEBUG'])('debug() logs when LOG_LEVEL=%s', (level) => {
+    process.env.LOG_LEVEL = level;
+    const { logger, lastEntry } = loadLogger();
+    logger.debug('visible');
+    expect(lastEntry()).toMatchObject({ level: 'debug', message: 'visible' });
   });
 
-  it('generateCorrelationId() returns a UUID v4 string', () => {
-    const logger = require('../src/logger');
-    const id = logger.generateCorrelationId();
-    expect(id).toEqual(expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i));
+  it('child() merges context and per-call properties', () => {
+    const { logger, lastEntry } = loadLogger();
+    logger.child({ sessionId: 's1', correlationId: 'c1' }).info('hi', { eventType: 'e' });
+    expect(lastEntry()).toMatchObject({ message: 'hi', sessionId: 's1', correlationId: 'c1', eventType: 'e' });
   });
 
-  it('generateCorrelationId() returns a different value on each call', () => {
-    const logger = require('../src/logger');
-    expect(logger.generateCorrelationId()).not.toBe(logger.generateCorrelationId());
+  it('child().error() includes context and the Error stack', () => {
+    const { logger, lastEntry } = loadLogger();
+    logger.child({ sessionId: 's1' }).error('bad', Object.assign(new Error('boom'), { eventType: 'e' }));
+    const entry = lastEntry();
+    expect(entry).toMatchObject({ level: 'error', message: 'bad boom', sessionId: 's1', eventType: 'e' });
+    expect(entry.stack).toContain('Error: boom');
   });
 
-  it('withContext().info() merges context and per-call properties', () => {
-    const spy = jest.spyOn(console, 'log').mockImplementation(() => {}).mockClear();
-    const logger = require('../src/logger');
-    const contextLogger = logger.withContext({ sessionId: 'abc', requestId: 'req-1' });
-    contextLogger.info('hello', { userId: '42' });
-    expect(parseLoggedLine(spy)).toMatchObject({
-      message: 'hello',
-      sessionId: 'abc',
-      requestId: 'req-1',
-      userId: '42',
-    });
-  });
-
-  it('withContext() lets call-site properties win on key collision', () => {
-    const spy = jest.spyOn(console, 'log').mockImplementation(() => {}).mockClear();
-    const logger = require('../src/logger');
-    const contextLogger = logger.withContext({ sessionId: 'context-value' });
-    contextLogger.info('hello', { sessionId: 'call-value' });
-    expect(parseLoggedLine(spy)).toMatchObject({ sessionId: 'call-value' });
-  });
-
-  it('withContext().error() masks sensitive properties and includes context', () => {
-    const spy = jest.spyOn(console, 'error').mockImplementation(() => {}).mockClear();
-    const logger = require('../src/logger');
-    const contextLogger = logger.withContext({ sessionId: 'abc' });
-    const err = new Error('boom');
-    contextLogger.error('broke', err, { token: 'secret-value' });
-    const entry = parseLoggedLine(spy);
-    expect(entry).toMatchObject({ level: 'error', message: 'broke', error: 'boom', sessionId: 'abc' });
-    expect(entry.token).toBe('***');
-  });
-});
-
-describe('logger — production without connection string', () => {
-  beforeEach(() => {
-    jest.resetModules();
-    process.env.NODE_ENV = 'production';
-    delete process.env.APPLICATIONINSIGHTS_CONNECTION_STRING;
-    delete process.env.LOG_LEVEL;
-  });
-
-  afterEach(() => {
-    jest.restoreAllMocks();
-    process.env.NODE_ENV = 'test';
-  });
-
-  it('falls back to console when connection string is absent', () => {
-    const spy = jest.spyOn(console, 'log').mockImplementation(() => {}).mockClear();
-    const logger = require('../src/logger');
-    logger.info('hello');
-    expect(parseLoggedLine(spy)).toMatchObject({ message: 'hello' });
-  });
-});
-
-describe('logger — production path routing (mock client)', () => {
-  let logger;
-  let mockClient;
-
-  beforeEach(() => {
-    jest.resetModules();
-
-    mockClient = {
-      trackTrace: jest.fn(),
-      trackException: jest.fn(),
-      context: {
-        tags: {},
-        keys: { cloudRole: 'ai.cloud.role' },
-      },
-    };
-
-    jest.mock('applicationinsights', () => ({
-      setup: jest.fn().mockReturnThis(),
-      setAutoCollectRequests: jest.fn().mockReturnThis(),
-      setAutoCollectDependencies: jest.fn().mockReturnThis(),
-      setAutoCollectExceptions: jest.fn().mockReturnThis(),
-      setAutoCollectConsole: jest.fn().mockReturnThis(),
-      setDistributedTracingMode: jest.fn().mockReturnThis(),
-      start: jest.fn().mockReturnThis(),
-      defaultClient: mockClient,
-      DistributedTracingModes: { AI_AND_W3C: 2 },
-    }));
-
-    process.env.NODE_ENV = 'production';
-    process.env.APPLICATIONINSIGHTS_CONNECTION_STRING = 'InstrumentationKey=test-key';
-    delete process.env.LOG_LEVEL;
-    logger = require('../src/logger');
-  });
-
-  afterEach(() => {
-    jest.restoreAllMocks();
-    jest.resetModules();
-    delete process.env.APPLICATIONINSIGHTS_CONNECTION_STRING;
-    process.env.NODE_ENV = 'test';
-  });
-
-  it('info() calls trackTrace with severity 1', () => {
-    logger.info('hello', { key: 'val' });
-    expect(mockClient.trackTrace).toHaveBeenCalledWith({
-      message: 'hello',
-      severity: 1,
-      properties: { key: 'val' },
-    });
-  });
-
-  it('error() with Error calls trackException only (no trackTrace)', () => {
-    const err = new Error('boom');
-    logger.error('broke', err, { ctx: 'test' });
-    expect(mockClient.trackException).toHaveBeenCalledWith({
-      exception: err,
-      properties: { ctx: 'test', message: 'broke' },
-    });
-    expect(mockClient.trackTrace).not.toHaveBeenCalled();
-  });
-
-  it('error() with non-Error calls trackTrace only (no trackException)', () => {
-    logger.error('broke', null);
-    expect(mockClient.trackTrace).toHaveBeenCalledWith({
-      message: 'broke',
-      severity: 3,
-      properties: {},
-    });
-    expect(mockClient.trackException).not.toHaveBeenCalled();
-  });
-
-  it('masks sensitive properties before sending to App Insights', () => {
-    logger.info('login', { password: 'hunter2' });
-    expect(mockClient.trackTrace).toHaveBeenCalledWith({
-      message: 'login',
-      severity: 1,
-      properties: { password: '***' },
-    });
+  it('keeps logging after a BigInt or circular property', () => {
+    const { logger, lastEntry } = loadLogger();
+    const circular = {};
+    circular.self = circular;
+    expect(() => logger.info('big', { value: BigInt(1) })).not.toThrow();
+    expect(() => logger.info('circular', { circular })).not.toThrow();
+    logger.info('after');
+    expect(lastEntry()).toMatchObject({ message: 'after' });
   });
 });

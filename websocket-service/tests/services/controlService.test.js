@@ -8,7 +8,7 @@ jest.mock("../../src/services/websocketService");
 jest.mock("../../src/services/connectionManager");
 
 function findLoggedEntry(spy, message) {
-  return spy.mock.calls.map((c) => JSON.parse(c[0])).find((e) => e.message === message);
+  return spy.mock.calls.map((c) => JSON.parse(c[0])).find((e) => e.message.startsWith(message));
 }
 
 describe("ControlService", () => {
@@ -75,7 +75,7 @@ describe("ControlService", () => {
       mockErrorHandler(testError);
       expect(
         findLoggedEntry(errorSpy, "Control WebSocket error")
-      ).toMatchObject({ error: testError.message });
+      ).toMatchObject({ message: `Control WebSocket error ${testError.message}`, stack: expect.any(String) });
 
       consoleSpy.mockRestore();
       errorSpy.mockRestore();
@@ -204,7 +204,7 @@ describe("ControlService", () => {
       await mockMessageHandler("{ invalid json }");
       expect(
         findLoggedEntry(errorSpy, "Error parsing control message")
-      ).toMatchObject({ error: expect.any(String) });
+      ).toMatchObject({ eventType: "control_message_parse_error" });
 
       // Empty/null messages
       await mockMessageHandler("");
@@ -223,7 +223,7 @@ describe("ControlService", () => {
       );
       expect(
         findLoggedEntry(errorSpy, "Error playing audio for ID error-client")
-      ).toMatchObject({ error: testError.message });
+      ).toMatchObject({ message: `Error playing audio for ID error-client ${testError.message}`, stack: expect.any(String) });
 
       websocketService.playSystemAudioContent.mockRejectedValue(testError);
       await mockMessageHandler(
@@ -235,7 +235,7 @@ describe("ControlService", () => {
       );
       expect(
         findLoggedEntry(errorSpy, "Error playing audio for ID system-error")
-      ).toMatchObject({ error: testError.message });
+      ).toMatchObject({ message: `Error playing audio for ID system-error ${testError.message}`, stack: expect.any(String) });
 
       websocketService.seekAudioContent.mockRejectedValue(testError);
       await mockMessageHandler(
@@ -247,7 +247,7 @@ describe("ControlService", () => {
       );
       expect(
         findLoggedEntry(errorSpy, "Error seeking audio for ID seek-error")
-      ).toMatchObject({ error: testError.message });
+      ).toMatchObject({ message: `Error seeking audio for ID seek-error ${testError.message}`, stack: expect.any(String) });
 
       // Missing fields
       await mockMessageHandler(

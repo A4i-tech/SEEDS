@@ -1,6 +1,7 @@
 // src/server.js
 
 const logger = require("./logger"); // must be first — initialises App Insights auto-instrumentation
+const crypto = require("crypto");
 const http = require("http");
 const WebSocket = require("ws");
 const url = require("url");
@@ -57,8 +58,8 @@ wss.on("connection", (ws, req) => {
     return;
   }
 
-  const correlationId = logger.generateCorrelationId();
-  const log = logger.withContext({ sessionId: id, clientId: id, correlationId });
+  const correlationId = crypto.randomUUID();
+  const log = logger.child({ sessionId: id, clientId: id, correlationId });
 
   connectionManager.addConnection(id, {
     ws,
@@ -73,7 +74,7 @@ wss.on("connection", (ws, req) => {
     websocketService
       .playAudioContent(id, audioUrl)
       .catch((error) =>
-        log.error(`Auto-play failed for ID: ${id}, URL: ${redactUrl(audioUrl)}`, error, { eventType: "auto_play_error" })
+        log.error(`Auto-play failed for ID: ${id}, URL: ${redactUrl(audioUrl)}`, Object.assign(error, { eventType: "auto_play_error" }))
       );
   }
 
@@ -115,7 +116,7 @@ wss.on("connection", (ws, req) => {
     });
 
     ws.on("error", (error) => {
-      log.error(`WebSocket error for ID: ${id}`, error, { eventType: "connection_error" });
+      log.error(`WebSocket error for ID: ${id}`, Object.assign(error, { eventType: "connection_error" }));
     });
   }
 });

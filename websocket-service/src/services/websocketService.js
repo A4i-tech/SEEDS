@@ -10,7 +10,7 @@ const AUDIO_BYTES_PER_SECOND = 16000; // 320 bytes * 50 chunks per second
 const CHUNK_BYTES = 320;
 
 function scopedLogger(id, correlationId) {
-  return logger.withContext({ sessionId: id, clientId: id, correlationId });
+  return logger.child({ sessionId: id, clientId: id, correlationId });
 }
 
 /**
@@ -187,7 +187,7 @@ async function playNextSystemAudioContent(ws, id, state) {
     sendSystemAudioContentChunks(ws, id, blobData, state);
   } catch (error) {
     logger.error(
-      `Failed to play system audio content for ID: ${id}, Blob URL: ${redactUrl(blobUrl)}: ${error}`,
+      `Failed to play system audio content for ID: ${id}, Blob URL: ${redactUrl(blobUrl)}`,
       error
     );
     clearSystemAudio(ws, id, state);
@@ -269,7 +269,7 @@ function sendAudioContentChunks(ws, id, blobData, state, playbackId) {
 
     ws.send(chunk, { binary: true }, (error) => {
       if (error) {
-        log.error(`Error sending data over WebSocket for ID: ${id}`, error, { eventType: "audio_send_error" });
+        log.error(`Error sending data over WebSocket for ID: ${id}`, Object.assign(error, { eventType: "audio_send_error" }));
         sendPlaybackStatus(id, PlaybackStatus.STOPPED);
         ws.close();
         return;
@@ -324,7 +324,7 @@ function sendSystemAudioContentChunks(ws, id, blobData, state) {
 
     ws.send(chunk, { binary: true }, (error) => {
       if (error) {
-        log.error(`Error sending data over WebSocket for ID: ${id}`, error, { eventType: "system_audio_send_error" });
+        log.error(`Error sending data over WebSocket for ID: ${id}`, Object.assign(error, { eventType: "system_audio_send_error" }));
         ws.close();
         return;
       }
@@ -555,7 +555,7 @@ function sendPlaybackStatus(id, status, refusal) {
   try {
     const confv2Conn = connectionManager.getConnection("confv2server");
     if (!confv2Conn || !confv2Conn.ws) {
-      log.error(`sendPlaybackStatus [${id}]: No confv2server connection available`, null, { eventType: "playback_status_no_confv2_connection" });
+      log.error(`sendPlaybackStatus [${id}]: No confv2server connection available`, { eventType: "playback_status_no_confv2_connection" });
       return;
     }
     const { ws } = confv2Conn;
@@ -587,12 +587,12 @@ function sendPlaybackStatus(id, status, refusal) {
       JSON.stringify(payload),
       (error) => {
         if (error) {
-          log.error(`Error sending playback status over WebSocket for ID: ${id}`, error, { eventType: "playback_status_send_error" });
+          log.error(`Error sending playback status over WebSocket for ID: ${id}`, Object.assign(error, { eventType: "playback_status_send_error" }));
         }
       }
     );
   } catch (err) {
-    log.error(`sendPlaybackStatus [${id}] CRASHED`, err, { eventType: "playback_status_crash" });
+    log.error(`sendPlaybackStatus [${id}] CRASHED`, Object.assign(err, { eventType: "playback_status_crash" }));
   }
 }
 
@@ -606,7 +606,7 @@ function sendReconnectionMessage(id, correlationId) {
     }),
     (error) => {
       if (error) {
-        log.error(`Error sending data over WebSocket for ID: ${id}`, error, { eventType: "reconnection_message_send_error" });
+        log.error(`Error sending data over WebSocket for ID: ${id}`, Object.assign(error, { eventType: "reconnection_message_send_error" }));
         ws.close();
         return;
       }

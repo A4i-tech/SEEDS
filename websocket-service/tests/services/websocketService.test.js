@@ -346,8 +346,7 @@ describe("WebSocketService", () => {
       jest.advanceTimersByTime(50);
       expect(consoleSpy).toHaveBeenCalledWith(
         "Error sending data over WebSocket for ID: test-client",
-        testError,
-        expect.objectContaining({ eventType: "audio_send_error" })
+        expect.objectContaining({ message: testError.message, eventType: "audio_send_error" })
       );
 
       expect(mockWebSocket.close).toHaveBeenCalled();
@@ -381,8 +380,7 @@ describe("WebSocketService", () => {
       websocketService.pauseAudioContent("test-client");
       expect(consoleSpy).toHaveBeenCalledWith(
         "Error sending playback status over WebSocket for ID: test-client",
-        controlError,
-        expect.objectContaining({ eventType: "playback_status_send_error" })
+        expect.objectContaining({ message: controlError.message, eventType: "playback_status_send_error" })
       );
 
       mockControlWebSocket.send.mockImplementation(

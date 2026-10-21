@@ -11,7 +11,7 @@ const { MessageType } = require("../constants");
  */
 function handleControlConnection(ws, id) {
   const correlationId = connectionManager.getConnection(id).state.correlationId;
-  const log = logger.withContext({ sessionId: id, clientId: id, correlationId });
+  const log = logger.child({ sessionId: id, clientId: id, correlationId });
 
   log.info(`Control connection established (${id}).`, { eventType: "control_connection_established" });
 
@@ -21,7 +21,7 @@ function handleControlConnection(ws, id) {
       const parsedMessage = JSON.parse(message);
       handleControlMessage(parsedMessage, log);
     } catch (error) {
-      log.error("Error parsing control message", error, { eventType: "control_message_parse_error" });
+      log.error("Error parsing control message", Object.assign(error, { eventType: "control_message_parse_error" }));
     }
   });
 
@@ -34,7 +34,7 @@ function handleControlConnection(ws, id) {
   });
 
   ws.on("error", (error) => {
-    log.error("Control WebSocket error", error, { eventType: "control_connection_error" });
+    log.error("Control WebSocket error", Object.assign(error, { eventType: "control_connection_error" }));
   });
 }
 
@@ -55,13 +55,13 @@ function handleControlMessage(controlMessage, log = logger) {
       log.info(`Handling play system message command for ID ${websocketId}`, { eventType: "control_command_play_system_message", websocketId });
       websocketService
         .playSystemAudioContent(websocketId, content)
-        .catch((error) => log.error(`Error playing audio for ID ${websocketId}`, error, { eventType: "control_command_play_system_message", websocketId }));
+        .catch((error) => log.error(`Error playing audio for ID ${websocketId}`, Object.assign(error, { eventType: "control_command_play_system_message", websocketId })));
       break;
     case MessageType.PLAY_AUDIO:
       log.info(`Handling play audio command for ID ${websocketId}`, { eventType: "control_command_play_audio", websocketId });
       websocketService
         .playAudioContent(websocketId, content)
-        .catch((error) => log.error(`Error playing audio for ID ${websocketId}`, error, { eventType: "control_command_play_audio", websocketId }));
+        .catch((error) => log.error(`Error playing audio for ID ${websocketId}`, Object.assign(error, { eventType: "control_command_play_audio", websocketId })));
       break;
     case MessageType.PAUSE_AUDIO:
       log.info(`Handling pause audio command for ID ${websocketId}`, { eventType: "control_command_pause_audio", websocketId });
@@ -79,14 +79,14 @@ function handleControlMessage(controlMessage, log = logger) {
       log.info(`Handling seek audio command for ID ${websocketId}`, { eventType: "control_command_seek_audio", websocketId });
       websocketService
         .seekAudioContent(websocketId, content)
-        .catch((error) => log.error(`Error seeking audio for ID ${websocketId}`, error, { eventType: "control_command_seek_audio", websocketId }));
+        .catch((error) => log.error(`Error seeking audio for ID ${websocketId}`, Object.assign(error, { eventType: "control_command_seek_audio", websocketId })));
       break;
     case MessageType.SET_SPEED:
       log.info(`Handling set speed command for ID ${websocketId}`, { eventType: "control_command_set_speed", websocketId });
       try {
         websocketService.setPlaybackSpeed(websocketId, parseFloat(content));
       } catch (error) {
-        log.error(`Error setting speed for ID ${websocketId}`, error, { eventType: "control_command_set_speed", websocketId });
+        log.error(`Error setting speed for ID ${websocketId}`, Object.assign(error, { eventType: "control_command_set_speed", websocketId }));
       }
       break;
     case MessageType.DISCONNECT:
