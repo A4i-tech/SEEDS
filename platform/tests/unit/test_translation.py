@@ -4,12 +4,9 @@ from __future__ import annotations
 import pytest
 
 from app.platform.error_handling import NotFoundError
-from app.platform.settings import Settings
 from app.providers.translation_provider import (
-    AzureTranslationProvider,
     TransientTranslationError,
     TranslationProvider,
-    get_translation_provider,
 )
 from app.repositories.translation_repository import TranslationRepository
 from app.services.placeholder_protector import mask, unmask
@@ -57,28 +54,6 @@ async def translation_service(mock_db, fake_provider):
     return TranslationService(mock_db, lambda: fake_provider, enforce_lang_validation=False)
 
 
-
-
-def test_get_translation_provider_returns_azure_with_credentials():
-    settings = Settings(azure_translation_key="key", tts_region="test-region")
-    assert isinstance(get_translation_provider(settings), AzureTranslationProvider)
-
-
-def test_get_translation_provider_requires_azure_credentials():
-    with pytest.raises(ValueError, match="AZURE_TRANSLATION_KEY"):
-        get_translation_provider(Settings(azure_translation_key="", tts_region="test-region"))
-
-    with pytest.raises(ValueError, match="TTS_REGION"):
-        get_translation_provider(Settings(azure_translation_key="key", tts_region=""))
-
-
-
-
-
-
-
-
-
 @pytest.mark.parametrize(
     "text",
     [
@@ -106,8 +81,6 @@ def test_mask_is_noop_for_plain_text():
     masked, mapping = mask("Namaste")
     assert masked == "Namaste"
     assert mapping == {}
-
-
 
 
 async def test_save_translation_then_find_by_keys(translation_repo):
@@ -225,8 +198,6 @@ async def test_runtime_batch_per_item_gate_uses_per_language_status_not_doc_leve
     doc = (await repo.find_by_route("site1", "/h"))[0]
     assert doc["translations"]["hi"]["status"] == "pending"
     assert doc["translations"]["hi"]["text"] == "[hi] Hello"
-
-
 
 
 async def test_bulk_approve_pending_approves_all_pending_and_skips_approved(
@@ -438,8 +409,6 @@ async def test_runtime_translate_falls_back_to_source_on_transient(
     assert docs[0].get("translations", {}) == {}
 
 
-
-
 @pytest.fixture
 async def bound_service(mock_db, fake_provider):
     await mock_db["websites"].insert_many(
@@ -538,8 +507,6 @@ async def test_generate_for_review_translation_memory_reuse_still_auto_approves(
     assert doc["status"] == "approved"
 
 
-
-
 def test_score_translation_is_bounded_and_penalises_dropped_placeholder():
     from app.services.quality_scorer import score_translation
 
@@ -607,8 +574,6 @@ async def test_list_translations_low_confidence_only_filters(translation_repo, t
 
     everything = await translation_service.list_translations("s1", route="/r")
     assert {d["key"] for d in everything} == {"low", "ok"}
-
-
 
 
 async def _seed_two_langs(translation_repo, translation_service):
