@@ -124,7 +124,7 @@ def _guard(doc: dict[str, Any]) -> dict[str, Any]:
 
 def succeeded(result: dict[str, Any]) -> bool:
     blockers = result["duplicates"] or result["unnormalizable"] or result["conflicts"] or result["remaining"]
-    return not blockers and result["strict"]
+    return not blockers
 
 
 def _report_problems(result: dict[str, Any]) -> None:
@@ -200,7 +200,6 @@ async def run(db: Any, dry_run: bool) -> dict[str, Any]:
         "backfilled": 0,
         "conflicts": [],
         "remaining": 0,
-        "strict": False,
     }
 
     if result["unnormalizable"] or result["duplicates"]:
@@ -210,13 +209,11 @@ async def run(db: Any, dry_run: bool) -> dict[str, Any]:
     stale = [doc for doc in docs if not _is_current(doc)]
     print(f"{len(docs)} website(s), {len(stale)} need claimed_domains backfilled.")
     if dry_run:
-        print(f"[DRY-RUN] {len(stale)} document(s) would be updated; no indexes or validator created.")
+        print(f"[DRY-RUN] {len(stale)} document(s) would be updated; no indexes created.")
         result["remaining"] = len(stale)
         return result
 
     await WebsiteRepository.ensure_indexes(db)
-    if await WebsiteRepository.claims_validator_level(db) != "strict":
-        await WebsiteRepository.set_claims_validator(db, "moderate")
 
     docs, result["duplicates"] = await _read_with_confirmed_duplicates(col)
     if result["duplicates"]:
@@ -228,9 +225,6 @@ async def run(db: Any, dry_run: bool) -> dict[str, Any]:
         result["remaining"] = await _count_not_current(col)
         _print_summary(result)
         return result
-
-    await WebsiteRepository.set_claims_validator(db, "strict")
-    result["strict"] = True
 
     for _ in range(MAX_ROUNDS):
         docs, result["duplicates"] = await _read_with_confirmed_duplicates(col)
