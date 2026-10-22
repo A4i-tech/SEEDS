@@ -30,6 +30,7 @@ class HoldDetector:
 
     def __init__(self, threshold: float = 0.82) -> None:
         self.client = None
+        self.model = ""
         self.threshold = float(os.getenv("AUDIO_HOLD_SIMILARITY_THRESHOLD", str(threshold)))
         self.min_chars = int(os.getenv("AUDIO_HOLD_MIN_TEXT_CHARS", "6"))
         self.api_timeout = float(os.getenv("AUDIO_API_TIMEOUT_SECONDS", "8.0"))
@@ -53,13 +54,16 @@ class HoldDetector:
 
     def _init_client(self) -> None:
 
-        api_key = get_settings().openai_api_key
-        if not api_key:
+        settings = get_settings()
+        base_url = settings.embedding_base_url or None
+        self.model = settings.embedding_model
+        if not (settings.openai_api_key or base_url):
             logger.warning("HoldDetector: OPENAI_API_KEY not set — rule-based mode only")
             return
         from openai import AsyncOpenAI  # type: ignore[import-untyped]  # noqa: PLC0415
 
-        self.client = AsyncOpenAI(api_key=api_key)
+        # self-hosted servers may need no key, but the client requires one
+        self.client = AsyncOpenAI(api_key=settings.openai_api_key or "unused", base_url=base_url)
 
     @staticmethod
     def _normalize_text(text: str) -> str:
@@ -95,7 +99,7 @@ class HoldDetector:
         for attempt in range(1, self.EMBEDDING_MAX_RETRIES + 1):
             try:
                 response = await asyncio.wait_for(
-                    self.client.embeddings.create(input=texts, model="text-embedding-3-small"),
+                    self.client.embeddings.create(input=texts, model=self.model),
                     timeout=self.api_timeout,
                 )
                 return [d.embedding for d in response.data]
