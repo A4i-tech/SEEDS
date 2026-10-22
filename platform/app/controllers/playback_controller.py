@@ -101,5 +101,9 @@ async def set_playback_speed(
     )
 
     conf = get_conf_or_404(conference_id)
-    await conf.queue_event(SetPlaybackSpeedEvent(conf_call=conf, speed=speed))
+    try:
+        event = SetPlaybackSpeedEvent(conf_call=conf, speed=speed)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    await conf.queue_event(event)
     return {"message": "Event Queued for execution"}
