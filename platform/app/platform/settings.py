@@ -4,7 +4,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -50,6 +50,12 @@ class Settings(BaseSettings):
     # Legacy env names from JS (TTS_SUBSCRIPTION_KEY, TTS_REGION)
     tts_subscription_key: str = Field(default="", repr=False)
     tts_region: str = ""
+
+    tts_provider: str = "openai"
+    tts_base_url: str = ""
+    tts_api_key: str = Field(default="", repr=False)
+    tts_model: str = ""
+    tts_voice: str = ""
 
     azure_blob_sas_enabled: bool = True
     azure_storage_account_name: str = ""
@@ -155,6 +161,38 @@ class Settings(BaseSettings):
     subodha_collection_name: str = "subodhaCourses"
     subodha_jobs_collection_name: str = "subodhaSyncJobs"
     subodha_asset_container: str = "subodha"
+
+    @field_validator("tts_provider", mode="before")
+    @classmethod
+    def _check_tts_provider(cls, v: object) -> str:
+        value = str(v).strip().lower()
+        if value not in ("azure", "openai"):
+            raise ValueError(f"TTS_PROVIDER={v!r} is not supported. Set TTS_PROVIDER to 'azure' or 'openai'.")
+        return value
+
+    @model_validator(mode="after")
+    def _check_tts_config(self) -> Settings:
+        if self.tts_provider == "openai":
+            missing = [n for n, val in (("TTS_MODEL", self.tts_model), ("TTS_VOICE", self.tts_voice)) if not val]
+            if missing:
+                raise ValueError(
+                    f"TTS_PROVIDER=openai requires {' and '.join(missing)}. "
+                    "Set them, or set TTS_PROVIDER=azure."
+                )
+        elif not self.speech_key or not self.speech_region:
+            raise ValueError(
+                "TTS_PROVIDER=azure requires AZURE_SPEECH_KEY and AZURE_SPEECH_REGION "
+                "(or legacy TTS_SUBSCRIPTION_KEY and TTS_REGION). Set them, or set TTS_PROVIDER=openai."
+            )
+        return self
+
+    @property
+    def speech_key(self) -> str:
+        return self.azure_speech_key or self.tts_subscription_key
+
+    @property
+    def speech_region(self) -> str:
+        return self.azure_speech_region or self.tts_region
 
     @property
     def call_webhook_queue_name(self) -> str:
