@@ -44,13 +44,13 @@ def set_refresh_cookie(response: Response, refresh_token: str) -> None:
         secure=settings.refresh_cookie_secure,
         samesite=settings.refresh_cookie_samesite,
         domain=settings.refresh_cookie_domain or None,
-        path="/auth",
+        path="/",
         max_age=max_age,
     )
 
 
 def clear_refresh_cookie(response: Response) -> None:
-    response.delete_cookie(key=REFRESH_COOKIE_NAME, path="/auth")
+    response.delete_cookie(key=REFRESH_COOKIE_NAME, path="/")
 
 
 # ---------------------------------------------------------------------------

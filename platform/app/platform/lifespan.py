@@ -196,6 +196,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await init_database()
 
     from app.repositories.content_job_repository import ContentJobRepository  # noqa: PLC0415
+    from app.repositories.textbook_remediation_repository import (  # noqa: PLC0415
+        TextbookRemediationRepository,
+    )
 
     reconciled = await ContentAggregatorSyncJobRepository(get_database()).reconcile_interrupted_jobs()
     if reconciled:
@@ -207,11 +210,23 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     from app.repositories.content_aggregator_webhook_repository import (  # noqa: PLC0415
         ContentAggregatorWebhookRepository,
     )
+    if settings.app_mode in ("consumer", "all"):
+        reconciled = await TextbookRemediationRepository(get_database()).reconcile_interrupted_jobs()
+        if reconciled:
+            logger.info("Reconciled %d interrupted textbook remediation jobs", reconciled)
+
     from app.repositories.integration_client_repository import (  # noqa: PLC0415
         IntegrationClientRepository,
     )
     from app.repositories.integration_token_repository import (  # noqa: PLC0415
         IntegrationTokenRepository,
+    )
+    from app.repositories.translation_audit_repository import (  # noqa: PLC0415
+        TranslationAuditRepository,
+    )
+    from app.repositories.translation_repository import TranslationRepository  # noqa: PLC0415
+    from app.repositories.translation_version_repository import (  # noqa: PLC0415
+        TranslationVersionRepository,
     )
     from app.repositories.user_refresh_token_repository import (  # noqa: PLC0415
         UserRefreshTokenRepository,
@@ -219,8 +234,12 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     from app.repositories.website_repository import WebsiteRepository  # noqa: PLC0415
 
     await WebsiteRepository.ensure_indexes(get_database())
+    await TranslationRepository.ensure_indexes(get_database())
+    await TranslationVersionRepository.ensure_indexes(get_database())
+    await TranslationAuditRepository.ensure_indexes(get_database())
     await ContentAggregatorSyncJobRepository.ensure_indexes(get_database())
     await ContentJobRepository.ensure_indexes(get_database())
+    await TextbookRemediationRepository.ensure_indexes(get_database())
     await IntegrationClientRepository.ensure_indexes(get_database())
     await UserRefreshTokenRepository.ensure_indexes(get_database())
     await IntegrationTokenRepository.ensure_indexes(get_database())

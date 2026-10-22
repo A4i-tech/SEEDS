@@ -33,6 +33,7 @@ from app.platform.auth.jwt import create_access_token, parse_expires_delta
 from app.platform.auth.refresh_tokens import (
     RefreshTokenExpiredError,
     RefreshTokenNotFoundError,
+    RefreshTokenReplayedError,
     RefreshTokenReusedError,
     RefreshTokenRevokedError,
     TokenPair,
@@ -480,9 +481,12 @@ class AuthService:
             RefreshTokenNotFoundError,
             RefreshTokenExpiredError,
             RefreshTokenRevokedError,
-            RefreshTokenReusedError,
+            RefreshTokenReplayedError,
         ):
             return
+        except RefreshTokenReusedError as exc:
+            await refresh_tokens.handle_reuse_detected(repo, exc, "auth.reuse_detected")
+            raise UnauthorizedError("Invalid refresh token") from None
         await repo.mark_logout(refresh_token)
         await repo.revoke_all_for_owner(consumed.owner_id, reason="logout")
 

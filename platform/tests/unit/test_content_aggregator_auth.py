@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import ast
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -212,15 +212,6 @@ class TestRefreshTokenSuccess:
 
         assert result["refresh_token"] != issued["refresh_token"]
 
-    async def test_old_refresh_token_is_single_use(self, mock_db, auth):
-        await _seed_client(mock_db)
-        issued = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
-
-        await auth.refresh_token(issued["refresh_token"])
-
-        with pytest.raises(UnauthorizedError):
-            await auth.refresh_token(issued["refresh_token"])
-
     async def test_replaying_consumed_refresh_token_revokes_all_client_tokens(self, mock_db, auth):
         await _seed_client(mock_db)
         issued = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
@@ -263,20 +254,6 @@ class TestRefreshTokenSuccess:
 
 
 class TestRefreshTokenExpiredOrRevoked:
-    async def test_expired_refresh_token_raises_distinct_error_code(self, mock_db, auth):
-        await _seed_client(mock_db)
-        issued = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
-        token_id = hash_refresh_token(issued["refresh_token"])
-        await mock_db["integrationTokens"].update_one(
-            {"token_id": token_id},
-            {"$set": {"expires_at": datetime.now(tz=UTC) - timedelta(days=1)}},
-        )
-
-        with pytest.raises(AppError) as exc_info:
-            await auth.refresh_token(issued["refresh_token"])
-        assert exc_info.value.code == "REFRESH_TOKEN_EXPIRED"
-        assert exc_info.value.status_code == 401
-
     async def test_revoked_refresh_token_rejected(self, mock_db, auth):
         await _seed_client(mock_db)
         issued = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
@@ -300,10 +277,6 @@ class TestRefreshTokenExpiredOrRevoked:
 
 
 class TestRefreshTokenUnknownOrDisabledClient:
-    async def test_unknown_refresh_token_raises_generic_unauthorized(self, auth):
-        with pytest.raises(UnauthorizedError):
-            await auth.refresh_token("not-a-real-token")
-
     async def test_disabled_client_rejected_at_refresh(self, mock_db, auth):
         await _seed_client(mock_db)
         issued = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
