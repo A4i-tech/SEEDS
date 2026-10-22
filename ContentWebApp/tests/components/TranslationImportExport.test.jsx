@@ -719,7 +719,7 @@ describe("Import review fixes", () => {
     await userEvent.click(within(dialog).getByRole("button", { name: "Import" }));
 
     await within(dialog).findByText(
-      /saved, but their version history and audit entry could not be recorded: row 4/
+      /saved, but their version history and audit entry could not be recorded: row 4\./
     );
   });
 

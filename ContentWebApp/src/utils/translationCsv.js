@@ -1,4 +1,5 @@
 import Papa from "papaparse";
+import { downloadBlob } from "./exportHelpers";
 
 export const MAX_IMPORT_ROWS = 5000;
 export const MAX_EXPORT_ROWS = 20000;
@@ -45,17 +46,8 @@ export const buildTranslationCsv = ({ docs, lang, languageName }) => {
   return `\uFEFF${csv}`;
 };
 
-export const downloadCsv = (content, filename) => {
-  const url = URL.createObjectURL(new Blob([content], { type: "text/csv;charset=utf-8;" }));
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  link.style.display = "none";
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
-};
+export const downloadCsv = (content, filename) =>
+  downloadBlob(new Blob([content], { type: "text/csv;charset=utf-8;" }), filename);
 
 export const readFileText = (file) =>
   new Promise((resolve, reject) => {
