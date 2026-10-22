@@ -21,6 +21,9 @@ class FakeBlob:
     async def download_from_url(self, blob_url: str) -> bytes:
         return self._files[blob_url]
 
+    def blob_url(self, container: str, blob_name: str) -> str:
+        return f"https://storage.test/{container}/{blob_name}"
+
     async def get_sas_url_from_blob_url(self, blob_url: str, expiry_hours: int = 1) -> str:
         if blob_url in self._sign_failures:
             raise RuntimeError("signing failed")
@@ -192,7 +195,7 @@ async def test_to_course_doc_signs_blob_image_urls_in_markdown():
         content=TextContent(markdown_url="blob://x.md"),
     )
     markdown = (
-        "Text before ![diagram](https://seedsstagingblob.blob.core.windows.net/subodha/courses/c1/assets/img.png) after."
+        "Text before ![diagram](https://storage.test/subodha/courses/c1/assets/img.png) after."
     )
     blob = FakeBlob({"blob://x.md": markdown.encode("utf-8")})
 
@@ -200,11 +203,11 @@ async def test_to_course_doc_signs_blob_image_urls_in_markdown():
 
     resolved = doc["blocks"][0]["markdown"]
     assert "?sas=signed" in resolved
-    assert "seedsstagingblob.blob.core.windows.net/subodha/courses/c1/assets/img.png?sas=signed" in resolved
+    assert "storage.test/subodha/courses/c1/assets/img.png?sas=signed" in resolved
 
 
 @pytest.mark.asyncio
-async def test_to_course_doc_leaves_image_url_untouched_if_signing_fails():
+async def test_to_course_doc_propagates_signing_failure():
     course = _node(
         source_id="course-1", parent_id=None, node_kind=NodeKind.CONTAINER, item_type=None,
         display_name="Demo", native_type="course",
@@ -218,7 +221,7 @@ async def test_to_course_doc_leaves_image_url_untouched_if_signing_fails():
                 display_name="Lesson 1", native_type="sequential")
     vert = _node(source_id="vert-1", parent_id="seq-1", node_kind=NodeKind.CONTAINER, item_type=None,
                  display_name="Unit 1", native_type="vertical")
-    image_url = "https://seedsstagingblob.blob.core.windows.net/subodha/courses/c1/assets/img.png"
+    image_url = "https://storage.test/subodha/courses/c1/assets/img.png"
     html_item = _node(
         source_id="html-1", parent_id="vert-1", node_kind=NodeKind.ITEM, item_type=ItemType.TEXT,
         display_name="Welcome", lms_url="https://lms/html-1", native_type="html",
@@ -227,6 +230,17 @@ async def test_to_course_doc_leaves_image_url_untouched_if_signing_fails():
     markdown = f"![diagram]({image_url})"
     blob = FakeBlob({"blob://x.md": markdown.encode("utf-8")}, sign_failures={image_url})
 
-    doc = (await to_course_doc([course, chapter, seq, vert, html_item], blob)).to_dict()
+    with pytest.raises(RuntimeError, match="signing failed"):
+        await to_course_doc([course, chapter, seq, vert, html_item], blob)
 
-    assert doc["blocks"][0]["markdown"] == markdown
+
+@pytest.mark.asyncio
+async def test_sign_blob_urls_signs_current_backend_asset_urls_and_ignores_other_hosts():
+    from app.serializers.subodha_serializer import _sign_blob_urls
+
+    asset = "https://storage.test/subodha/courses/c1/assets/img.png"
+    other = "https://example.com/subodha/courses/c1/assets/img.png"
+
+    result = await _sign_blob_urls(f"![a]({asset}) ![b]({other})", FakeBlob({}))
+
+    assert result == f"![a]({asset}?sas=signed) ![b]({other})"

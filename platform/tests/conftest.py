@@ -14,6 +14,7 @@ os.environ.setdefault("ENV", "development")
 os.environ.setdefault("MONGO_DB_CONNECTION_STRING", "")
 os.environ.setdefault("DB_CONNECTION", "")
 os.environ.setdefault("AUTH_TYPE", "jwt")
+os.environ.setdefault("OBJECT_STORE_ENDPOINT_URL", "http://minio.test:9000")
 os.environ.setdefault(
     "APPLICATIONINSIGHTS_CONNECTION_STRING",
     "InstrumentationKey=00000000-0000-0000-0000-000000000000;IngestionEndpoint=https://fake.example.com/",
@@ -24,7 +25,10 @@ os.environ.setdefault(
 def clear_settings_cache():
     """Clear the lru_cache on get_settings before each test to prevent cache poisoning."""
     from app.platform.settings import get_settings
+    from app.providers import blob_storage
 
     get_settings.cache_clear()
+    blob_storage._provider = None
     yield
     get_settings.cache_clear()
+    blob_storage._provider = None

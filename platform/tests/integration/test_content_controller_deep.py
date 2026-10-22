@@ -5,6 +5,7 @@ Deep coverage for content_controller endpoints.
 from __future__ import annotations
 
 import os
+from unittest.mock import AsyncMock, MagicMock, patch
 
 os.environ.setdefault("SECRET_KEY", "test-secret-key-for-integration-tests-32ch")
 os.environ.setdefault("APP_MODE", "api")
@@ -225,30 +226,102 @@ class TestContentCRUD:
 
 
 # ---------------------------------------------------------------------------
-# SAS token endpoint
+# Audio upload and audio URL endpoints
 # ---------------------------------------------------------------------------
 
 
-class TestSASTokenEndpoint:
+def _mp3_form(name="test.mp3"):
+    return {"data": {"blob_name": name}, "files": {"file": ("a.mp3", b"ID3data", "audio/mpeg")}}
+
+
+class TestUploadAudioEndpoint:
     @pytest.mark.asyncio
-    async def test_sas_token_requires_mp3(self, client, mock_db):
+    @pytest.mark.parametrize("name", ["test.wav", "../x.mp3", "a..b.mp3", "a b.mp3"])
+    async def test_upload_rejects_bad_name(self, client, mock_db, name):
         tenant = await _seed_tenant(mock_db)
         token = _tenant_token(tenant["_id"])
-        resp = await client.get("/content/sasToken?blob_name=test.wav", headers={"Authorization": f"Bearer {token}"})
-        assert resp.status_code in (400, 500)
+        resp = await client.post("/content/audio", headers={"Authorization": f"Bearer {token}"}, **_mp3_form(name))
+        assert resp.status_code == 400
 
     @pytest.mark.asyncio
-    async def test_sas_token_valid_mp3(self, client, mock_db):
+    async def test_upload_writes_to_input_container(self, client, mock_db):
         tenant = await _seed_tenant(mock_db)
         token = _tenant_token(tenant["_id"])
-        resp = await client.get("/content/sasToken?blob_name=test.mp3", headers={"Authorization": f"Bearer {token}"})
-        # Will fail with Azure error, but should reach the endpoint
-        assert resp.status_code in (200, 400, 500)
+        provider = AsyncMock()
+        uploaded = []
+
+        async def _capture(container, name, data, content_type):
+            uploaded.append((container, name, data.read(), content_type))
+            return "http://store/input-container/test.mp3"
+
+        provider.upload_file.side_effect = _capture
+        with patch("app.services.content_service.get_blob_storage_provider", return_value=provider):
+            resp = await client.post("/content/audio", headers={"Authorization": f"Bearer {token}"}, **_mp3_form())
+        assert resp.status_code == 200
+        assert resp.json() == {"audio_url": "http://store/input-container/test.mp3"}
+        assert uploaded == [("input-container", "test.mp3", b"ID3data", "audio/mpeg")]
 
     @pytest.mark.asyncio
-    async def test_sas_token_requires_auth(self, client, mock_db):
-        resp = await client.get("/content/sasToken?blob_name=test.mp3")
+    async def test_upload_rejects_oversized_file(self, client, mock_db):
+        tenant = await _seed_tenant(mock_db)
+        token = _tenant_token(tenant["_id"])
+        with patch("app.services.content_service._MAX_AUDIO_UPLOAD_BYTES", 3):
+            resp = await client.post("/content/audio", headers={"Authorization": f"Bearer {token}"}, **_mp3_form())
+        assert resp.status_code == 413
+
+    @pytest.mark.asyncio
+    async def test_upload_failure_hides_provider_error_text(self, client, mock_db):
+        tenant = await _seed_tenant(mock_db)
+        token = _tenant_token(tenant["_id"])
+        provider = AsyncMock()
+        provider.upload_file.side_effect = RuntimeError("secret-account-key")
+        with patch("app.services.content_service.get_blob_storage_provider", return_value=provider):
+            resp = await client.post("/content/audio", headers={"Authorization": f"Bearer {token}"}, **_mp3_form())
+        assert resp.status_code == 500
+        assert "secret-account-key" not in resp.text
+
+    @pytest.mark.asyncio
+    async def test_upload_requires_auth(self, client, mock_db):
+        resp = await client.post("/content/audio", **_mp3_form())
         assert resp.status_code == 401
+
+
+class TestAudioUrlEndpoint:
+    @pytest.mark.asyncio
+    async def test_audio_url_signs_backend_built_url(self, client, mock_db):
+        tenant = await _seed_tenant(mock_db)
+        token = _tenant_token(tenant["_id"])
+        provider = MagicMock()
+        provider.blob_url.side_effect = lambda c, n: f"http://store/{c}/{n}"
+        provider.get_sas_url_from_blob_url = AsyncMock(side_effect=lambda u, expiry_hours: f"{u}?sig=x")
+        with (
+            patch("app.services.content_service.get_blob_storage_provider", return_value=provider),
+            patch("app.services.content_service.ContentService.get_content_by_id", AsyncMock(return_value={"id": "c1"})),
+        ):
+            resp = await client.get(
+                "/content/audioUrl?content_id=c1&variant=original_question",
+                headers={"Authorization": f"Bearer {token}"},
+            )
+        assert resp.status_code == 200
+        assert resp.json() == {"url": "http://store/output-original/c1/question.mp3?sig=x"}
+
+    @pytest.mark.asyncio
+    async def test_audio_url_404_for_content_outside_scope(self, client, mock_db):
+        tenant = await _seed_tenant(mock_db)
+        token = _tenant_token(tenant["_id"])
+        resp = await client.get(
+            "/content/audioUrl?content_id=missing&variant=final", headers={"Authorization": f"Bearer {token}"}
+        )
+        assert resp.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_audio_url_rejects_unknown_variant(self, client, mock_db):
+        tenant = await _seed_tenant(mock_db)
+        token = _tenant_token(tenant["_id"])
+        resp = await client.get(
+            "/content/audioUrl?content_id=c1&variant=nope", headers={"Authorization": f"Bearer {token}"}
+        )
+        assert resp.status_code == 422
 
 
 # ---------------------------------------------------------------------------

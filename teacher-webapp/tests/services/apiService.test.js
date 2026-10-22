@@ -11,7 +11,6 @@ jest.mock("../../src/utils/phoneUtils", () => ({
 
 // Mock environment variables
 process.env.REACT_APP_API_BASE_URL = "http://localhost:3001";
-process.env.REACT_APP_STORAGE_ACCOUNT_NAME = "testaccount";
 
 describe("apiService", () => {
   const confId = "conf-123";
@@ -195,11 +194,11 @@ describe("apiService", () => {
   });
 
   describe("Audio Control", () => {
-    test("plays audio with default URL", async () => {
+    test("plays audio", async () => {
       const mockResponse = { data: {} };
       axiosInstance.put.mockResolvedValueOnce(mockResponse);
 
-      await apiService.playAudio(confId);
+      await apiService.playAudio(confId, "https://example.com/a.wav");
 
       expect(axiosInstance.put).toHaveBeenCalledWith(
         expect.stringContaining(`/conference/playaudio/${confId}`)

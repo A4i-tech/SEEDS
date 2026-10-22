@@ -65,17 +65,11 @@ async def theme_audio_exists(theme_english: str) -> bool:
     blob_name = f"{theme_english}/1.0.mp3"
     provider = _get_provider()
     try:
-        container_client = provider.get_container_client(_THEME_CONTAINER)
-        blob_client = container_client.get_blob_client(blob_name)
-        await blob_client.get_blob_properties()
-        return True
+        return await provider.exists(_THEME_CONTAINER, blob_name)
     except Exception:  # noqa: BLE001
         return False
 
 
 async def get_theme_audio_url(theme_english: str) -> str:
     """Return the URL for an existing theme audio blob (no SAS — public or pre-authed)."""
-    provider = _get_provider()
-    container_client = provider.get_container_client(_THEME_CONTAINER)
-    blob_client = container_client.get_blob_client(f"{theme_english}/1.0.mp3")
-    return blob_client.url
+    return _get_provider().blob_url(_THEME_CONTAINER, f"{theme_english}/1.0.mp3")

@@ -19,7 +19,7 @@ class TestAudioCaptureServiceDisabled:
         """Create service in disabled mode (no env var, no file I/O)."""
         import os
         os.environ["AUDIO_CAPTURE_ENABLED"] = "false"
-        os.environ["AUDIO_CAPTURE_UPLOAD_TO_AZURE"] = "false"
+        os.environ["AUDIO_CAPTURE_UPLOAD_TO_STORAGE"] = "false"
         from app.services.audio.audio_capture import AudioCaptureService
         return AudioCaptureService(conference_id=conf_id)
 
@@ -55,7 +55,7 @@ class TestAudioCaptureServiceDisabled:
 
         settings = MagicMock()
         settings.audio_capture_enabled = False
-        settings.audio_capture_upload_to_azure = False
+        settings.audio_capture_upload_to_storage = False
         settings.audio_capture_container = "audio-recording"
         settings.audio_capture_delete_local_after_upload = True
         settings.azure_storage_connection_string = ""

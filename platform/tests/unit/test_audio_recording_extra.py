@@ -110,7 +110,7 @@ class TestAudioRecordingConsumerExtra:
 
         mock_settings = MagicMock()
         mock_settings.audio_capture_enabled = False
-        mock_settings.audio_capture_upload_to_azure = False
+        mock_settings.audio_capture_upload_to_storage = False
         mock_settings.audio_capture_container = "container"
         mock_settings.audio_capture_delete_local_after_upload = False
         mock_settings.azure_storage_connection_string = ""

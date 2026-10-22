@@ -5,7 +5,7 @@ quiz model, IVR constants, SAS service (offline), and platform utilities.
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -98,7 +98,7 @@ class TestIVRConstants:
 
         url = get_pull_menu_main_url()
         assert isinstance(url, str)
-        assert "blob.core.windows.net" in url or url == "https://.blob.core.windows.net/pull-model-menus/"
+        assert url.endswith("/pull-model-menus/")
 
     def test_get_content_url(self) -> None:
         from app.services.fsm.instantiation.ivr_constants import get_content_url
@@ -358,37 +358,3 @@ class TestFSMStateTransition:
         state.add_transition(t1)
         with pytest.raises(ValueError):
             state.add_transition(t2)
-
-
-# ---------------------------------------------------------------------------
-# SAS Service — offline (no Azure calls)
-# ---------------------------------------------------------------------------
-
-
-class TestSASServiceOffline:
-    @pytest.mark.asyncio
-    async def test_sas_service_azure_disabled_returns_original_url(self) -> None:
-        """When Azure is disabled, get_url_with_sas returns the original URL."""
-        mock_settings = MagicMock()
-        mock_settings.azure_storage_account_name = ""
-        mock_settings.azure_storage_account_key = ""
-        mock_settings.azure_blob_sas_enabled = False
-
-        with patch("app.services.sas_service.get_settings", return_value=mock_settings):
-            from app.services.sas_service import SASService
-
-            # Reset lru_cache so settings are re-read
-            svc = SASService.__new__(SASService)
-            svc._account_name = ""
-            svc._account_key = ""
-            svc._sas_expiry_hours = 1
-            svc._azure_enabled = False
-            svc._use_account_key = False
-            svc._credential = None
-            svc._blob_service_client = None
-            svc._user_delegation_key = None
-            svc._key_expiry_time = None
-
-            original_url = "https://example.blob.core.windows.net/container/file.mp3"
-            result = await svc.get_url_with_sas(original_url)
-            assert result == original_url

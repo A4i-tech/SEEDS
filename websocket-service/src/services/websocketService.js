@@ -1,7 +1,7 @@
 // src/services/websocketService.js
 
 const logger = require("../logger");
-const azureBlobService = require("./azureBlobService");
+const blobStorage = require("./blobStorage");
 const connectionManager = require("./connectionManager");
 const { PlaybackStatus, PlaybackRefusal } = require("../constants");
 
@@ -42,7 +42,7 @@ function resampleChunk(sourceBuffer, targetBytes) {
 /**
  * Handles play action for audio content (teacher's choice).
  * @param {string} id - Unique identifier for the connection.
- * @param {string} blobUrl - Azure Blob Storage URL of the audio content.
+ * @param {string} blobUrl - Blob storage URL of the audio content.
  */
 async function playAudioContent(id, blobUrl) {
   const connection = connectionManager.getConnection(id);
@@ -77,7 +77,7 @@ async function playAudioContent(id, blobUrl) {
     logger.info(`playAudioContent called for ID: ${id}, Blob URL: ${blobUrl.substring(0,5)}`);
 
     const { containerName, blobName } = parseBlobUrl(blobUrl);
-    const blobData = await azureBlobService.getBlobData(containerName, blobName);
+    const blobData = await blobStorage.getBlobData(containerName, blobName);
     logger.info(`Blob downloaded for ID: ${id}, size: ${blobData.length} bytes`);
     state.audioContentState.blobData = blobData;
     state.audioContentState.durationSeconds = blobData.length / AUDIO_BYTES_PER_SECOND;
@@ -105,7 +105,7 @@ async function playAudioContent(id, blobUrl) {
 /**
  * Handles play action for system audio content (system-generated messages).
  * @param {string} id - Unique identifier for the connection.
- * @param {string} blobUrl - Azure Blob Storage URL of the system audio content.
+ * @param {string} blobUrl - Blob storage URL of the system audio content.
  */
 async function playSystemAudioContent(id, blobUrl) {
   const connection = connectionManager.getConnection(id);
@@ -171,7 +171,7 @@ async function playNextSystemAudioContent(ws, id, state) {
 
   try {
     const { containerName, blobName } = parseBlobUrl(blobUrl);
-    const blobData = await azureBlobService.getBlobData(containerName, blobName);
+    const blobData = await blobStorage.getBlobData(containerName, blobName);
 
     // Start playing system audio content
     // Note: We do NOT send playback status updates for system audio content
@@ -517,7 +517,7 @@ function handleAccidentalDisconnection(id) {
 
 /**
  * Parses the blob URL to extract container and blob names.
- * @param {string} blobUrl - Azure Blob Storage URL of the audio file.
+ * @param {string} blobUrl - Blob storage URL of the audio file.
  * @returns {Object} - Object containing containerName and blobName.
  */
 function parseBlobUrl(blobUrl) {
