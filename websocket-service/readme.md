@@ -2,7 +2,7 @@
 
 [![WebSocket Service Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/a4i-architect/dcc3788d90884aed5ef3bfc393978480/raw/websocket-service-coverage.json)](https://github.com/A4i-tech/SEEDS/actions/workflows/websocket-service-main.yml)
 
-This module provides a WebSocket-based audio streaming service that streams audio content (teacher's choice) and system-generated audio messages from S3-compatible storage or Azure Blob Storage (set with `STORAGE_BACKEND`, default `s3`). It supports operations such as play, pause, resume, stop, and handles WebSocket disconnections.
+This module provides a WebSocket-based audio streaming service that streams audio content (teacher's choice) and system-generated audio messages from S3-compatible storage or Azure Blob Storage (set with `STORAGE_BACKEND`). It supports operations such as play, pause, resume, stop, and handles WebSocket disconnections.
 
 ## Features
 

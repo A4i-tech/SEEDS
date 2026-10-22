@@ -51,7 +51,7 @@ def _storage_modules() -> list[str]:
             continue
         parts = path.relative_to(PLATFORM_DIR).with_suffix("").parts
         modules.append(".".join(parts[:-1] if parts[-1] == "__init__" else parts))
-    return sorted(set(modules) | {"app.providers.s3_blob_storage"})
+    return sorted(set(modules) | {"app.providers.object_store_blob_storage"})
 
 
 def _run(code: str, **env: str) -> subprocess.CompletedProcess[str]:
@@ -69,7 +69,7 @@ def test_storage_modules_are_found() -> None:
     modules = _storage_modules()
 
     assert "app.providers.blob_storage" in modules
-    assert "app.controllers.content_controller" in modules
+    assert "app.services.content_service" in modules
     assert "app.services.audio.audio_capture" in modules
 
 
@@ -85,11 +85,12 @@ def test_platform_modules_that_touch_storage_import_without_azure_blob() -> None
 
         print(type(get_blob_storage_provider()).__name__)
         assert "azure.storage.blob" not in sys.modules
-        """
+        """,
+        OBJECT_STORE_ENDPOINT_URL="http://minio.test:9000",
     )
 
     assert result.returncode == 0, result.stderr[-2000:]
-    assert result.stdout.strip().splitlines()[-1] == "S3BlobStorageProvider"
+    assert result.stdout.strip().splitlines()[-1] == "ObjectStoreBlobStorageProvider"
 
 
 def test_azure_backend_without_azure_blob_says_how_to_fix_it() -> None:
@@ -111,5 +112,5 @@ def test_azure_backend_without_azure_blob_says_how_to_fix_it() -> None:
 
 
 def test_unsupported_storage_backend_names_the_fix():
-    with pytest.raises(ValidationError, match="STORAGE_BACKEND=mongodb is not supported.*s3 or azure"):
+    with pytest.raises(ValidationError, match="STORAGE_BACKEND=mongodb is not supported.*object-store or azure"):
         Settings(_env_file=None, storage_backend="mongodb")

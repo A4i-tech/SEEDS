@@ -3,12 +3,12 @@
 let provider = null;
 
 function loadProvider() {
-  const backend = process.env.STORAGE_BACKEND || "s3";
+  const backend = process.env.STORAGE_BACKEND;
   // Required on first use so a provider's SDK is only needed when that provider is selected.
-  if (backend === "s3") return require("./s3BlobService");
+  if (backend === "object-store") return require("./objectStoreBlobService");
   if (backend === "azure") return require("./azureBlobService");
   throw new Error(
-    `STORAGE_BACKEND=${backend} is not supported. Set STORAGE_BACKEND to s3 or azure.`
+    `STORAGE_BACKEND=${backend} is not supported. Set STORAGE_BACKEND to object-store or azure.`
   );
 }
 

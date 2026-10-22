@@ -2,8 +2,8 @@
 Blob storage provider interface and backend selection.
 
 Backends live in separate modules and are imported only when selected by
-STORAGE_BACKEND, so the Azure SDK is never needed for the default S3 backend:
-  - app.providers.s3_blob_storage     (S3-compatible, boto3)
+STORAGE_BACKEND, so the Azure SDK is never needed for the default object-store backend:
+  - app.providers.object_store_blob_storage     (S3-compatible, boto3)
   - app.providers.azure_blob_storage  (Azure Blob, needs the ``azure`` extra)
 
 SECURITY:
@@ -122,20 +122,22 @@ def get_blob_storage_provider() -> BlobStorageProvider:
 
 def _build_provider() -> BlobStorageProvider:
     backend = get_settings().storage_backend
-    if backend == "s3":
-        from app.providers.s3_blob_storage import S3BlobStorageProvider  # noqa: PLC0415
+    if backend == "object-store":
+        from app.providers.object_store_blob_storage import (
+            ObjectStoreBlobStorageProvider,  # noqa: PLC0415
+        )
 
-        return S3BlobStorageProvider()
+        return ObjectStoreBlobStorageProvider()
     if backend == "azure":
         try:
             from app.providers.azure_blob_storage import AzureBlobStorageProvider  # noqa: PLC0415
         except ImportError as exc:
             raise RuntimeError(
                 "STORAGE_BACKEND=azure needs the azure-storage-blob package. "
-                "Install it with 'poetry install -E azure' or set STORAGE_BACKEND=s3."
+                "Install it with 'poetry install -E azure' or set STORAGE_BACKEND=object-store."
             ) from exc
         return AzureBlobStorageProvider()
-    raise ValueError(f"STORAGE_BACKEND={backend!r} is not supported. Set it to 'azure' or 's3'.")
+    raise ValueError(f"STORAGE_BACKEND={backend!r} is not supported. Set it to 'azure' or 'object-store'.")
 
 
 def _parse_blob_url(blob_url: str) -> tuple[str, str]:

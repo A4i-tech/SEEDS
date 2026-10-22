@@ -171,11 +171,14 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
         answerAudioFile: "",
       };
       setMetadata(quizMetadata);
-      const loadAudio = (variant, setSrc) =>
-        contentService.getAudioUrl(content.id, variant).then(setSrc).catch((error) => {
+      const loadAudio = async (variant, setSrc) => {
+        try {
+          setSrc(await contentService.getAudioUrl(content.id, variant));
+        } catch (error) {
           console.error("Error fetching audio URL:", error);
           setSrc(undefined);
-        });
+        }
+      };
       if (contentType !== "Riddle") {
         loadAudio("original", setAudioSrc);
       } else {

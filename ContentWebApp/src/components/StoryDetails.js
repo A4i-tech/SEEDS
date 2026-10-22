@@ -31,11 +31,14 @@ const StoryDetails = ({ type, story }) => {
       }
     };
 
-    const fetchDefaultUrl = (variant) =>
-      contentService.getAudioUrl(storyId, variant).catch((error) => {
+    const fetchDefaultUrl = async (variant) => {
+      try {
+        return await contentService.getAudioUrl(storyId, variant);
+      } catch (error) {
         console.error("Error fetching audio URL:", error);
         return "";
-      });
+      }
+    };
 
     if (type === "riddle") {
       fetchDefaultUrl("question").then(setAudioSrc);

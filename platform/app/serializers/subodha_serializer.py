@@ -31,13 +31,8 @@ async def _sign_blob_urls(text: str, blob: BlobStorageProvider) -> str:
     urls = list(set(_blob_url_re(blob).findall(text)))
     if not urls:
         return text
-    signed = await asyncio.gather(
-        *(blob.get_sas_url_from_blob_url(url, expiry_hours=1) for url in urls), return_exceptions=True
-    )
+    signed = await asyncio.gather(*(blob.get_sas_url_from_blob_url(url, expiry_hours=1) for url in urls))
     for original, result in zip(urls, signed, strict=True):
-        if isinstance(result, Exception):
-            logger.warning("subodha_serializer: failed to sign blob url %s — %s", original, result)
-            continue
         text = text.replace(original, result)
     return text
 

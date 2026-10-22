@@ -13,7 +13,7 @@ describe("start-up without @azure/storage-blob", () => {
   beforeEach(() => {
     jest.resetModules();
     savedBackend = process.env.STORAGE_BACKEND;
-    process.env.STORAGE_BACKEND = "s3";
+    process.env.STORAGE_BACKEND = "object-store";
   });
 
   afterEach(() => {

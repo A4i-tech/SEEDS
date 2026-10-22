@@ -1,5 +1,5 @@
 """
-Contract tests for the S3 blob storage provider against a real MinIO server.
+Contract tests for the object store blob storage provider against a real MinIO server.
 
 Needs MinIO at http://localhost:9000 with the buckets output-container and
 experience-titles. Start it with C:/A4I/mock-services/minio/docker-compose.yml.
@@ -33,17 +33,17 @@ def _minio_ready() -> bool:
 def provider(monkeypatch):
     if not _minio_ready():
         pytest.skip(f"MinIO is not reachable at {MINIO_URL}/minio/health/ready. Start the MinIO compose file.")
-    monkeypatch.setenv("STORAGE_BACKEND", "s3")
-    monkeypatch.setenv("S3_ENDPOINT_URL", MINIO_URL)
-    monkeypatch.setenv("S3_ACCESS_KEY_ID", "test-access-key")
-    monkeypatch.setenv("S3_SECRET_ACCESS_KEY", "test-secret-key")
-    monkeypatch.setenv("S3_REGION", "us-east-1")
+    monkeypatch.setenv("STORAGE_BACKEND", "object-store")
+    monkeypatch.setenv("OBJECT_STORE_ENDPOINT_URL", MINIO_URL)
+    monkeypatch.setenv("OBJECT_STORE_ACCESS_KEY_ID", "test-access-key")
+    monkeypatch.setenv("OBJECT_STORE_SECRET_ACCESS_KEY", "test-secret-key")
+    monkeypatch.setenv("OBJECT_STORE_REGION", "us-east-1")
 
     from app.providers.blob_storage import get_blob_storage_provider
-    from app.providers.s3_blob_storage import S3BlobStorageProvider
+    from app.providers.object_store_blob_storage import ObjectStoreBlobStorageProvider
 
     p = get_blob_storage_provider()
-    assert isinstance(p, S3BlobStorageProvider)
+    assert isinstance(p, ObjectStoreBlobStorageProvider)
     return p
 
 
@@ -185,7 +185,7 @@ class TestAudioCaptureUpload:
 
         settings = SimpleNamespace(
             audio_capture_enabled=True,
-            audio_capture_upload_to_azure=True,
+            audio_capture_upload_to_storage=True,
             audio_capture_container="audio-recording",
             audio_capture_delete_local_after_upload=True,
             audio_capture_dir=str(tmp_path),
@@ -215,9 +215,9 @@ class TestUrlParsing:
 
     @pytest.mark.parametrize("url", [OLD_AZURE, S3_PATH_STYLE])
     def test_extract_blob_path_without_extension(self, url) -> None:
-        from app.providers.s3_blob_storage import S3BlobStorageProvider
+        from app.providers.object_store_blob_storage import ObjectStoreBlobStorageProvider
 
-        provider = S3BlobStorageProvider.__new__(S3BlobStorageProvider)
+        provider = ObjectStoreBlobStorageProvider.__new__(ObjectStoreBlobStorageProvider)
 
         assert provider.extract_blob_path_without_extension(url) == "content-1/1.0"
 

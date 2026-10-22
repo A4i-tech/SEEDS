@@ -1,6 +1,6 @@
 describe("blobStorage", () => {
-  const loads = { s3: 0, azure: 0 };
-  let s3;
+  const loads = { objectStore: 0, azure: 0 };
+  let objectStore;
   let azure;
   let savedBackend;
 
@@ -8,13 +8,13 @@ describe("blobStorage", () => {
     jest.resetModules();
     savedBackend = process.env.STORAGE_BACKEND;
     delete process.env.STORAGE_BACKEND;
-    loads.s3 = 0;
+    loads.objectStore = 0;
     loads.azure = 0;
-    s3 = { getBlobData: jest.fn().mockResolvedValue(Buffer.from("from s3")) };
+    objectStore = { getBlobData: jest.fn().mockResolvedValue(Buffer.from("from object store")) };
     azure = { getBlobData: jest.fn().mockResolvedValue(Buffer.from("from azure")) };
-    jest.doMock("../../src/services/s3BlobService", () => {
-      loads.s3++;
-      return s3;
+    jest.doMock("../../src/services/objectStoreBlobService", () => {
+      loads.objectStore++;
+      return objectStore;
     });
     jest.doMock("../../src/services/azureBlobService", () => {
       loads.azure++;
@@ -27,13 +27,14 @@ describe("blobStorage", () => {
     else process.env.STORAGE_BACKEND = savedBackend;
   });
 
-  it("uses the s3 provider when STORAGE_BACKEND is not set", async () => {
+  it("uses the object-store provider when STORAGE_BACKEND=object-store", async () => {
+    process.env.STORAGE_BACKEND = "object-store";
     const blobStorage = require("../../src/services/blobStorage");
 
     const data = await blobStorage.getBlobData("bucket", "a/b.wav");
 
-    expect(data.toString()).toBe("from s3");
-    expect(s3.getBlobData).toHaveBeenCalledWith("bucket", "a/b.wav");
+    expect(data.toString()).toBe("from object store");
+    expect(objectStore.getBlobData).toHaveBeenCalledWith("bucket", "a/b.wav");
     expect(loads.azure).toBe(0);
   });
 
@@ -45,17 +46,18 @@ describe("blobStorage", () => {
 
     expect(data.toString()).toBe("from azure");
     expect(azure.getBlobData).toHaveBeenCalledWith("container", "a/b.wav");
-    expect(loads.s3).toBe(0);
+    expect(loads.objectStore).toBe(0);
   });
 
   it("loads the provider on the first call only", async () => {
+    process.env.STORAGE_BACKEND = "object-store";
     const blobStorage = require("../../src/services/blobStorage");
-    expect(loads.s3).toBe(0);
+    expect(loads.objectStore).toBe(0);
 
     await blobStorage.getBlobData("bucket", "one.wav");
     await blobStorage.getBlobData("bucket", "two.wav");
 
-    expect(loads.s3).toBe(1);
+    expect(loads.objectStore).toBe(1);
   });
 
   it("rejects an unsupported STORAGE_BACKEND with the values to use", async () => {
@@ -63,7 +65,7 @@ describe("blobStorage", () => {
     const blobStorage = require("../../src/services/blobStorage");
 
     await expect(blobStorage.getBlobData("bucket", "a.wav")).rejects.toThrow(
-      "STORAGE_BACKEND=gcs is not supported. Set STORAGE_BACKEND to s3 or azure."
+      "STORAGE_BACKEND=gcs is not supported. Set STORAGE_BACKEND to object-store or azure."
     );
   });
 });

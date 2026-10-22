@@ -185,9 +185,9 @@ class TestBlobStoragePure:
 
     def test_extract_blob_path_without_extension(self) -> None:
         """BlobStorageProvider.extract_blob_path_without_extension strips extension."""
-        from app.providers.s3_blob_storage import S3BlobStorageProvider
+        from app.providers.object_store_blob_storage import ObjectStoreBlobStorageProvider
 
-        provider = S3BlobStorageProvider.__new__(S3BlobStorageProvider)
+        provider = ObjectStoreBlobStorageProvider.__new__(ObjectStoreBlobStorageProvider)
 
         result = provider.extract_blob_path_without_extension(
             "https://testaccount.blob.core.windows.net/audio/test.mp3"

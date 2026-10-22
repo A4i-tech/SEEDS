@@ -1966,7 +1966,7 @@ files = [
 google-auth = ">=2.14.1,<3.0.0"
 googleapis-common-protos = ">=1.69.2,<2.0.0"
 grpcio = [
-    {version = ">=1.59.0,<2.0.0", optional = true, markers = "extra == \"grpc\""},
+    {version = ">=1.59.0,<2.0.0", optional = true, markers = "python_version < \"3.14\" and extra == \"grpc\""},
     {version = ">=1.75.1,<2.0.0", optional = true, markers = "python_version >= \"3.14\" and extra == \"grpc\""},
 ]
 grpcio-status = [
@@ -7968,4 +7968,4 @@ azure = ["azure-storage-blob"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<4.0"
-content-hash = "30ccfcdcf2b0bf6e094d6f055e55580a35789f21fb23757721c54b51e583c2d0"
+content-hash = "59a70778cbfa0eb7ab74b0076411c9d51858978e3766a9c4de130dbca5ac2882"

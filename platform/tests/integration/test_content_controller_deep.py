@@ -255,7 +255,7 @@ class TestUploadAudioEndpoint:
             return "http://store/input-container/test.mp3"
 
         provider.upload_file.side_effect = _capture
-        with patch("app.controllers.content_controller.get_blob_storage_provider", return_value=provider):
+        with patch("app.services.content_service.get_blob_storage_provider", return_value=provider):
             resp = await client.post("/content/audio", headers={"Authorization": f"Bearer {token}"}, **_mp3_form())
         assert resp.status_code == 200
         assert resp.json() == {"audio_url": "http://store/input-container/test.mp3"}
@@ -265,9 +265,20 @@ class TestUploadAudioEndpoint:
     async def test_upload_rejects_oversized_file(self, client, mock_db):
         tenant = await _seed_tenant(mock_db)
         token = _tenant_token(tenant["_id"])
-        with patch("app.controllers.content_controller._MAX_AUDIO_UPLOAD_BYTES", 3):
+        with patch("app.services.content_service._MAX_AUDIO_UPLOAD_BYTES", 3):
             resp = await client.post("/content/audio", headers={"Authorization": f"Bearer {token}"}, **_mp3_form())
         assert resp.status_code == 413
+
+    @pytest.mark.asyncio
+    async def test_upload_failure_hides_provider_error_text(self, client, mock_db):
+        tenant = await _seed_tenant(mock_db)
+        token = _tenant_token(tenant["_id"])
+        provider = AsyncMock()
+        provider.upload_file.side_effect = RuntimeError("secret-account-key")
+        with patch("app.services.content_service.get_blob_storage_provider", return_value=provider):
+            resp = await client.post("/content/audio", headers={"Authorization": f"Bearer {token}"}, **_mp3_form())
+        assert resp.status_code == 500
+        assert "secret-account-key" not in resp.text
 
     @pytest.mark.asyncio
     async def test_upload_requires_auth(self, client, mock_db):
@@ -284,7 +295,7 @@ class TestAudioUrlEndpoint:
         provider.blob_url.side_effect = lambda c, n: f"http://store/{c}/{n}"
         provider.get_sas_url_from_blob_url = AsyncMock(side_effect=lambda u, expiry_hours: f"{u}?sig=x")
         with (
-            patch("app.controllers.content_controller.get_blob_storage_provider", return_value=provider),
+            patch("app.services.content_service.get_blob_storage_provider", return_value=provider),
             patch("app.services.content_service.ContentService.get_content_by_id", AsyncMock(return_value={"id": "c1"})),
         ):
             resp = await client.get(

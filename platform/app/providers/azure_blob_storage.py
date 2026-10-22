@@ -23,17 +23,12 @@ from __future__ import annotations
 import logging
 from datetime import UTC, datetime, timedelta
 from typing import IO
-from urllib.parse import quote
 
-from azure.identity import DefaultAzureCredential
-from azure.identity.aio import DefaultAzureCredential as AsyncDefaultAzureCredential
 from azure.storage.blob import (
     BlobSasPermissions,
     ContentSettings,
-    UserDelegationKey,
     generate_blob_sas,
 )
-from azure.storage.blob import BlobServiceClient as SyncBlobServiceClient
 from azure.storage.blob.aio import BlobServiceClient, ContainerClient
 
 from app.platform.settings import get_settings
@@ -52,30 +47,7 @@ class AzureBlobStorageProvider(BlobStorageProvider):
     """
 
     def __init__(self) -> None:
-        settings = get_settings()
-        self._account_name: str = settings.azure_storage_account_name
-        self._account_key: str | None = settings.azure_storage_account_key or None
-        self._use_shared_key: bool = bool(self._account_key)
-        # Legacy ACCOUNTKEY env var still signs the sync (Vonage) path
-        self._sync_account_key: str | None = (
-            (settings.accountkey or self._account_key) if self._account_name else None
-        )
-
-        conn_str = settings.azure_storage_connection_string
-        if conn_str:
-            self._client = BlobServiceClient.from_connection_string(conn_str)
-        elif self._account_name and self._account_key:
-            self._client = BlobServiceClient(
-                account_url=f"https://{self._account_name}.blob.core.windows.net",
-                credential=self._account_key,
-            )
-        else:
-            credential = AsyncDefaultAzureCredential()
-            self._use_shared_key = False
-            self._client = BlobServiceClient(
-                account_url=f"https://{self._account_name}.blob.core.windows.net",
-                credential=credential,
-            )
+        self._client = BlobServiceClient.from_connection_string(get_settings().azure_storage_connection_string)
 
     # ------------------------------------------------------------------
     # Container helpers
@@ -140,15 +112,11 @@ class AzureBlobStorageProvider(BlobStorageProvider):
 
         Returns True if deleted, False if not found.
         """
-        try:
-            container_client = self._client.get_container_client(container)
-            blob_client = container_client.get_blob_client(blob_name)
-            await blob_client.delete_blob(delete_snapshots="include")
-            logger.info("blob_storage: deleted blob container=%s name=%s", container, blob_name)
-            return True
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("blob_storage: delete failed container=%s name=%s — %s", container, blob_name, exc)
-            return False
+        container_client = self._client.get_container_client(container)
+        blob_client = container_client.get_blob_client(blob_name)
+        await blob_client.delete_blob(delete_snapshots="include")
+        logger.info("blob_storage: deleted blob container=%s name=%s", container, blob_name)
+        return True
 
     def _signed_url(
         self,
@@ -157,24 +125,17 @@ class AzureBlobStorageProvider(BlobStorageProvider):
         start: datetime,
         expiry: datetime,
         permissions: BlobSasPermissions,
-        account_key: str | None = None,
-        delegation_key: UserDelegationKey | None = None,
     ) -> str:
         sas_token = generate_blob_sas(
-            account_name=self._account_name,
+            account_name=self._client.account_name,
             container_name=container,
             blob_name=blob_name,
-            account_key=account_key,
-            user_delegation_key=delegation_key,
+            account_key=self._client.credential.account_key,
             permission=permissions,
             expiry=expiry,
             start=start,
         )
-        blob_url = (
-            f"https://{self._account_name}.blob.core.windows.net"
-            f"/{container}/{quote(blob_name)}"
-        )
-        return f"{blob_url}?{sas_token}"
+        return f"{self.blob_url(container, blob_name)}?{sas_token}"
 
     async def generate_sas_url(
         self,
@@ -194,16 +155,7 @@ class AzureBlobStorageProvider(BlobStorageProvider):
 
         permissions = BlobSasPermissions(read=read, write=write)
 
-        if self._use_shared_key and self._account_key:
-            url = self._signed_url(
-                container, blob_name, start, expiry, permissions, account_key=self._account_key
-            )
-        else:
-            # User delegation SAS via managed identity
-            user_delegation_key = await self._client.get_user_delegation_key(start, expiry)
-            url = self._signed_url(
-                container, blob_name, start, expiry, permissions, delegation_key=user_delegation_key
-            )
+        url = self._signed_url(container, blob_name, start, expiry, permissions)
 
         # Intentionally NOT logging the full URL with token attached
         logger.info("blob_storage: generated SAS url container=%s name=%s expiry_hours=%d", container, blob_name, expiry_hours)
@@ -215,13 +167,4 @@ class AzureBlobStorageProvider(BlobStorageProvider):
         expiry = now + timedelta(hours=expiry_hours)
         permissions = BlobSasPermissions(read=True)
 
-        if self._sync_account_key:
-            return self._signed_url(
-                container, blob_name, start, expiry, permissions, account_key=self._sync_account_key
-            )
-        client = SyncBlobServiceClient(
-            account_url=f"https://{self._account_name}.blob.core.windows.net",
-            credential=DefaultAzureCredential(),
-        )
-        udk = client.get_user_delegation_key(start, expiry)
-        return self._signed_url(container, blob_name, start, expiry, permissions, delegation_key=udk)
+        return self._signed_url(container, blob_name, start, expiry, permissions)

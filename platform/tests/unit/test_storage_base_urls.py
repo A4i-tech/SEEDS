@@ -7,18 +7,20 @@ import pytest
 WRONG_OPTION_PATH = "chosenWrongOptionDialog/kannada/Sorry,%20you%20have%20chosen%20the%20wrong%20option/1.0.mp3"
 
 
-@pytest.fixture(params=["s3", "azure"])
+@pytest.fixture(params=["object-store", "azure"])
 def storage(request, monkeypatch):
     if request.param == "azure":
         pytest.importorskip("azure.storage.blob")
-        monkeypatch.setenv("AZURE_STORAGE_ACCOUNT_NAME", "acct")
-        monkeypatch.setenv("AZURE_STORAGE_ACCOUNT_KEY", "dGVzdGtleQ==")
+        monkeypatch.setenv(
+            "AZURE_STORAGE_CONNECTION_STRING",
+            "DefaultEndpointsProtocol=https;AccountName=acct;AccountKey=dGVzdGtleQ==;EndpointSuffix=core.windows.net",
+        )
         monkeypatch.setenv("STORAGE_BACKEND", "azure")
         return "https://acct.blob.core.windows.net"
     for name in ("AZURE_STORAGE_ACCOUNT_NAME", "AZURE_STORAGE_ACCOUNT_KEY", "AZURE_STORAGE_CONNECTION_STRING"):
         monkeypatch.delenv(name, raising=False)
-    monkeypatch.setenv("STORAGE_BACKEND", "s3")
-    monkeypatch.setenv("S3_ENDPOINT_URL", "http://minio.test:9000")
+    monkeypatch.setenv("STORAGE_BACKEND", "object-store")
+    monkeypatch.setenv("OBJECT_STORE_ENDPOINT_URL", "http://minio.test:9000")
     return "http://minio.test:9000"
 
 

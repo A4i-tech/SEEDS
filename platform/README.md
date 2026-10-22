@@ -40,7 +40,7 @@ platform/
 
 ```bash
 cd platform
-poetry install            # S3 storage backend (default)
+poetry install            # object-store backend (default)
 poetry install -E azure   # also install the Azure Blob backend (STORAGE_BACKEND=azure)
 ```
 
@@ -69,8 +69,8 @@ cp env.example .env
 | `VONAGE_IVR_APPLICATION_ID` | for calls | Vonage application ID for the IVR application |
 | `VONAGE_IVR_APPLICATION_PRIVATE_KEY64` | for calls | Base64-encoded private key for the IVR application |
 | `AZURE_SERVICE_BUS_CONNECTION_STRING` | for consumers | Azure Service Bus connection string |
-| `STORAGE_BACKEND` | no | `s3` \| `azure` (default: `s3`). `azure` needs `poetry install -E azure` |
-| `S3_ENDPOINT_URL` | for `s3` | S3-compatible endpoint (empty means AWS), plus `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `S3_REGION` |
+| `STORAGE_BACKEND` | no | `object-store` (default) or `azure`. `azure` needs `poetry install -E azure` |
+| `OBJECT_STORE_ENDPOINT_URL` | for `object-store` | S3-compatible endpoint, for example http://localhost:9000, plus `OBJECT_STORE_ACCESS_KEY_ID`, `OBJECT_STORE_SECRET_ACCESS_KEY`, `OBJECT_STORE_REGION` |
 | `AZURE_STORAGE_CONNECTION_STRING` | for `azure` | Azure Blob Storage connection string |
 | `APPLICATIONINSIGHTS_CONNECTION_STRING` | no | App Insights (telemetry disabled if absent) |
 | `WS_CONTROL_SECRET` | for prod | Shared secret for websocket-service control channel |

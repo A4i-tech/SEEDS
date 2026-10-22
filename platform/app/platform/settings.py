@@ -51,23 +51,23 @@ class Settings(BaseSettings):
     tts_subscription_key: str = Field(default="", repr=False)
     tts_region: str = ""
 
-    storage_backend: Literal["azure", "s3"] = "s3"
+    storage_backend: Literal["azure", "object-store"] = "object-store"
 
     @field_validator("storage_backend", mode="before")
     @classmethod
     def _storage_backend_supported(cls, value: object) -> object:
         # Old env.example files set STORAGE_BACKEND=mongodb for an unused Cosmos option
-        if value not in ("azure", "s3"):
+        if value not in ("azure", "object-store"):
             raise ValueError(
                 f"STORAGE_BACKEND={value} is not supported for blob storage. "
-                "Set STORAGE_BACKEND to s3 or azure."
+                "Set STORAGE_BACKEND to object-store or azure."
             )
         return value
 
-    s3_endpoint_url: str = ""
-    s3_access_key_id: str = ""
-    s3_secret_access_key: str = Field(default="", repr=False)
-    s3_region: str = "us-east-1"
+    object_store_endpoint_url: str = ""
+    object_store_access_key_id: str = ""
+    object_store_secret_access_key: str = Field(default="", repr=False)
+    object_store_region: str = "us-east-1"
 
     azure_blob_sas_enabled: bool = True
     azure_storage_account_name: str = ""
@@ -77,7 +77,7 @@ class Settings(BaseSettings):
     accountkey: str = Field(default="", repr=False)
 
     audio_capture_enabled: bool = False
-    audio_capture_upload_to_azure: bool = False
+    audio_capture_upload_to_storage: bool = False
     audio_capture_container: str = "seedsstagingblob"
     audio_capture_blob_prefix: str = "audio-recording"
     audio_capture_format: str = "wav"
@@ -147,7 +147,6 @@ class Settings(BaseSettings):
     audio_relay_max_queue: int = 500
     audio_api_timeout_seconds: float = 8.0
     audio_blob_upload_timeout_seconds: float = 30.0
-    audio_blob_upload_max_retries: int = 3
 
     log_level: str = "INFO"
     log_to_file: bool = False

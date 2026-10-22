@@ -85,11 +85,21 @@ class TestSASGenerator:
 
 
 class TestProviderSelection:
-    def test_default_backend_is_s3_and_builds_without_s3_settings(self) -> None:
+    def test_default_backend_is_object_store(self, monkeypatch) -> None:
         from app.providers.blob_storage import get_blob_storage_provider
-        from app.providers.s3_blob_storage import S3BlobStorageProvider
+        from app.providers.object_store_blob_storage import ObjectStoreBlobStorageProvider
 
-        assert isinstance(get_blob_storage_provider(), S3BlobStorageProvider)
+        monkeypatch.setenv("OBJECT_STORE_ENDPOINT_URL", "http://minio.test:9000")
+
+        assert isinstance(get_blob_storage_provider(), ObjectStoreBlobStorageProvider)
+
+    def test_object_store_without_endpoint_names_the_fix(self, monkeypatch) -> None:
+        from app.providers.blob_storage import get_blob_storage_provider
+
+        monkeypatch.setenv("OBJECT_STORE_ENDPOINT_URL", "")
+
+        with pytest.raises(ValueError, match="OBJECT_STORE_ENDPOINT_URL is not set. Set it to the URL"):
+            get_blob_storage_provider()
 
     def test_provider_is_a_singleton(self) -> None:
         from app.providers.blob_storage import get_blob_storage_provider
@@ -101,7 +111,7 @@ class TestProviderSelection:
 
         with patch("app.providers.blob_storage.get_settings") as mock_settings:
             mock_settings.return_value.storage_backend = "gcs"
-            with pytest.raises(ValueError, match="Set it to 'azure' or 's3'"):
+            with pytest.raises(ValueError, match="Set it to 'azure' or 'object-store'"):
                 get_blob_storage_provider()
 
     def test_azure_backend_builds_azure_provider(self) -> None:
@@ -119,12 +129,12 @@ class TestProviderSelection:
 
 
 class TestSASGeneratorDelegation:
-    def test_old_azure_url_is_signed_by_s3_provider(self, monkeypatch) -> None:
+    def test_old_azure_url_is_signed_by_object_store_provider(self, monkeypatch) -> None:
         from app.providers.blob_storage import SASGenerator
 
-        monkeypatch.setenv("S3_ENDPOINT_URL", "http://minio.test:9000")
-        monkeypatch.setenv("S3_ACCESS_KEY_ID", "key")
-        monkeypatch.setenv("S3_SECRET_ACCESS_KEY", "secret")
+        monkeypatch.setenv("OBJECT_STORE_ENDPOINT_URL", "http://minio.test:9000")
+        monkeypatch.setenv("OBJECT_STORE_ACCESS_KEY_ID", "key")
+        monkeypatch.setenv("OBJECT_STORE_SECRET_ACCESS_KEY", "secret")
         monkeypatch.setenv("AZURE_BLOB_SAS_ENABLED", "true")
 
         result = SASGenerator().get_url_with_sas(
@@ -190,7 +200,7 @@ class TestBlobStorageProvider:
             assert result == "folder/audiofile"
 
     @pytest.mark.asyncio
-    async def test_blob_provider_delete_not_found(self) -> None:
+    async def test_blob_provider_delete_propagates_error(self) -> None:
         from app.providers.azure_blob_storage import AzureBlobStorageProvider
 
         mock_settings = self._make_mock_settings()
@@ -206,8 +216,8 @@ class TestBlobStorageProvider:
             MockClient.from_connection_string = MagicMock(return_value=mock_service_client)
 
             provider = AzureBlobStorageProvider()
-            result = await provider.delete_blob("container", "file.wav")
-            assert result is False
+            with pytest.raises(Exception, match="not found"):
+                await provider.delete_blob("container", "file.wav")
 
     @pytest.mark.asyncio
     async def test_blob_provider_get_sas_url_from_blob_url(self) -> None:
@@ -219,11 +229,14 @@ class TestBlobStorageProvider:
         with patch("app.providers.azure_blob_storage.get_settings", return_value=mock_settings), \
              patch("app.providers.azure_blob_storage.BlobServiceClient") as MockClient, \
              patch("app.providers.azure_blob_storage.generate_blob_sas", return_value="sas_token"):
-            MockClient.from_connection_string = MagicMock(return_value=MagicMock())
+            service = MagicMock()
+            service.account_name = "testaccount"
+            service.credential.account_key = "dGVzdGtleQ=="
+            service.get_container_client.return_value.get_blob_client.return_value.url = (
+                "https://testaccount.blob.core.windows.net/mycontainer/path/file.wav"
+            )
+            MockClient.from_connection_string = MagicMock(return_value=service)
             provider = AzureBlobStorageProvider()
-            provider._account_name = "testaccount"
-            provider._account_key = "dGVzdGtleQ=="
-            provider._use_shared_key = True
 
             result = await provider.generate_sas_url("mycontainer", "path/file.wav")
             assert "sas_token" in result

@@ -1,7 +1,7 @@
 """
-S3-compatible blob storage provider (STORAGE_BACKEND=s3).
+S3-compatible blob storage provider (STORAGE_BACKEND=object-store).
 
-Works with AWS S3, MinIO, and other S3-compatible servers. A container name maps
+Works with S3-compatible servers (for example MinIO). A container name maps
 one to one to a bucket name. Addressing is always path-style.
 
 boto3 is synchronous, so every network call runs in a worker thread and never
@@ -32,15 +32,20 @@ logger = logging.getLogger(__name__)
 _NOT_FOUND_CODES = {"404", "NoSuchKey", "NotFound"}
 
 
-class S3BlobStorageProvider(BlobStorageProvider):
+class ObjectStoreBlobStorageProvider(BlobStorageProvider):
     def __init__(self) -> None:
         settings = get_settings()
+        if not settings.object_store_endpoint_url:
+            raise ValueError(
+                "OBJECT_STORE_ENDPOINT_URL is not set. "
+                "Set it to the URL of your S3-compatible server, for example http://localhost:9000."
+            )
         self._client = boto3.client(
             "s3",
-            endpoint_url=settings.s3_endpoint_url or None,
-            aws_access_key_id=settings.s3_access_key_id or None,
-            aws_secret_access_key=settings.s3_secret_access_key or None,
-            region_name=settings.s3_region,
+            endpoint_url=settings.object_store_endpoint_url,
+            aws_access_key_id=settings.object_store_access_key_id,
+            aws_secret_access_key=settings.object_store_secret_access_key,
+            region_name=settings.object_store_region,
             config=Config(
                 signature_version="s3v4",
                 s3={"addressing_style": "path"},
@@ -90,15 +95,11 @@ class S3BlobStorageProvider(BlobStorageProvider):
 
     async def delete_blob(self, container: str, blob_name: str) -> bool:
         # S3 delete succeeds for a missing key, so check first to return False like Azure
-        try:
-            if not await self.exists(container, blob_name):
-                return False
-            await asyncio.to_thread(self._client.delete_object, Bucket=container, Key=blob_name)
-            logger.info("blob_storage: deleted blob container=%s name=%s", container, blob_name)
-            return True
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("blob_storage: delete failed container=%s name=%s — %s", container, blob_name, exc)
+        if not await self.exists(container, blob_name):
             return False
+        await asyncio.to_thread(self._client.delete_object, Bucket=container, Key=blob_name)
+        logger.info("blob_storage: deleted blob container=%s name=%s", container, blob_name)
+        return True
 
     def _presign(self, container: str, blob_name: str, expiry_hours: int, write: bool) -> str:
         return self._client.generate_presigned_url(

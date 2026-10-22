@@ -12,7 +12,7 @@ function requireAzureSdk() {
   } catch (error) {
     if (error.code !== "MODULE_NOT_FOUND") throw error;
     throw new Error(
-      "STORAGE_BACKEND=azure needs @azure/identity and @azure/storage-blob. Install them with npm install (without --omit=optional) or use STORAGE_BACKEND=s3."
+      "STORAGE_BACKEND=azure needs @azure/identity and @azure/storage-blob. Install them with npm install (without --omit=optional) or use STORAGE_BACKEND=object-store."
     );
   }
 }
@@ -28,7 +28,7 @@ function getBlobServiceClient() {
 
   if (!accountName) {
     throw new Error(
-      "STORAGE_BACKEND=azure needs AZURE_STORAGE_ACCOUNT_NAME. Set AZURE_STORAGE_ACCOUNT_NAME or use STORAGE_BACKEND=s3."
+      "STORAGE_BACKEND=azure needs AZURE_STORAGE_ACCOUNT_NAME. Set AZURE_STORAGE_ACCOUNT_NAME or use STORAGE_BACKEND=object-store."
     );
   }
 

@@ -30,8 +30,6 @@ logger = logging.getLogger(__name__)
 class FSM:
     """IVR Finite State Machine."""
 
-    STORAGE_ACCOUNT_BASE_URL: str = ""  # set at construction from the storage provider
-
     def __init__(self, fsm_id: str) -> None:
 
         self.STORAGE_ACCOUNT_BASE_URL = get_blob_storage_provider().blob_url("pull-model-menus", "")

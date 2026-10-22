@@ -14,6 +14,7 @@ os.environ.setdefault("ENV", "development")
 os.environ.setdefault("MONGO_DB_CONNECTION_STRING", "")
 os.environ.setdefault("DB_CONNECTION", "")
 os.environ.setdefault("AUTH_TYPE", "jwt")
+os.environ.setdefault("OBJECT_STORE_ENDPOINT_URL", "http://minio.test:9000")
 os.environ.setdefault(
     "APPLICATIONINSIGHTS_CONNECTION_STRING",
     "InstrumentationKey=00000000-0000-0000-0000-000000000000;IngestionEndpoint=https://fake.example.com/",

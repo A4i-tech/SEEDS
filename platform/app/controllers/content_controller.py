@@ -15,7 +15,6 @@ SECURITY:
 from __future__ import annotations
 
 import logging
-import re
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
@@ -42,15 +41,12 @@ from app.models.user import UserRole
 from app.platform.auth.dependencies import get_current_user
 from app.platform.error_handling import ForbiddenError, NotFoundError
 from app.platform.settings import get_settings
-from app.providers.blob_storage import get_blob_storage_provider
 from app.providers.translation_provider import get_translation_provider
 from app.services.content_service import ContentService, get_content_service
 from app.services.sdk_hash import sdk_hash_text
 from app.services.translation_service import TranslationService, get_translation_service
 
 logger = logging.getLogger(__name__)
-
-_MAX_AUDIO_UPLOAD_BYTES = 50 * 1024 * 1024
 
 router = APIRouter(prefix="/content", tags=["Content"])
 
@@ -119,20 +115,6 @@ def _write_school_filter(user: dict[str, Any]) -> dict[str, str | None]:
 
 
 # ---------------------------------------------------------------------------
-# Blob SAS helpers
-# ---------------------------------------------------------------------------
-
-
-async def _get_sas_url(url: str) -> str:
-    try:
-        provider = get_blob_storage_provider()
-        return await provider.get_sas_url_from_blob_url(url, expiry_hours=1)
-    except Exception as exc:
-        logger.error("_get_sas_url failed", extra={"err": str(exc)})
-        raise HTTPException(status_code=500, detail=f"Failed to generate SAS URL: {exc}") from exc
-
-
-# ---------------------------------------------------------------------------
 # GET /content/job/{jobId}
 # ---------------------------------------------------------------------------
 
@@ -184,25 +166,16 @@ async def list_jobs(
 async def get_sas_url(
     url: str = Query(..., description="Blob URL to generate SAS token for"),
     user: dict[str, Any] = Depends(_require_content_read),
+    service: ContentService = Depends(get_content_service),
 ) -> SasUrlResponse:
     if not url:
         raise HTTPException(status_code=400, detail="URL parameter is required.")
-    return SasUrlResponse(url=await _get_sas_url(url))
+    return SasUrlResponse(url=await service.get_sas_url(url))
 
 
 # ---------------------------------------------------------------------------
 # GET /content/audioUrl
 # ---------------------------------------------------------------------------
-
-_AUDIO_VARIANTS = {
-    "final": ("output-container", "{id}/1.0.wav"),
-    "question": ("output-container", "{id}/question/1.0.wav"),
-    "answer": ("output-container", "{id}/answer/1.0.wav"),
-    "original": ("output-original", "{id}.mp3"),
-    "original_question": ("output-original", "{id}/question.mp3"),
-    "original_answer": ("output-original", "{id}/answer.mp3"),
-}
-
 
 @router.get("/audioUrl", summary="Get SAS URL for a content audio file")
 async def get_audio_url(
@@ -211,11 +184,9 @@ async def get_audio_url(
     user: dict[str, Any] = Depends(_require_content_read),
     service: ContentService = Depends(get_content_service),
 ) -> SasUrlResponse:
-    if not await service.get_content_by_id(content_id, user.get("tenant_id", ""), _read_school_id(user)):
-        raise NotFoundError("Content", content_id)
-    container, name = _AUDIO_VARIANTS[variant]
-    blob_url = get_blob_storage_provider().blob_url(container, name.format(id=content_id))
-    return SasUrlResponse(url=await _get_sas_url(blob_url))
+    return SasUrlResponse(
+        url=await service.get_audio_sas_url(content_id, variant, user.get("tenant_id", ""), _read_school_id(user))
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -228,19 +199,9 @@ async def upload_audio(
     blob_name: str = Form(...),
     file: UploadFile = File(...),
     user: dict[str, Any] = Depends(_require_content_write),
+    service: ContentService = Depends(get_content_service),
 ) -> UploadedAudioResponse:
-    if not re.fullmatch(r"[\w.-]+\.mp3", blob_name) or ".." in blob_name:
-        raise HTTPException(status_code=400, detail="Only .mp3 files are allowed.")
-    if file.size is None or file.size > _MAX_AUDIO_UPLOAD_BYTES:
-        raise HTTPException(status_code=413, detail="Audio file is larger than 50 MB. Upload a smaller file.")
-    try:
-        url = await get_blob_storage_provider().upload_file(
-            "input-container", blob_name, file.file, "audio/mpeg"
-        )
-    except Exception as exc:
-        logger.error("upload_audio failed", extra={"blob_name": blob_name, "err": str(exc)})
-        raise HTTPException(status_code=500, detail=f"Failed to upload audio: {exc}") from exc
-    return UploadedAudioResponse(audio_url=url)
+    return UploadedAudioResponse(audio_url=await service.upload_audio(blob_name, file.file))
 
 
 # ---------------------------------------------------------------------------
