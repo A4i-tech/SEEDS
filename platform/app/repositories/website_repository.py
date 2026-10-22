@@ -30,36 +30,6 @@ _CLAIMED_DOMAINS = {
 }
 
 
-_HOST_LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"
-HOSTNAME_LOWERCASE_PATTERN = rf"^{_HOST_LABEL}(?:\.{_HOST_LABEL})+\z"
-_ADDITIONAL_DOMAINS = {"$ifNull": ["$additional_domains", []]}
-
-
-def _all_lowercase_hostnames(array: Any) -> dict[str, Any]:
-    is_hostname = {
-        "$and": [
-            {"$eq": [{"$type": "$$d"}, "string"]},
-            {"$regexMatch": {"input": "$$d", "regex": HOSTNAME_LOWERCASE_PATTERN}},
-        ]
-    }
-    return {"$allElementsTrue": [{"$map": {"input": array, "as": "d", "in": is_hostname}}]}
-
-
-CLAIMS_VALIDATOR = {
-    "$expr": {
-        "$and": [
-            {"$eq": [{"$type": "$domain"}, "string"]},
-            {"$regexMatch": {"input": "$domain", "regex": HOSTNAME_LOWERCASE_PATTERN, "options": "i"}},
-            {"$isArray": _ADDITIONAL_DOMAINS},
-            {"$isArray": "$claimed_domains"},
-            _all_lowercase_hostnames(_ADDITIONAL_DOMAINS),
-            _all_lowercase_hostnames("$claimed_domains"),
-            {"$setEquals": [{"$setUnion": [[{"$toLower": "$domain"}], _ADDITIONAL_DOMAINS]}, "$claimed_domains"]},
-        ]
-    }
-}
-
-
 class WebsiteRepository(BaseRepository):
     COLLECTION = "websites"
 
@@ -145,25 +115,6 @@ class WebsiteRepository(BaseRepository):
 
     async def has_unclaimed_websites(self) -> bool:
         return await self._col.find_one({"claimed_domains": {"$not": {"$type": "array"}}}, {"_id": 1}) is not None
-
-    @classmethod
-    async def claims_validator_level(cls, db: AsyncDatabase) -> str | None:
-        cursor = await db.list_collections(filter={"name": cls.COLLECTION})
-        for collection in await cursor.to_list(length=None):
-            options = collection.get("options", {})
-            if options.get("validator") == CLAIMS_VALIDATOR:
-                return options.get("validationLevel", "strict")
-        return None
-
-    @classmethod
-    async def set_claims_validator(cls, db: AsyncDatabase, level: str) -> None:
-        await db.command(
-            "collMod",
-            cls.COLLECTION,
-            validator=CLAIMS_VALIDATOR,
-            validationLevel=level,
-            validationAction="error",
-        )
 
     async def find_by_domain(self, domain: str) -> dict[str, Any] | None:
         return await self._col.find_one({"$or": [{"domain": domain}, {"additional_domains": domain}]})

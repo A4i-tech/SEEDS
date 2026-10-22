@@ -468,7 +468,7 @@ class _FakeMongoClient:
 
 
 def _fake_run(**overrides):
-    result = {"duplicates": {}, "unnormalizable": {}, "conflicts": [], "remaining": 0, "strict": True, **overrides}
+    result = {"duplicates": {}, "unnormalizable": {}, "conflicts": [], "remaining": 0, **overrides}
 
     async def fake_run(db, dry_run):
         return result
@@ -503,7 +503,6 @@ async def test_claims_migration_targets_the_database_the_application_uses(monkey
         {"duplicates": {"x.com": ["s1", "s2"]}},
         {"conflicts": [{"site_id": "s1", "error": "changed concurrently, re-run"}]},
         {"remaining": 1},
-        {"strict": False},
     ],
 )
 async def test_claims_migration_exits_non_zero_unless_everything_was_verified(monkeypatch, problem):

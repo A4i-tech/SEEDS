@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 from httpx import ASGITransport, AsyncClient
 from pymongo import AsyncMongoClient
-from pymongo.errors import DuplicateKeyError, OperationFailure, WriteError
+from pymongo.errors import DuplicateKeyError
 
 from app.main import app
 from app.platform.auth.dependencies import get_db
@@ -462,50 +462,6 @@ async def test_migration_refuses_domains_it_cannot_normalize_without_writing(db)
 
     assert set(result["unnormalizable"]) == {"s1", "s2"} and not migration.succeeded(result)
     assert await db["websites"].find({}, {"_id": 0}).to_list(length=None) == before
-    collection = await (await db.list_collections(filter={"name": "websites"})).to_list(length=None)
-    assert "validator" not in collection[0]["options"]
-
-
-async def test_the_validator_rejects_missing_and_stale_claims_from_any_writer(db):
-    migration = _load_migration()
-    await _legacy_site(db, "s1", "Legacy.com")
-    assert migration.succeeded(await migration.run(db, dry_run=False))
-    col = db["websites"]
-
-    for document in (
-        {"site_id": "old", "domain": "old.com"},
-        {"site_id": "stale", "domain": "stale.com", "claimed_domains": ["other.com"]},
-        {"site_id": "extra", "domain": "extra.com", "additional_domains": ["z.com"], "claimed_domains": ["extra.com"]},
-        {"site_id": "typed", "domain": "typed.com", "claimed_domains": "typed.com"},
-    ):
-        with pytest.raises(WriteError):
-            await col.insert_one(document)
-    for update in (
-        {"$set": {"domain": "moved.com"}},
-        {"$set": {"additional_domains": ["z.com"]}},
-        {"$unset": {"claimed_domains": ""}},
-    ):
-        with pytest.raises(WriteError):
-            await col.update_one({"site_id": "s1"}, update)
-
-    await col.update_one({"site_id": "s1"}, {"$set": {"name": "Renamed"}})
-    assert await _claims(db, "s1") == ["legacy.com"]
-    assert (await col.find_one({"site_id": "s1"}))["name"] == "Renamed"
-
-
-async def test_service_writes_pass_the_validator_and_conflicts_still_return_409(db, service):
-    migration = _load_migration()
-    assert migration.succeeded(await migration.run(db, dry_run=False))
-
-    site = await service.register_website(TENANT, None, "a.com", additional_domains=["b.com"])
-    await service.update_website(site.id, TENANT, {"domain": "c.com", "additional_domains": ["d.com"]})
-    await service.update_website(site.id, TENANT, {"name": "Renamed", "status": "Inactive"})
-    with pytest.raises(ConflictError):
-        await service.register_website(TENANT, None, "d.com")
-
-    assert await _claims(db, site.site_id) == ["c.com", "d.com"]
-    await service.delete_website(site.id, TENANT)
-    assert (await service.register_website(TENANT, None, "d.com")).domain == "d.com"
 
 
 async def test_python_normalization_matches_the_server_side_expression(db):
@@ -590,86 +546,6 @@ async def test_rerunning_the_migration_while_writes_continue_keeps_the_claims_co
     await _assert_claims_invariants(db, migration)
 
 
-async def test_moderate_and_strict_validation_give_the_guarantees_the_migration_relies_on(db):
-    col = db["websites"]
-    await _legacy_site(db, "legacy", "legacy.com")
-
-    await WebsiteRepository.set_claims_validator(db, "moderate")
-    with pytest.raises(WriteError):
-        await col.insert_one({"site_id": "new", "domain": "new.com"})
-    await col.update_one({"site_id": "legacy"}, {"$set": {"name": "still allowed on an invalid legacy document"}})
-    await col.insert_one({"site_id": "ok", "domain": "ok.com", "claimed_domains": ["ok.com"]})
-    with pytest.raises(WriteError):
-        await col.update_one({"site_id": "ok"}, {"$set": {"domain": "moved.com"}})
-
-    await WebsiteRepository.set_claims_validator(db, "strict")
-    with pytest.raises(WriteError):
-        await col.update_one({"site_id": "legacy"}, {"$set": {"name": "rejected while it is still invalid"}})
-    await col.update_one({"site_id": "legacy"}, {"$set": {"claimed_domains": ["legacy.com"], "name": "fixed"}})
-
-
-async def test_a_failing_validator_install_leaves_the_system_gated_and_the_migration_recoverable(db, service):
-    migration = _load_migration()
-    await _legacy_site(db, "s1", "a.com")
-    failures = [OperationFailure("not authorized on collMod", 13)]
-
-    class Database:
-        def __getitem__(self, name):
-            return db[name]
-
-        async def command(self, *args, **kwargs):
-            if failures and args and args[0] == "collMod":
-                raise failures.pop()
-            return await db.command(*args, **kwargs)
-
-        def __getattr__(self, name):
-            return getattr(db, name)
-
-    with pytest.raises(OperationFailure):
-        await migration.run(Database(), dry_run=False)
-
-    assert "claimed_domains" not in await db["websites"].find_one({"site_id": "s1"})
-    with pytest.raises(ServiceUnavailableError):
-        await service.register_website(TENANT, None, "new.com")
-
-    assert migration.succeeded(await migration.run(db, dry_run=False))
-    assert (await service.register_website(TENANT, None, "new.com")).domain == "new.com"
-
-
-async def test_removing_the_validator_keeps_the_unique_index_and_the_gate_catches_unclaimed_sites(db, service):
-    migration = _load_migration()
-    assert migration.succeeded(await migration.run(db, dry_run=False))
-    await service.register_website(TENANT, None, "held.com")
-
-    await db.command("collMod", "websites", validator={}, validationLevel="off")
-
-    with pytest.raises(DuplicateKeyError):
-        await db["websites"].insert_one(
-            {"site_id": "dup", "domain": "other.com", "additional_domains": ["held.com"], "claimed_domains": ["other.com", "held.com"]}
-        )
-    await db["websites"].insert_one({"site_id": "unclaimed", "domain": "unclaimed.com"})
-    with pytest.raises(ServiceUnavailableError):
-        await service.register_website(TENANT, None, "new.com")
-
-
-async def test_rerunning_the_migration_never_downgrades_a_strict_validator(db, monkeypatch):
-    migration = _load_migration()
-    assert migration.succeeded(await migration.run(db, dry_run=False))
-    levels = []
-    original = WebsiteRepository.set_claims_validator.__func__
-
-    async def spy(cls, database, level):
-        levels.append(level)
-        return await original(cls, database, level)
-
-    monkeypatch.setattr(WebsiteRepository, "set_claims_validator", classmethod(spy))
-
-    assert migration.succeeded(await migration.run(db, dry_run=False))
-
-    assert levels == ["strict"]
-    assert await WebsiteRepository.claims_validator_level(db) == "strict"
-
-
 async def test_a_duplicate_seen_only_in_one_live_scan_is_not_reported(db):
     migration = _load_migration()
     await _legacy_site(db, "s1", "a.com")
@@ -708,139 +584,6 @@ async def test_a_duplicate_seen_only_in_one_live_scan_is_not_reported(db):
     assert scans >= 2 and not result["duplicates"] and migration.succeeded(result)
 
 
-LONG_LABEL = "a" * 63
-
-ACCEPTED_DOCUMENTS = {
-    "uppercase primary with lowercase claim": {"domain": "Upper.com", "claimed_domains": ["upper.com"]},
-    "primary and additional": {
-        "domain": "a.com",
-        "additional_domains": ["b.com", "c.org"],
-        "claimed_domains": ["a.com", "b.com", "c.org"],
-    },
-    "additional equal to the primary": {"domain": "d.com", "additional_domains": ["d.com"], "claimed_domains": ["d.com"]},
-    "additional null": {"domain": "n.com", "additional_domains": None, "claimed_domains": ["n.com"]},
-    "63 character label": {"domain": f"{LONG_LABEL}.com", "claimed_domains": [f"{LONG_LABEL}.com"]},
-}
-
-MALFORMED_DOCUMENTS = {
-    "numeric domain": {"domain": 5, "claimed_domains": ["5"]},
-    "null domain": {"domain": None, "claimed_domains": []},
-    "missing domain": {"claimed_domains": ["m.com"]},
-    "empty domain": {"domain": "", "claimed_domains": []},
-    "whitespace domain with a lowercased claim": {"domain": " W.com ", "claimed_domains": [" w.com "]},
-    "whitespace domain with a trimmed claim": {"domain": " T.com ", "claimed_domains": ["t.com"]},
-    "trailing newline domain": {"domain": "nl.com\n", "claimed_domains": ["nl.com\n"]},
-    "domain without a dot": {"domain": "nodot", "claimed_domains": ["nodot"]},
-    "leading hyphen label": {"domain": "-h.com", "claimed_domains": ["-h.com"]},
-    "64 character label": {"domain": f"{LONG_LABEL}a.com", "claimed_domains": [f"{LONG_LABEL}a.com"]},
-    "numeric additional element": {"domain": "p.com", "additional_domains": [5], "claimed_domains": ["p.com", 5]},
-    "additional is a string": {"domain": "q.com", "additional_domains": "q2.com", "claimed_domains": ["q.com"]},
-    "uppercase additional": {"domain": "r.com", "additional_domains": ["R2.com"], "claimed_domains": ["r.com", "r2.com"]},
-    "whitespace additional": {"domain": "s.com", "additional_domains": [" s2.com"], "claimed_domains": ["s.com", " s2.com"]},
-    "invalid additional hostname": {"domain": "u.com", "additional_domains": ["nodot"], "claimed_domains": ["u.com", "nodot"]},
-    "null inside claims": {"domain": "v.com", "claimed_domains": ["v.com", None]},
-    "numeric inside claims": {"domain": "w.com", "claimed_domains": ["w.com", 7]},
-    "empty entry inside claims": {"domain": "x.com", "claimed_domains": ["x.com", ""]},
-    "uppercase claim": {"domain": "y.com", "claimed_domains": ["Y.com"]},
-    "over-claim": {"domain": "z.com", "claimed_domains": ["z.com", "extra.com"]},
-    "unclaimed additional": {"domain": "k.com", "additional_domains": ["k2.com"], "claimed_domains": ["k.com"]},
-    "stale primary claim": {"domain": "new.com", "claimed_domains": ["old.com"]},
-    "claims missing": {"domain": "l.com"},
-    "claims null": {"domain": "l2.com", "claimed_domains": None},
-    "claims a string": {"domain": "l3.com", "claimed_domains": "l3.com"},
-    "claims an object": {"domain": "l4.com", "claimed_domains": {"a": 1}},
-}
-
-
-async def test_the_validator_accepts_valid_documents_and_rejects_every_malformed_insert_without_side_effects(db):
-    await WebsiteRepository.set_claims_validator(db, "strict")
-    col = db["websites"]
-    for index, document in enumerate(ACCEPTED_DOCUMENTS.values()):
-        await col.insert_one({"site_id": f"ok{index}", **document})
-    before = await col.find({}, {"_id": 0}).to_list(length=None)
-
-    for _ in range(3):
-        for label, document in MALFORMED_DOCUMENTS.items():
-            try:
-                await col.insert_one({"site_id": f"bad-{label}", **document})
-            except WriteError:
-                continue
-            pytest.fail(f"malformed insert was accepted: {label}")
-
-    assert await col.find({}, {"_id": 0}).to_list(length=None) == before
-    await db.command("ping")
-    await col.insert_one({"site_id": "after", "domain": "after.com", "claimed_domains": ["after.com"]})
-
-
-MALFORMED_UPDATES = {
-    "numeric domain": {"$set": {"domain": 5}},
-    "empty domain": {"$set": {"domain": ""}},
-    "whitespace domain": {"$set": {"domain": " moved.com "}},
-    "valid domain without updating claims": {"$set": {"domain": "moved.com"}},
-    "numeric additional element": {"$set": {"additional_domains": [5]}},
-    "additional string": {"$set": {"additional_domains": "str.com"}},
-    "uppercase additional": {"$set": {"additional_domains": ["Up.com"], "claimed_domains": ["held.com", "up.com"]}},
-    "valid additional without updating claims": {"$set": {"additional_domains": ["extra.com"]}},
-    "null in claims": {"$set": {"claimed_domains": ["held.com", None]}},
-    "empty entry in claims": {"$set": {"claimed_domains": ["held.com", ""]}},
-    "uppercase claim": {"$set": {"claimed_domains": ["HELD.com"]}},
-    "over-claim": {"$set": {"claimed_domains": ["held.com", "other.com"]}},
-    "unset claims": {"$unset": {"claimed_domains": ""}},
-    "claims a string": {"$set": {"claimed_domains": "held.com"}},
-}
-
-
-async def test_the_validator_rejects_malformed_updates_and_pipeline_updates_and_leaves_existing_data_untouched(db):
-    await WebsiteRepository.set_claims_validator(db, "strict")
-    col = db["websites"]
-    await col.insert_one({"site_id": "held", "domain": "held.com", "claimed_domains": ["held.com"]})
-    before = await col.find({}, {"_id": 0}).to_list(length=None)
-
-    for _ in range(2):
-        for label, update in MALFORMED_UPDATES.items():
-            try:
-                await col.update_one({"site_id": "held"}, update)
-            except WriteError:
-                continue
-            pytest.fail(f"malformed update was accepted: {label}")
-        for bad_domain in (5, "", " spaced.com ", "nodot"):
-            pipeline = [{"$set": {"domain": {"$literal": bad_domain}}}, {"$set": {"claimed_domains": _CLAIMED_DOMAINS}}]
-            with pytest.raises(WriteError):
-                await col.update_one({"site_id": "held"}, pipeline)
-
-    assert await col.find({}, {"_id": 0}).to_list(length=None) == before
-    for hostname in ("moved.com", "extra.com", "up.com", "other.com", "str.com"):
-        assert await col.count_documents({"claimed_domains": hostname}) == 0
-        await col.insert_one({"site_id": f"later-{hostname}", "domain": hostname, "claimed_domains": [hostname]})
-    await db.command("ping")
-
-
-async def test_the_validator_hostname_pattern_agrees_with_the_application_domain_regex(db):
-    from app.platform.domain import DOMAIN_RE
-    from app.repositories.website_repository import HOSTNAME_LOWERCASE_PATTERN
-
-    corpus = [
-        "a.com", "A.COM", "a-b.com", "a.b.c.d.com", "1.2.3.com", "a.c", f"{LONG_LABEL}.com", f"{LONG_LABEL}a.com",
-        "-a.com", "a-.com", "a..com", ".a.com", "a.com.", "nodot", "", " a.com", "a.com ", "a.com\n", "a.com\r\n",
-        "a_b.com", "münchen.de", "a b.com", "a.com/path", "http://a.com", "a.com:80", "x" * 64 + ".com",
-    ]
-    for index, value in enumerate(corpus):
-        await db["probe"].insert_one({"i": index, "v": value})
-
-    rows = await (
-        await db["probe"].aggregate(
-            [
-                {"$sort": {"i": 1}},
-                {"$project": {"_id": 0, "v": 1, "server": {"$regexMatch": {"input": "$v", "regex": HOSTNAME_LOWERCASE_PATTERN, "options": "i"}}}},
-            ]
-        )
-    ).to_list(length=None)
-
-    assert [row["v"] for row in rows] == corpus
-    for row in rows:
-        assert row["server"] == (DOMAIN_RE.fullmatch(row["v"]) is not None), row["v"]
-
-
 async def test_migration_preflight_reports_every_malformed_legacy_site_and_never_succeeds(db):
     migration = _load_migration()
     await db["websites"].drop_index("domain_1")
@@ -868,12 +611,25 @@ async def test_migration_preflight_reports_every_malformed_legacy_site_and_never
     assert "valid" not in result["unnormalizable"]
     assert not migration.succeeded(result)
     assert await db["websites"].find({}, {"_id": 0}).to_list(length=None) == before
-    collection = await (await db.list_collections(filter={"name": "websites"})).to_list(length=None)
-    assert "validator" not in collection[0]["options"]
     assert (await migration.run(db, dry_run=True))["unnormalizable"] == result["unnormalizable"]
 
 
-async def test_concurrent_primary_and_additional_claims_cannot_both_succeed_with_the_validator_installed(db, service, skip_precheck):
+async def test_service_writes_pass_after_the_migration_and_conflicts_still_return_409(db, service):
+    migration = _load_migration()
+    assert migration.succeeded(await migration.run(db, dry_run=False))
+
+    site = await service.register_website(TENANT, None, "a.com", additional_domains=["b.com"])
+    await service.update_website(site.id, TENANT, {"domain": "c.com", "additional_domains": ["d.com"]})
+    await service.update_website(site.id, TENANT, {"name": "Renamed", "status": "Inactive"})
+    with pytest.raises(ConflictError):
+        await service.register_website(TENANT, None, "d.com")
+
+    assert await _claims(db, site.site_id) == ["c.com", "d.com"]
+    await service.delete_website(site.id, TENANT)
+    assert (await service.register_website(TENANT, None, "d.com")).domain == "d.com"
+
+
+async def test_concurrent_primary_and_additional_claims_cannot_both_succeed_after_the_migration(db, service, skip_precheck):
     migration = _load_migration()
     assert migration.succeeded(await migration.run(db, dry_run=False))
 
