@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { BlockBlobClient } from "@azure/storage-blob";
 import { useNavigate } from "react-router-dom";
 import { v4 as uuidv4 } from "uuid";
@@ -144,8 +144,11 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
     getContent();
   }, []);
 
+  const hydratedContentIdRef = useRef(null);
+
   useEffect(() => {
-    if (content) {
+    if (content && hydratedContentIdRef.current !== content.id) {
+      hydratedContentIdRef.current = content.id;
       const languageLower = content.language.toLowerCase();
       const quizMetadata = {
         id: content.id,
