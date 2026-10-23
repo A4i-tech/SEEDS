@@ -1,0 +1,89 @@
+name: Release
+
+on:
+  push:
+    branches: [a4i/main]
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  tag-and-release:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - id: tag
+        name: Compute CalVer tag, suffixed with short SHA on same-day repeat release
+        run: |
+          git fetch --tags origin
+          existing=$(git tag --points-at HEAD | head -1)
+          if [ -n "$existing" ]; then
+            echo "tag=$existing" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          tag="v$(date +%Y.%m.%d)"
+          if git rev-parse "$tag" >/dev/null 2>&1; then
+            tag="${tag}-$(git rev-parse --short HEAD)"
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+      - name: Create release (also creates the tag, so no orphaned tag on failure)
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_BOT_PAT }}
+        run: |
+          tag="${{ steps.tag.outputs.tag }}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            exit 0
+          fi
+          gh release create "$tag" --target "${{ github.sha }}" --generate-notes
+
+  back-sync:
+    needs: tag-and-release
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.RELEASE_BOT_PAT }}
+      - name: Sync main back onto staging (opens PR, never pushes to staging directly)
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_BOT_PAT }}
+        run: |
+          git fetch origin a4i/staging a4i/main
+          pending=$(git rev-list --no-merges origin/a4i/staging..origin/a4i/main)
+          if [ -z "$pending" ]; then
+            exit 0
+          fi
+          git config user.email "release-bot@a4i-lab.in"
+          git config user.name "a4i-release-bot"
+          branch="sync/main-$(git rev-parse --short origin/a4i/main)"
+          force=""
+          if git ls-remote --exit-code origin "$branch" >/dev/null 2>&1; then
+            open_pr=$(gh pr list --head "$branch" --state open --json number --jq '.[0].number')
+            if [ -n "$open_pr" ]; then
+              echo "Sync branch $branch already has open PR #$open_pr, leaving it for manual resolution." >&2
+              exit 0
+            fi
+            echo "Sync branch $branch exists with no PR (prior run failed before opening one), rebuilding it." >&2
+            force="--force"
+          fi
+          git checkout -b "$branch" origin/a4i/staging
+          if git merge origin/a4i/main --no-edit; then
+            git push origin "$branch" $force
+            gh pr create --base a4i/staging --head "$branch" \
+              --title "Sync: a4i/main -> a4i/staging" \
+              --body "Automatic back-sync after a push to a4i/main. Merge via Create a merge commit, do not squash."
+          else
+            git merge --abort
+            git checkout -B "$branch" origin/a4i/main
+            git push origin "$branch" $force
+            gh pr create --base a4i/staging --head "$branch" --draft \
+              --title "Sync: a4i/main -> a4i/staging (conflict)" \
+              --label needs-resolution \
+              --body "This branch is origin/a4i/main as-is, a plain merge into staging conflicted. Pull this branch, run \`git merge origin/a4i/staging\`, resolve, push, then merge via Create a merge commit. Do not force-push staging or main."
+          fi
