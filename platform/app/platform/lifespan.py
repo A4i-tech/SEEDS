@@ -183,6 +183,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # ------------------------------------------------------------------
     await init_database()
 
+    from app.repositories.content_aggregator_sync_job_repository import (  # noqa: PLC0415
+        ContentAggregatorSyncJobRepository,
+    )
+    from app.repositories.content_job_repository import ContentJobRepository  # noqa: PLC0415
     from app.repositories.textbook_remediation_repository import (  # noqa: PLC0415
         TextbookRemediationRepository,
     )
@@ -205,6 +209,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await TranslationRepository.ensure_indexes(get_database())
     await TranslationVersionRepository.ensure_indexes(get_database())
     await TranslationAuditRepository.ensure_indexes(get_database())
+    await ContentAggregatorSyncJobRepository.ensure_indexes(get_database())
+    await ContentJobRepository.ensure_indexes(get_database())
+    await TextbookRemediationRepository.ensure_indexes(get_database())
 
     # Init conference manager (available in all modes)
     try:
