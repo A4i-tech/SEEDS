@@ -280,7 +280,7 @@ def _collect_page(
     item: dict[str, object], meta: dict[str, object], page_num: int, corpus: _Corpus
 ) -> None:
     raw_text = str(item.get("content") or "")
-    if raw_text and item.get("content_encoding") != "base64":
+    if raw_text and item.get("encoding") != "base64":
         corpus.raw_pages.append((page_num, raw_text))
 
     rem = meta.get("remediation")

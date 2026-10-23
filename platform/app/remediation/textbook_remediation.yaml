@@ -29,7 +29,7 @@ steps:
     config:
       mode: pdf
 
-  - agent: azure_mistral_ocr
+  - agent: ocr
     description: "Read page text with the configured OCR model"
     config:
       engine: ${.config.ocr_engine}
@@ -39,6 +39,12 @@ steps:
       image_min_size: 40
       extract_header_footer: true
       deduplicate: true
+
+  - agent: transform
+    description: "Rebuild page items so OCR figure payloads leave the content metadata"
+    config:
+      update: [items]
+      value: "."
 
   - agent: safe_extract
     description: "Verify OCR text against the page image"
@@ -384,9 +390,8 @@ steps:
   - agent: transform
     description: "Build the VE review report"
     config:
-      path: ".metadata.remediation_report"
       value: |
-        {
+        .metadata.remediation_report = {
           detected_book: .metadata.book,
           pages: ([.items[] | select(.metadata.remediation != null)] | length),
           ocr_verification: {

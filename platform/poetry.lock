@@ -4321,14 +4321,14 @@ signedtoken = ["cryptography (>=3.0.0)", "pyjwt (>=2.0.0,<3)"]
 
 [[package]]
 name = "omni-ingest"
-version = "1.0.0"
+version = "2.0.0"
 description = "Universal knowledge ingestion framework for multi-modal AI systems. Ingest documents, audio, and structured data into RAG-ready knowledge bases with domain-aware pipelines."
 optional = false
 python-versions = ">=3.11"
 groups = ["main"]
 files = [
-    {file = "omni_ingest-1.0.0-py3-none-any.whl", hash = "sha256:728e8dfccf606f32c8739a4aba123779b593505b0806c79787d8d62c5e55ba41"},
-    {file = "omni_ingest-1.0.0.tar.gz", hash = "sha256:f09f06fa93680e061ac70112a72e8780ddc108820a1018f520395aa2e7e66da6"},
+    {file = "omni_ingest-2.0.0-py3-none-any.whl", hash = "sha256:d1dc6e4963cfb42c30f13adaa5602707d5dfae40f2b8647160dd805a26eff23a"},
+    {file = "omni_ingest-2.0.0.tar.gz", hash = "sha256:687c61293cb573652a6cd93af74420a92b932eedc0c5697a49b9f871e0e6a473"},
 ]
 
 [package.dependencies]
@@ -7895,4 +7895,4 @@ propcache = ">=0.2.1"
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<4.0"
-content-hash = "b0e7a27c5c52bf8b236252c0be3692696ace9d33b11a507a76a2c364b72a8ebe"
+content-hash = "0c37139c95b3424fd19d0afca1ac80396bce2fef2736e37dc2e83ce58ae43533"

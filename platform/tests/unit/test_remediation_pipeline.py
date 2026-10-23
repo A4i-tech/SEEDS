@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
+from pathlib import Path
 
 import pytest
 
@@ -144,9 +145,9 @@ class _FakeRunner:
     async def flatten(self, ctx):
         from dataclasses import replace
 
-        from omni_ingest.core.model import ResolvedResource
+        from omni_ingest.core.model import ByteContent, ResolvedResource
 
-        yield replace(ctx, resource=ResolvedResource(uri="in.txt", raw_content=b"x"))
+        yield replace(ctx, resource=ResolvedResource(uri="in.txt", content=ByteContent.from_bytes(b"x")))
 
 
 def _patch_runner(monkeypatch, run):
@@ -216,17 +217,20 @@ async def test_run_pipeline_cancel_stops_run(tmp_path, monkeypatch):
 
 @pytest.mark.asyncio
 async def test_detach_content_writes_under_workspace(tmp_path):
-    from omni_ingest.core.model import ResolvedResource
+    from omni_ingest.core.model import ByteContent, KnowledgeItem, ResolvedResource
     from omni_ingest.core.pipeline import IngestionContext
 
     from app.remediation.detach_content import DetachContentAgent
 
-    ctx = IngestionContext(resource=ResolvedResource(uri="in.pdf", raw_content=b"pdf"), metadata={"workspace": str(tmp_path)})
+    image = KnowledgeItem(content=ByteContent.from_bytes(b"img-bytes", "image/png"), metadata={"kind": "image"})
+    ctx = IngestionContext(resource=ResolvedResource(uri="in.pdf", content=ByteContent.from_bytes(b"pdf")), items=[image], metadata={"workspace": str(tmp_path)})
 
     await DetachContentAgent().run(ctx)
 
     assert (tmp_path / "out" / "detached").is_dir()
-    assert ctx.resource.raw_content == b""
+    assert ctx.resource.content.data == b""
+    assert image.content.data == b""
+    assert Path(image.metadata["content_path"]).read_bytes() == b"img-bytes"
 
 
 @pytest.mark.asyncio

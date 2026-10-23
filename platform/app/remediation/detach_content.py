@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from omni_ingest.core.model import ResolvedResource, Step, StepResult, StepStatus
+from omni_ingest.core.model import ByteContent, ResolvedResource, Step, StepResult, StepStatus
 from omni_ingest.core.pipeline import IngestionContext, register_step
 
 ENGINE_NAME = "detach_content"
@@ -15,14 +15,12 @@ class DetachContentAgent(Step):
         for item in ctx.items:
             if item.metadata.get("kind") != "image":
                 continue
-            content = await item.content(ctx)
+            content = await item.content.read(ctx)
             path = detached_dir / f"{item.id}.bin"
             path.write_bytes(content)
             item.metadata["content_path"] = str(path.resolve())
-            item.raw_content = b""
-            item.content_uri = None
-        ctx.resource.raw_content = b""
-        ctx.resource.content_uri = None
+            item.content = ByteContent()
+        ctx.resource.content = ByteContent()
         return StepResult(status=StepStatus.SUCCESS, items=ctx.items)
 
 

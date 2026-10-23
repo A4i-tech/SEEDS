@@ -372,7 +372,7 @@ async def test_translate_agent_translates_figure_accessibility(monkeypatch):
     from unittest.mock import AsyncMock
 
     from omni_ingest.agent.enrichment import TranslateAgent
-    from omni_ingest.core.model import KnowledgeItem, ResolvedResource, StepStatus
+    from omni_ingest.core.model import ByteContent, KnowledgeItem, ResolvedResource, StepStatus
     from omni_ingest.core.pipeline import IngestionContext
 
     mock_translator = AsyncMock()
@@ -394,7 +394,7 @@ async def test_translate_agent_translates_figure_accessibility(monkeypatch):
     monkeypatch.setattr("omni_ingest.agent.enrichment.create_translator", lambda *args, **kwargs: MockContextManager())
 
     ctx = IngestionContext(
-        resource=ResolvedResource(uri="", raw_content=b""),
+        resource=ResolvedResource(uri="", content=ByteContent()),
         metadata={
             "accessibility": {
                 "kind": "figure",
@@ -405,7 +405,7 @@ async def test_translate_agent_translates_figure_accessibility(monkeypatch):
         items=[
             KnowledgeItem(
                 id=uuid.UUID("00000000-0000-0000-0000-000000000001"),
-                raw_content=b"img_bytes",
+                content=ByteContent.from_bytes(b"img_bytes"),
                 metadata={"kind": "image"},
             )
         ],

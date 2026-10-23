@@ -729,3 +729,11 @@ async def test_verify_job_appends_a_second_record_on_a_repeat_verification(repo,
     assert len(lines) == 2
     assert (lines[1]["previous"], lines[1]["new"]) == ("# Original", "# Edited twice")
 
+
+async def test_ensure_indexes_covers_jobs_and_edits():
+    db = AsyncMongoMockClient()["test_seeds"]
+
+    await TextbookRemediationRepository.ensure_indexes(db)
+
+    assert "status_1_deleted_at_1_created_at_1" in await db[TextbookRemediationRepository.COLLECTION_NAME].index_information()
+    assert "job_id_1_timestamp_1" in await db[TextbookRemediationRepository.EDITS_COLLECTION_NAME].index_information()

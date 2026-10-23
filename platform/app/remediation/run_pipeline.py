@@ -37,7 +37,6 @@ from omni_ingest.port.metadata_store import NullMetadataStore  # noqa: E402
 from pydantic import TypeAdapter  # noqa: E402
 
 from app.remediation import (  # noqa: E402, F401
-    azure_mistral_ocr,
     detach_content,
     safe_extract,
 )
@@ -82,8 +81,8 @@ async def run_pipeline(
     async def _forward_progress() -> None:
         nonlocal last_step
         try:
-            async for e in event.subscribe(populate_with_buffered=False):
-                if e.run_id != ctx.run_id or (evt := _progress_event(e)) is None:
+            async for e in event.subscribe(run_id=ctx.run_id, populate_with_buffered=False):
+                if (evt := _progress_event(e)) is None:
                     continue
                 last_step = str(evt["step_name"])
                 if on_progress:
@@ -107,7 +106,8 @@ async def run_pipeline(
             "Retry with a smaller PDF."
         ) from exc
     finally:
-        listener.cancel()
+        event.shutdown(ctx.run_id)
+        await listener
 
     failures = [r.error for r in results if r.status == StepStatus.FAILURE]
     if failures:
