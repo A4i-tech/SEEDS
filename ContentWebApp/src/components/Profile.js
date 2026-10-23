@@ -29,6 +29,8 @@ const Profile = () => {
     navigate("/content", { state: { activeTab: tab } });
   };
 
+  const restricted = [USER_ROLES.CONTENT_CREATOR, USER_ROLES.TEXTBOOK_REMEDIATION_VOLUNTEER];
+
   useEffect(() => {
     const loadProfile = async () => {
       setLoading(true);
@@ -113,9 +115,9 @@ const Profile = () => {
           onTabChange={handleTabChange}
           currentUser={currentUser}
           onLogout={logout}
-          showContent={Boolean(profile)}
-          showRegistration={profile && profile.role !== USER_ROLES.CONTENT_CREATOR}
-          showAnalytics={profile && profile.role !== USER_ROLES.CONTENT_CREATOR}
+          showContent={profile && profile.role !== USER_ROLES.TEXTBOOK_REMEDIATION_VOLUNTEER}
+          showRegistration={profile && !restricted.includes(profile.role)}
+          showAnalytics={profile && !restricted.includes(profile.role)}
           showLocalization={profile && profile.role === USER_ROLES.TENANT}
         />
 

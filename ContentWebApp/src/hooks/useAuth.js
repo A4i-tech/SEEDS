@@ -62,7 +62,9 @@ export const useAuth = () => {
         ? `${SEEDS_URL}/school/admin/me`
         : role === "teacher" || role === "content_creator"
           ? `${SEEDS_URL}/teacher/me`
-          : `${SEEDS_URL}/tenant/me`;
+          : role === "textbook_remediation_volunteer"
+            ? `${SEEDS_URL}/textbook-remediation/me`
+            : `${SEEDS_URL}/tenant/me`;
 
     cachedUserPromise = apiFetch(meUrl, {
       method: "GET",

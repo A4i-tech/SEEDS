@@ -8,6 +8,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
+from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.remediation_job import ARTIFACTS, IMAGE_CONTENT_TYPES, ArtifactName, RemediationJob
 from app.models.responses.remediation import (
@@ -17,8 +18,9 @@ from app.models.responses.remediation import (
     RemediationJobResponse,
     ReviewSummaryResponse,
 )
+from app.models.responses.user import UserPublicResponse
 from app.models.user import UserRole
-from app.platform.auth.dependencies import require_role
+from app.platform.auth.dependencies import get_db, require_role, require_tenant
 from app.platform.error_handling import NotFoundError, ValidationError
 from app.platform.settings import get_settings
 from app.providers.blob_storage import BlobStorageProvider, get_blob_storage_provider
@@ -26,11 +28,14 @@ from app.repositories.textbook_remediation_repository import (
     TextbookRemediationRepository,
     get_textbook_remediation_repo,
 )
+from app.repositories.user_repository import UserRepository
+from app.services.auth_service import AuthService, get_auth_service
 from app.services.language_registry import SUPPORTED_LANGUAGES
 from app.services.textbook_remediation import (
     artifact_bytes as _artifact_bytes,
 )
 from app.services.textbook_remediation import (
+    assign_job,
     create_job,
     findings_page,
     review_summary,
@@ -46,9 +51,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/textbook-remediation", tags=["Textbook Remediation"])
 
 require_remediation_access = require_role(
-    UserRole.TENANT.value, UserRole.SCHOOL_ADMIN.value, UserRole.CONTENT_CREATOR.value
+    UserRole.TENANT.value,
+    UserRole.SCHOOL_ADMIN.value,
+    UserRole.CONTENT_CREATOR.value,
+    UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER.value,
 )
-
 MAX_PDF_BYTES = 200 * 1024 * 1024
 
 _LANGUAGE_CODES = frozenset(lang["code"] for lang in SUPPORTED_LANGUAGES)
@@ -71,11 +78,30 @@ class TranslateJobRequest(BaseModel):
     target_language: str
 
 
-async def _get_job(repo: TextbookRemediationRepository, tenant_id: str, job_id: str) -> RemediationJob:
-    job = await repo.get(tenant_id, job_id)
+class AssignJobRequest(BaseModel):
+    volunteer_id: str | None
+
+
+def _is_volunteer(user: dict[str, object]) -> bool:
+    return user.get("role") == UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER.value
+
+
+async def _get_job(repo: TextbookRemediationRepository, user: dict[str, object], job_id: str) -> RemediationJob:
+    job = await repo.get(str(user["tenant_id"]), job_id)
     if job is None:
         raise NotFoundError("Remediation job", job_id)
+    if _is_volunteer(user) and job.assigned_to != str(user["sub"]):
+        raise NotFoundError("Remediation job", job_id)
     return job
+
+
+@router.get("/me", response_model=UserPublicResponse, response_model_exclude_none=True, summary="Get current textbook remediation user's own profile")
+async def remediation_me(
+    current_user: dict[str, object] = Depends(require_remediation_access),
+    service: AuthService = Depends(get_auth_service),
+) -> UserPublicResponse:
+    user = await service.get_user_profile(str(current_user["sub"]), "User")
+    return UserPublicResponse.from_domain(user)
 
 
 @router.post("/jobs", status_code=202, response_model=CreateRemediationJobResponse, summary="Upload a textbook PDF and queue it for remediation")
@@ -83,7 +109,7 @@ async def create_remediation_job(
     file: UploadFile = File(..., description="The textbook PDF"),
     language: str = Form("en", description="Language the figure alt text is translated into"),
     target_language: str = Form("", description="When set, also translate the result into this language once remediation finishes"),
-    user: dict[str, object] = Depends(require_remediation_access),
+    user: dict[str, object] = Depends(require_tenant),
     repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
     blob_provider: BlobStorageProvider = Depends(get_blob_storage_provider),
 ) -> dict[str, str]:
@@ -109,6 +135,7 @@ async def create_remediation_job(
         data=file.file,
         language=language,
         target_language=target_language or None,
+        created_by=str(user["sub"]),
     )
     return {"job_id": job.job_id}
 
@@ -119,14 +146,15 @@ async def list_remediation_jobs(
     user: dict[str, object] = Depends(require_remediation_access),
     repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
 ) -> dict[str, list[dict[str, object]]]:
-    jobs = await repo.list_jobs(str(user["tenant_id"]), limit=limit)
+    assigned_to = str(user["sub"]) if _is_volunteer(user) else None
+    jobs = await repo.list_jobs(str(user["tenant_id"]), limit=limit, assigned_to=assigned_to)
     return {"jobs": [serialize_job(job) for job in jobs]}
 
 
 @router.delete("/jobs/{job_id}", status_code=204, summary="Soft-delete a remediation job")
 async def delete_remediation_job(
     job_id: str,
-    user: dict[str, object] = Depends(require_remediation_access),
+    user: dict[str, object] = Depends(require_tenant),
     repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
 ) -> None:
     deleted = await repo.soft_delete(str(user["tenant_id"]), job_id)
@@ -140,7 +168,7 @@ async def get_remediation_job(
     user: dict[str, object] = Depends(require_remediation_access),
     repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
 ) -> dict[str, object]:
-    return serialize_job(await _get_job(repo, str(user["tenant_id"]), job_id))
+    return serialize_job(await _get_job(repo, user, job_id))
 
 
 @router.get("/jobs/{job_id}/stream", summary="SSE stream of live remediation progress")
@@ -149,10 +177,10 @@ async def stream_remediation_job(
     user: dict[str, object] = Depends(require_remediation_access),
     repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
 ) -> StreamingResponse:
-    tenant_id = str(user["tenant_id"])
+    await _get_job(repo, user, job_id)
 
     async def _format() -> AsyncIterator[str]:
-        async for event in subscribe(repo, tenant_id, job_id):
+        async for event in subscribe(repo, user, job_id):
             yield f"data: {json.dumps(event, default=str)}\n\n"
 
     return StreamingResponse(_format(), media_type="text/event-stream")
@@ -166,7 +194,7 @@ async def get_remediation_artifact(
     repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
     blob_provider: BlobStorageProvider = Depends(get_blob_storage_provider),
 ) -> Response:
-    job = await _get_job(repo, str(user["tenant_id"]), job_id)
+    job = await _get_job(repo, user, job_id)
     data, content_type = await _artifact_bytes(job, name, blob_provider)
     return Response(
         content=data,
@@ -183,7 +211,7 @@ async def get_remediation_image(
     repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
     blob_provider: BlobStorageProvider = Depends(get_blob_storage_provider),
 ) -> Response:
-    await _get_job(repo, str(user["tenant_id"]), job_id)
+    await _get_job(repo, user, job_id)
 
     safe_name = Path(image_name).name
     content_type = IMAGE_CONTENT_TYPES.get(Path(safe_name).suffix.lower())
@@ -213,7 +241,7 @@ async def get_remediation_findings(
     repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
     blob_provider: BlobStorageProvider = Depends(get_blob_storage_provider),
 ) -> dict[str, object]:
-    job = await _get_job(repo, str(user["tenant_id"]), job_id)
+    job = await _get_job(repo, user, job_id)
     return await findings_page(job, name, blob_provider, limit=limit, offset=offset)
 
 
@@ -225,8 +253,9 @@ async def save_remediation_draft(
     repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
     blob_provider: BlobStorageProvider = Depends(get_blob_storage_provider),
 ) -> dict[str, object]:
-    job = await _get_job(repo, str(user["tenant_id"]), job_id)
-    return serialize_job(await save_draft(repo, blob_provider, job, payload.draft_md))
+    job = await _get_job(repo, user, job_id)
+    last_edited_by = str(user["sub"])
+    return serialize_job(await save_draft(repo, blob_provider, job, payload.draft_md, last_edited_by))
 
 
 @router.post("/jobs/{job_id}/verify", response_model=RemediationJobResponse, summary="Mark a remediated document verified and save to library")
@@ -237,8 +266,8 @@ async def verify_remediation_job(
     repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
     blob_provider: BlobStorageProvider = Depends(get_blob_storage_provider),
 ) -> dict[str, object]:
-    job = await _get_job(repo, str(user["tenant_id"]), job_id)
-    verified_by = str(user.get("email") or user.get("name") or user.get("id") or "reviewer")
+    job = await _get_job(repo, user, job_id)
+    verified_by = str(user["sub"])
     updated = await verify_job(repo, blob_provider, job, title=payload.title, verified_by=verified_by)
     return serialize_job(updated)
 
@@ -251,7 +280,7 @@ async def translate_remediation_job(
     repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
     blob_provider: BlobStorageProvider = Depends(get_blob_storage_provider),
 ) -> dict[str, object]:
-    job = await _get_job(repo, str(user["tenant_id"]), job_id)
+    job = await _get_job(repo, user, job_id)
     _validate_language(payload.target_language)
     updated = await translate_job(repo, blob_provider, job, payload.target_language)
     return serialize_job(updated)
@@ -264,5 +293,18 @@ async def get_review_summary(
     repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
     blob_provider: BlobStorageProvider = Depends(get_blob_storage_provider),
 ) -> dict[str, object]:
-    job = await _get_job(repo, str(user["tenant_id"]), job_id)
+    job = await _get_job(repo, user, job_id)
     return await review_summary(job, blob_provider)
+
+
+@router.put("/jobs/{job_id}/assignment", response_model=RemediationJobResponse, summary="Assign or unassign a remediation job to a textbook remediation volunteer")
+async def assign_remediation_job(
+    job_id: str,
+    payload: AssignJobRequest,
+    user: dict[str, object] = Depends(require_tenant),
+    repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
+    db: AsyncDatabase = Depends(get_db),
+) -> dict[str, object]:
+    await _get_job(repo, user, job_id)
+    updated = await assign_job(repo, UserRepository(db), str(user["tenant_id"]), job_id, payload.volunteer_id)
+    return serialize_job(updated)

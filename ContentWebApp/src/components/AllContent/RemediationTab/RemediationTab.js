@@ -9,6 +9,8 @@ import { StageProgress } from "./StageProgress";
 import { SyncAllProgress } from "../shared/SyncAllProgress";
 import { ARTIFACT_DOWNLOADS } from "../../artifactDownloads";
 import { JOB_STATUS } from "../../../utils/remediationStatus";
+import { getRole } from "../../../utils/authHelpers";
+import { USER_ROLES } from "../../../Constants";
 import "./RemediationTab.css";
 import "../shared/cards.css";
 import "../shared/buttons.css";
@@ -16,9 +18,19 @@ import "../shared/tables.css";
 
 const ARTIFACT_LABELS = { docx: "Word", pdf: "PDF", tex: "LaTeX" };
 
-const RemediationTab = () => {
+const RemediationTab = ({ volunteers = [] }) => {
   const navigate = useNavigate();
-  const { jobs, isLoading, isUploading, error, upload, remove } = useRemediationJobs();
+  const isTenant = getRole() === USER_ROLES.TENANT;
+  const { jobs, isLoading, isUploading, error, upload, remove, assign } = useRemediationJobs();
+  const assigneeOptions = [
+    { value: "", label: "Unassigned" },
+    ...volunteers.map((volunteer) => ({ value: volunteer.id, label: volunteer.name })),
+  ];
+  const volunteerIds = new Set(volunteers.map((volunteer) => volunteer.id));
+  const getAssigneeOptions = (assignedTo) =>
+    assignedTo && !volunteerIds.has(assignedTo)
+      ? [...assigneeOptions, { value: assignedTo, label: "Assigned volunteer" }]
+      : assigneeOptions;
   const fileRef = useRef(null);
   const [selectedFile, setSelectedFile] = useState(null);
   const [targetLanguage, setTargetLanguage] = useState("");
@@ -64,42 +76,44 @@ const RemediationTab = () => {
         </div>
       </div>
 
-      <div className="registration-card" style={{ alignItems: "center", marginBottom: "16px" }}>
-        <div className="registration-title" style={{ textAlign: "center", textTransform: "uppercase" }}>
-          Upload Textbook
+      {isTenant && (
+        <div className="registration-card" style={{ alignItems: "center", marginBottom: "16px" }}>
+          <div className="registration-title" style={{ textAlign: "center", textTransform: "uppercase" }}>
+            Upload Textbook
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap", justifyContent: "center" }}>
+            <span style={{ fontWeight: 600 }}>
+              Textbook PDF <span style={{ color: "var(--color-danger-dot)" }}>*</span>
+            </span>
+            <input ref={fileRef} type="file" accept="application/pdf" onChange={handleFile} style={{ display: "none" }} />
+            <button type="button" className="action-ghost-button" onClick={() => fileRef.current && fileRef.current.click()}>
+              Choose PDF File
+            </button>
+            {selectedFile && <span className="table-cell-secondary">{selectedFile.name}</span>}
+            <Select
+              id="remediation-target-language"
+              value={targetLanguage}
+              onChange={setTargetLanguage}
+              options={targetLanguageOptions}
+              placeholder="No translation"
+            />
+            {languagesError && <span className="content-details-error">Could not load languages: {languagesError}</span>}
+            <button
+              type="button"
+              className="primary-button"
+              disabled={!selectedFile || isUploading}
+              onClick={handleUpload}
+            >
+              {isUploading ? "Uploading…" : "Upload textbook"}
+            </button>
+            <SyncAllProgress
+              syncingAll={isUploading}
+              syncAllProgress={isUploading ? {} : null}
+              indeterminateLabel="Uploading textbook…"
+            />
+          </div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap", justifyContent: "center" }}>
-          <span style={{ fontWeight: 600 }}>
-            Textbook PDF <span style={{ color: "var(--color-danger-dot)" }}>*</span>
-          </span>
-          <input ref={fileRef} type="file" accept="application/pdf" onChange={handleFile} style={{ display: "none" }} />
-          <button type="button" className="action-ghost-button" onClick={() => fileRef.current && fileRef.current.click()}>
-            Choose PDF File
-          </button>
-          {selectedFile && <span className="table-cell-secondary">{selectedFile.name}</span>}
-          <Select
-            id="remediation-target-language"
-            value={targetLanguage}
-            onChange={setTargetLanguage}
-            options={targetLanguageOptions}
-            placeholder="No translation"
-          />
-          {languagesError && <span className="content-details-error">Could not load languages: {languagesError}</span>}
-          <button
-            type="button"
-            className="primary-button"
-            disabled={!selectedFile || isUploading}
-            onClick={handleUpload}
-          >
-            {isUploading ? "Uploading…" : "Upload textbook"}
-          </button>
-          <SyncAllProgress
-            syncingAll={isUploading}
-            syncAllProgress={isUploading ? {} : null}
-            indeterminateLabel="Uploading textbook…"
-          />
-        </div>
-      </div>
+      )}
 
       {error && <p className="content-details-error">Error: {error}</p>}
       {isLoading && jobs.length === 0 && <p className="table-cell-secondary">Loading…</p>}
@@ -115,6 +129,7 @@ const RemediationTab = () => {
                 <th className="table-header">Status</th>
                 <th className="table-header">Stage</th>
                 <th className="table-header">Artifacts</th>
+                {isTenant && <th className="table-header">Assigned to</th>}
                 <th className="table-header">Actions</th>
               </tr>
             </thead>
@@ -171,20 +186,35 @@ const RemediationTab = () => {
                       <span className="table-cell-secondary">—</span>
                     )}
                   </td>
+                  {isTenant && (
+                    <td className="table-cell">
+                      <Select
+                        id={`remediation-assignee-${job.job_id}`}
+                        value={job.assigned_to || ""}
+                        onChange={(volunteerId) => assign(job.job_id, volunteerId || null)}
+                        options={getAssigneeOptions(job.assigned_to)}
+                        placeholder="Unassigned"
+                      />
+                    </td>
+                  )}
                   <td className="table-cell">
                     <RowActions
                       actions={[
                         ...(job.status !== JOB_STATUS.RUNNING && job.status !== JOB_STATUS.FAILED
                           ? [{ key: "edit", label: "Edit", variant: "edit", onClick: () => navigate(`/content/remediation/${job.job_id}`) }]
                           : []),
-                        {
-                          key: "delete",
-                          label: "Delete",
-                          variant: "delete",
-                          onClick: () => {
-                            if (window.confirm(`Delete "${job.source_name}"?`)) remove(job.job_id);
-                          },
-                        },
+                        ...(isTenant
+                          ? [
+                              {
+                                key: "delete",
+                                label: "Delete",
+                                variant: "delete",
+                                onClick: () => {
+                                  if (window.confirm(`Delete "${job.source_name}"?`)) remove(job.job_id);
+                                },
+                              },
+                            ]
+                          : []),
                       ]}
                     />
                   </td>

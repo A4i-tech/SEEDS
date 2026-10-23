@@ -116,7 +116,11 @@ async def login_unified(
 
     if is_email:
         user = await repo.find_by_email(identifier)
-        allowed_roles = (UserRole.TENANT, UserRole.SCHOOL_ADMIN)
+        allowed_roles = (
+            UserRole.TENANT,
+            UserRole.SCHOOL_ADMIN,
+            UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER,
+        )
     else:
         user = await repo.find_by_phone(identifier)
         allowed_roles = UserRole.CONTENT_CREATOR
@@ -411,6 +415,11 @@ class AuthService:
 
     async def get_tenant_dashboard(self, tenant_id: str) -> TenantDashboardResponse:
         return await get_tenant_dashboard(tenant_id, self._db)
+
+    async def list_volunteers(self, tenant_id: str) -> list[User]:
+        return await UserRepository(self._db).find_all_by_tenant_and_role(
+            tenant_id, UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER.value
+        )
 
 
 def get_auth_service(db: AsyncDatabase[Any] = Depends(get_db)) -> AuthService:
