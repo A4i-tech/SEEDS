@@ -47,6 +47,15 @@ async def test_lifespan_reconciles_sync_jobs_by_app_mode(app_mode, expected_call
             "app.repositories.translation_audit_repository.TranslationAuditRepository.ensure_indexes",
             new=AsyncMock(),
         ),
+        patch(
+            "app.repositories.content_job_repository.ContentJobRepository.ensure_indexes",
+            new=AsyncMock(),
+        ),
+        patch(
+            "app.repositories.textbook_remediation_repository.TextbookRemediationRepository.ensure_indexes",
+            new=AsyncMock(),
+        ),
+        patch.object(ContentAggregatorSyncJobRepository, "ensure_indexes", new=AsyncMock()),
         patch.object(
             ContentAggregatorSyncJobRepository,
             "reconcile_interrupted_jobs",
