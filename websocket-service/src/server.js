@@ -1,21 +1,17 @@
 // src/server.js
 
 const logger = require("./logger"); // must be first — initialises App Insights auto-instrumentation
+const crypto = require("crypto");
 const http = require("http");
 const WebSocket = require("ws");
 const url = require("url");
-const appInsights = require("applicationinsights");
 const websocketService = require("./services/websocketService");
 const controlService = require("./services/controlService");
 const connectionManager = require("./services/connectionManager");
+const redactUrl = require("./redactUrl");
 
 const port = process.env.PORT || 3000;
 const MAXIMUM_CONFERENCE_TIME_ALLOWED_IN_MILLISECONDS = 60 * 60 * 1000; // 1 hour in milliseconds
-appInsights
-  .setup(process.env.APPLICATIONINSIGHTS_CONNECTION_STRING)
-  .setAutoCollectConsole(true, true) // Capture console logs
-  .setDistributedTracingMode(appInsights.DistributedTracingModes.AI)
-  .start();
 
 // Create HTTP server without Express
 const server = http.createServer((req, res) => {
@@ -62,26 +58,29 @@ wss.on("connection", (ws, req) => {
     return;
   }
 
+  const correlationId = crypto.randomUUID();
+  const log = logger.child({ sessionId: id, clientId: id, correlationId });
+
   connectionManager.addConnection(id, {
     ws,
-    state: { id, playing: false, position: 0, isClosed: false },
+    state: { id, playing: false, position: 0, isClosed: false, correlationId },
   });
-  logger.info(`Client WebSocket connection opened for ID: ${id}`);
+  log.info(`Client WebSocket connection opened for ID: ${id}`, { eventType: "connection_open" });
 
   const isControlConnection = id === "confv2server" || id === "ivrv2server";
 
   if (!isControlConnection && audioUrl) {
-    logger.info(`Auto-play requested for ID: ${id} with audio_url`);
+    log.info(`Auto-play requested for ID: ${id} with audio_url`, { eventType: "auto_play_start" });
     websocketService
       .playAudioContent(id, audioUrl)
       .catch((error) =>
-        logger.error(`Auto-play failed for ID: ${id}, URL: ${audioUrl}`, error)
+        log.error(`Auto-play failed for ID: ${id}, URL: ${redactUrl(audioUrl)}`, Object.assign(error, { eventType: "auto_play_error" }))
       );
   }
 
   if (isControlConnection) {
     // Control WebSocket connection
-    logger.info(`Control WebSocket connection established with id: ${id}`);
+    log.info(`Control WebSocket connection established with id: ${id}`, { eventType: "control_connection_established" });
     controlService.handleControlConnection(ws, id);
   } else {
 
@@ -99,12 +98,12 @@ wss.on("connection", (ws, req) => {
 
     const maxConnectionTime = MAXIMUM_CONFERENCE_TIME_ALLOWED_IN_MILLISECONDS;
     const connectionTimeout = setTimeout(() => {
-      logger.info(`Closing WebSocket connection for ID: ${id} after 1 hour`);
+      log.info(`Closing WebSocket connection for ID: ${id} after 1 hour`, { eventType: "connection_close" });
       ws.close();
     }, maxConnectionTime);
 
     ws.on("close", () => {
-      logger.info(`WebSocket connection closed for ID: ${id}`);
+      log.info(`WebSocket connection closed for ID: ${id}`, { eventType: "connection_close" });
       clearTimeout(connectionTimeout);
       const current = connectionManager.getConnection(id);
       if (!current || current.ws !== ws) return;
@@ -112,12 +111,12 @@ wss.on("connection", (ws, req) => {
       connectionManager.removeConnection(id);
 
       if (!state.isClosed) {
-        websocketService.handleAccidentalDisconnection(id);
+        websocketService.handleAccidentalDisconnection(id, correlationId);
       }
     });
 
     ws.on("error", (error) => {
-      logger.error(`WebSocket error for ID: ${id}`, error);
+      log.error(`WebSocket error for ID: ${id}`, Object.assign(error, { eventType: "connection_error" }));
     });
   }
 });
