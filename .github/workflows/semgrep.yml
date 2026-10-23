@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  scan:
+  semgrep:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -27,7 +27,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install Semgrep
-        run: pip install --quiet semgrep
+        run: pip install --quiet semgrep==1.179.0
 
       - name: Semgrep diff scan
         env:
@@ -53,6 +53,7 @@ jobs:
 
       - name: Semgrep full-repo scan (advisory, not gating)
         if: always()
+        continue-on-error: true
         run: |
           semgrep scan \
             --config p/security-audit \
