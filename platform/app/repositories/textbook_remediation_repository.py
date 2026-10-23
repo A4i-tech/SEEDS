@@ -55,6 +55,10 @@ class TextbookRemediationRepository:
     async def list_edits(self, job_id: str) -> list[dict[str, object]]:
         return await self._edits.find({"job_id": job_id}, {"_id": 0}).sort("timestamp", 1).to_list(length=None)
 
+    @classmethod
+    async def ensure_indexes(cls, db: AsyncDatabase) -> None:
+        await db[cls.COLLECTION_NAME].create_index([("status", 1), ("deleted_at", 1), ("created_at", 1)])
+
     async def create(
         self, *, job_id: ObjectId, tenant_id: str, source_name: str, source_url: str, language: str,
         target_language: str | None = None,

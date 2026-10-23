@@ -24,7 +24,7 @@ class CallWebhookConsumer(BaseConsumer):
     name = "call_webhook_consumer"
 
     POLL_BATCH = 10
-    POLL_WAIT_SECONDS = 5
+    POLL_WAIT_SECONDS = 1
 
     async def _run_loop(self) -> None:
         db = get_database()

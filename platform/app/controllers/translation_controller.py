@@ -27,7 +27,7 @@ router = APIRouter(prefix="/translations", tags=["Translations"])
 
 
 def _tenant_id(user: dict[str, Any]) -> str:
-    return user["sub"] if user.get("role") == "tenant" else user.get("tenant_id", "")
+    return user["sub"]
 
 
 class ExtractItem(BaseModel):
