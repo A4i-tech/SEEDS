@@ -5,7 +5,7 @@ import asyncio
 import base64
 import logging
 import os
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import vonage
@@ -155,18 +155,13 @@ class IVRService:
         settings = get_settings()
 
         ongoing_col = self._db["ongoingIVRState"]
-        existing = await ongoing_col.find_one({"phone_number": phone_number})
-        if existing:
-            existing_state = IVRCallStateMongoDoc.from_mongo(existing)
-            stale_minutes = int(os.environ.get("STALE_WAIT_IN_MINUTES", "60"))
-            age_minutes = (datetime.now() - existing_state.created_at).total_seconds() / 60
-            if age_minutes > stale_minutes:
-                await ongoing_col.delete_one({"_id": existing_state.id})
-            else:
-                return {
-                    "status_code": 400,
-                    "message": f"IVR already in progress for {phone_number}",
-                }
+        cutoff = datetime.now(UTC) - timedelta(minutes=settings.stale_wait_in_minutes)
+        if await ongoing_col.find_one({"phone_number": phone_number, "updated_at": {"$gte": cutoff}}):
+            return {
+                "status_code": 400,
+                "message": f"IVR already in progress for {phone_number}",
+            }
+        await ongoing_col.delete_many({"phone_number": phone_number, "updated_at": {"$lt": cutoff}})
 
         if settings.ivr_daily_listening_limit_seconds > 0:
             today = get_ist_date_string()
@@ -225,6 +220,7 @@ class IVRService:
             current_state_id=latest_fsm.init_state_id,
             current_conversation_uuid=conv_uuid,
             created_at=datetime.now(),
+            updated_at=datetime.now(UTC),
             tenant_id=tenant_id,
         )
         await ongoing_col.replace_one(
@@ -495,7 +491,10 @@ class IVRService:
 
         ivr_state = IVRCallStateMongoDoc.from_mongo(doc)
 
-        update_ops: dict[str, Any] = {"current_conversation_uuid": conversation_uuid}
+        update_ops: dict[str, Any] = {
+            "current_conversation_uuid": conversation_uuid,
+            "updated_at": datetime.now(UTC),
+        }
         if timestamp_str:
             try:
                 if isinstance(timestamp_str, str):
