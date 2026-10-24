@@ -1,0 +1,103 @@
+.topbar.topbar {
+  background-color: var(--seeds-nav-topbar-bg);
+  color: var(--seeds-nav-topbar-text);
+  border: 1px solid var(--seeds-nav-topbar-bg);
+}
+
+.text[data-variant='eyebrow'] {
+  color: var(--seeds-eyebrow-text);
+  font-size: var(--mantine-font-size-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+}
+
+.paper {
+  background-color: var(--seeds-bg-surface);
+  border-color: var(--seeds-card-border);
+}
+
+.tabList.tabList {
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  gap: var(--mantine-spacing-lg);
+}
+
+.tab.tab {
+  color: var(--mantine-color-dimmed);
+  font-size: var(--mantine-font-size-sm);
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.tab.tab[data-active] {
+  color: var(--seeds-subnav-text-active);
+  font-weight: 700;
+  border-bottom-color: var(--seeds-brandmark-bg);
+}
+
+.navLink.navLink {
+  border-radius: var(--mantine-radius-md);
+  padding-block: var(--mantine-spacing-sm);
+  color: var(--seeds-text-primary);
+  margin-block-end: var(--mantine-spacing-xs);
+}
+
+.navLink.navLink[data-active] {
+  background-color: var(--seeds-subnav-bg-active);
+  color: var(--seeds-subnav-text-active);
+}
+
+.navLink.navLink[data-active]:hover {
+  background-color: var(--seeds-subnav-bg-active);
+}
+
+.navLinkLabel.navLinkLabel {
+  font-size: var(--mantine-font-size-sm);
+  font-weight: 700;
+}
+
+.chipLabel.chipLabel {
+  height: 44px;
+  padding-inline: 20px;
+  font-size: var(--mantine-font-size-xs);
+}
+
+.chipLabel.chipLabel:not([data-checked]) {
+  border: 1px solid var(--seeds-btn-secondary-border);
+  background-color: var(--seeds-bg-surface);
+  color: var(--seeds-btn-secondary-text);
+  font-weight: 700;
+}
+
+.chipLabel.chipLabel.chipLabel[data-checked] {
+  background-color: var(--seeds-btn-primary-bg);
+  border-color: var(--seeds-btn-primary-bg);
+  color: var(--seeds-btn-primary-text);
+}
+
+.chipIcon.chipIcon {
+  display: none;
+}
+
+.progressTrack.progressTrack {
+  background-color: var(--seeds-badge-neutral-bg);
+}
+
+.progressFill.progressFill {
+  background-color: var(--seeds-btn-primary-bg);
+}
+
+.main.main {
+  overflow-x: clip;
+  padding-inline-start: calc(var(--app-shell-navbar-offset, 0rem) + var(--app-shell-padding) + env(safe-area-inset-left));
+  padding-inline-end: calc(var(--app-shell-aside-offset, 0rem) + var(--app-shell-padding) + env(safe-area-inset-right));
+  padding-bottom: calc(var(--app-shell-footer-offset, 0rem) + var(--app-shell-padding) + env(safe-area-inset-bottom));
+}
+
+.navbar.navbar {
+  padding-bottom: calc(var(--mantine-spacing-xs) + env(safe-area-inset-bottom));
+  padding-left: calc(var(--mantine-spacing-xs) + env(safe-area-inset-left));
+}
+
+
