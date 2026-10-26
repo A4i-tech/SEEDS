@@ -257,15 +257,14 @@ class ServiceBusProvider:
         ]
         try:
             results = await asyncio.gather(*(h.initialize() for h in handles), return_exceptions=True)
+            failures = [(h, r) for h, r in zip(handles, results, strict=True) if isinstance(r, BaseException)]
+            if failures:
+                for h, r in failures:
+                    logger.error("Failed to initialize queue %s: %s", h.queue_name, r)
+                raise failures[0][1]
         except BaseException:
             await asyncio.gather(*(h.close() for h in handles), return_exceptions=True)
             raise
-        failures = [(h, r) for h, r in zip(handles, results) if isinstance(r, BaseException)]
-        if failures:
-            for h, r in failures:
-                logger.error("Failed to initialize queue %s: %s", h.queue_name, r)
-            await asyncio.gather(*(h.close() for h in handles), return_exceptions=True)
-            raise failures[0][1]
 
         self._call_webhook, self._dtmf_input, self._call_event, self._sync_jobs = handles
         self._initialized = True
