@@ -55,6 +55,18 @@ async def test_lifespan_reconciles_sync_jobs_by_app_mode(app_mode, expected_call
             "app.repositories.textbook_remediation_repository.TextbookRemediationRepository.ensure_indexes",
             new=AsyncMock(),
         ),
+        patch(
+            "app.repositories.integration_client_repository.IntegrationClientRepository.ensure_indexes",
+            new=AsyncMock(),
+        ),
+        patch(
+            "app.repositories.integration_token_repository.IntegrationTokenRepository.ensure_indexes",
+            new=AsyncMock(),
+        ),
+        patch(
+            "app.repositories.user_refresh_token_repository.UserRefreshTokenRepository.ensure_indexes",
+            new=AsyncMock(),
+        ),
         patch.object(ContentAggregatorSyncJobRepository, "ensure_indexes", new=AsyncMock()),
         patch.object(
             ContentAggregatorSyncJobRepository,
