@@ -9,21 +9,15 @@ RUN npm ci
 
 COPY . .
 
-# ---- Set build-time environment variables ----
-# These env vars will be baked into the React static build
-ARG REACT_APP_STORAGE_ACCOUNT_NAME
-ARG REACT_APP_API_BASE_URL
-
-ENV REACT_APP_STORAGE_ACCOUNT_NAME=$REACT_APP_STORAGE_ACCOUNT_NAME
-ENV REACT_APP_API_BASE_URL=$REACT_APP_API_BASE_URL
-
 RUN npm run build
 
 # ---- Serve stage ----
 FROM nginxinc/nginx-unprivileged:alpine
 
 # Copy build output to nginx html directory
-COPY --from=builder /app/build /usr/share/nginx/html
+COPY --from=builder --chown=nginx:nginx /app/build /usr/share/nginx/html
+
+COPY --chmod=755 runtime-env.sh /docker-entrypoint.d/40-runtime-env.sh
 
 # Copy custom nginx configuration
 COPY nginx.conf /etc/nginx/conf.d/default.conf

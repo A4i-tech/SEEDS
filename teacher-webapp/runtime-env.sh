@@ -1,0 +1,19 @@
+#!/bin/sh
+set -eu
+HTML_DIR="${HTML_DIR:-/usr/share/nginx/html}"
+VARS="REACT_APP_API_BASE_URL REACT_APP_STORAGE_ACCOUNT_NAME"
+out=""
+for v in $VARS; do
+  val=$(printenv "$v" || true)
+  if [ -z "$val" ]; then
+    echo "ERROR: $v is required and was not set. Set it as a container environment variable and restart." >&2
+    exit 1
+  fi
+  case $val in
+    *'"'*|*'\'*|*'<'*|*'&'*|*'|'*|*[[:cntrl:]]*)
+      echo "ERROR: $v contains a forbidden character (\" \ < & | or a control character). Remove it and restart." >&2
+      exit 1 ;;
+  esac
+  out="$out\"$v\":\"$val\","
+done
+echo "window.__ENV__ = {$out};" > "$HTML_DIR/env.js"

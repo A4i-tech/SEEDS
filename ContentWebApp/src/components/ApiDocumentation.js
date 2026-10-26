@@ -1,6 +1,7 @@
 import React from "react";
 import SwaggerUI from "swagger-ui-react";
 import "swagger-ui-react/swagger-ui.css";
+import { runtimeEnv } from "../utils/runtimeEnv";
 
 const swaggerDocument = {
   openapi: "3.0.0",
@@ -11,7 +12,7 @@ const swaggerDocument = {
   },
   servers: [
     {
-      url: process.env.REACT_APP_API_BASE_URL,
+      url: runtimeEnv("REACT_APP_API_BASE_URL"),
       description: "Development server",
     },
   ],

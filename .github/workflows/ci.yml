@@ -68,6 +68,10 @@ jobs:
         with:
           directory: ${{ matrix.service.context }}
 
+      - name: Test runtime env script
+        if: matrix.service.name == 'content-webapp' || matrix.service.name == 'teacher-webapp'
+        run: sh .github/scripts/test-runtime-env.sh ${{ matrix.service.context }}
+
       - name: Test (Node.js)
         if: matrix.service.lang == 'node'
         uses: ./.github/actions/run-node-tests

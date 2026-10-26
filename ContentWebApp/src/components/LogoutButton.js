@@ -2,9 +2,10 @@ import React from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
 import { getAuthHeaders } from "../utils/authHelpers";
+import { runtimeEnv } from "../utils/runtimeEnv";
 
 // Define your API's base URL
-const baseURL = process.env.REACT_APP_API_BASE_URL;
+const baseURL = runtimeEnv("REACT_APP_API_BASE_URL");
 
 const LogoutButton = () => {
   const navigate = useNavigate();
