@@ -12,12 +12,12 @@ FROM node:18-alpine AS runner
 
 WORKDIR /app
 
-COPY --from=builder /app ./
-
-RUN chown -R node:node /app
+COPY --from=builder --chown=node:node /app/node_modules ./node_modules
+COPY --from=builder --chown=node:node /app/package.json ./package.json
+COPY --from=builder --chown=node:node /app/src ./src
 
 USER node
 
 EXPOSE 3000
 
-CMD ["npm", "start"]
+CMD ["node", "src/server.js"]
