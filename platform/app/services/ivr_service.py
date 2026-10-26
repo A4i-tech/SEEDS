@@ -47,6 +47,10 @@ logger = logging.getLogger(__name__)
 
 
 
+def _stale_cutoff() -> datetime:
+    return datetime.now(UTC) - timedelta(minutes=get_settings().stale_wait_in_minutes)
+
+
 def _get_factory_and_accumulator():
     factory = VonageActionFactory()
     accumulator = factory.get_action_accumulator_implmentation()
@@ -155,13 +159,16 @@ class IVRService:
         settings = get_settings()
 
         ongoing_col = self._db["ongoingIVRState"]
-        cutoff = datetime.now(UTC) - timedelta(minutes=settings.stale_wait_in_minutes)
+        cutoff = _stale_cutoff()
+        await ongoing_col.delete_many({
+            "phone_number": phone_number,
+            "$or": [{"updated_at": {"$lt": cutoff}}, {"updated_at": None}],
+        })
         if await ongoing_col.find_one({"phone_number": phone_number, "updated_at": {"$gte": cutoff}}):
             return {
                 "status_code": 400,
                 "message": f"IVR already in progress for {phone_number}",
             }
-        await ongoing_col.delete_many({"phone_number": phone_number, "updated_at": {"$lt": cutoff}})
 
         if settings.ivr_daily_listening_limit_seconds > 0:
             today = get_ist_date_string()
@@ -574,7 +581,7 @@ class IVRService:
         global _latest_fsm_id
 
         ongoing_col = self._db["ongoingIVRState"]
-        active_count = await ongoing_col.count_documents({})
+        active_count = await ongoing_col.count_documents({"updated_at": {"$gte": _stale_cutoff()}})
         if active_count > 0:
             return {
                 "status_code": 409,
