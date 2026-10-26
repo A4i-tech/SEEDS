@@ -24,11 +24,15 @@ class ContentJobRepository(BaseRepository):
     async def ensure_indexes(cls, db: AsyncDatabase) -> None:
         await db[cls.COLLECTION].create_index("status")
 
-    async def create(self, content_id: str) -> str:
+    async def create(
+        self, content_id: str, tenant_id: str | None = None, source: str = "teacher"
+    ) -> str:
         """Insert a pending job for *content_id* and return its string _id."""
         job_doc: dict[str, Any] = {
             "_id": str(uuid.uuid4()),
             "content_id": content_id,
+            "tenant_id": tenant_id,
+            "source": source,
             "status": "pending",
             "created_at": datetime.now(UTC),
         }
@@ -38,6 +42,13 @@ class ContentJobRepository(BaseRepository):
     async def find_by_id(self, job_id: str) -> dict[str, Any] | None:
         """Return the job document for *job_id*, or None."""
         return await self._col.find_one({"_id": job_id})
+
+    async def find_latest_by_content_id(
+        self, tenant_id: str, content_id: str
+    ) -> dict[str, Any] | None:
+        return await self._col.find_one(
+            {"tenant_id": tenant_id, "content_id": content_id}, sort=[("created_at", -1)]
+        )
 
     async def find_active(self) -> list[dict[str, Any]]:
         """Return all running, claimed, or failed jobs sorted by created_at desc."""

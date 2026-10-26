@@ -27,3 +27,12 @@ async def test_require_aggregator_access_allows_tenant_school_admin_content_crea
 async def test_require_aggregator_access_blocks_teacher():
     with pytest.raises(ForbiddenError):
         await _require_aggregator_access(user={"role": "teacher"})
+
+
+def test_iris_source_is_registered_and_excluded_from_sync_all():
+    from app.aggregators.models import SourceType
+    from app.controllers.content_aggregator_controller import _SERVICE_FACTORIES, _SYNC_ALL_SOURCES
+    from app.services.iris_service import get_iris_service
+
+    assert _SERVICE_FACTORIES[SourceType.IRIS] is get_iris_service
+    assert SourceType.IRIS not in _SYNC_ALL_SOURCES

@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { contentAggregatorService } from "../../services/contentAggregatorService";
 import { MathText } from "./katexMath";
 
-export function MultipleChoiceProblem({ block, courseId, onBlockChange }) {
+export function MultipleChoiceProblem({ block, courseId, source, onBlockChange }) {
   // question/choices are extracted server-side at sync time (or by a prior
   // edit) — the block itself carries them, no client-side HTML parsing needed.
   const current = block.question && block.choices?.length ? { question: block.question, choices: block.choices } : null;
@@ -30,10 +30,12 @@ export function MultipleChoiceProblem({ block, courseId, onBlockChange }) {
     setSaving(true);
     const updatedChoices = current.choices.map((c, i) => ({ value: c.value, text: choiceDrafts[i] }));
     try {
-      await contentAggregatorService.updateProblemBlock(courseId, block.block_id, {
-        question: questionDraft,
-        choices: updatedChoices,
-      });
+      await contentAggregatorService.updateProblemBlock(
+        courseId,
+        block.block_id,
+        { question: questionDraft, choices: updatedChoices },
+        source
+      );
       onBlockChange?.({ ...block, question: questionDraft, choices: updatedChoices });
       setEditing(false);
     } catch (err) {
