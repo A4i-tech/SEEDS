@@ -352,7 +352,7 @@ class TestNoSecretLogging:
     async def test_issued_tokens_never_appear_in_logs(self, mock_db, auth, caplog):
         await _seed_client(mock_db)
 
-        with caplog.at_level(logging.WARNING):
+        with caplog.at_level(logging.DEBUG):
             result = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
 
         logged_text = "\n".join(record.getMessage() for record in caplog.records)
