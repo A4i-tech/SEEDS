@@ -307,6 +307,41 @@ class TestLogoutRevocation:
 
         assert await mock_db["userRefreshTokens"].count_documents({}) == 0
 
+    async def test_retry_after_partial_logout_failure_still_revokes_all_sessions(self, mock_db):
+        """If revoke_all_for_owner failed after mark_logout on a prior attempt,
+        a retry with the same (now-already-revoked) refresh token must still
+        sweep the owner's other active sessions rather than silently no-op."""
+        await _seed_tenant(mock_db)
+        service = AuthService(mock_db)
+        issued = await service.login_unified(
+            identifier="tenant@example.com", password="correct-horse", is_email=True
+        )
+        owner_id = issued["user"]["id"]
+
+        other_session_repo = user_refresh_token_repository.UserRefreshTokenRepository(mock_db)
+        now = datetime.now(tz=UTC)
+        await other_session_repo.insert(
+            token_id="other-session-raw-token",
+            owner_id=owner_id,
+            claims={"role": "tenant", "tenant_id": None, "school_id": None},
+            expires_at=now + timedelta(days=30),
+            family_expires_at=now + timedelta(days=30),
+            created_at=now,
+        )
+
+        await mock_db["userRefreshTokens"].update_one(
+            {"token_id": _stored_token_id(issued["refresh_token"])},
+            {"$set": {"revoked": True, "revoked_reason": "logout"}},
+        )
+
+        await service.logout_by_refresh_token(issued["refresh_token"])
+
+        other_doc = await mock_db["userRefreshTokens"].find_one(
+            {"token_id": _stored_token_id("other-session-raw-token")}
+        )
+        assert other_doc["revoked"] is True
+        assert other_doc["revoked_reason"] == "logout"
+
 
 class TestRefreshRebuildsAuthorizationClaims:
     async def test_refresh_uses_current_role_tenant_and_school_not_stale_token_claims(self, mock_db):

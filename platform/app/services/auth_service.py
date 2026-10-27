@@ -480,9 +480,13 @@ class AuthService:
         except (
             RefreshTokenNotFoundError,
             RefreshTokenExpiredError,
-            RefreshTokenRevokedError,
             RefreshTokenReplayedError,
         ):
+            return
+        except RefreshTokenRevokedError as exc:
+            # The token was already logged out — sweep the owner again so a
+            # retry after a prior partial failure still revokes all sessions.
+            await repo.revoke_all_for_owner(exc.owner_id, reason="logout")
             return
         except RefreshTokenReusedError as exc:
             await refresh_tokens.handle_reuse_detected(repo, exc, "auth.reuse_detected")

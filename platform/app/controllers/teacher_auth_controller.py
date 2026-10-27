@@ -17,6 +17,7 @@ from app.platform.auth.dependencies import (
     require_role,
     set_refresh_cookie,
 )
+from app.platform.error_handling import AppError, build_error_response
 from app.services.auth_service import AuthService, TeacherCreate, get_auth_service
 
 logger = logging.getLogger(__name__)
@@ -79,7 +80,12 @@ async def teacher_logout(
 ) -> MessageResponse:
     refresh_token = request.cookies.get(REFRESH_COOKIE_NAME)
     if refresh_token:
-        await service.logout_by_refresh_token(refresh_token)
+        try:
+            await service.logout_by_refresh_token(refresh_token)
+        except AppError as exc:
+            error_response = build_error_response(exc)
+            clear_refresh_cookie(error_response)
+            return error_response
     clear_refresh_cookie(response)
     return MessageResponse(message="Logout successful")
 

@@ -46,7 +46,7 @@ class FakeStore:
             raise RefreshTokenNotFoundError
         if doc["revoked"]:
             if doc["revoked_reason"] == "logout":
-                raise RefreshTokenRevokedError
+                raise RefreshTokenRevokedError(doc["owner_id"])
             if doc["revoked_reason"] == "consumed" and doc["consumed_at"] is not None:
                 elapsed = datetime.now(tz=UTC) - doc["consumed_at"]
                 if elapsed <= refresh_tokens_module.REPLAY_GRACE_WINDOW:
@@ -247,7 +247,7 @@ class TestRotate:
         assert store._tokens[token_a["refresh_token"]]["revoked_reason"] == "logout"
         assert store._tokens[token_b["refresh_token"]]["revoked_reason"] == "logout"
 
-    async def test_concurrent_refresh_within_grace_window_both_get_winners_pair(self):
+    async def test_interleaved_refresh_within_grace_window_both_get_winners_pair(self):
         store = FakeStore()
         issued = await _issue(store)
         root_refresh = issued["refresh_token"]

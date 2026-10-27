@@ -208,6 +208,31 @@ class TestTenantAuth:
         assert refresh_resp.status_code == 401
 
     @pytest.mark.asyncio
+    async def test_tenant_logout_with_reused_refresh_token_still_clears_cookie(self, client, mock_db):
+        await _seed_tenant(mock_db, email="tenantreuse@ext.com")
+        login_resp = await client.post("/auth/login", json={
+            "identifier": "tenantreuse@ext.com",
+            "password": "tenantpass",
+        })
+        assert login_resp.status_code == 200
+        stolen_refresh_token = login_resp.cookies.get("refresh_token")
+
+        client.cookies.set("refresh_token", stolen_refresh_token)
+        refresh_resp = await client.post("/auth/token/refresh")
+        assert refresh_resp.status_code == 200
+
+        await mock_db["userRefreshTokens"].update_one(
+            {"revoked_reason": "consumed"},
+            {"$set": {"consumed_at": datetime.now(tz=UTC) - timedelta(minutes=5)}},
+        )
+
+        client.cookies.set("refresh_token", stolen_refresh_token)
+        resp = await client.post("/tenant/logout")
+
+        assert resp.status_code == 401
+        assert "refresh_token=" in resp.headers.get("set-cookie", "")
+
+    @pytest.mark.asyncio
     async def test_refresh_cookie_path_covers_teacher_tenant_and_auth_routes(self, client, mock_db):
         await _seed_tenant(mock_db, email="cookiepath@ext.com")
         login_resp = await client.post("/auth/login", json={
