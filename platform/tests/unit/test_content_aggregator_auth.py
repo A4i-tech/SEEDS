@@ -185,6 +185,7 @@ class TestIssueTokenFailures:
             await auth.issue_token("partner-1", "super-secret", scopes=[])
         assert exc_info.value.status_code == 403
         assert exc_info.value.code == "SCOPE_INSUFFICIENT"
+        assert exc_info.value.message == "Request must include at least one scope."
 
 
 class TestRequestValidation:
