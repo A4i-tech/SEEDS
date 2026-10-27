@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import validator from "validator";
 import { setAuth, getTokenPayload } from "../utils/authHelpers";
@@ -101,12 +101,14 @@ const footerStyle = {
 
 const Login = () => {
   const navigate = useNavigate();
-  const { login, loginState } = useAuthContext();
+  const { login, loginState, clearLoginError } = useAuthContext();
   const [formError, setFormError] = useState("");
   const [formData, setFormData] = useState({
     identifier: "",
     password: "",
   });
+
+  useEffect(() => clearLoginError, [clearLoginError]);
 
   const showError =
     formError ||
