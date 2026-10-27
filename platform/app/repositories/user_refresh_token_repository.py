@@ -134,15 +134,13 @@ class UserRefreshTokenRepository(BaseRepository):
         pair["refresh_token"] = decrypt_secret(stored["refresh_token"])
         return cast(TokenPair, pair)
 
-    async def mark_logout(self, token_id: str) -> None:
-        hashed = hash_refresh_token(token_id)
-        await self._col.update_one(
-            {"token_id": hashed, "revoked_reason": "consumed"},
-            {"$set": {"revoked_reason": "logout"}},
-        )
-
-    async def revoke_all_for_owner(self, owner_id: str, *, reason: str) -> None:
-        await self._col.update_many(
-            {"owner_id": owner_id, "revoked": False},
-            {"$set": {"revoked": True, "revoked_reason": reason}},
-        )
+    async def revoke_all_for_owner(
+        self, owner_id: str, *, reason: str, include_token_id: str | None = None
+    ) -> None:
+        owner_filter = {"owner_id": owner_id, "revoked": False}
+        if include_token_id is None:
+            query = owner_filter
+        else:
+            hashed = hash_refresh_token(include_token_id)
+            query = {"$or": [owner_filter, {"token_id": hashed}]}
+        await self._col.update_many(query, {"$set": {"revoked": True, "revoked_reason": reason}})
