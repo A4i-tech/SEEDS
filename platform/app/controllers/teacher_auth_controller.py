@@ -15,10 +15,12 @@ from app.platform.auth.dependencies import (
     REFRESH_COOKIE_NAME,
     clear_refresh_cookie,
     get_current_user,
+    oauth2_scheme,
     require_role,
     set_refresh_cookie,
 )
-from app.platform.error_handling import AppError, build_error_response
+from app.platform.auth.jwt import verify_token
+from app.platform.error_handling import AppError, UnauthorizedError, build_error_response
 from app.services.auth_service import AuthService, TeacherCreate, get_auth_service
 
 logger = logging.getLogger(__name__)
@@ -78,6 +80,7 @@ async def teacher_register(
 async def teacher_logout(
     request: Request,
     response: Response,
+    token: str | None = Depends(oauth2_scheme),
     service: AuthService = Depends(get_auth_service),
 ) -> MessageResponse | JSONResponse:
     refresh_token = request.cookies.get(REFRESH_COOKIE_NAME)
@@ -88,6 +91,13 @@ async def teacher_logout(
             error_response = build_error_response(exc)
             clear_refresh_cookie(error_response)
             return error_response
+    elif token:
+        try:
+            user = verify_token(token)
+        except UnauthorizedError:
+            user = None
+        if user:
+            await service.logout(user.get("sub", ""))
     clear_refresh_cookie(response)
     return MessageResponse(message="Logout successful")
 

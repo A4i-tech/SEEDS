@@ -8,4 +8,5 @@ export const setAccessToken = (token) => {
 
 export const clearAccessToken = () => {
   accessToken = null;
+  localStorage.removeItem("authToken");
 };
