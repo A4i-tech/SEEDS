@@ -20,6 +20,8 @@ jobs:
           filters: |
             changed:
               - 'ContentWebApp/**'
+              - 'platform/**'
+              - 'teacher-webapp/**'
 
   ci-workflow:
     uses: ./.github/workflows/ci.yml
