@@ -11,7 +11,7 @@ from app.models.requests.content_aggregator_requests import (
     ContentAggregatorTokenRequest,
 )
 from app.models.responses.login import AggregatorTokenResponse
-from app.platform.auth.dependencies import get_db
+from app.platform.auth.dependencies import get_db, require_tenant
 from app.platform.error_handling import AppError, UnauthorizedError
 from app.platform.settings import Settings, get_settings
 from app.services.content_aggregator.auth import ContentAggregatorAuth
@@ -86,6 +86,7 @@ async def refresh_token(
 async def register_client(
     body: ContentAggregatorRegisterRequest,
     auth: ContentAggregatorAuth = Depends(get_content_aggregator_auth),
+    current_user: dict = Depends(require_tenant),
 ) -> ContentAggregatorRegisterResponse:
     client_id, client_secret = await auth.register_client(
         name=body.name, tenant_ids=body.tenant_ids, scopes=body.scopes
