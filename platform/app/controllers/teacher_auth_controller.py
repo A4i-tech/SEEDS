@@ -8,6 +8,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Request, Response, status
 from fastapi.responses import JSONResponse
 
+from app.controllers._auth_helpers import logout_bearer_fallback
 from app.models.requests.auth_requests import TeacherLoginRequest, TeacherRegisterRequest
 from app.models.responses.login import LoginResponse, MessageResponse
 from app.models.responses.user import UserPublicResponse
@@ -19,8 +20,7 @@ from app.platform.auth.dependencies import (
     require_role,
     set_refresh_cookie,
 )
-from app.platform.auth.jwt import verify_token
-from app.platform.error_handling import AppError, UnauthorizedError, build_error_response
+from app.platform.error_handling import AppError, build_error_response
 from app.services.auth_service import AuthService, TeacherCreate, get_auth_service
 
 logger = logging.getLogger(__name__)
@@ -91,13 +91,8 @@ async def teacher_logout(
             error_response = build_error_response(exc)
             clear_refresh_cookie(error_response)
             return error_response
-    elif token:
-        try:
-            user = verify_token(token)
-        except UnauthorizedError:
-            user = None
-        if user:
-            await service.logout(user.get("sub", ""))
+    else:
+        await logout_bearer_fallback(token, service)
     clear_refresh_cookie(response)
     return MessageResponse(message="Logout successful")
 

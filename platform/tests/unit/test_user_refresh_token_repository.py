@@ -6,7 +6,11 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from pymongo.errors import DuplicateKeyError
 
-from app.platform.auth.refresh_tokens import RefreshTokenReplayedError, RefreshTokenReusedError
+from app.platform.auth.refresh_tokens import (
+    RefreshTokenPendingError,
+    RefreshTokenReplayedError,
+    RefreshTokenReusedError,
+)
 from app.repositories.user_refresh_token_repository import UserRefreshTokenRepository
 from tests.support.mongomock_async import AsyncMongoMockClient
 
@@ -115,6 +119,27 @@ async def test_try_consume_reuse_after_grace_window_is_genuine_theft(mock_db):
 
     with pytest.raises(RefreshTokenReusedError):
         await repo.try_consume("raw-token")
+
+
+async def test_try_consume_without_replay_cache_entry_raises_pending(mock_db):
+    """If the replay cache never gets populated, polling exhausts and the retry is pending."""
+    await UserRefreshTokenRepository.ensure_indexes(mock_db)
+    repo = UserRefreshTokenRepository(mock_db)
+    now = datetime.now(tz=UTC)
+    await repo.insert(
+        token_id="raw-token",
+        owner_id="user-1",
+        claims={"role": "teacher", "tenant_id": "t1", "school_id": None},
+        expires_at=now + timedelta(days=30),
+        family_expires_at=now + timedelta(days=30),
+        created_at=now,
+    )
+    await repo.try_consume("raw-token")
+
+    with pytest.raises(RefreshTokenPendingError) as exc_info:
+        await repo.try_consume("raw-token")
+
+    assert exc_info.value.owner_id == "user-1"
 
 
 async def test_cache_replay_stores_tokens_encrypted_at_rest(mock_db):

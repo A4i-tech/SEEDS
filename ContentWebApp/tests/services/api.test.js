@@ -78,6 +78,36 @@ describe("apiFetch", () => {
     expect(global.fetch.mock.calls[2][1].headers.Authorization).toBe("Bearer new-token");
   });
 
+  it("retries a pending refresh exactly once on 409 REFRESH_TOKEN_PENDING, then retries the original request", async () => {
+    setAccessToken("expired-token");
+    global.fetch
+      .mockResolvedValueOnce(fakeResponse({ ok: false, status: 401, text: "expired" }))
+      .mockResolvedValueOnce(
+        fakeResponse({ ok: false, status: 409, text: JSON.stringify({ code: "REFRESH_TOKEN_PENDING" }) })
+      )
+      .mockResolvedValueOnce(fakeResponse({ ok: true, contentType: "application/json", json: { access_token: "new-token" } }))
+      .mockResolvedValueOnce(fakeResponse({ ok: true, contentType: "application/json", json: { a: 1 } }));
+
+    await expect(apiFetch("/x")).resolves.toEqual({ a: 1 });
+    expect(clearAuth).not.toHaveBeenCalled();
+    expect(global.fetch).toHaveBeenCalledTimes(4);
+  });
+
+  it("does not loop forever when REFRESH_TOKEN_PENDING persists past the single retry", async () => {
+    setAccessToken("expired-token");
+    global.fetch
+      .mockResolvedValueOnce(fakeResponse({ ok: false, status: 401, text: "expired" }))
+      .mockResolvedValueOnce(
+        fakeResponse({ ok: false, status: 409, text: JSON.stringify({ code: "REFRESH_TOKEN_PENDING" }) })
+      )
+      .mockResolvedValueOnce(
+        fakeResponse({ ok: false, status: 409, text: JSON.stringify({ code: "REFRESH_TOKEN_PENDING" }) })
+      );
+
+    await expect(apiFetch("/x")).rejects.toMatchObject({ status: 409 });
+    expect(global.fetch).toHaveBeenCalledTimes(3);
+  });
+
   it("does not log out when the refresh request itself fails with a network error", async () => {
     setAccessToken("expired-token");
     global.fetch

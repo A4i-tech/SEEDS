@@ -24,21 +24,36 @@ const messageFromBody = (text) => {
 
 let refreshPromise = null;
 
+const requestTokenRefresh = async (isPendingRetry = false) => {
+  const response = await fetch(`${SEEDS_URL}/auth/token/refresh`, {
+    method: "POST",
+    credentials: "include",
+  });
+  if (!response.ok) {
+    const body = await response.text();
+    if (response.status === 409 && !isPendingRetry && isPendingRefreshBody(body)) {
+      return requestTokenRefresh(true);
+    }
+    throw new ApiError(body || "refresh failed", response.status, response);
+  }
+  const data = await response.json();
+  setAccessToken(data.access_token);
+  return data.access_token;
+};
+
+const isPendingRefreshBody = (body) => {
+  try {
+    return JSON.parse(body).code === "REFRESH_TOKEN_PENDING";
+  } catch {
+    return false;
+  }
+};
+
 export const refreshAccessToken = async () => {
   if (!refreshPromise) {
     refreshPromise = (async () => {
       try {
-        const response = await fetch(`${SEEDS_URL}/auth/token/refresh`, {
-          method: "POST",
-          credentials: "include",
-        });
-        if (!response.ok) {
-          const body = await response.text();
-          throw new ApiError(body || "refresh failed", response.status, response);
-        }
-        const data = await response.json();
-        setAccessToken(data.access_token);
-        return data.access_token;
+        return await requestTokenRefresh();
       } finally {
         refreshPromise = null;
       }
