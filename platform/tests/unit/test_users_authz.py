@@ -143,6 +143,67 @@ class TestLoginNative:
         assert result is None  # was not returned on bad password
 
 
+class TestLoginUnifiedPhoneRole:
+    @pytest.mark.asyncio
+    async def test_login_teacher_via_phone_succeeds(self, mock_db):
+        """TEACHER must be able to log in via the phone branch (#595 regression)."""
+        from app.services.auth_service import TeacherCreate, login_unified, register_teacher
+
+        plain = "Teach$123"
+        data = TeacherCreate(
+            name="Phone Teacher",
+            email="phone.teacher@school.example",
+            password=plain,
+            role="teacher",
+            phone="+15550001111",
+        )
+        await register_teacher(data, mock_db)
+
+        result = await login_unified("+15550001111", plain, False, mock_db)
+
+        assert "token" in result
+        assert result["user"]["role"] == "teacher"
+
+    @pytest.mark.asyncio
+    async def test_login_content_creator_via_phone_still_succeeds(self, mock_db):
+        """CONTENT_CREATOR must remain able to log in via the phone branch."""
+        from app.services.auth_service import TeacherCreate, login_unified, register_teacher
+
+        plain = "Create$123"
+        data = TeacherCreate(
+            name="Phone Creator",
+            email="phone.creator@school.example",
+            password=plain,
+            role="content_creator",
+            phone="+15550002222",
+        )
+        await register_teacher(data, mock_db)
+
+        result = await login_unified("+15550002222", plain, False, mock_db)
+
+        assert "token" in result
+        assert result["user"]["role"] == "content_creator"
+
+    @pytest.mark.asyncio
+    async def test_login_unauthorized_role_via_phone_raises_unauthorized(self, mock_db):
+        """A role outside the phone-login allowlist (e.g. student) must raise UnauthorizedError."""
+        from app.platform.error_handling import UnauthorizedError
+        from app.services.auth_service import TeacherCreate, login_unified, register_teacher
+
+        plain = "Student$123"
+        data = TeacherCreate(
+            name="Phone Student",
+            email="phone.student@school.example",
+            password=plain,
+            role="student",
+            phone="+15550003333",
+        )
+        await register_teacher(data, mock_db)
+
+        with pytest.raises(UnauthorizedError):
+            await login_unified("+15550003333", plain, False, mock_db)
+
+
 # ---------------------------------------------------------------------------
 # Tenant-scope authz tests
 # ---------------------------------------------------------------------------
