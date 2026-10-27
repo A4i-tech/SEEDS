@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi.responses import JSONResponse
 
 from app.models.requests.auth_requests import TenantChangePasswordRequest, TenantRegisterRequest
 from app.models.requests.tenant_requests import TenantAnalyticsRequest
@@ -59,12 +60,13 @@ async def tenant_register(
     "/logout",
     summary="Tenant logout",
     status_code=status.HTTP_200_OK,
+    response_model=None,
 )
 async def tenant_logout(
     request: Request,
     response: Response,
     service: AuthService = Depends(get_auth_service),
-) -> MessageResponse:
+) -> MessageResponse | JSONResponse:
     refresh_token = request.cookies.get(REFRESH_COOKIE_NAME)
     if refresh_token:
         try:

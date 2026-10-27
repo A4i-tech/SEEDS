@@ -6,6 +6,7 @@ import logging
 from typing import Any
 
 from fastapi import APIRouter, Depends, Request, Response, status
+from fastapi.responses import JSONResponse
 
 from app.models.requests.auth_requests import TeacherLoginRequest, TeacherRegisterRequest
 from app.models.responses.login import LoginResponse, MessageResponse
@@ -72,12 +73,13 @@ async def teacher_register(
     "/logout",
     summary="Teacher logout",
     status_code=status.HTTP_200_OK,
+    response_model=None,
 )
 async def teacher_logout(
     request: Request,
     response: Response,
     service: AuthService = Depends(get_auth_service),
-) -> MessageResponse:
+) -> MessageResponse | JSONResponse:
     refresh_token = request.cookies.get(REFRESH_COOKIE_NAME)
     if refresh_token:
         try:

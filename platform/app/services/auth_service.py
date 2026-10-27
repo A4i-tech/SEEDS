@@ -33,6 +33,7 @@ from app.platform.auth.jwt import create_access_token, parse_expires_delta
 from app.platform.auth.refresh_tokens import (
     RefreshTokenExpiredError,
     RefreshTokenNotFoundError,
+    RefreshTokenPendingError,
     RefreshTokenReplayedError,
     RefreshTokenReusedError,
     RefreshTokenRevokedError,
@@ -481,18 +482,17 @@ class AuthService:
             RefreshTokenNotFoundError,
             RefreshTokenExpiredError,
             RefreshTokenReplayedError,
+            RefreshTokenPendingError,
         ):
             return
         except RefreshTokenRevokedError as exc:
-            # The token was already logged out — sweep the owner again so a
-            # retry after a prior partial failure still revokes all sessions.
             await repo.revoke_all_for_owner(exc.owner_id, reason="logout")
             return
         except RefreshTokenReusedError as exc:
             await refresh_tokens.handle_reuse_detected(repo, exc, "auth.reuse_detected")
             raise UnauthorizedError("Invalid refresh token") from None
-        await repo.mark_logout(refresh_token)
         await repo.revoke_all_for_owner(consumed.owner_id, reason="logout")
+        await repo.mark_logout(refresh_token)
 
     async def get_user_profile(self, user_id: str, entity_label: str) -> User:
         return await get_user_profile(user_id, entity_label, self._db)

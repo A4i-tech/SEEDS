@@ -13,6 +13,7 @@ from app.platform.auth.refresh_tokens import (
     ConsumedToken,
     RefreshTokenExpiredError,
     RefreshTokenNotFoundError,
+    RefreshTokenPendingError,
     RefreshTokenReplayedError,
     RefreshTokenReusedError,
     RefreshTokenRevokedError,
@@ -25,9 +26,7 @@ from app.repositories.base_repository import BaseRepository
 class UserRefreshTokenRepository(BaseRepository):
     COLLECTION = "userRefreshTokens"
     REPLAY_CACHE_COLLECTION = "userRefreshTokenReplays"
-    # A concurrent request can observe a token as "just consumed" before the
-    # consuming request has finished writing its replay-cache entry. Poll
-    # briefly for that entry instead of treating the race as token reuse.
+    # Poll briefly for a concurrent request's replay-cache entry before treating it as reuse.
     _REPLAY_CACHE_POLL_ATTEMPTS = 10
     _REPLAY_CACHE_POLL_INTERVAL_SECONDS = 0.05
 
@@ -88,9 +87,6 @@ class UserRefreshTokenRepository(BaseRepository):
             {"$set": {"revoked": True, "revoked_reason": "consumed", "consumed_at": now}},
         )
         if doc is not None:
-            await self._replay_col.update_one(
-                {"_id": hashed}, {"$setOnInsert": {"created_at": now}}, upsert=True
-            )
             return self._to_consumed(doc)
 
         existing = await self._col.find_one({"token_id": hashed})
@@ -109,6 +105,7 @@ class UserRefreshTokenRepository(BaseRepository):
                         raise RefreshTokenReplayedError(self._decrypt_pair(cached["pair"]))
                     if attempt < self._REPLAY_CACHE_POLL_ATTEMPTS - 1:
                         await asyncio.sleep(self._REPLAY_CACHE_POLL_INTERVAL_SECONDS)
+                raise RefreshTokenPendingError
         raise RefreshTokenReusedError(existing["owner_id"])
 
     async def cache_replay(self, token_id: str, pair: TokenPair) -> None:
