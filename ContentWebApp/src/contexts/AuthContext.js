@@ -42,6 +42,10 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
+  const clearLoginError = useCallback(() => {
+    setLoginState((prev) => (prev.error ? { ...prev, error: null } : prev));
+  }, []);
+
   const logout = useCallback(async () => {
     const token = getAccessToken();
     if (token) {
@@ -70,6 +74,7 @@ export const AuthProvider = ({ children }) => {
         initializing: initState.isLoading,
         login,
         loginState,
+        clearLoginError,
         logout,
       }}
     >

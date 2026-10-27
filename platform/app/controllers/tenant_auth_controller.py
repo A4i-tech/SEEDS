@@ -19,6 +19,7 @@ from app.platform.auth.dependencies import (
     clear_refresh_cookie,
     require_tenant,
 )
+from app.platform.error_handling import AppError, build_error_response
 from app.repositories.ivr_repository import IVRRepository
 from app.services.auth_service import AuthService, TenantCreate, get_auth_service
 
@@ -66,7 +67,12 @@ async def tenant_logout(
 ) -> MessageResponse:
     refresh_token = request.cookies.get(REFRESH_COOKIE_NAME)
     if refresh_token:
-        await service.logout_by_refresh_token(refresh_token)
+        try:
+            await service.logout_by_refresh_token(refresh_token)
+        except AppError as exc:
+            error_response = build_error_response(exc)
+            clear_refresh_cookie(error_response)
+            return error_response
     clear_refresh_cookie(response)
     return MessageResponse(message="Logout successful")
 
