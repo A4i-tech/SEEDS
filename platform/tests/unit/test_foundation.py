@@ -147,6 +147,15 @@ async def test_settings_defaults() -> None:
     assert s.mongo_max_pool_size == 50
 
 
+def test_settings_rejects_blank_secret_key() -> None:
+    from app.platform.settings import Settings
+
+    with pytest.raises(ValueError):
+        Settings(secret_key="")
+    with pytest.raises(ValueError):
+        Settings(secret_key="   ")
+
+
 def test_database_not_init_at_import() -> None:
     """
     Importing database module must NOT create a PyMongo async client.
