@@ -148,3 +148,31 @@ def verify_token(token: str) -> dict[str, Any]:
         raise UnauthorizedError("Invalid token issuer")
 
     return payload
+
+
+def verify_expired_token_for_logout(token: str) -> dict[str, Any]:
+    """
+    Decode *token* for logout purposes only, accepting an expired exp.
+
+    Signature and issuer are still enforced. Never use the returned claims
+    to authorize a request — only to identify the owner to revoke.
+    """
+    settings = get_settings()
+
+    try:
+        payload: dict[str, Any] = jwt.decode(
+            token,
+            settings.secret_key,
+            algorithms=[_ALGORITHM],
+            issuer=_ISSUER,
+            options={"require": ["sub", "exp", "iss"], "verify_exp": False},
+        )
+    except JWTError as exc:
+        logger.warning("auth: token verification failed — %s", exc)
+        raise UnauthorizedError("Invalid token")
+
+    if payload.get("iss") != _ISSUER:
+        logger.warning("auth: wrong issuer '%s'", payload.get("iss"))
+        raise UnauthorizedError("Invalid token issuer")
+
+    return payload
