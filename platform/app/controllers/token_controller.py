@@ -30,7 +30,8 @@ async def refresh_token(
         result = await service.refresh(token)
     except AppError as exc:
         error_response = build_error_response(exc)
-        clear_refresh_cookie(error_response)
+        if exc.code != "REFRESH_TOKEN_PENDING":
+            clear_refresh_cookie(error_response)
         return error_response
     set_refresh_cookie(response, result["refresh_token"])
     return TokenResponse(

@@ -105,7 +105,7 @@ class UserRefreshTokenRepository(BaseRepository):
                         raise RefreshTokenReplayedError(self._decrypt_pair(cached["pair"]))
                     if attempt < self._REPLAY_CACHE_POLL_ATTEMPTS - 1:
                         await asyncio.sleep(self._REPLAY_CACHE_POLL_INTERVAL_SECONDS)
-                raise RefreshTokenPendingError
+                raise RefreshTokenPendingError(existing["owner_id"])
         raise RefreshTokenReusedError(existing["owner_id"])
 
     async def cache_replay(self, token_id: str, pair: TokenPair) -> None:

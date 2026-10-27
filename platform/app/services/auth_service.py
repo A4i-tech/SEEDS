@@ -482,10 +482,9 @@ class AuthService:
             RefreshTokenNotFoundError,
             RefreshTokenExpiredError,
             RefreshTokenReplayedError,
-            RefreshTokenPendingError,
         ):
             return
-        except RefreshTokenRevokedError as exc:
+        except (RefreshTokenRevokedError, RefreshTokenPendingError) as exc:
             await repo.revoke_all_for_owner(exc.owner_id, reason="logout")
             return
         except RefreshTokenReusedError as exc:

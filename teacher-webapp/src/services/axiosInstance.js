@@ -25,13 +25,24 @@ axiosInstance.interceptors.request.use(
 
 let refreshPromise = null;
 
+const requestTokenRefresh = async (isPendingRetry = false) => {
+  try {
+    const response = await axios.post(API_ENDPOINTS.REFRESH, {}, { withCredentials: true });
+    setAccessToken(response.data.access_token);
+    return response.data.access_token;
+  } catch (error) {
+    if (!isPendingRetry && error.response?.status === 409 && error.response?.data?.code === "REFRESH_TOKEN_PENDING") {
+      return requestTokenRefresh(true);
+    }
+    throw error;
+  }
+};
+
 export const refreshAccessToken = async () => {
   if (!refreshPromise) {
     refreshPromise = (async () => {
       try {
-        const response = await axios.post(API_ENDPOINTS.REFRESH, {}, { withCredentials: true });
-        setAccessToken(response.data.access_token);
-        return response.data.access_token;
+        return await requestTokenRefresh();
       } finally {
         refreshPromise = null;
       }

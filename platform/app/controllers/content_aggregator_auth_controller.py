@@ -12,7 +12,7 @@ from app.models.requests.content_aggregator_requests import (
 )
 from app.models.responses.login import AggregatorTokenResponse
 from app.platform.auth.dependencies import get_db, require_tenant
-from app.platform.error_handling import AppError, UnauthorizedError
+from app.platform.error_handling import AppError, ForbiddenError, UnauthorizedError
 from app.platform.settings import Settings, get_settings
 from app.services.content_aggregator.auth import ContentAggregatorAuth
 
@@ -88,6 +88,9 @@ async def register_client(
     auth: ContentAggregatorAuth = Depends(get_content_aggregator_auth),
     current_user: dict = Depends(require_tenant),
 ) -> ContentAggregatorRegisterResponse:
+    caller_tenant_id = current_user.get("sub", "")
+    if any(tenant_id != caller_tenant_id for tenant_id in body.tenant_ids):
+        raise ForbiddenError("tenant_ids must match the authenticated tenant")
     client_id, client_secret = await auth.register_client(
         name=body.name, tenant_ids=body.tenant_ids, scopes=body.scopes
     )
