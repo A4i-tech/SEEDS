@@ -55,6 +55,7 @@ async def test_expired_bearer_token_with_bad_signature_does_not_logout():
     token = create_access_token(
         {"sub": "teacher-1", "role": "teacher"}, expires_delta=timedelta(seconds=-1)
     )
-    tampered = token[:-1] + ("A" if token[-1] != "A" else "B")
+    mid = len(token) // 2
+    tampered = token[:mid] + ("A" if token[mid] != "A" else "B") + token[mid + 1 :]
     await logout_bearer_fallback(tampered, service)
     service.logout.assert_not_awaited()
