@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, Request, Response
+from fastapi.responses import JSONResponse
 
 from app.models.responses.login import TokenResponse
 from app.platform.auth.dependencies import (
@@ -14,12 +15,14 @@ from app.services.auth_service import AuthService, get_auth_service
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
 
-@router.post("/token/refresh", summary="Exchange a refresh token for a new access token")
+@router.post(
+    "/token/refresh", summary="Exchange a refresh token for a new access token", response_model=None
+)
 async def refresh_token(
     request: Request,
     response: Response,
     service: AuthService = Depends(get_auth_service),
-) -> TokenResponse:
+) -> TokenResponse | JSONResponse:
     token = request.cookies.get(REFRESH_COOKIE_NAME)
     if not token:
         raise UnauthorizedError("Missing refresh token")

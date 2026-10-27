@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class ContentAggregatorTokenRequest(BaseModel):
@@ -14,9 +14,30 @@ class ContentAggregatorRefreshRequest(BaseModel):
 
 
 class ContentAggregatorRegisterRequest(BaseModel):
-    name: str
-    tenant_ids: list[str]
-    scopes: list[str]
+    name: str = Field(min_length=1)
+    tenant_ids: list[str] = Field(min_length=1)
+    scopes: list[str] = Field(min_length=1)
+
+    @field_validator("name")
+    @classmethod
+    def _validate_name(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("name must not be blank")
+        return value
+
+    @field_validator("tenant_ids")
+    @classmethod
+    def _validate_tenant_ids(cls, values: list[str]) -> list[str]:
+        if any(not v.strip() for v in values):
+            raise ValueError("tenant_ids must not contain blank values")
+        return values
+
+    @field_validator("scopes")
+    @classmethod
+    def _validate_scopes(cls, values: list[str]) -> list[str]:
+        if any(not v or v.split() != [v] for v in values):
+            raise ValueError("scopes must be non-empty, whitespace-free tokens")
+        return values
 
 
 class ContentAggregatorRegisterResponse(BaseModel):

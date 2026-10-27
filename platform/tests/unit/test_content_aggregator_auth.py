@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import ast
+import logging
 from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
 from jose import jwt as jose_jwt
+from jose.exceptions import JWTError
 from pydantic import ValidationError
 
 from app.models.requests.content_aggregator_requests import ContentAggregatorTokenRequest
@@ -90,7 +92,7 @@ class TestIssueTokenSuccess:
 
         result = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
 
-        with pytest.raises(Exception):  # noqa: B017, PT011 - opaque token, not a JWT
+        with pytest.raises(JWTError):
             jose_jwt.decode(
                 result["refresh_token"],
                 "anything",
@@ -336,16 +338,25 @@ class TestJwtImportConfinement:
 
 
 class TestNoSecretLogging:
-    def test_auth_module_never_logs_secret_or_token_variables(self):
-        source = (PACKAGE_ROOT / "services" / "content_aggregator" / "auth.py").read_text(
-            encoding="utf-8"
-        )
-        forbidden_patterns = ["client_secret)", "access_token)", "refresh_token)"]
-        for line in source.splitlines():
-            if "logger." not in line:
-                continue
-            for pattern in forbidden_patterns:
-                assert pattern not in line, f"possible secret logging: {line!r}"
+    async def test_invalid_credentials_log_never_contains_the_secret(self, mock_db, auth, caplog):
+        await _seed_client(mock_db, secret="super-secret")
+
+        with caplog.at_level(logging.WARNING):
+            with pytest.raises(UnauthorizedError):
+                await auth.issue_token("partner-1", "super-secret-but-wrong", scopes=["content:read"])
+
+        logged_text = "\n".join(record.getMessage() for record in caplog.records)
+        assert "super-secret" not in logged_text
+
+    async def test_issued_tokens_never_appear_in_logs(self, mock_db, auth, caplog):
+        await _seed_client(mock_db)
+
+        with caplog.at_level(logging.WARNING):
+            result = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
+
+        logged_text = "\n".join(record.getMessage() for record in caplog.records)
+        assert result["access_token"] not in logged_text
+        assert result["refresh_token"] not in logged_text
 
 
 class TestAggregatorTokenControllerResponse:

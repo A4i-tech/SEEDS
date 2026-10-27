@@ -75,23 +75,24 @@ export const apiFetch = async (url, { timeoutMs, ...options } = {}, _isRetry = f
 
     if (!response.ok) {
       if (response.status === 401 && getAccessToken() && !_isRetry) {
+        let newToken;
         try {
-          const newToken = await refreshAccessToken();
-          return await apiFetch(
-            url,
-            { ...options, timeoutMs, headers: { ...options.headers, Authorization: `Bearer ${newToken}` } },
-            true
-          );
+          newToken = await refreshAccessToken();
         } catch (refreshError) {
           console.error("apiFetch: token refresh failed", refreshError);
-          if (refreshError.status !== 401) {
-            throw refreshError;
+          if (refreshError.status === 401) {
+            clearAuth();
+            if (typeof window !== "undefined" && window.location.pathname !== "/") {
+              window.location.href = "/";
+            }
           }
-          clearAuth();
-          if (typeof window !== "undefined" && window.location.pathname !== "/") {
-            window.location.href = "/";
-          }
+          throw refreshError;
         }
+        return await apiFetch(
+          url,
+          { ...options, timeoutMs, headers: { ...options.headers, Authorization: `Bearer ${newToken}` } },
+          true
+        );
       } else if (response.status === 401) {
         clearAuth();
         if (typeof window !== "undefined" && window.location.pathname !== "/") {
@@ -146,9 +147,31 @@ export const buildQueryString = (params) => {
   return searchParams.toString();
 };
 
-const apiFetchRaw = async (url, { headers, signal } = {}) => {
+const apiFetchRaw = async (url, { headers, signal } = {}, _isRetry = false) => {
   const response = await fetch(url, { headers, signal });
   if (!response.ok) {
+    if (response.status === 401 && getAccessToken() && !_isRetry) {
+      let newToken;
+      try {
+        newToken = await refreshAccessToken();
+      } catch (refreshError) {
+        console.error("apiFetchRaw: token refresh failed", refreshError);
+        if (refreshError.status === 401) {
+          clearAuth();
+          if (typeof window !== "undefined" && window.location.pathname !== "/") {
+            window.location.href = "/";
+          }
+        }
+        throw refreshError;
+      }
+      return apiFetchRaw(url, { headers: { ...headers, Authorization: `Bearer ${newToken}` }, signal }, true);
+    }
+    if (response.status === 401) {
+      clearAuth();
+      if (typeof window !== "undefined" && window.location.pathname !== "/") {
+        window.location.href = "/";
+      }
+    }
     throw new ApiError(`Request failed with status ${response.status}`, response.status, response);
   }
   return response;
