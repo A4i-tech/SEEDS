@@ -17,7 +17,7 @@ global.EventSource = jest.fn(() => ({
 }));
 
 // Mock environment variables
-process.env.REACT_APP_API_BASE_URL = "http://localhost:3001";
+window.__ENV__ = { REACT_APP_API_BASE_URL: "http://localhost:3001" };
 
 describe("App Component", () => {
   const renderApp = () =>

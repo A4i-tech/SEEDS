@@ -18,7 +18,6 @@ import RemediationTab from "./AllContent/RemediationTab/RemediationTab";
 import { USER_ROLES } from "../Constants";
 import "./AllContent/AllContent.css";
 import "./AllContent/shared/responsive.css";
-import { runtimeEnv } from "../utils/runtimeEnv";
 
 const AllContent = () => {
   const [searchParams] = useSearchParams();
@@ -79,7 +78,7 @@ const AllContent = () => {
     deleteSchool,
   } = useSchools(activeTab);
 
-  const ivrURL = runtimeEnv("REACT_APP_API_BASE_URL");
+  const ivrURL = window.__ENV__.REACT_APP_API_BASE_URL;
   const canViewRegistration =
     currentUserRole === USER_ROLES.TENANT || currentUserRole === USER_ROLES.SCHOOL_ADMIN;
   const canViewAnalytics = canViewRegistration;

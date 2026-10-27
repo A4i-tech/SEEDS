@@ -10,6 +10,7 @@ RUN npm ci
 # Copy source code
 COPY . .
 
+# Build React app
 RUN npm run build
 
 # ---- Production stage ----

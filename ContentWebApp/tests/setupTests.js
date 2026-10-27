@@ -3,6 +3,11 @@
 // expect(element).toHaveTextContent(/react/i)
 // learn more: https://github.com/testing-library/jest-dom
 import "@testing-library/jest-dom";
+
+window.__ENV__ = {
+  REACT_APP_API_BASE_URL: "http://localhost:4000",
+  REACT_APP_STORAGE_ACCOUNT_NAME: "",
+};
 import '@testing-library/jest-dom';
 // Suppress React Router v7 future flag warnings in tests
 const originalWarn = console.warn;

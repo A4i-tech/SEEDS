@@ -10,8 +10,10 @@ jest.mock("../../src/utils/phoneUtils", () => ({
 }));
 
 // Mock environment variables
-process.env.REACT_APP_API_BASE_URL = "http://localhost:3001";
-process.env.REACT_APP_STORAGE_ACCOUNT_NAME = "testaccount";
+window.__ENV__ = {
+  REACT_APP_API_BASE_URL: "http://localhost:3001",
+  REACT_APP_STORAGE_ACCOUNT_NAME: "testaccount",
+};
 
 describe("apiService", () => {
   const confId = "conf-123";

@@ -15,6 +15,7 @@ rejects() { # <expected stderr text> <env assignments...>
 
 run $(good) || { echo "FAIL: valid config rejected: $(cat "$tmp/err")"; exit 1; }
 for v in $vars; do
+  case $v in *GOOGLE*) ! grep -q "$v" "$tmp/env.js" || { echo "FAIL: $v leaked into env.js"; exit 1; }; continue ;; esac
   grep -q "\"$v\":\"value-1\"" "$tmp/env.js" || { echo "FAIL: $v missing from env.js"; exit 1; }
 done
 if grep -q GOOGLE_SITE "$script"; then
@@ -23,7 +24,7 @@ fi
 
 for v in $vars; do
   rejects "ERROR: $v is required" $(good | sed "s/$v=value-1 //")
-  for bad in 'a"b' 'a\b' 'a<b' 'a&b' 'a|b' "a$(printf '\t')b"; do
+  for bad in 'a"b' 'a\b' 'a<b' 'a&b' 'a|b' "a$(printf '\t')b" 'a b'; do
     rejects "ERROR: $v contains" $(good | sed "s/$v=value-1 //") "$v=$bad"
   done
 done

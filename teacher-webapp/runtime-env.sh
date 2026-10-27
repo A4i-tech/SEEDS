@@ -10,8 +10,8 @@ for v in $VARS; do
     exit 1
   fi
   case $val in
-    *'"'*|*'\'*|*'<'*|*'&'*|*'|'*|*[[:cntrl:]]*)
-      echo "ERROR: $v contains a forbidden character (\" \ < & | or a control character). Remove it and restart." >&2
+    *'"'*|*'\'*|*'<'*|*'&'*|*'|'*|*[[:cntrl:]]*|*[[:space:]]*)
+      echo "ERROR: $v contains a forbidden character (\" \ < & |, whitespace, or a control character). Remove it and restart." >&2
       exit 1 ;;
   esac
   out="$out\"$v\":\"$val\","

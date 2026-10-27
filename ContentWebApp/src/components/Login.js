@@ -4,9 +4,8 @@ import axios from "axios";
 import validator from "validator";
 import { setAuth, getTokenPayload } from "../utils/authHelpers";
 import { resetUserCache } from "../hooks/useAuth";
-import { runtimeEnv } from "../utils/runtimeEnv";
 
-const baseURL = runtimeEnv("REACT_APP_API_BASE_URL");
+const baseURL = window.__ENV__.REACT_APP_API_BASE_URL;
 
 const pageStyle = {
   minHeight: "100vh",
