@@ -342,7 +342,7 @@ class TestNoSecretLogging:
     async def test_invalid_credentials_log_never_contains_the_secret(self, mock_db, auth, caplog):
         await _seed_client(mock_db, secret="super-secret")
 
-        with caplog.at_level(logging.WARNING):
+        with caplog.at_level(logging.DEBUG):
             with pytest.raises(UnauthorizedError):
                 await auth.issue_token("partner-1", "super-secret-but-wrong", scopes=["content:read"])
 
