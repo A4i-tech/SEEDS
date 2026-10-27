@@ -79,12 +79,17 @@ class UserRefreshTokenRepository(BaseRepository):
             }
         )
 
-    async def try_consume(self, token_id: str) -> ConsumedToken[UserClaims]:
+    async def try_consume(
+        self, token_id: str, *, for_logout: bool = False
+    ) -> ConsumedToken[UserClaims]:
         hashed = hash_refresh_token(token_id)
         now = datetime.now(tz=UTC)
+        update: dict = {"revoked": True, "revoked_reason": "consumed", "consumed_at": now}
+        if for_logout:
+            update["logout_pending"] = True
         doc = await self._col.find_one_and_update(
             {"token_id": hashed, "revoked": False, "expires_at": {"$gt": now}},
-            {"$set": {"revoked": True, "revoked_reason": "consumed", "consumed_at": now}},
+            {"$set": update},
         )
         if doc is not None:
             return self._to_consumed(doc)
@@ -96,13 +101,17 @@ class UserRefreshTokenRepository(BaseRepository):
             raise RefreshTokenExpiredError
         if existing.get("revoked_reason") == "logout":
             raise RefreshTokenRevokedError(existing["owner_id"])
+        if existing.get("logout_pending"):
+            raise RefreshTokenPendingError(existing["owner_id"])
         if existing.get("revoked_reason") == "consumed":
             consumed_at = existing.get("consumed_at")
             if consumed_at is not None and now - _as_utc(consumed_at) <= REPLAY_GRACE_WINDOW:
                 for attempt in range(self._REPLAY_CACHE_POLL_ATTEMPTS):
                     cached = await self._replay_col.find_one({"_id": hashed})
                     if cached is not None and "pair" in cached:
-                        raise RefreshTokenReplayedError(self._decrypt_pair(cached["pair"]))
+                        raise RefreshTokenReplayedError(
+                            existing["owner_id"], self._decrypt_pair(cached["pair"])
+                        )
                     if attempt < self._REPLAY_CACHE_POLL_ATTEMPTS - 1:
                         await asyncio.sleep(self._REPLAY_CACHE_POLL_INTERVAL_SECONDS)
                 raise RefreshTokenPendingError(existing["owner_id"])
@@ -143,4 +152,6 @@ class UserRefreshTokenRepository(BaseRepository):
         else:
             hashed = hash_refresh_token(include_token_id)
             query = {"$or": [owner_filter, {"token_id": hashed}]}
-        await self._col.update_many(query, {"$set": {"revoked": True, "revoked_reason": reason}})
+        await self._col.update_many(
+            query, {"$set": {"revoked": True, "revoked_reason": reason}}
+        )

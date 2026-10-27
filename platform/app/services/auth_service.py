@@ -477,14 +477,10 @@ class AuthService:
     async def logout_by_refresh_token(self, refresh_token: str) -> None:
         repo = UserRefreshTokenRepository(self._db)
         try:
-            consumed = await repo.try_consume(refresh_token)
-        except (
-            RefreshTokenNotFoundError,
-            RefreshTokenExpiredError,
-            RefreshTokenReplayedError,
-        ):
+            consumed = await repo.try_consume(refresh_token, for_logout=True)
+        except (RefreshTokenNotFoundError, RefreshTokenExpiredError, RefreshTokenRevokedError):
             return
-        except (RefreshTokenRevokedError, RefreshTokenPendingError) as exc:
+        except (RefreshTokenReplayedError, RefreshTokenPendingError) as exc:
             await repo.revoke_all_for_owner(
                 exc.owner_id, reason="logout", include_token_id=refresh_token
             )
