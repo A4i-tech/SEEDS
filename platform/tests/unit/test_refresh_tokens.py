@@ -52,7 +52,7 @@ class FakeStore:
                 if elapsed <= refresh_tokens_module.REPLAY_GRACE_WINDOW:
                     cached = self._replays.get(token_id)
                     if cached is not None:
-                        raise RefreshTokenReplayedError(cached)
+                        raise RefreshTokenReplayedError(doc["owner_id"], cached)
             raise RefreshTokenReusedError(doc["owner_id"])
         if doc["expires_at"] <= datetime.now(tz=UTC):
             raise RefreshTokenExpiredError

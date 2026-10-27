@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 from datetime import UTC, datetime, timedelta
 
@@ -300,9 +301,7 @@ class TestLogoutRevocation:
             getattr(record, "event", None) == "refresh_token_reuse_detected" for record in caplog.records
         )
 
-    async def test_logout_during_concurrent_pending_refresh_revokes_owner_sessions(
-        self, mock_db, monkeypatch
-    ):
+    async def test_refresh_wins_race_logout_still_sweeps_new_token(self, mock_db, monkeypatch):
         await _seed_tenant(mock_db)
         service = AuthService(mock_db)
         issued = await service.login_unified(
@@ -310,31 +309,73 @@ class TestLogoutRevocation:
         )
         owner_id = issued["user"]["id"]
 
-        other_session_repo = user_refresh_token_repository.UserRefreshTokenRepository(mock_db)
-        now = datetime.now(tz=UTC)
-        await other_session_repo.insert(
-            token_id="other-session-raw-token",
-            owner_id=owner_id,
-            claims={"role": "tenant", "tenant_id": None, "school_id": None},
-            expires_at=now + timedelta(days=30),
-            family_expires_at=now + timedelta(days=30),
-            created_at=now,
-        )
+        original_try_consume = user_refresh_token_repository.UserRefreshTokenRepository.try_consume
+        refresh_consumed = asyncio.Event()
+
+        async def ordered_try_consume(self, token_id, *, for_logout=False):
+            if for_logout:
+                await refresh_consumed.wait()
+            result = await original_try_consume(self, token_id, for_logout=for_logout)
+            if not for_logout:
+                refresh_consumed.set()
+            return result
 
         monkeypatch.setattr(
             user_refresh_token_repository.UserRefreshTokenRepository,
-            "_REPLAY_CACHE_POLL_ATTEMPTS",
-            0,
+            "try_consume",
+            ordered_try_consume,
         )
-        await other_session_repo.try_consume(issued["refresh_token"])
 
-        await service.logout_by_refresh_token(issued["refresh_token"])
-
-        other_doc = await mock_db["userRefreshTokens"].find_one(
-            {"token_id": _stored_token_id("other-session-raw-token")}
+        results = await asyncio.gather(
+            service.refresh(issued["refresh_token"]),
+            service.logout_by_refresh_token(issued["refresh_token"]),
+            return_exceptions=True,
         )
-        assert other_doc["revoked"] is True
-        assert other_doc["revoked_reason"] == "logout"
+        refresh_result = results[0]
+        assert not isinstance(refresh_result, Exception)
+
+        live_count = await mock_db["userRefreshTokens"].count_documents(
+            {"owner_id": owner_id, "revoked": False}
+        )
+        assert live_count == 0
+
+    async def test_logout_wins_race_refresh_is_rejected(self, mock_db, monkeypatch):
+        await _seed_tenant(mock_db)
+        service = AuthService(mock_db)
+        issued = await service.login_unified(
+            identifier="tenant@example.com", password="correct-horse", is_email=True
+        )
+        owner_id = issued["user"]["id"]
+
+        original_try_consume = user_refresh_token_repository.UserRefreshTokenRepository.try_consume
+        logout_consumed = asyncio.Event()
+
+        async def ordered_try_consume(self, token_id, *, for_logout=False):
+            if not for_logout:
+                await logout_consumed.wait()
+            result = await original_try_consume(self, token_id, for_logout=for_logout)
+            if for_logout:
+                logout_consumed.set()
+            return result
+
+        monkeypatch.setattr(
+            user_refresh_token_repository.UserRefreshTokenRepository,
+            "try_consume",
+            ordered_try_consume,
+        )
+
+        results = await asyncio.gather(
+            service.refresh(issued["refresh_token"]),
+            service.logout_by_refresh_token(issued["refresh_token"]),
+            return_exceptions=True,
+        )
+        refresh_result = results[0]
+        assert isinstance(refresh_result, AppError | UnauthorizedError)
+
+        live_count = await mock_db["userRefreshTokens"].count_documents(
+            {"owner_id": owner_id, "revoked": False}
+        )
+        assert live_count == 0
 
     async def test_logout_by_refresh_token_with_expired_token_is_a_noop(self, mock_db, caplog):
         await _seed_tenant(mock_db)
@@ -423,19 +464,13 @@ class TestLogoutRevocation:
         assert other_doc["revoked"] is True
         assert other_doc["revoked_reason"] == "logout"
 
-    async def test_logout_retry_past_grace_window_after_prior_sweep_does_not_trigger_reuse_alarm(
+    async def test_logout_retry_past_grace_window_does_not_trigger_reuse_alarm(
         self, mock_db, caplog, monkeypatch
     ):
         await _seed_tenant(mock_db)
         service = AuthService(mock_db)
         issued = await service.login_unified(
             identifier="tenant@example.com", password="correct-horse", is_email=True
-        )
-
-        monkeypatch.setattr(
-            user_refresh_token_repository.UserRefreshTokenRepository,
-            "_REPLAY_CACHE_POLL_ATTEMPTS",
-            0,
         )
 
         original_revoke_all = (
@@ -460,13 +495,6 @@ class TestLogoutRevocation:
         with pytest.raises(RuntimeError):
             await service.logout_by_refresh_token(issued["refresh_token"])
 
-        await service.logout_by_refresh_token(issued["refresh_token"])
-
-        own_doc = await mock_db["userRefreshTokens"].find_one(
-            {"token_id": _stored_token_id(issued["refresh_token"])}
-        )
-        assert own_doc["revoked_reason"] == "logout"
-
         await mock_db["userRefreshTokens"].update_one(
             {"token_id": _stored_token_id(issued["refresh_token"])},
             {"$set": {"consumed_at": datetime.now(tz=UTC) - timedelta(seconds=30)}},
@@ -478,6 +506,11 @@ class TestLogoutRevocation:
         assert not any(
             getattr(record, "event", None) == "refresh_token_reuse_detected" for record in caplog.records
         )
+
+        own_doc = await mock_db["userRefreshTokens"].find_one(
+            {"token_id": _stored_token_id(issued["refresh_token"])}
+        )
+        assert own_doc["revoked_reason"] == "logout"
 
 
 class TestRefreshRebuildsAuthorizationClaims:

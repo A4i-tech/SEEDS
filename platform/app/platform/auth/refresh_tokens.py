@@ -78,8 +78,9 @@ class RefreshTokenReplayedError(Exception):
     idempotently instead of triggering reuse-detection revocation.
     """
 
-    def __init__(self, pair: TokenPair) -> None:
+    def __init__(self, owner_id: str, pair: TokenPair) -> None:
         super().__init__("Refresh token replayed within grace window")
+        self.owner_id = owner_id
         self.pair = pair
 
 
