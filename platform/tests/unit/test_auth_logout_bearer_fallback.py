@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import timedelta
 from unittest.mock import AsyncMock
 
 import pytest
@@ -36,3 +37,24 @@ async def test_tenant_bearer_token_logs_the_tenant_out():
     token = create_access_token({"sub": "tenant-1", "role": "tenant"})
     await logout_bearer_fallback(token, service)
     service.logout.assert_awaited_once_with("tenant-1")
+
+
+@pytest.mark.asyncio
+async def test_expired_bearer_token_still_logs_the_user_out():
+    service = AsyncMock()
+    token = create_access_token(
+        {"sub": "teacher-1", "role": "teacher"}, expires_delta=timedelta(seconds=-1)
+    )
+    await logout_bearer_fallback(token, service)
+    service.logout.assert_awaited_once_with("teacher-1")
+
+
+@pytest.mark.asyncio
+async def test_expired_bearer_token_with_bad_signature_does_not_logout():
+    service = AsyncMock()
+    token = create_access_token(
+        {"sub": "teacher-1", "role": "teacher"}, expires_delta=timedelta(seconds=-1)
+    )
+    tampered = token[:-1] + ("A" if token[-1] != "A" else "B")
+    await logout_bearer_fallback(tampered, service)
+    service.logout.assert_not_awaited()
