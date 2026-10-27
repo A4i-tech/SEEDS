@@ -64,6 +64,10 @@ class RefreshTokenRevokedError(Exception):
         self.owner_id = owner_id
 
 
+class RefreshTokenPendingError(Exception):
+    pass
+
+
 class RefreshTokenReplayedError(Exception):
     """Raised when a just-consumed token is replayed within the grace window.
 
@@ -158,6 +162,8 @@ async def rotate[ClaimsT](
         consumed = await store.try_consume(refresh_token)
     except RefreshTokenReplayedError as exc:
         return exc.pair
+    except RefreshTokenPendingError:
+        raise AppError("REFRESH_TOKEN_PENDING", "Refresh already in progress, retry shortly", 409) from None
     except RefreshTokenNotFoundError:
         raise UnauthorizedError("Invalid refresh token") from None
     except RefreshTokenExpiredError:

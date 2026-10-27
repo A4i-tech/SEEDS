@@ -47,12 +47,7 @@ def hash_refresh_token(token: str) -> str:
 
 @lru_cache(maxsize=1)
 def _get_fernet() -> Fernet:
-    """Symmetric cipher derived from the app secret key.
-
-    Used to encrypt short-lived replay-grace-window token caches at rest,
-    reusing the existing JWT signing secret rather than introducing new
-    key-management infrastructure.
-    """
+    """Symmetric cipher derived from the app secret key, for at-rest replay-cache encryption."""
     key = hashlib.sha256(get_settings().secret_key.encode("utf-8")).digest()
     return Fernet(base64.urlsafe_b64encode(key))
 

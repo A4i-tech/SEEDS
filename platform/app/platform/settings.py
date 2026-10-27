@@ -4,7 +4,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -27,6 +27,14 @@ class Settings(BaseSettings):
     mongo_max_pool_size: int = 50
 
     secret_key: str = Field(default="", repr=False)
+
+    @field_validator("secret_key")
+    @classmethod
+    def _secret_key_not_blank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("secret_key must not be empty")
+        return value
+
     auth_type: Literal["jwt", "firebase"] = "jwt"
     jwt_expires_in: str = "1h"
     password_salt_rounds: int = 10
