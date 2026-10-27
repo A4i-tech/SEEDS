@@ -22,9 +22,7 @@ from fastapi import FastAPI
 from app.platform.database import close_database, get_database, init_database
 from app.platform.settings import get_settings
 from app.providers.subodha_client import close_subodha_client
-from app.repositories.content_aggregator_sync_job_repository import (
-    ContentAggregatorSyncJobRepository,
-)
+from app.services.content_aggregator_sync_jobs import get_sync_job_service
 
 if TYPE_CHECKING:
     from app.services.conference_service import ConferenceCallManager
@@ -195,21 +193,20 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     await init_database()
 
-    from app.repositories.content_job_repository import ContentJobRepository  # noqa: PLC0415
-    from app.repositories.textbook_remediation_repository import (  # noqa: PLC0415
-        TextbookRemediationRepository,
+    from app.repositories.content_aggregator_sync_job_repository import (  # noqa: PLC0415
+        ContentAggregatorSyncJobRepository,
     )
-
-    reconciled = await ContentAggregatorSyncJobRepository(get_database()).reconcile_interrupted_jobs()
-    if reconciled:
-        logger.info("Reconciled %d interrupted content aggregator sync jobs", reconciled)
-
     from app.repositories.content_aggregator_webhook_delivery_repository import (  # noqa: PLC0415
         ContentAggregatorWebhookDeliveryRepository,
     )
     from app.repositories.content_aggregator_webhook_repository import (  # noqa: PLC0415
         ContentAggregatorWebhookRepository,
     )
+    from app.repositories.content_job_repository import ContentJobRepository  # noqa: PLC0415
+    from app.repositories.textbook_remediation_repository import (  # noqa: PLC0415
+        TextbookRemediationRepository,
+    )
+
     if settings.app_mode in ("consumer", "all"):
         reconciled = await TextbookRemediationRepository(get_database()).reconcile_interrupted_jobs()
         if reconciled:
@@ -255,6 +252,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     consumer_tasks: list[asyncio.Task] = []  # type: ignore[type-arg]
     if settings.app_mode in ("consumer", "all"):
+        reconciled = await get_sync_job_service(get_database()).reconcile_interrupted_jobs()
+        if reconciled:
+            logger.info("Reconciled %d interrupted content aggregator sync jobs", reconciled)
         try:
             consumer_tasks = _make_consumer_tasks(conf_mgr)
         except Exception as exc:  # noqa: BLE001

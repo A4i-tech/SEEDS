@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Box,
   Container,
@@ -33,10 +33,12 @@ const getLoginErrorMessage = (error) => {
 
 function Login() {
   const navigate = useNavigation();
-  const { login, loginState } = useAuthContext();
+  const { login, loginState, clearLoginError } = useAuthContext();
   const [formError, setFormError] = useState(null);
   const [phoneNumber, setPhoneNumber] = useState("");
   const [password, setPassword] = useState("");
+
+  useEffect(() => clearLoginError, [clearLoginError]);
 
   const showError = formError || (loginState.error && getLoginErrorMessage(loginState.error));
 

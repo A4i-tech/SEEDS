@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import axiosInstance, { initSession } from "../services/axiosInstance";
 import { API_ENDPOINTS } from "../constants/apiEndpoints";
-import { getAccessToken, setAccessToken, clearAccessToken } from "../utils/tokenStore";
+import { setAccessToken, clearAccessToken } from "../utils/tokenStore";
 
 const AuthContext = createContext(null);
 
@@ -39,15 +39,17 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
+  const clearLoginError = useCallback(() => {
+    setLoginState((prev) => (prev.error ? { ...prev, error: null } : prev));
+  }, []);
+
   const logout = useCallback(async () => {
-    const token = getAccessToken();
-    if (token) {
-      try {
-        await axiosInstance.post(API_ENDPOINTS.LOGOUT, {}, { withCredentials: true });
-      } catch (error) {
-        if (error.response?.status !== 401 && error.response?.status !== 403) {
-          throw error;
-        }
+    try {
+      await axiosInstance.post(API_ENDPOINTS.LOGOUT, {}, { withCredentials: true });
+    } catch (error) {
+      const status = error.status ?? error.response?.status;
+      if (status !== 401 && status !== 403) {
+        throw error;
       }
     }
 
@@ -62,6 +64,7 @@ export const AuthProvider = ({ children }) => {
         initializing: initState.isLoading,
         login,
         loginState,
+        clearLoginError,
         logout,
       }}
     >

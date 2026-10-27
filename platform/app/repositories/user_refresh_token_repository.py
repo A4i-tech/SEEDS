@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime
 from typing import cast
 
 from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.refresh_token import UserClaims, UserRefreshToken
-from app.platform.auth.hashing import hash_refresh_token
+from app.platform.auth.hashing import decrypt_secret, encrypt_secret, hash_refresh_token
 from app.platform.auth.refresh_tokens import (
     REPLAY_GRACE_WINDOW,
     ConsumedToken,
@@ -24,6 +25,11 @@ from app.repositories.base_repository import BaseRepository
 class UserRefreshTokenRepository(BaseRepository):
     COLLECTION = "userRefreshTokens"
     REPLAY_CACHE_COLLECTION = "userRefreshTokenReplays"
+    # A concurrent request can observe a token as "just consumed" before the
+    # consuming request has finished writing its replay-cache entry. Poll
+    # briefly for that entry instead of treating the race as token reuse.
+    _REPLAY_CACHE_POLL_ATTEMPTS = 10
+    _REPLAY_CACHE_POLL_INTERVAL_SECONDS = 0.05
 
     def __init__(self, db: AsyncDatabase) -> None:
         self._col = db[self.COLLECTION]
@@ -82,6 +88,9 @@ class UserRefreshTokenRepository(BaseRepository):
             {"$set": {"revoked": True, "revoked_reason": "consumed", "consumed_at": now}},
         )
         if doc is not None:
+            await self._replay_col.update_one(
+                {"_id": hashed}, {"$setOnInsert": {"created_at": now}}, upsert=True
+            )
             return self._to_consumed(doc)
 
         existing = await self._col.find_one({"token_id": hashed})
@@ -90,13 +99,16 @@ class UserRefreshTokenRepository(BaseRepository):
         if not existing["revoked"]:
             raise RefreshTokenExpiredError
         if existing.get("revoked_reason") == "logout":
-            raise RefreshTokenRevokedError
+            raise RefreshTokenRevokedError(existing["owner_id"])
         if existing.get("revoked_reason") == "consumed":
             consumed_at = existing.get("consumed_at")
             if consumed_at is not None and now - _as_utc(consumed_at) <= REPLAY_GRACE_WINDOW:
-                cached = await self._replay_col.find_one({"_id": hashed})
-                if cached is not None:
-                    raise RefreshTokenReplayedError(cast(TokenPair, cached["pair"]))
+                for attempt in range(self._REPLAY_CACHE_POLL_ATTEMPTS):
+                    cached = await self._replay_col.find_one({"_id": hashed})
+                    if cached is not None and "pair" in cached:
+                        raise RefreshTokenReplayedError(self._decrypt_pair(cached["pair"]))
+                    if attempt < self._REPLAY_CACHE_POLL_ATTEMPTS - 1:
+                        await asyncio.sleep(self._REPLAY_CACHE_POLL_INTERVAL_SECONDS)
         raise RefreshTokenReusedError(existing["owner_id"])
 
     async def cache_replay(self, token_id: str, pair: TokenPair) -> None:
@@ -107,9 +119,23 @@ class UserRefreshTokenRepository(BaseRepository):
         )
         await self._replay_col.update_one(
             {"_id": hashed},
-            {"$set": {"pair": pair, "created_at": datetime.now(tz=UTC)}},
+            {"$set": {"pair": self._encrypt_pair(pair), "created_at": datetime.now(tz=UTC)}},
             upsert=True,
         )
+
+    @staticmethod
+    def _encrypt_pair(pair: TokenPair) -> dict:
+        encrypted: dict = dict(pair)
+        encrypted["access_token"] = encrypt_secret(pair["access_token"])
+        encrypted["refresh_token"] = encrypt_secret(pair["refresh_token"])
+        return encrypted
+
+    @staticmethod
+    def _decrypt_pair(stored: dict) -> TokenPair:
+        pair = dict(stored)
+        pair["access_token"] = decrypt_secret(stored["access_token"])
+        pair["refresh_token"] = decrypt_secret(stored["refresh_token"])
+        return cast(TokenPair, pair)
 
     async def mark_logout(self, token_id: str) -> None:
         hashed = hash_refresh_token(token_id)
