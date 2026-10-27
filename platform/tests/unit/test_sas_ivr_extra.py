@@ -245,6 +245,55 @@ class TestIVRStartCallFlow:
         finally:
             ivr_service._latest_fsm_id = original
 
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("doc", "phone", "status", "left"),
+        [
+            ({"updated_at": "fresh"}, "+91111", 400, {"old"}),
+            ({"updated_at": "stale"}, "+91111", 200, {"leg-new"}),
+            ({"updated_at": None}, "+91111", 200, {"leg-new"}),
+            ({}, "+91111", 200, {"leg-new"}),
+            ({"updated_at": "stale"}, "+92222", 200, {"old", "leg-new"}),
+        ],
+    )
+    async def test_start_call_flow_stale_cutoff(self, db, doc, phone, status, left) -> None:
+        from datetime import UTC, datetime, timedelta
+
+        from app.services import ivr_service
+        from app.services.ivr_service import IVRService
+
+        age = {"fresh": 1, "stale": 120}
+        if doc.get("updated_at") in age:
+            doc = {"updated_at": datetime.now(UTC) - timedelta(minutes=age[doc["updated_at"]])}
+        await db["ongoingIVRState"].insert_one({"_id": "old", "phone_number": "+91111", **doc})
+        fsm = MagicMock(fsm_id="f", init_state_id="s0")
+        fsm.get_start_fsm_actions.return_value = []
+        resp = {"conversation_uuid": "c", "uuid": "leg-new"}
+        with patch.dict(ivr_service._fsm_cache, {"f": fsm}), patch.object(
+            ivr_service, "_latest_fsm_id", "f"
+        ), patch.object(ivr_service, "_make_vonage_call", AsyncMock(return_value=resp)):
+            result = await IVRService(db).start_call_flow(phone_number=phone, tenant_id="t1")
+        assert result["status_code"] == status
+        assert {d["_id"] async for d in db["ongoingIVRState"].find({})} == left
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(("minutes", "status"), [(1, 409), (120, 200)])
+    async def test_update_ivr_structure_stale_cutoff(self, db, minutes, status) -> None:
+        from datetime import UTC, datetime, timedelta
+
+        from app.services import ivr_service
+        from app.services.ivr_service import IVRService
+
+        when = datetime.now(UTC) - timedelta(minutes=minutes)
+        await db["ongoingIVRState"].insert_one({"_id": "x", "phone_number": "+91111", "updated_at": when})
+        built = MagicMock(fsm_id="f2")
+        built.serialize.return_value = MagicMock(id="f2", model_dump=lambda by_alias: {"_id": "f2"})
+        with patch.object(
+            ivr_service, "instantiate_from_latest_content", AsyncMock(return_value=built)
+        ), patch.dict(ivr_service._fsm_cache), patch.object(ivr_service, "_latest_fsm_id", None):
+            result = await IVRService(db).update_ivr_structure(tenant_id="t1", structure={})
+        assert result["status_code"] == status
+
 
 # ---------------------------------------------------------------------------
 # Confevents — event class instantiation with mock conf_call
