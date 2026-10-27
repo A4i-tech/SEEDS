@@ -1,9 +1,11 @@
 import React from "react";
 import { render, screen, waitFor } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import userEvent from "@testing-library/user-event";
 import { AuthProvider, useAuthContext } from "../../src/contexts/AuthContext";
 import { apiFetch, initSession, ApiError } from "../../src/services/api";
 import { getAccessToken, setAccessToken, clearAccessToken } from "../../src/utils/tokenStore";
+import Login from "../../src/components/Login";
 
 jest.mock("../../src/services/api", () => {
   class ApiError extends Error {
@@ -116,5 +118,77 @@ describe("AuthProvider logout", () => {
     expect(screen.getByTestId("authed").textContent).toBe("false");
     expect(screen.getByTestId("token").textContent).toBe("null");
     expect(apiFetch).not.toHaveBeenCalled();
+  });
+});
+
+const ToggleLogin = () => {
+  const { isAuthenticated } = useAuthContext();
+  const [show, setShow] = React.useState(true);
+  return (
+    <div>
+      <span data-testid="authed">{String(isAuthenticated)}</span>
+      <button onClick={() => setShow((prev) => !prev)}>toggle-login</button>
+      {show && <Login />}
+    </div>
+  );
+};
+
+describe("Login unmount/remount clears stale error (PR #305 #14)", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    clearAccessToken();
+    initSession.mockResolvedValue({ data: null, error: null });
+  });
+
+  const fillAndSubmit = async () => {
+    await userEvent.type(screen.getByLabelText(/email or phone/i), "9876543210");
+    await userEvent.type(screen.getByLabelText(/^password$/i), "password123");
+    await userEvent.click(document.querySelector('button[type="submit"]'));
+  };
+
+  it("does not resurface a stale login error after Login unmounts and remounts", async () => {
+    apiFetch.mockRejectedValueOnce(new ApiError("Invalid credentials", 401));
+    render(
+      <MemoryRouter>
+        <AuthProvider>
+          <ToggleLogin />
+        </AuthProvider>
+      </MemoryRouter>
+    );
+
+    await fillAndSubmit();
+    await waitFor(() =>
+      expect(screen.getByText(/invalid credentials\. please try again\./i)).toBeInTheDocument()
+    );
+
+    await userEvent.click(screen.getByText("toggle-login"));
+    expect(document.querySelector('button[type="submit"]')).toBeNull();
+
+    await userEvent.click(screen.getByText("toggle-login"));
+    expect(screen.queryByText(/invalid credentials\. please try again\./i)).toBeNull();
+  });
+
+  it("does not clear unrelated auth state when the stale login error is cleared", async () => {
+    apiFetch.mockRejectedValueOnce(new ApiError("Invalid credentials", 401));
+    setAccessToken("tok");
+    render(
+      <MemoryRouter>
+        <AuthProvider>
+          <ToggleLogin />
+        </AuthProvider>
+      </MemoryRouter>
+    );
+    await waitFor(() => expect(screen.getByTestId("authed")).toHaveTextContent("false"));
+
+    await fillAndSubmit();
+    await waitFor(() =>
+      expect(screen.getByText(/invalid credentials\. please try again\./i)).toBeInTheDocument()
+    );
+
+    await userEvent.click(screen.getByText("toggle-login"));
+    await userEvent.click(screen.getByText("toggle-login"));
+
+    expect(screen.getByTestId("authed")).toHaveTextContent("false");
+    expect(getAccessToken()).toBe("tok");
   });
 });

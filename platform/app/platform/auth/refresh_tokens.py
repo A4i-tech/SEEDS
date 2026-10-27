@@ -59,7 +59,9 @@ class RefreshTokenReusedError(Exception):
 
 
 class RefreshTokenRevokedError(Exception):
-    pass
+    def __init__(self, owner_id: str) -> None:
+        super().__init__(f"Refresh token already revoked — owner_id={owner_id}")
+        self.owner_id = owner_id
 
 
 class RefreshTokenReplayedError(Exception):

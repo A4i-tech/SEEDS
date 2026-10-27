@@ -168,6 +168,42 @@ describe("apiFetchText and apiFetchBlob", () => {
     await expect(apiFetchText("/x")).rejects.toBeInstanceOf(ApiError);
     await expect(apiFetchBlob("/x")).rejects.toMatchObject({ status: 404 });
   });
+
+  it("refreshes an expired token and retries once", async () => {
+    setAccessToken("expired-token");
+    global.fetch
+      .mockResolvedValueOnce({ ok: false, status: 401, text: async () => "expired" })
+      .mockResolvedValueOnce(fakeResponse({ ok: true, contentType: "application/json", json: { access_token: "new-token" } }))
+      .mockResolvedValueOnce({ ok: true, status: 200, text: async () => "markdown" });
+
+    await expect(apiFetchText("/x", { headers: { Authorization: "Bearer expired-token" } })).resolves.toBe("markdown");
+    expect(clearAuth).not.toHaveBeenCalled();
+    expect(global.fetch).toHaveBeenCalledTimes(3);
+    expect(global.fetch.mock.calls[2][1].headers.Authorization).toBe("Bearer new-token");
+  });
+
+  it("clears auth and does not loop when the retried request is still unauthorized", async () => {
+    setAccessToken("expired-token");
+    global.fetch
+      .mockResolvedValueOnce({ ok: false, status: 401, text: async () => "expired" })
+      .mockResolvedValueOnce(fakeResponse({ ok: true, contentType: "application/json", json: { access_token: "new-token" } }))
+      .mockResolvedValueOnce({ ok: false, status: 401, text: async () => "still unauthorized" });
+
+    await expect(apiFetchText("/x")).rejects.toMatchObject({ status: 401 });
+    expect(clearAuth).toHaveBeenCalledTimes(1);
+    expect(global.fetch).toHaveBeenCalledTimes(3);
+  });
+
+  it("does not log out when the refresh request itself fails with a network error", async () => {
+    setAccessToken("expired-token");
+    global.fetch
+      .mockResolvedValueOnce({ ok: false, status: 401, text: async () => "expired" })
+      .mockRejectedValueOnce(new TypeError("Failed to fetch"));
+
+    await expect(apiFetchText("/x")).rejects.toMatchObject({ message: "Failed to fetch" });
+    expect(clearAuth).not.toHaveBeenCalled();
+    expect(global.fetch).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe("buildQueryString", () => {

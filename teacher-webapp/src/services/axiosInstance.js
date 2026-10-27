@@ -76,6 +76,14 @@ axiosInstance.interceptors.response.use(
       }
     }
 
+    if (error.response) {
+      console.error("Server error:", error.response.status, error.response.data);
+    } else if (error.request) {
+      console.error("Network error: No response received", error.request);
+    } else {
+      console.error("Request error:", error.message);
+    }
+
     return Promise.reject(error);
   }
 );
