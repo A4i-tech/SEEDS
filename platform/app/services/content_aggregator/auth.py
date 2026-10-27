@@ -60,7 +60,7 @@ class ContentAggregatorAuth:
             raise AppError("SCOPE_INSUFFICIENT", "Requested scopes exceed allowed scopes", 403)
         requested_scopes = scopes
         if not requested_scopes:
-            raise AppError("SCOPE_INSUFFICIENT", "No scopes granted to client", 403)
+            raise AppError("SCOPE_INSUFFICIENT", "Request must include at least one scope.", 403)
 
         access_token, expires_in = _jwt.encode_access_token(
             client_id=client.client_id,
