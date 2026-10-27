@@ -9,6 +9,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse
 
+from app.controllers._auth_helpers import logout_bearer_fallback
 from app.models.requests.auth_requests import TenantChangePasswordRequest, TenantRegisterRequest
 from app.models.requests.tenant_requests import TenantAnalyticsRequest
 from app.models.responses.analytics_response import AnalyticsResponse
@@ -18,6 +19,7 @@ from app.models.responses.user import UserPublicResponse
 from app.platform.auth.dependencies import (
     REFRESH_COOKIE_NAME,
     clear_refresh_cookie,
+    oauth2_scheme,
     require_tenant,
 )
 from app.platform.error_handling import AppError, build_error_response
@@ -65,6 +67,7 @@ async def tenant_register(
 async def tenant_logout(
     request: Request,
     response: Response,
+    token: str | None = Depends(oauth2_scheme),
     service: AuthService = Depends(get_auth_service),
 ) -> MessageResponse | JSONResponse:
     refresh_token = request.cookies.get(REFRESH_COOKIE_NAME)
@@ -75,6 +78,8 @@ async def tenant_logout(
             error_response = build_error_response(exc)
             clear_refresh_cookie(error_response)
             return error_response
+    else:
+        await logout_bearer_fallback(token, service)
     clear_refresh_cookie(response)
     return MessageResponse(message="Logout successful")
 
