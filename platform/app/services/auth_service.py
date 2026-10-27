@@ -485,13 +485,16 @@ class AuthService:
         ):
             return
         except (RefreshTokenRevokedError, RefreshTokenPendingError) as exc:
-            await repo.revoke_all_for_owner(exc.owner_id, reason="logout")
+            await repo.revoke_all_for_owner(
+                exc.owner_id, reason="logout", include_token_id=refresh_token
+            )
             return
         except RefreshTokenReusedError as exc:
             await refresh_tokens.handle_reuse_detected(repo, exc, "auth.reuse_detected")
             raise UnauthorizedError("Invalid refresh token") from None
-        await repo.revoke_all_for_owner(consumed.owner_id, reason="logout")
-        await repo.mark_logout(refresh_token)
+        await repo.revoke_all_for_owner(
+            consumed.owner_id, reason="logout", include_token_id=refresh_token
+        )
 
     async def get_user_profile(self, user_id: str, entity_label: str) -> User:
         return await get_user_profile(user_id, entity_label, self._db)

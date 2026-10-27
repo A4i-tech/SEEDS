@@ -107,9 +107,7 @@ class TestRefreshSuccess:
         assert new_doc["revoked"] is False
 
     async def test_refresh_without_replay_cache_entry_is_reported_as_pending(self, mock_db):
-        """A concurrent request that already consumed the token but hasn't
-        finished writing the replay cache must surface as a 409 the caller
-        can retry, not as theft."""
+        """A concurrent replay-cache write race must surface as retryable, not theft."""
         await _seed_tenant(mock_db)
         service = AuthService(mock_db)
         issued = await service.login_unified(
@@ -366,10 +364,7 @@ class TestLogoutRevocation:
     async def test_retry_after_partial_logout_failure_still_revokes_all_sessions(
         self, mock_db, caplog, monkeypatch
     ):
-        """revoke_all_for_owner must run before mark_logout: if it fails, the
-        consumed token must stay in the 'consumed' state (not 'logout') so a
-        retry is seen as pending rather than already-logged-out, and still
-        sweeps the owner's other active sessions — with no reuse alarm."""
+        """A failed revoke_all_for_owner must leave the token retryable, then succeed on retry."""
         await _seed_tenant(mock_db)
         service = AuthService(mock_db)
         issued = await service.login_unified(
@@ -393,11 +388,13 @@ class TestLogoutRevocation:
         )
         calls = {"count": 0}
 
-        async def flaky_revoke_all(self, owner_id, *, reason):
+        async def flaky_revoke_all(self, owner_id, *, reason, include_token_id=None):
             calls["count"] += 1
             if calls["count"] == 1:
                 raise RuntimeError("transient db failure")
-            return await original_revoke_all(self, owner_id, reason=reason)
+            return await original_revoke_all(
+                self, owner_id, reason=reason, include_token_id=include_token_id
+            )
 
         monkeypatch.setattr(
             user_refresh_token_repository.UserRefreshTokenRepository,
@@ -425,6 +422,62 @@ class TestLogoutRevocation:
         )
         assert other_doc["revoked"] is True
         assert other_doc["revoked_reason"] == "logout"
+
+    async def test_logout_retry_past_grace_window_after_prior_sweep_does_not_trigger_reuse_alarm(
+        self, mock_db, caplog, monkeypatch
+    ):
+        await _seed_tenant(mock_db)
+        service = AuthService(mock_db)
+        issued = await service.login_unified(
+            identifier="tenant@example.com", password="correct-horse", is_email=True
+        )
+
+        monkeypatch.setattr(
+            user_refresh_token_repository.UserRefreshTokenRepository,
+            "_REPLAY_CACHE_POLL_ATTEMPTS",
+            0,
+        )
+
+        original_revoke_all = (
+            user_refresh_token_repository.UserRefreshTokenRepository.revoke_all_for_owner
+        )
+        calls = {"count": 0}
+
+        async def flaky_revoke_all(self, owner_id, *, reason, include_token_id=None):
+            calls["count"] += 1
+            if calls["count"] == 1:
+                raise RuntimeError("transient db failure")
+            return await original_revoke_all(
+                self, owner_id, reason=reason, include_token_id=include_token_id
+            )
+
+        monkeypatch.setattr(
+            user_refresh_token_repository.UserRefreshTokenRepository,
+            "revoke_all_for_owner",
+            flaky_revoke_all,
+        )
+
+        with pytest.raises(RuntimeError):
+            await service.logout_by_refresh_token(issued["refresh_token"])
+
+        await service.logout_by_refresh_token(issued["refresh_token"])
+
+        own_doc = await mock_db["userRefreshTokens"].find_one(
+            {"token_id": _stored_token_id(issued["refresh_token"])}
+        )
+        assert own_doc["revoked_reason"] == "logout"
+
+        await mock_db["userRefreshTokens"].update_one(
+            {"token_id": _stored_token_id(issued["refresh_token"])},
+            {"$set": {"consumed_at": datetime.now(tz=UTC) - timedelta(seconds=30)}},
+        )
+
+        with caplog.at_level("WARNING"):
+            await service.logout_by_refresh_token(issued["refresh_token"])
+
+        assert not any(
+            getattr(record, "event", None) == "refresh_token_reuse_detected" for record in caplog.records
+        )
 
 
 class TestRefreshRebuildsAuthorizationClaims:

@@ -75,4 +75,21 @@ describe("refreshAccessToken", () => {
     expect(b).toBe("new-token");
     expect(axios.post).toHaveBeenCalledTimes(1);
   });
+
+  it("retries a pending refresh exactly once on 409 REFRESH_TOKEN_PENDING", async () => {
+    axios.post
+      .mockRejectedValueOnce({ response: { status: 409, data: { code: "REFRESH_TOKEN_PENDING" } } })
+      .mockResolvedValueOnce({ data: { access_token: "new-token" } });
+
+    await expect(refreshAccessToken()).resolves.toBe("new-token");
+    expect(axios.post).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not retry a second time when REFRESH_TOKEN_PENDING persists", async () => {
+    const pendingError = { response: { status: 409, data: { code: "REFRESH_TOKEN_PENDING" } } };
+    axios.post.mockRejectedValueOnce(pendingError).mockRejectedValueOnce(pendingError);
+
+    await expect(refreshAccessToken()).rejects.toBe(pendingError);
+    expect(axios.post).toHaveBeenCalledTimes(2);
+  });
 });
