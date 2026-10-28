@@ -60,6 +60,13 @@ def parse_expires_delta(value: str) -> timedelta:
     return timedelta(seconds=amount)
 
 
+# Expired access tokens presented for logout are accepted up to the
+# configured access-token lifetime past their `exp` — reusing the same
+# window a legitimately-issued token would have been valid for, instead of
+# an arbitrary magic value.
+LOGOUT_TOKEN_MAX_AGE = parse_expires_delta(get_settings().jwt_expires_in)
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -174,5 +181,15 @@ def verify_expired_token_for_logout(token: str) -> dict[str, Any]:
     if payload.get("iss") != _ISSUER:
         logger.warning("auth: wrong issuer '%s'", payload.get("iss"))
         raise UnauthorizedError("Invalid token issuer")
+
+    try:
+        expires_at = datetime.fromtimestamp(payload.get("exp"), tz=UTC)
+    except (TypeError, ValueError, OSError):
+        logger.warning("auth: malformed expiry claim")
+        raise UnauthorizedError("Invalid token")
+
+    if datetime.now(tz=UTC) - expires_at > LOGOUT_TOKEN_MAX_AGE:
+        logger.warning("auth: expired token too old for logout fallback")
+        raise UnauthorizedError("Token has expired")
 
     return payload

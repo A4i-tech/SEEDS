@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import cast
 
 from pymongo.asynchronous.database import AsyncDatabase
@@ -26,6 +26,7 @@ from app.repositories.base_repository import BaseRepository
 class UserRefreshTokenRepository(BaseRepository):
     COLLECTION = "userRefreshTokens"
     REPLAY_CACHE_COLLECTION = "userRefreshTokenReplays"
+    LOGOUT_MARKER_COLLECTION = "userRefreshTokenLogoutMarkers"
     # Poll briefly for a concurrent request's replay-cache entry before treating it as reuse.
     _REPLAY_CACHE_POLL_ATTEMPTS = 10
     _REPLAY_CACHE_POLL_INTERVAL_SECONDS = 0.05
@@ -33,6 +34,7 @@ class UserRefreshTokenRepository(BaseRepository):
     def __init__(self, db: AsyncDatabase) -> None:
         self._col = db[self.COLLECTION]
         self._replay_col = db[self.REPLAY_CACHE_COLLECTION]
+        self._logout_marker_col = db[self.LOGOUT_MARKER_COLLECTION]
 
     @classmethod
     async def ensure_indexes(cls, db: AsyncDatabase) -> None:
@@ -44,6 +46,8 @@ class UserRefreshTokenRepository(BaseRepository):
         await replay_col.create_index(
             "created_at", expireAfterSeconds=int(REPLAY_GRACE_WINDOW.total_seconds()) + 30
         )
+        logout_marker_col = db[cls.LOGOUT_MARKER_COLLECTION]
+        await logout_marker_col.create_index("owner_id", unique=True)
 
     @staticmethod
     def _to_consumed(doc: dict) -> ConsumedToken[UserClaims]:
@@ -155,3 +159,15 @@ class UserRefreshTokenRepository(BaseRepository):
         await self._col.update_many(
             query, {"$set": {"revoked": True, "revoked_reason": reason}}
         )
+        if reason == "logout":
+            await self._logout_marker_col.update_one(
+                {"owner_id": owner_id},
+                {"$set": {"logged_out_at": datetime.now(tz=UTC)}},
+                upsert=True,
+            )
+
+    async def logged_out_since(self, owner_id: str, since: datetime) -> bool:
+        doc = await self._logout_marker_col.find_one({"owner_id": owner_id})
+        if doc is None:
+            return False
+        return _as_utc(doc["logged_out_at"]) >= since - timedelta(milliseconds=1)

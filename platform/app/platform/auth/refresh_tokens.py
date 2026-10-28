@@ -102,6 +102,8 @@ class RefreshTokenStore[ClaimsT](Protocol):
 
     async def revoke_all_for_owner(self, owner_id: str, *, reason: str) -> None: ...
 
+    async def logged_out_since(self, owner_id: str, since: datetime) -> bool: ...
+
 
 type VerifyOwnerActive[ClaimsT] = Callable[[str, ClaimsT], Awaitable[ClaimsT]]
 type BuildAccessToken[ClaimsT] = Callable[[str, ClaimsT], Awaitable[tuple[str, int]]]
@@ -161,6 +163,7 @@ async def rotate[ClaimsT](
     refresh_ttl: str,
     reuse_counter_name: str,
 ) -> TokenPair:
+    started_at = datetime.now(tz=UTC)
     try:
         consumed = await store.try_consume(refresh_token)
     except RefreshTokenReplayedError as exc:
@@ -192,6 +195,12 @@ async def rotate[ClaimsT](
         family_expires_at=consumed.family_expires_at,
         created_at=now,
     )
+
+    if await store.logged_out_since(consumed.owner_id, since=started_at):
+        await store.revoke_all_for_owner(
+            consumed.owner_id, reason="logout", include_token_id=new_refresh_token
+        )
+        raise UnauthorizedError("Invalid refresh token")
 
     pair: TokenPair = {
         "access_token": access_token,

@@ -512,6 +512,61 @@ class TestLogoutRevocation:
         )
         assert own_doc["revoked_reason"] == "logout"
 
+    async def test_logout_during_in_flight_refresh_insert_leaves_no_live_token(
+        self, mock_db, monkeypatch
+    ):
+        """Logout completing while a concurrent refresh's insert is still in-flight
+        must not let the replacement token survive as a live, usable session."""
+        monkeypatch.setattr(
+            user_refresh_token_repository.UserRefreshTokenRepository,
+            "_REPLAY_CACHE_POLL_ATTEMPTS",
+            1,
+        )
+        monkeypatch.setattr(
+            user_refresh_token_repository.UserRefreshTokenRepository,
+            "_REPLAY_CACHE_POLL_INTERVAL_SECONDS",
+            0,
+        )
+        await _seed_tenant(mock_db)
+        service = AuthService(mock_db)
+        issued = await service.login_unified(
+            identifier="tenant@example.com", password="correct-horse", is_email=True
+        )
+        owner_id = issued["user"]["id"]
+
+        original_insert = user_refresh_token_repository.UserRefreshTokenRepository.insert
+        refresh_paused = asyncio.Event()
+        logout_done = asyncio.Event()
+
+        async def paused_insert(self, *, token_id, **kwargs):
+            refresh_paused.set()
+            await logout_done.wait()
+            return await original_insert(self, token_id=token_id, **kwargs)
+
+        monkeypatch.setattr(
+            user_refresh_token_repository.UserRefreshTokenRepository,
+            "insert",
+            paused_insert,
+        )
+
+        async def run_logout():
+            await refresh_paused.wait()
+            await service.logout_by_refresh_token(issued["refresh_token"])
+            logout_done.set()
+
+        results = await asyncio.gather(
+            service.refresh(issued["refresh_token"]),
+            run_logout(),
+            return_exceptions=True,
+        )
+        refresh_result = results[0]
+        assert isinstance(refresh_result, UnauthorizedError)
+
+        live_count = await mock_db["userRefreshTokens"].count_documents(
+            {"owner_id": owner_id, "revoked": False}
+        )
+        assert live_count == 0
+
 
 class TestRefreshRebuildsAuthorizationClaims:
     async def test_refresh_uses_current_role_tenant_and_school_not_stale_token_claims(self, mock_db):
