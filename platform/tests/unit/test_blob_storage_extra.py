@@ -68,7 +68,7 @@ class TestSASGenerator:
             # Short URL — only one path segment, should return original
             assert result == url
 
-    def test_sas_generator_error_returns_url(self) -> None:
+    def test_sas_generator_error_raises(self) -> None:
         from app.providers.blob_storage import SASGenerator
 
         mock_settings = self._make_mock_settings(enabled=True)
@@ -76,11 +76,56 @@ class TestSASGenerator:
 
         with patch("app.providers.blob_storage.get_settings", return_value=mock_settings):
             gen = SASGenerator()
-            url = "https://myaccount.blob.core.windows.net/container/file.wav"
-            # generate_blob_sas will fail with invalid key format
-            result = gen.get_url_with_sas(url)
-            # Either got SAS or returned original on error
-            assert isinstance(result, str)
+            with pytest.raises(ValueError):
+                gen.get_url_with_sas("https://myaccount.blob.core.windows.net/container/file.wav")
+
+    def _delegation_generator(self):
+        from app.providers import blob_storage
+        from app.providers.blob_storage import SASGenerator
+
+        blob_storage._delegation_key = None
+        mock_settings = self._make_mock_settings(enabled=True)
+        with patch("app.providers.blob_storage.get_settings", return_value=mock_settings):
+            return SASGenerator()
+
+    def test_delegation_key_single_fetch_under_thread_contention(self) -> None:
+        import threading
+
+        with patch("app.providers.blob_storage.SyncBlobServiceClient") as client, patch(
+            "app.providers.blob_storage.DefaultAzureCredential"
+        ):
+            gen = self._delegation_generator()
+            threads = [threading.Thread(target=gen._get_delegation_key) for _ in range(16)]
+            [t.start() for t in threads]
+            [t.join() for t in threads]
+        assert client.return_value.get_user_delegation_key.call_count == 1
+
+    def test_delegation_key_refetched_near_expiry(self) -> None:
+        from datetime import UTC, datetime, timedelta
+
+        from app.providers import blob_storage
+
+        with patch("app.providers.blob_storage.SyncBlobServiceClient") as client, patch(
+            "app.providers.blob_storage.DefaultAzureCredential"
+        ):
+            gen = self._delegation_generator()
+            blob_storage._delegation_key = (MagicMock(), datetime.now(UTC) + timedelta(hours=1))
+            gen._get_delegation_key()
+        assert client.return_value.get_user_delegation_key.call_count == 1
+
+    def test_delegation_key_failure_is_not_cached(self) -> None:
+        from app.providers import blob_storage
+
+        with patch("app.providers.blob_storage.SyncBlobServiceClient") as client, patch(
+            "app.providers.blob_storage.DefaultAzureCredential"
+        ):
+            gen = self._delegation_generator()
+            client.return_value.get_user_delegation_key.side_effect = [Exception("boom"), MagicMock()]
+            with pytest.raises(Exception, match="boom"):
+                gen._get_delegation_key()
+            gen._get_delegation_key()
+        assert client.return_value.get_user_delegation_key.call_count == 2
+        assert blob_storage._delegation_key is not None
 
 
 class TestBlobStorageProvider:

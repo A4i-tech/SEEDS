@@ -98,7 +98,7 @@ class AudioCaptureService:
         """Close WAV file, upload to Azure, optionally delete local copy."""
         if not self.enabled or not self.file_path:
             return None
-        self._close_file()
+        await asyncio.to_thread(self._close_file)
         if self.total_bytes == 0:
             self._cleanup_local()
             return None

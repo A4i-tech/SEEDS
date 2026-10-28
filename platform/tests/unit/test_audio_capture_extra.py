@@ -125,6 +125,52 @@ class TestAudioCaptureServiceEnabled:
         # No upload — returns file path or None
         assert result is None or isinstance(result, str)
 
+    @pytest.mark.asyncio
+    async def test_finalize_closes_file_off_loop_thread(self, tmp_path) -> None:
+        import threading
+
+        from app.services.audio.audio_capture import AudioCaptureService
+
+        mock_settings = MagicMock()
+        mock_settings.audio_capture_enabled = True
+        mock_settings.audio_capture_upload_to_azure = False
+        mock_settings.audio_capture_container = "test-container"
+        mock_settings.audio_capture_delete_local_after_upload = False
+        mock_settings.azure_storage_connection_string = ""
+        mock_settings.audio_capture_dir = str(tmp_path)
+
+        service = AudioCaptureService(conference_id="test_conf_finalize_thread", settings=mock_settings)
+        service.write_chunk(b"\x00\x01" * 500)
+        seen = []
+        original = service._close_file
+
+        def record():
+            seen.append(threading.get_ident())
+            original()
+
+        service._close_file = record
+        await service.finalize()
+        assert seen and seen[0] != threading.get_ident()
+
+    @pytest.mark.asyncio
+    async def test_finalize_empty_cleans_up_local(self, tmp_path) -> None:
+        from app.services.audio.audio_capture import AudioCaptureService
+
+        mock_settings = MagicMock()
+        mock_settings.audio_capture_enabled = True
+        mock_settings.audio_capture_upload_to_azure = False
+        mock_settings.audio_capture_container = "test-container"
+        mock_settings.audio_capture_delete_local_after_upload = False
+        mock_settings.azure_storage_connection_string = ""
+        mock_settings.audio_capture_dir = str(tmp_path)
+
+        service = AudioCaptureService(conference_id="test_conf_finalize_empty", settings=mock_settings)
+        path = service.file_path
+        assert await service.finalize() is None
+        import os
+
+        assert not os.path.exists(path)
+
     def test_build_blob_name(self, tmp_path) -> None:
         from app.services.audio.audio_capture import AudioCaptureService
 
