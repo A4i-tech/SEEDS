@@ -121,6 +121,15 @@ class BlobStorageProvider:
         container, blob_path = _parse_blob_url(blob_url)
         return await self.download_file(container, blob_path)
 
+    async def download_url_to_path(self, blob_url: str, path: str) -> int:
+        container, blob_path = _parse_blob_url(blob_url)
+        blob_client = self._client.get_container_client(container).get_blob_client(blob_path)
+        stream = await blob_client.download_blob()
+        with open(path, "wb") as fh:
+            size: int = await stream.readinto(fh)
+        logger.debug("blob_storage: downloaded blob container=%s name=%s size=%d", container, blob_path, size)
+        return size
+
     async def delete_blob(self, container: str, blob_name: str) -> bool:
         """Delete blob *blob_name* from *container*.
 
