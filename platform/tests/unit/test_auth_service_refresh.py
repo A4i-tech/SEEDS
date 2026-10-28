@@ -567,6 +567,78 @@ class TestLogoutRevocation:
         )
         assert live_count == 0
 
+    async def test_logout_marker_written_before_revoke_catches_token_inserted_during_window(
+        self, mock_db, monkeypatch
+    ):
+        await _seed_tenant(mock_db)
+        service = AuthService(mock_db)
+        issued = await service.login_unified(
+            identifier="tenant@example.com", password="correct-horse", is_email=True
+        )
+        owner_id = issued["user"]["id"]
+
+        repo = user_refresh_token_repository.UserRefreshTokenRepository(mock_db)
+        original_revoke_all_for_owner = (
+            user_refresh_token_repository.UserRefreshTokenRepository.revoke_all_for_owner
+        )
+        marker_written = asyncio.Event()
+        insert_done = asyncio.Event()
+
+        async def paused_revoke_all_for_owner(
+            self, owner_id, *, reason, include_token_id=None
+        ):
+            original_update_many = self._col.update_many
+
+            async def paused_update_many(*args, **kwargs):
+                marker_written.set()
+                await insert_done.wait()
+                return await original_update_many(*args, **kwargs)
+
+            self._col.update_many = paused_update_many
+            try:
+                return await original_revoke_all_for_owner(
+                    self, owner_id, reason=reason, include_token_id=include_token_id
+                )
+            finally:
+                self._col.update_many = original_update_many
+
+        monkeypatch.setattr(
+            user_refresh_token_repository.UserRefreshTokenRepository,
+            "revoke_all_for_owner",
+            paused_revoke_all_for_owner,
+        )
+
+        logged_out_since_result = {}
+        refresh_started_at = datetime.now(tz=UTC)
+
+        async def insert_during_window():
+            await marker_written.wait()
+            logged_out_since_result["seen"] = await repo.logged_out_since(
+                owner_id, since=refresh_started_at
+            )
+            now = datetime.now(tz=UTC)
+            await repo.insert(
+                token_id="race-token",
+                owner_id=owner_id,
+                claims={"role": "tenant", "tenant_id": None, "school_id": None},
+                expires_at=now + timedelta(days=30),
+                family_expires_at=now + timedelta(days=30),
+                created_at=now,
+            )
+            insert_done.set()
+
+        await asyncio.gather(
+            service.logout_by_refresh_token(issued["refresh_token"]),
+            insert_during_window(),
+        )
+
+        assert logged_out_since_result["seen"] is True
+
+        live_count = await mock_db["userRefreshTokens"].count_documents(
+            {"owner_id": owner_id, "revoked": False}
+        )
+        assert live_count == 0
+
 
 class TestRefreshRebuildsAuthorizationClaims:
     async def test_refresh_uses_current_role_tenant_and_school_not_stale_token_claims(self, mock_db):

@@ -156,15 +156,15 @@ class UserRefreshTokenRepository(BaseRepository):
         else:
             hashed = hash_refresh_token(include_token_id)
             query = {"$or": [owner_filter, {"token_id": hashed}]}
-        await self._col.update_many(
-            query, {"$set": {"revoked": True, "revoked_reason": reason}}
-        )
         if reason == "logout":
             await self._logout_marker_col.update_one(
                 {"owner_id": owner_id},
                 {"$set": {"logged_out_at": datetime.now(tz=UTC)}},
                 upsert=True,
             )
+        await self._col.update_many(
+            query, {"$set": {"revoked": True, "revoked_reason": reason}}
+        )
 
     async def logged_out_since(self, owner_id: str, since: datetime) -> bool:
         doc = await self._logout_marker_col.find_one({"owner_id": owner_id})
