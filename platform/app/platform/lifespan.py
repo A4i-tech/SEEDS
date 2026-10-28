@@ -273,6 +273,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         except Exception as exc:
             logger.warning("WebsocketClientProvider close failed: %s", exc)
 
+    await service_bus_provider.close()
+
     if conf_mgr is not None:
         try:
             await conf_mgr.close()

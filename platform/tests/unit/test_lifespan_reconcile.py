@@ -27,6 +27,7 @@ async def test_lifespan_reconciles_sync_jobs_by_app_mode(app_mode, expected_call
         patch("app.platform.lifespan.close_subodha_client", new=AsyncMock()),
         patch("app.platform.lifespan._init_conference_manager", return_value=None),
         patch("app.platform.lifespan._make_consumer_tasks", return_value=[]),
+        patch("app.providers.service_bus.service_bus_provider.initialize", new=AsyncMock()),
         patch(
             "app.repositories.textbook_remediation_repository.TextbookRemediationRepository.reconcile_interrupted_jobs",
             new=AsyncMock(return_value=0),

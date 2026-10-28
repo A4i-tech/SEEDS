@@ -67,6 +67,13 @@ async def test_initializes_provider_in_every_mode(app_mode):
 
 
 @pytest.mark.asyncio
+async def test_closes_provider_on_shutdown():
+    with patch("app.providers.service_bus.service_bus_provider.close", new=AsyncMock()) as close_mock:
+        await _run_lifespan(AsyncMock())
+    close_mock.assert_awaited_once()
+
+
+@pytest.mark.asyncio
 async def test_api_mode_init_failure_aborts_startup():
     init_mock = AsyncMock(side_effect=RuntimeError("sb down"))
     with pytest.raises(RuntimeError, match="sb down"):
