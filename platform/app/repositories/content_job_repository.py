@@ -59,16 +59,20 @@ class ContentJobRepository(BaseRepository):
             {"$set": {"status": "running", "started_at": datetime.now(UTC)}},
         )
 
-    async def mark_completed(self, job_id: str) -> None:
-        """Transition job to completed state."""
+    async def mark_completed(self, job_id: str) -> datetime:
+        """Transition job to completed state. Returns the persisted completed_at."""
+        completed_at = datetime.now(UTC)
         await self._col.update_one(
             {"_id": job_id},
-            {"$set": {"status": "completed", "completed_at": datetime.now(UTC)}},
+            {"$set": {"status": "completed", "completed_at": completed_at}},
         )
+        return completed_at
 
-    async def mark_failed(self, job_id: str, reason: str) -> None:
-        """Dead-letter job with failure reason."""
+    async def mark_failed(self, job_id: str, reason: str) -> datetime:
+        """Dead-letter job with failure reason. Returns the persisted failed_at."""
+        failed_at = datetime.now(UTC)
         await self._col.update_one(
             {"_id": job_id},
-            {"$set": {"status": "failed", "reason": reason, "failed_at": datetime.now(UTC)}},
+            {"$set": {"status": "failed", "reason": reason, "failed_at": failed_at}},
         )
+        return failed_at

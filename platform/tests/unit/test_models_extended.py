@@ -679,10 +679,9 @@ class TestContentJobConsumerDeadLetter:
         job_doc = {"_id": job_id, "content_id": str(ObjectId()), "status": "claimed"}
         await db["content_jobs"].insert_one(job_doc)
 
-        # content_col returns None => RuntimeError (permanent)
+        # content_col returns None => RuntimeError (permanent) => dead-lettered, no re-raise
         blob_mock = MagicMock()
-        with pytest.raises(RuntimeError):
-            await _process_audio_content_job(job_doc, ContentJobRepository(db), ContentRepository(db), blob_mock)
+        await _process_audio_content_job(job_doc, ContentJobRepository(db), ContentRepository(db), blob_mock, db)
 
         updated = await db["content_jobs"].find_one({"_id": job_id})
         assert updated["status"] == "failed"

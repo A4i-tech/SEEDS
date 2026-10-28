@@ -148,6 +148,12 @@ def _make_consumer_tasks(conference_manager: Any) -> list[asyncio.Task]:  # type
         logger.error("Failed to initialise ContentJobConsumer: %s", exc)
 
     try:
+        from app.consumers.webhook_delivery_consumer import WebhookDeliveryConsumer  # noqa: PLC0415
+        consumer_specs.append(("WebhookDeliveryConsumer", WebhookDeliveryConsumer(db)))
+    except Exception:  # noqa: BLE001
+        logger.exception("Failed to initialise WebhookDeliveryConsumer")
+
+    try:
         from app.consumers.textbook_remediation_consumer import (
             TextbookRemediationConsumer,  # noqa: PLC0415
         )
@@ -181,10 +187,20 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # ------------------------------------------------------------------
     # STARTUP
     # ------------------------------------------------------------------
+    from app.platform.auth.webhook_secret import validate_configured  # noqa: PLC0415
+
+    validate_configured()
+
     await init_database()
 
     from app.repositories.content_aggregator_sync_job_repository import (  # noqa: PLC0415
         ContentAggregatorSyncJobRepository,
+    )
+    from app.repositories.content_aggregator_webhook_delivery_repository import (  # noqa: PLC0415
+        ContentAggregatorWebhookDeliveryRepository,
+    )
+    from app.repositories.content_aggregator_webhook_repository import (  # noqa: PLC0415
+        ContentAggregatorWebhookRepository,
     )
     from app.repositories.content_job_repository import ContentJobRepository  # noqa: PLC0415
     from app.repositories.textbook_remediation_repository import (  # noqa: PLC0415
@@ -224,6 +240,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await IntegrationClientRepository.ensure_indexes(get_database())
     await UserRefreshTokenRepository.ensure_indexes(get_database())
     await IntegrationTokenRepository.ensure_indexes(get_database())
+    await ContentAggregatorWebhookRepository.ensure_indexes(get_database())
+    await ContentAggregatorWebhookDeliveryRepository.ensure_indexes(get_database())
 
     # Init conference manager (available in all modes)
     try:

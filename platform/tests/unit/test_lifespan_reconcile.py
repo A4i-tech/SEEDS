@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import ExitStack
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -19,7 +20,7 @@ from app.repositories.content_aggregator_sync_job_repository import (
 async def test_lifespan_reconciles_sync_jobs_by_app_mode(app_mode, expected_calls):
     settings = MagicMock(app_mode=app_mode, env="development", version="0.1.0")
 
-    with (
+    patchers = [
         patch("app.platform.lifespan.get_settings", return_value=settings),
         patch("app.platform.lifespan.init_database", new=AsyncMock()),
         patch("app.platform.lifespan.get_database", return_value=MagicMock()),
@@ -67,13 +68,26 @@ async def test_lifespan_reconciles_sync_jobs_by_app_mode(app_mode, expected_call
             "app.repositories.user_refresh_token_repository.UserRefreshTokenRepository.ensure_indexes",
             new=AsyncMock(),
         ),
+        patch(
+            "app.repositories.content_aggregator_webhook_repository.ContentAggregatorWebhookRepository.ensure_indexes",
+            new=AsyncMock(),
+        ),
+        patch(
+            "app.repositories.content_aggregator_webhook_delivery_repository.ContentAggregatorWebhookDeliveryRepository.ensure_indexes",
+            new=AsyncMock(),
+        ),
         patch.object(ContentAggregatorSyncJobRepository, "ensure_indexes", new=AsyncMock()),
         patch.object(
             ContentAggregatorSyncJobRepository,
             "reconcile_interrupted_jobs",
             new=AsyncMock(return_value=0),
-        ) as reconcile_mock,
-    ):
+        ),
+    ]
+
+    with ExitStack() as stack:
+        mocks = [stack.enter_context(p) for p in patchers]
+        reconcile_mock = mocks[-1]
+
         app = FastAPI()
         async with lifespan_mod.lifespan(app):
             pass
