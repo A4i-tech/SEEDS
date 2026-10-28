@@ -27,8 +27,10 @@ runs:
     - name: Extract coverage percentage
       id: coverage
       shell: bash
+      env:
+        DIRECTORY: ${{ inputs.directory }}
       run: |
-        cd ${{ inputs.directory }}
+        cd "$DIRECTORY"
         COVERAGE=$(python -c "
         try:
             import json

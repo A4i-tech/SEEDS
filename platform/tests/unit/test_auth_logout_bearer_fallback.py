@@ -8,12 +8,16 @@ from jose import jwt as jose_jwt
 
 from app.controllers._auth_helpers import logout_bearer_fallback
 from app.platform.auth.jwt import (
-    LOGOUT_TOKEN_MAX_AGE,
     create_access_token,
+    parse_expires_delta,
     verify_expired_token_for_logout,
 )
 from app.platform.error_handling import UnauthorizedError
 from app.platform.settings import get_settings
+
+
+def _logout_token_max_age() -> timedelta:
+    return parse_expires_delta(get_settings().refresh_token_expires_in)
 
 
 @pytest.mark.asyncio
@@ -73,7 +77,7 @@ async def test_expired_bearer_token_within_logout_window_still_logs_out():
     service = AsyncMock()
     token = create_access_token(
         {"sub": "teacher-1", "role": "teacher"},
-        expires_delta=-(LOGOUT_TOKEN_MAX_AGE - timedelta(seconds=30)),
+        expires_delta=-(_logout_token_max_age() - timedelta(seconds=30)),
     )
     await logout_bearer_fallback(token, service)
     service.logout.assert_awaited_once_with("teacher-1")
@@ -84,10 +88,51 @@ async def test_expired_bearer_token_past_logout_window_does_not_logout():
     service = AsyncMock()
     token = create_access_token(
         {"sub": "teacher-1", "role": "teacher"},
-        expires_delta=-(LOGOUT_TOKEN_MAX_AGE + timedelta(seconds=30)),
+        expires_delta=-(_logout_token_max_age() + timedelta(seconds=30)),
     )
     await logout_bearer_fallback(token, service)
     service.logout.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_expired_bearer_token_two_hours_old_still_logs_out():
+    service = AsyncMock()
+    token = create_access_token(
+        {"sub": "teacher-1", "role": "teacher"},
+        expires_delta=-timedelta(hours=2),
+    )
+    await logout_bearer_fallback(token, service)
+    service.logout.assert_awaited_once_with("teacher-1")
+
+
+@pytest.mark.asyncio
+async def test_expired_bearer_token_past_refresh_token_lifetime_does_not_logout():
+    service = AsyncMock()
+    token = create_access_token(
+        {"sub": "teacher-1", "role": "teacher"},
+        expires_delta=-(_logout_token_max_age() + timedelta(days=1)),
+    )
+    await logout_bearer_fallback(token, service)
+    service.logout.assert_not_awaited()
+
+
+def test_verify_expired_token_for_logout_reads_settings_at_call_time(monkeypatch):
+    settings = get_settings()
+    token = create_access_token(
+        {"sub": "teacher-1", "role": "teacher"},
+        expires_delta=-timedelta(hours=2),
+    )
+
+    original_value = settings.refresh_token_expires_in
+    try:
+        monkeypatch.setattr(settings, "refresh_token_expires_in", "1h")
+        with pytest.raises(UnauthorizedError):
+            verify_expired_token_for_logout(token)
+
+        monkeypatch.setattr(settings, "refresh_token_expires_in", original_value)
+        verify_expired_token_for_logout(token)
+    finally:
+        settings.refresh_token_expires_in = original_value
 
 
 def test_verify_expired_token_for_logout_rejects_missing_exp():

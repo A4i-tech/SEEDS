@@ -110,12 +110,11 @@ class IntegrationTokenRepository(BaseRepository):
         # Integration refresh tokens are never cached raw. No-op by design.
         return None
 
+    async def logged_out_since(self, owner_id: str, since: datetime) -> bool:
+        return False
+
     async def revoke_all_for_owner(self, owner_id: str, *, reason: str) -> None:
         await self._col.update_many(
             {"client_id": owner_id},
             {"$set": {"revoked": True, "revoked_reason": reason}},
         )
-
-    async def logged_out_since(self, owner_id: str, since: datetime) -> bool:
-        # Integration clients have no browser session/logout concept.
-        return False
