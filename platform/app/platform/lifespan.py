@@ -220,13 +220,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.warning("Conference manager init failed (non-fatal in test mode): %s", exc)
         conf_mgr = None  # type: ignore[assignment]
 
-    try:
-        from app.providers.service_bus import service_bus_provider  # noqa: PLC0415
+    from app.providers.service_bus import service_bus_provider  # noqa: PLC0415
 
-        await service_bus_provider.initialize()
-    except Exception as exc:  # noqa: BLE001
-        logger.error("Failed to initialize service bus provider: %s", exc)
-        raise
+    await service_bus_provider.initialize()
 
     consumer_tasks: list[asyncio.Task] = []  # type: ignore[type-arg]
     if settings.app_mode in ("consumer", "all"):

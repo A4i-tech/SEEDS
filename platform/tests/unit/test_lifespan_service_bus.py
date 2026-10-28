@@ -21,8 +21,8 @@ ENSURE_INDEXES_TARGETS = [
 ]
 
 
-async def _run_lifespan(init_mock: AsyncMock) -> None:
-    settings = MagicMock(app_mode="api", env="development", version="0.1.0")
+async def _run_lifespan(init_mock: AsyncMock, app_mode: str = "api") -> None:
+    settings = MagicMock(app_mode=app_mode, env="development", version="0.1.0")
     with ExitStack() as stack:
         stack.enter_context(patch("app.platform.lifespan.get_settings", return_value=settings))
         stack.enter_context(patch("app.platform.lifespan.init_database", new=AsyncMock()))
@@ -32,6 +32,7 @@ async def _run_lifespan(init_mock: AsyncMock) -> None:
         stack.enter_context(patch("app.platform.lifespan.close_database", new=AsyncMock()))
         stack.enter_context(patch("app.platform.lifespan.close_subodha_client", new=AsyncMock()))
         stack.enter_context(patch("app.platform.lifespan._init_conference_manager", return_value=None))
+        stack.enter_context(patch("app.platform.lifespan._make_consumer_tasks", return_value=[]))
         stack.enter_context(
             patch("app.providers.service_bus.service_bus_provider.initialize", new=init_mock)
         )
@@ -58,9 +59,10 @@ async def _run_lifespan(init_mock: AsyncMock) -> None:
 
 
 @pytest.mark.asyncio
-async def test_api_mode_initializes_provider():
+@pytest.mark.parametrize("app_mode", ["api", "consumer", "all"])
+async def test_initializes_provider_in_every_mode(app_mode):
     init_mock = AsyncMock()
-    await _run_lifespan(init_mock)
+    await _run_lifespan(init_mock, app_mode)
     init_mock.assert_awaited_once()
 
 
