@@ -1,0 +1,61 @@
+name: Release PR
+
+on:
+  schedule:
+    - cron: '30 11 * * 4'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  GH_TOKEN: ${{ secrets.RELEASE_BOT_TOKEN }}
+  WEBHOOK_URL: ${{ secrets.RELEASE_WEBHOOK_URL }}
+  REVIEWER: Soumabha
+  SCRIPTS: .github/scripts/release-pr
+
+jobs:
+  release-pr:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Find pending PRs and open release PR
+        id: state
+        run: $SCRIPTS/detect-state.sh >> "$GITHUB_OUTPUT"
+
+      - name: Build release PR content
+        id: content
+        if: steps.state.outputs.open == '0' && steps.state.outputs.pending != ''
+        env:
+          PENDING: ${{ steps.state.outputs.pending }}
+        run: $SCRIPTS/build-content.sh >> "$GITHUB_OUTPUT"
+
+      - name: Create release PR
+        id: pr
+        if: steps.content.outcome == 'success'
+        uses: devops-infra/action-pull-request@v1.4.0
+        with:
+          github_token: ${{ secrets.RELEASE_BOT_TOKEN }}
+          source_branch: a4i/staging
+          target_branch: a4i/main
+          title: ${{ steps.content.outputs.title }}
+          body: ${{ steps.content.outputs.body }}
+          reviewer: ${{ env.REVIEWER }}
+          assignee: farmanahmed888
+
+      - name: Notify release PR
+        if: steps.pr.outcome == 'success'
+        env:
+          TITLE: ${{ steps.content.outputs.title }}
+          PR_URL: ${{ steps.pr.outputs.url }}
+        run: |
+          $SCRIPTS/post-webhook.sh "$REVIEWER: [$TITLE]($PR_URL) is ready for review"
+
+      - name: Notify no PRs for release
+        if: steps.state.outputs.open == '0' && steps.state.outputs.pending == ''
+        run: |
+          $SCRIPTS/post-webhook.sh "$REVIEWER: no PRs for release"
