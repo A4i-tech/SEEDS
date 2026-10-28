@@ -68,6 +68,9 @@ class FakeStore:
     async def cache_replay(self, token_id: str, pair) -> None:
         self._replays[token_id] = pair
 
+    async def logged_out_since(self, owner_id: str, since: datetime) -> bool:
+        return False
+
     async def revoke_all_for_owner(self, owner_id: str, *, reason: str) -> None:
         for doc in self._tokens.values():
             if doc["owner_id"] == owner_id and not doc["revoked"]:
