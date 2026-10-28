@@ -76,4 +76,5 @@ export const clearAuth = () => {
   clearAccessToken();
   localStorage.removeItem("userRole");
   localStorage.removeItem("schoolId");
+  localStorage.removeItem("authToken");
 };

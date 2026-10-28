@@ -133,7 +133,7 @@ const ToggleLogin = () => {
   );
 };
 
-describe("Login unmount/remount clears stale error (PR #305 #14)", () => {
+describe("Login unmount/remount clears stale error", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     clearAccessToken();

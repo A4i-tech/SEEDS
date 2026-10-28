@@ -33,6 +33,7 @@ from app.platform.auth.jwt import create_access_token, parse_expires_delta
 from app.platform.auth.refresh_tokens import (
     RefreshTokenExpiredError,
     RefreshTokenNotFoundError,
+    RefreshTokenPendingError,
     RefreshTokenReplayedError,
     RefreshTokenReusedError,
     RefreshTokenRevokedError,
@@ -476,23 +477,20 @@ class AuthService:
     async def logout_by_refresh_token(self, refresh_token: str) -> None:
         repo = UserRefreshTokenRepository(self._db)
         try:
-            consumed = await repo.try_consume(refresh_token)
-        except (
-            RefreshTokenNotFoundError,
-            RefreshTokenExpiredError,
-            RefreshTokenReplayedError,
-        ):
+            consumed = await repo.try_consume(refresh_token, for_logout=True)
+        except (RefreshTokenNotFoundError, RefreshTokenExpiredError, RefreshTokenRevokedError):
             return
-        except RefreshTokenRevokedError as exc:
-            # The token was already logged out — sweep the owner again so a
-            # retry after a prior partial failure still revokes all sessions.
-            await repo.revoke_all_for_owner(exc.owner_id, reason="logout")
+        except (RefreshTokenReplayedError, RefreshTokenPendingError) as exc:
+            await repo.revoke_all_for_owner(
+                exc.owner_id, reason="logout", include_token_id=refresh_token
+            )
             return
         except RefreshTokenReusedError as exc:
             await refresh_tokens.handle_reuse_detected(repo, exc, "auth.reuse_detected")
             raise UnauthorizedError("Invalid refresh token") from None
-        await repo.mark_logout(refresh_token)
-        await repo.revoke_all_for_owner(consumed.owner_id, reason="logout")
+        await repo.revoke_all_for_owner(
+            consumed.owner_id, reason="logout", include_token_id=refresh_token
+        )
 
     async def get_user_profile(self, user_id: str, entity_label: str) -> User:
         return await get_user_profile(user_id, entity_label, self._db)

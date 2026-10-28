@@ -24,27 +24,63 @@ const messageFromBody = (text) => {
 
 let refreshPromise = null;
 
+const requestTokenRefresh = async (isPendingRetry = false) => {
+  const response = await fetch(`${SEEDS_URL}/auth/token/refresh`, {
+    method: "POST",
+    credentials: "include",
+  });
+  if (!response.ok) {
+    const body = await response.text();
+    if (response.status === 409 && !isPendingRetry && isPendingRefreshBody(body)) {
+      return requestTokenRefresh(true);
+    }
+    throw new ApiError(body || "refresh failed", response.status, response);
+  }
+  const data = await response.json();
+  setAccessToken(data.access_token);
+  return data.access_token;
+};
+
+const isPendingRefreshBody = (body) => {
+  try {
+    return JSON.parse(body).code === "REFRESH_TOKEN_PENDING";
+  } catch {
+    return false;
+  }
+};
+
 export const refreshAccessToken = async () => {
   if (!refreshPromise) {
     refreshPromise = (async () => {
       try {
-        const response = await fetch(`${SEEDS_URL}/auth/token/refresh`, {
-          method: "POST",
-          credentials: "include",
-        });
-        if (!response.ok) {
-          const body = await response.text();
-          throw new ApiError(body || "refresh failed", response.status, response);
-        }
-        const data = await response.json();
-        setAccessToken(data.access_token);
-        return data.access_token;
+        return await requestTokenRefresh();
       } finally {
         refreshPromise = null;
       }
     })();
   }
   return refreshPromise;
+};
+
+const clearAuthAndRedirect = () => {
+  clearAuth();
+  if (typeof window !== "undefined" && window.location.pathname !== "/") {
+    window.location.href = "/";
+  }
+};
+
+const refreshAndRetry = async (label, retry) => {
+  let newToken;
+  try {
+    newToken = await refreshAccessToken();
+  } catch (refreshError) {
+    console.error(`${label}: token refresh failed`, refreshError);
+    if (refreshError.status === 401) {
+      clearAuthAndRedirect();
+    }
+    throw refreshError;
+  }
+  return retry(newToken);
 };
 
 export const initSession = async () => {
@@ -75,29 +111,15 @@ export const apiFetch = async (url, { timeoutMs, ...options } = {}, _isRetry = f
 
     if (!response.ok) {
       if (response.status === 401 && getAccessToken() && !_isRetry) {
-        let newToken;
-        try {
-          newToken = await refreshAccessToken();
-        } catch (refreshError) {
-          console.error("apiFetch: token refresh failed", refreshError);
-          if (refreshError.status === 401) {
-            clearAuth();
-            if (typeof window !== "undefined" && window.location.pathname !== "/") {
-              window.location.href = "/";
-            }
-          }
-          throw refreshError;
-        }
-        return await apiFetch(
-          url,
-          { ...options, timeoutMs, headers: { ...options.headers, Authorization: `Bearer ${newToken}` } },
-          true
+        return await refreshAndRetry("apiFetch", (newToken) =>
+          apiFetch(
+            url,
+            { ...options, timeoutMs, headers: { ...options.headers, Authorization: `Bearer ${newToken}` } },
+            true
+          )
         );
       } else if (response.status === 401) {
-        clearAuth();
-        if (typeof window !== "undefined" && window.location.pathname !== "/") {
-          window.location.href = "/";
-        }
+        clearAuthAndRedirect();
       }
       const text = await response.text();
       throw new ApiError(
@@ -151,26 +173,12 @@ const apiFetchRaw = async (url, { headers, signal } = {}, _isRetry = false) => {
   const response = await fetch(url, { headers, signal });
   if (!response.ok) {
     if (response.status === 401 && getAccessToken() && !_isRetry) {
-      let newToken;
-      try {
-        newToken = await refreshAccessToken();
-      } catch (refreshError) {
-        console.error("apiFetchRaw: token refresh failed", refreshError);
-        if (refreshError.status === 401) {
-          clearAuth();
-          if (typeof window !== "undefined" && window.location.pathname !== "/") {
-            window.location.href = "/";
-          }
-        }
-        throw refreshError;
-      }
-      return apiFetchRaw(url, { headers: { ...headers, Authorization: `Bearer ${newToken}` }, signal }, true);
+      return refreshAndRetry("apiFetchRaw", (newToken) =>
+        apiFetchRaw(url, { headers: { ...headers, Authorization: `Bearer ${newToken}` }, signal }, true)
+      );
     }
     if (response.status === 401) {
-      clearAuth();
-      if (typeof window !== "undefined" && window.location.pathname !== "/") {
-        window.location.href = "/";
-      }
+      clearAuthAndRedirect();
     }
     throw new ApiError(`Request failed with status ${response.status}`, response.status, response);
   }

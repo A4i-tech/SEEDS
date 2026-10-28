@@ -52,7 +52,7 @@ class FakeStore:
                 if elapsed <= refresh_tokens_module.REPLAY_GRACE_WINDOW:
                     cached = self._replays.get(token_id)
                     if cached is not None:
-                        raise RefreshTokenReplayedError(cached)
+                        raise RefreshTokenReplayedError(doc["owner_id"], cached)
             raise RefreshTokenReusedError(doc["owner_id"])
         if doc["expires_at"] <= datetime.now(tz=UTC):
             raise RefreshTokenExpiredError
@@ -73,6 +73,9 @@ class FakeStore:
             if doc["owner_id"] == owner_id and not doc["revoked"]:
                 doc["revoked"] = True
                 doc["revoked_reason"] = reason
+
+    async def logged_out_since(self, owner_id: str, since: datetime) -> bool:
+        return False
 
 
 @pytest.fixture(autouse=True)

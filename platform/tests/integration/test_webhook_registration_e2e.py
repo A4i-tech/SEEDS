@@ -5,6 +5,7 @@ from httpx import ASGITransport, AsyncClient
 
 from app.main import app
 from app.platform.auth.dependencies import get_db
+from app.platform.auth.jwt import create_access_token
 from app.repositories.content_aggregator_webhook_repository import (
     ContentAggregatorWebhookRepository,
 )
@@ -33,10 +34,16 @@ async def client():
         yield c
 
 
+def _tenant_headers(tenant_id: str) -> dict[str, str]:
+    token = create_access_token({"sub": tenant_id, "role": "tenant", "tenant_id": tenant_id})
+    return {"Authorization": f"Bearer {token}"}
+
+
 async def _register_and_token(client, *, scopes=("content:write", "content:read"), tenant_ids=("tenant-1",)):
     reg = await client.post(
         "/v1/auth/register",
         json={"name": "Partner", "tenant_ids": list(tenant_ids), "scopes": list(scopes)},
+        headers=_tenant_headers(tenant_ids[0]),
     )
     assert reg.status_code == 200, reg.text
     body = reg.json()

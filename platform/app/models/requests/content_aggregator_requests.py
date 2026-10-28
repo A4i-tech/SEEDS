@@ -35,7 +35,7 @@ class ContentAggregatorRegisterRequest(BaseModel):
     @field_validator("scopes")
     @classmethod
     def _validate_scopes(cls, values: list[str]) -> list[str]:
-        if any(not v or v.split() != [v] for v in values):
+        if any(v.split() != [v] for v in values):
             raise ValueError("scopes must be non-empty, whitespace-free tokens")
         return values
 

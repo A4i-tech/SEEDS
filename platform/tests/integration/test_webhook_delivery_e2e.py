@@ -14,6 +14,7 @@ import app.services.webhook_delivery_service as webhook_delivery_service
 from app.main import app
 from app.models.requests.webhook_registration_requests import WebhookEventType
 from app.platform.auth.dependencies import get_db
+from app.platform.auth.jwt import create_access_token
 from app.repositories.content_aggregator_webhook_repository import (
     ContentAggregatorWebhookRepository,
 )
@@ -72,11 +73,17 @@ async def _drain(mock_db) -> None:
         await service.attempt_delivery(attempt)
 
 
+def _tenant_headers(tenant_id: str) -> dict[str, str]:
+    token = create_access_token({"sub": tenant_id, "role": "tenant", "tenant_id": tenant_id})
+    return {"Authorization": f"Bearer {token}"}
+
+
 async def _register_client_and_webhook(client, receiver, *, events=("job.completed", "job.failed")):
     tenant_id = str(ObjectId())
     reg = await client.post(
         "/v1/auth/register",
         json={"name": "Partner", "tenant_ids": [tenant_id], "scopes": ["content:write", "content:read"]},
+        headers=_tenant_headers(tenant_id),
     )
     assert reg.status_code == 200, reg.text
     creds = reg.json()

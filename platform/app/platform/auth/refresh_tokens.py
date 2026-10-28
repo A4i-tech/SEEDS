@@ -64,6 +64,12 @@ class RefreshTokenRevokedError(Exception):
         self.owner_id = owner_id
 
 
+class RefreshTokenPendingError(Exception):
+    def __init__(self, owner_id: str) -> None:
+        super().__init__(f"Refresh token pending — owner_id={owner_id}")
+        self.owner_id = owner_id
+
+
 class RefreshTokenReplayedError(Exception):
     """Raised when a just-consumed token is replayed within the grace window.
 
@@ -72,8 +78,9 @@ class RefreshTokenReplayedError(Exception):
     idempotently instead of triggering reuse-detection revocation.
     """
 
-    def __init__(self, pair: TokenPair) -> None:
+    def __init__(self, owner_id: str, pair: TokenPair) -> None:
         super().__init__("Refresh token replayed within grace window")
+        self.owner_id = owner_id
         self.pair = pair
 
 
@@ -94,6 +101,8 @@ class RefreshTokenStore[ClaimsT](Protocol):
     async def cache_replay(self, token_id: str, pair: TokenPair) -> None: ...
 
     async def revoke_all_for_owner(self, owner_id: str, *, reason: str) -> None: ...
+
+    async def logged_out_since(self, owner_id: str, since: datetime) -> bool: ...
 
 
 type VerifyOwnerActive[ClaimsT] = Callable[[str, ClaimsT], Awaitable[ClaimsT]]
@@ -154,10 +163,13 @@ async def rotate[ClaimsT](
     refresh_ttl: str,
     reuse_counter_name: str,
 ) -> TokenPair:
+    started_at = datetime.now(tz=UTC)
     try:
         consumed = await store.try_consume(refresh_token)
     except RefreshTokenReplayedError as exc:
         return exc.pair
+    except RefreshTokenPendingError:
+        raise AppError("REFRESH_TOKEN_PENDING", "Refresh already in progress, retry shortly", 409) from None
     except RefreshTokenNotFoundError:
         raise UnauthorizedError("Invalid refresh token") from None
     except RefreshTokenExpiredError:
@@ -183,6 +195,12 @@ async def rotate[ClaimsT](
         family_expires_at=consumed.family_expires_at,
         created_at=now,
     )
+
+    if await store.logged_out_since(consumed.owner_id, since=started_at):
+        await store.revoke_all_for_owner(
+            consumed.owner_id, reason="logout", include_token_id=new_refresh_token
+        )
+        raise UnauthorizedError("Invalid refresh token")
 
     pair: TokenPair = {
         "access_token": access_token,

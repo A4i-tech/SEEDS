@@ -60,6 +60,13 @@ def parse_expires_delta(value: str) -> timedelta:
     return timedelta(seconds=amount)
 
 
+# Expired access tokens presented for logout are accepted up to the
+# configured access-token lifetime past their `exp` — reusing the same
+# window a legitimately-issued token would have been valid for, instead of
+# an arbitrary magic value.
+LOGOUT_TOKEN_MAX_AGE = parse_expires_delta(get_settings().jwt_expires_in)
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -146,5 +153,43 @@ def verify_token(token: str) -> dict[str, Any]:
     if payload.get("iss") != _ISSUER:
         logger.warning("auth: wrong issuer '%s'", payload.get("iss"))
         raise UnauthorizedError("Invalid token issuer")
+
+    return payload
+
+
+def verify_expired_token_for_logout(token: str) -> dict[str, Any]:
+    """
+    Decode *token* for logout purposes only, accepting an expired exp.
+
+    Signature and issuer are still enforced. Never use the returned claims
+    to authorize a request — only to identify the owner to revoke.
+    """
+    settings = get_settings()
+
+    try:
+        payload: dict[str, Any] = jwt.decode(
+            token,
+            settings.secret_key,
+            algorithms=[_ALGORITHM],
+            issuer=_ISSUER,
+            options={"require": ["sub", "exp", "iss"], "verify_exp": False},
+        )
+    except JWTError as exc:
+        logger.warning("auth: token verification failed — %s", exc)
+        raise UnauthorizedError("Invalid token")
+
+    if payload.get("iss") != _ISSUER:
+        logger.warning("auth: wrong issuer '%s'", payload.get("iss"))
+        raise UnauthorizedError("Invalid token issuer")
+
+    try:
+        expires_at = datetime.fromtimestamp(payload.get("exp"), tz=UTC)
+    except (TypeError, ValueError, OSError):
+        logger.warning("auth: malformed expiry claim")
+        raise UnauthorizedError("Invalid token")
+
+    if datetime.now(tz=UTC) - expires_at > LOGOUT_TOKEN_MAX_AGE:
+        logger.warning("auth: expired token too old for logout fallback")
+        raise UnauthorizedError("Token has expired")
 
     return payload

@@ -115,3 +115,7 @@ class IntegrationTokenRepository(BaseRepository):
             {"client_id": owner_id},
             {"$set": {"revoked": True, "revoked_reason": reason}},
         )
+
+    async def logged_out_since(self, owner_id: str, since: datetime) -> bool:
+        # Integration clients have no browser session/logout concept.
+        return False

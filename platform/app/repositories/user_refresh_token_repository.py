@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import cast
 
 from pymongo.asynchronous.database import AsyncDatabase
@@ -13,6 +13,7 @@ from app.platform.auth.refresh_tokens import (
     ConsumedToken,
     RefreshTokenExpiredError,
     RefreshTokenNotFoundError,
+    RefreshTokenPendingError,
     RefreshTokenReplayedError,
     RefreshTokenReusedError,
     RefreshTokenRevokedError,
@@ -25,15 +26,15 @@ from app.repositories.base_repository import BaseRepository
 class UserRefreshTokenRepository(BaseRepository):
     COLLECTION = "userRefreshTokens"
     REPLAY_CACHE_COLLECTION = "userRefreshTokenReplays"
-    # A concurrent request can observe a token as "just consumed" before the
-    # consuming request has finished writing its replay-cache entry. Poll
-    # briefly for that entry instead of treating the race as token reuse.
+    LOGOUT_MARKER_COLLECTION = "userRefreshTokenLogoutMarkers"
+    # Poll briefly for a concurrent request's replay-cache entry before treating it as reuse.
     _REPLAY_CACHE_POLL_ATTEMPTS = 10
     _REPLAY_CACHE_POLL_INTERVAL_SECONDS = 0.05
 
     def __init__(self, db: AsyncDatabase) -> None:
         self._col = db[self.COLLECTION]
         self._replay_col = db[self.REPLAY_CACHE_COLLECTION]
+        self._logout_marker_col = db[self.LOGOUT_MARKER_COLLECTION]
 
     @classmethod
     async def ensure_indexes(cls, db: AsyncDatabase) -> None:
@@ -45,6 +46,8 @@ class UserRefreshTokenRepository(BaseRepository):
         await replay_col.create_index(
             "created_at", expireAfterSeconds=int(REPLAY_GRACE_WINDOW.total_seconds()) + 30
         )
+        logout_marker_col = db[cls.LOGOUT_MARKER_COLLECTION]
+        await logout_marker_col.create_index("owner_id", unique=True)
 
     @staticmethod
     def _to_consumed(doc: dict) -> ConsumedToken[UserClaims]:
@@ -80,17 +83,19 @@ class UserRefreshTokenRepository(BaseRepository):
             }
         )
 
-    async def try_consume(self, token_id: str) -> ConsumedToken[UserClaims]:
+    async def try_consume(
+        self, token_id: str, *, for_logout: bool = False
+    ) -> ConsumedToken[UserClaims]:
         hashed = hash_refresh_token(token_id)
         now = datetime.now(tz=UTC)
+        update: dict = {"revoked": True, "revoked_reason": "consumed", "consumed_at": now}
+        if for_logout:
+            update["logout_pending"] = True
         doc = await self._col.find_one_and_update(
             {"token_id": hashed, "revoked": False, "expires_at": {"$gt": now}},
-            {"$set": {"revoked": True, "revoked_reason": "consumed", "consumed_at": now}},
+            {"$set": update},
         )
         if doc is not None:
-            await self._replay_col.update_one(
-                {"_id": hashed}, {"$setOnInsert": {"created_at": now}}, upsert=True
-            )
             return self._to_consumed(doc)
 
         existing = await self._col.find_one({"token_id": hashed})
@@ -100,15 +105,20 @@ class UserRefreshTokenRepository(BaseRepository):
             raise RefreshTokenExpiredError
         if existing.get("revoked_reason") == "logout":
             raise RefreshTokenRevokedError(existing["owner_id"])
+        if existing.get("logout_pending"):
+            raise RefreshTokenPendingError(existing["owner_id"])
         if existing.get("revoked_reason") == "consumed":
             consumed_at = existing.get("consumed_at")
             if consumed_at is not None and now - _as_utc(consumed_at) <= REPLAY_GRACE_WINDOW:
                 for attempt in range(self._REPLAY_CACHE_POLL_ATTEMPTS):
                     cached = await self._replay_col.find_one({"_id": hashed})
                     if cached is not None and "pair" in cached:
-                        raise RefreshTokenReplayedError(self._decrypt_pair(cached["pair"]))
+                        raise RefreshTokenReplayedError(
+                            existing["owner_id"], self._decrypt_pair(cached["pair"])
+                        )
                     if attempt < self._REPLAY_CACHE_POLL_ATTEMPTS - 1:
                         await asyncio.sleep(self._REPLAY_CACHE_POLL_INTERVAL_SECONDS)
+                raise RefreshTokenPendingError(existing["owner_id"])
         raise RefreshTokenReusedError(existing["owner_id"])
 
     async def cache_replay(self, token_id: str, pair: TokenPair) -> None:
@@ -137,15 +147,27 @@ class UserRefreshTokenRepository(BaseRepository):
         pair["refresh_token"] = decrypt_secret(stored["refresh_token"])
         return cast(TokenPair, pair)
 
-    async def mark_logout(self, token_id: str) -> None:
-        hashed = hash_refresh_token(token_id)
-        await self._col.update_one(
-            {"token_id": hashed, "revoked_reason": "consumed"},
-            {"$set": {"revoked_reason": "logout"}},
-        )
-
-    async def revoke_all_for_owner(self, owner_id: str, *, reason: str) -> None:
+    async def revoke_all_for_owner(
+        self, owner_id: str, *, reason: str, include_token_id: str | None = None
+    ) -> None:
+        owner_filter = {"owner_id": owner_id, "revoked": False}
+        if include_token_id is None:
+            query = owner_filter
+        else:
+            hashed = hash_refresh_token(include_token_id)
+            query = {"$or": [owner_filter, {"token_id": hashed}]}
         await self._col.update_many(
-            {"owner_id": owner_id, "revoked": False},
-            {"$set": {"revoked": True, "revoked_reason": reason}},
+            query, {"$set": {"revoked": True, "revoked_reason": reason}}
         )
+        if reason == "logout":
+            await self._logout_marker_col.update_one(
+                {"owner_id": owner_id},
+                {"$set": {"logged_out_at": datetime.now(tz=UTC)}},
+                upsert=True,
+            )
+
+    async def logged_out_since(self, owner_id: str, since: datetime) -> bool:
+        doc = await self._logout_marker_col.find_one({"owner_id": owner_id})
+        if doc is None:
+            return False
+        return _as_utc(doc["logged_out_at"]) >= since - timedelta(milliseconds=1)
