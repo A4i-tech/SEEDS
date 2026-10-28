@@ -4,9 +4,16 @@ from datetime import timedelta
 from unittest.mock import AsyncMock
 
 import pytest
+from jose import jwt as jose_jwt
 
 from app.controllers._auth_helpers import logout_bearer_fallback
-from app.platform.auth.jwt import create_access_token
+from app.platform.auth.jwt import (
+    LOGOUT_TOKEN_MAX_AGE,
+    create_access_token,
+    verify_expired_token_for_logout,
+)
+from app.platform.error_handling import UnauthorizedError
+from app.platform.settings import get_settings
 
 
 @pytest.mark.asyncio
@@ -59,3 +66,52 @@ async def test_expired_bearer_token_with_bad_signature_does_not_logout():
     tampered = token[:mid] + ("A" if token[mid] != "A" else "B") + token[mid + 1 :]
     await logout_bearer_fallback(tampered, service)
     service.logout.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_expired_bearer_token_within_logout_window_still_logs_out():
+    service = AsyncMock()
+    token = create_access_token(
+        {"sub": "teacher-1", "role": "teacher"},
+        expires_delta=-(LOGOUT_TOKEN_MAX_AGE - timedelta(seconds=30)),
+    )
+    await logout_bearer_fallback(token, service)
+    service.logout.assert_awaited_once_with("teacher-1")
+
+
+@pytest.mark.asyncio
+async def test_expired_bearer_token_past_logout_window_does_not_logout():
+    service = AsyncMock()
+    token = create_access_token(
+        {"sub": "teacher-1", "role": "teacher"},
+        expires_delta=-(LOGOUT_TOKEN_MAX_AGE + timedelta(seconds=30)),
+    )
+    await logout_bearer_fallback(token, service)
+    service.logout.assert_not_awaited()
+
+
+def test_verify_expired_token_for_logout_rejects_missing_exp():
+    settings = get_settings()
+    token = jose_jwt.encode(
+        {"sub": "teacher-1", "role": "teacher", "iss": "platform"},
+        settings.secret_key,
+        algorithm="HS256",
+    )
+    with pytest.raises(UnauthorizedError):
+        verify_expired_token_for_logout(token)
+
+
+def test_verify_expired_token_for_logout_rejects_malformed_exp():
+    settings = get_settings()
+    token = jose_jwt.encode(
+        {
+            "sub": "teacher-1",
+            "role": "teacher",
+            "iss": "platform",
+            "exp": "not-a-timestamp",
+        },
+        settings.secret_key,
+        algorithm="HS256",
+    )
+    with pytest.raises(UnauthorizedError):
+        verify_expired_token_for_logout(token)
