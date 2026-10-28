@@ -391,7 +391,7 @@ test.describe('content creator content CRUD (unique per run, self-cleaning)', ()
   });
 });
 
-test('TC-CONT-018 freshly-registered teacher can log in', async ({
+test('TC-CONT-018 freshly-registered teacher cannot log in', async ({
   page,
   browser,
 }) => {
@@ -417,7 +417,7 @@ test('TC-CONT-018 freshly-registered teacher can log in', async ({
     (res) => res.request().method() === 'POST' && new URL(res.url()).pathname.endsWith('/auth/login')
   );
   await new LoginPage(teacherPage).login(phone, 'Test@123');
-  expect((await loginResponse).status()).toBe(200);
+  expect((await loginResponse).status()).toBe(401);
   await teacherContext.close();
 
   // Cleanup: delete the throwaway teacher (still logged in as the school on
