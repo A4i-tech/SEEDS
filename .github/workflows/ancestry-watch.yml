@@ -36,10 +36,15 @@ jobs:
             exit 1
           fi
       - name: Confirm commits unique to main are all merge commits (no squash/rebase/direct push)
+        if: ${{ !cancelled() }}
         env:
           BASELINE: ${{ vars.ANCESTRY_WATCH_BASELINE }}
         run: |
           git fetch origin a4i/main
+          if ! git merge-base --is-ancestor "$BASELINE" origin/a4i/main; then
+            echo "ANCESTRY_WATCH_BASELINE ($BASELINE) is unset, invalid, or not an ancestor of a4i/main." >&2
+            exit 1
+          fi
           bad=$(git rev-list --first-parent --no-merges "$BASELINE..origin/a4i/main")
           if [ -n "$bad" ]; then
             echo "Non-merge commit(s) found on a4i/main's first-parent chain: $bad" >&2
