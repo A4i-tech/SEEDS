@@ -46,6 +46,8 @@ class _PlannedRow(TypedDict):
 IMPORT_TEXT_MAX_LENGTH = 5000
 IMPORT_ROUTE_MAX_LENGTH = 2048
 IMPORT_KEY_MAX_LENGTH = 256
+IMPORT_QUALITY_SCORE = 1.0
+IMPORT_SOURCE_LANG = "en"
 _ROUTE_FORBIDDEN_CHARS = frozenset(['"', "#", "<", ">", "?", "^", "`", "{", "}", chr(92)])
 _REJECTION_FIELDS = ("rejected_by", "rejected_at", "rejection_reason")
 _REVIEW_FIELDS = ("approved_by", "approved_at", *_REJECTION_FIELDS)
@@ -512,17 +514,12 @@ class TranslationService:
                 audit_pushes.append(
                     {"action": "approved", "actor": approved_by, "detail": f"version={version}", "at": now}
                 )
-                audits_by_translation.setdefault(translation_id, []).append({
-                    "site_id": site_id,
-                    "route": doc["route"],
-                    "key": doc["key"],
-                    "lang": doc_lang,
-                    "action": "approved",
-                    "actor": approved_by,
-                    "provider": None,
-                    "detail": f"version={version}",
-                    "at": now,
-                })
+                audits_by_translation.setdefault(translation_id, []).append(
+                    _import_audit_doc(
+                        site_id, doc["route"], doc["key"], doc_lang, "approved", approved_by, None,
+                        f"version={version}", now,
+                    )
+                )
                 translations_snapshot = {
                     **translations_snapshot,
                     doc_lang: {**entry, "status": "approved", "approved_by": approved_by, "approved_at": now},
@@ -656,7 +653,7 @@ class TranslationService:
             if doc is None and sdk_rolling_hash(source) != key:
                 fail(row_no, route, key, "key_mismatch")
                 continue
-            if doc is not None and text == current:
+            if doc is not None and text == current and (not approving or (entry or {}).get("status") == "approved"):
                 counts["unchanged"] += 1
                 continue
 
@@ -665,7 +662,7 @@ class TranslationService:
                 new_entry: dict[str, Any] = {
                     "text": text,
                     "provider": IMPORT_PROVIDER,
-                    "quality_score": 1.0,
+                    "quality_score": IMPORT_QUALITY_SCORE,
                     "created_by": actor,
                     "created_at": now,
                     "status": "approved" if approving else "pending",
@@ -681,7 +678,7 @@ class TranslationService:
                         "site_id": site_id,
                         "route": route,
                         "key": key,
-                        "source_lang": "en",
+                        "source_lang": IMPORT_SOURCE_LANG,
                         "source_text": source,
                         "created_at": now,
                     },
@@ -694,7 +691,7 @@ class TranslationService:
                 unset_fields: dict[str, str] = {}
                 if state != "keep" or entry is None:
                     set_fields[f"{base}.provider"] = IMPORT_PROVIDER
-                    set_fields[f"{base}.quality_score"] = 1.0
+                    set_fields[f"{base}.quality_score"] = IMPORT_QUALITY_SCORE
                     set_fields[f"{base}.status"] = "pending"
                     review_fields = _REJECTION_FIELDS if approving else _REVIEW_FIELDS
                     unset_fields = {f"{base}.{field}": "" for field in review_fields}
@@ -741,7 +738,7 @@ class TranslationService:
                             **(entry or {}),
                             "text": text,
                             "provider": IMPORT_PROVIDER,
-                            "quality_score": 1.0,
+                            "quality_score": IMPORT_QUALITY_SCORE,
                             "status": "pending",
                         },
                     },
@@ -766,13 +763,21 @@ class TranslationService:
         bulk_write_unknown = False
         if ops:
             try:
-                await self._repo.bulk_write(ops)
+                result = await self._repo.bulk_write(ops)
+                if result.matched_count < len(ops) - result.upserted_count:
+                    bulk_write_unknown = True
             except BulkWriteError as exc:
-                failed_ops = {err["index"] for err in exc.details.get("writeErrors", [])}
+                write_errors = exc.details["writeErrors"]
+                failed_ops = {err["index"] for err in write_errors}
                 logger.warning(
                     "import_translations: %d row(s) failed to write",
                     len(failed_ops),
-                    extra={"site_id": site_id, "failed_rows": sorted(planned[i]["row"] for i in failed_ops)},
+                    extra={
+                        "site_id": site_id,
+                        "failed_rows": sorted(planned[i]["row"] for i in failed_ops),
+                        "errors": [{"code": err.get("code"), "errmsg": err.get("errmsg")} for err in write_errors],
+                    },
+                    exc_info=True,
                 )
             except PyMongoError:
                 bulk_write_unknown = True
@@ -783,10 +788,10 @@ class TranslationService:
                     exc_info=True,
                 )
 
-        warnings: list[ImportRowError] = []
+        row_warnings: list[ImportRowError] = []
 
         def warn(plan: _PlannedRow, reason: str) -> None:
-            warnings.append(ImportRowError(row=plan["row"], route=plan["route"], key=plan["key"], reason=reason))
+            row_warnings.append(ImportRowError(row=plan["row"], route=plan["route"], key=plan["key"], reason=reason))
 
         guarded = [
             i for i, p in enumerate(planned) if p.get("version_doc") and p["translation_id"] and i not in failed_ops
@@ -806,14 +811,22 @@ class TranslationService:
                 unverified = set(guarded)
             else:
                 applied_at = {(d["route"], d["key"]): _same_instant(d.get("approved_at"), now) for d in stored}
-                failed_ops |= {i for i in guarded if not applied_at.get((planned[i]["route"], planned[i]["key"]))}
+                guard_mismatched = {i for i in guarded if not applied_at.get((planned[i]["route"], planned[i]["key"]))}
+                if guard_mismatched:
+                    logger.warning(
+                        "import_translations: %d row(s) failed the version guard (doc changed concurrently)",
+                        len(guard_mismatched),
+                        extra={"site_id": site_id, "rows": [planned[i]["row"] for i in guard_mismatched]},
+                    )
+                failed_ops |= guard_mismatched
 
         if bulk_write_unknown:
-            # bulk_write itself raised a non-BulkWriteError PyMongoError (timeout/network/server
-            # selection, etc). Rows covered by the version guard-read above were already resolved
-            # (confirmed, failed, or unverified) from a fresh read of the database. Every other row
-            # has no independent way to confirm its outcome, so treat it as unverified rather than
-            # claiming success or failure.
+            # Either bulk_write raised a non-BulkWriteError PyMongoError (timeout/network/server
+            # selection, etc), or it succeeded but matched fewer docs than expected (e.g. a
+            # non-upsert row's doc was deleted between read and write). Rows covered by the version
+            # guard-read above were already resolved (confirmed, failed, or unverified) from a fresh
+            # read of the database. Every other row has no independent way to confirm its outcome,
+            # so treat it as unverified rather than claiming success or failure.
             unverified |= {i for i in range(len(planned)) if i not in failed_ops and i not in guarded}
 
         written: list[_PlannedRow] = []
@@ -855,6 +868,10 @@ class TranslationService:
                 continue
             translation_id = p["translation_id"] or new_ids.get(key_tuple)
             if translation_id is None:
+                logger.warning(
+                    "import_translations: new row was saved but its id could not be found for history recording",
+                    extra={"site_id": site_id, "route": p["route"], "key": p["key"]},
+                )
                 warn(p, "version_not_recorded")
                 continue
             version_docs.append({**p["version_doc"], "translation_id": translation_id})
@@ -885,8 +902,8 @@ class TranslationService:
                     warn(p, "audit_not_recorded")
 
         errors.sort(key=lambda e: e["row"])
-        warnings.sort(key=lambda w: w.row)
-        return {**counts, "failed": len(errors), "errors": errors, "warnings": warnings}
+        row_warnings.sort(key=lambda w: w.row)
+        return {**counts, "failed": len(errors), "errors": errors, "warnings": row_warnings}
 
     async def get_translation(self, translation_id: str, tenant_id: str) -> dict[str, Any]:
         return await self._get_translation_owned_by_tenant(translation_id, tenant_id)

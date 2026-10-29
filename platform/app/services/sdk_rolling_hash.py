@@ -21,7 +21,7 @@ def js_trim(text: str) -> str:
 def _to_base36(value: int) -> str:
     if value == 0:
         return "0"
-    digits = []
+    digits: list[str] = []
     while value:
         value, rem = divmod(value, 36)
         digits.append(_BASE36[rem])

@@ -444,6 +444,27 @@ async def test_import_unknown_bulk_write_outcome_is_not_reported_as_failed_or_co
     assert (await _doc(repo, sdk_rolling_hash("Second")))["translations"]["kn"]["text"] == "two"
 
 
+async def test_import_silent_zero_match_write_is_not_reported_as_confirmed(service, mock_db, repo, monkeypatch):
+    await _seed(repo, "First")
+    second_key = await _seed(repo, "Second")
+
+    async def _vanish_then_write(ops):
+        await mock_db["translations"].delete_one({"route": "/", "key": second_key})
+        return await real_write(ops)
+
+    real_write = service._repo.bulk_write
+    monkeypatch.setattr(service._repo, "bulk_write", _vanish_then_write)
+
+    res = await _import(service, [_row("First", "one"), _row("Second", "two")])
+
+    assert res["failed"] == 0 and res["updated"] == 2
+    assert [(w.row, w.route, w.key, w.reason) for w in res["warnings"]] == [
+        (1, "/", sdk_rolling_hash("First"), "version_not_recorded"),
+        (2, "/", second_key, "version_not_recorded"),
+    ]
+    assert (await _doc(repo, sdk_rolling_hash("First")))["translations"]["kn"]["text"] == "one"
+
+
 async def test_import_mixed_rows_report_each_outcome(service, repo):
     await _seed(repo, "Existing")
     await _seed(repo, "Blank one")
