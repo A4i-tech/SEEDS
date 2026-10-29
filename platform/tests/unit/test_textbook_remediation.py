@@ -101,14 +101,14 @@ def test_serialize_job_reports_stage_zero_before_the_first_stage():
     assert serialize_job(job)["stage_index"] == 0
 
 
-_TENANT_USER = {"role": "tenant", "tenant_id": "tenant-a", "sub": "admin-1"}
+_TENANT_ID = "tenant-a"
 
 
 @pytest.mark.asyncio
 async def test_subscribe_ends_on_a_finished_job(repo):
     job = await _create(repo)
     await repo.finish(job.job_id, JobStatus.READY_TO_REVIEW)
-    events = [e async for e in subscribe(repo, _TENANT_USER, job.job_id, interval=0)]
+    events = [e async for e in subscribe(repo, _TENANT_ID, job.job_id, interval=0)]
     assert [e["event"] for e in events] == ["done"]
 
 
@@ -118,7 +118,7 @@ async def test_subscribe_yields_each_change_then_done(repo):
     await repo.claim_next_pending()
 
     events = []
-    async for event in subscribe(repo, _TENANT_USER, job.job_id, interval=0):
+    async for event in subscribe(repo, _TENANT_ID, job.job_id, interval=0):
         events.append(event)
         if len(events) == 1:
             await repo.set_stage(job.job_id, JobStage.REVIEW)
@@ -130,7 +130,7 @@ async def test_subscribe_yields_each_change_then_done(repo):
 
 @pytest.mark.asyncio
 async def test_subscribe_stops_on_an_unknown_job(repo):
-    assert [e async for e in subscribe(repo, _TENANT_USER, "000000000000000000000000", interval=0)] == []
+    assert [e async for e in subscribe(repo, _TENANT_ID, "000000000000000000000000", interval=0)] == []
 
 
 @pytest.mark.asyncio
@@ -138,10 +138,9 @@ async def test_subscribe_stops_once_a_volunteer_is_unassigned(repo):
     job = await _create(repo)
     await repo.claim_next_pending()
     await repo.set_assignment("tenant-a", job.job_id, "vol-1")
-    volunteer = {"role": "textbook_remediation_volunteer", "tenant_id": "tenant-a", "sub": "vol-1"}
 
     events = []
-    async for event in subscribe(repo, volunteer, job.job_id, interval=0):
+    async for event in subscribe(repo, _TENANT_ID, job.job_id, assigned_to="vol-1", interval=0):
         events.append(event)
         if len(events) == 1:
             await repo.set_assignment("tenant-a", job.job_id, None)

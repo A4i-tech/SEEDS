@@ -278,7 +278,7 @@ async def test_remediation_me_requires_auth(client):
 
 @pytest.mark.asyncio
 async def test_tenant_me_unchanged_for_tenant_role(client, mock_db):
-    """Regression: /tenant/me behavior for the tenant role is unaffected by adding /textbook-remediation/me."""
+    """Adding /textbook-remediation/me must not change /tenant/me for the tenant role."""
     tenant = await _seed_tenant(mock_db)
     token = _tenant_token(tenant["_id"])
 
@@ -292,7 +292,7 @@ async def test_tenant_me_unchanged_for_tenant_role(client, mock_db):
 
 @pytest.mark.asyncio
 async def test_tenant_me_rejects_volunteer_token(client, mock_db):
-    """/tenant/me stays tenant-only — a volunteer token must still get 403, proving no widening occurred."""
+    """/tenant/me must reject a volunteer token."""
     volunteer = await _seed_volunteer(mock_db)
     token = _volunteer_token(volunteer["_id"])
 
@@ -305,8 +305,7 @@ async def test_tenant_me_rejects_volunteer_token(client, mock_db):
 
 @pytest.mark.asyncio
 async def test_list_volunteers_scopes_by_authenticated_sub(client, mock_db):
-    """GET /tenant/volunteers must use the authenticated tenant's sub claim, not any other
-    field, so a tenant only ever sees its own volunteers."""
+    """GET /tenant/volunteers must scope by the authenticated sub, not the tenant_id claim."""
     own_tenant = await _seed_tenant(mock_db, email="owner@test.com")
     other_tenant = await _seed_tenant(mock_db, email="other@test.com")
     await mock_db["users"].insert_one({
@@ -324,7 +323,11 @@ async def test_list_volunteers_scopes_by_authenticated_sub(client, mock_db):
         "is_active": True,
     })
 
-    token = _tenant_token(own_tenant["_id"])
+    token = create_access_token({
+        "sub": own_tenant["_id"],
+        "role": "tenant",
+        "tenant_id": other_tenant["_id"],
+    })
     resp = await client.get(
         "/tenant/volunteers",
         headers={"Authorization": f"Bearer {token}"},

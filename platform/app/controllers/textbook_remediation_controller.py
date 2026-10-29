@@ -178,9 +178,10 @@ async def stream_remediation_job(
     repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
 ) -> StreamingResponse:
     await _get_job(repo, user, job_id)
+    assigned_to = str(user["sub"]) if _is_volunteer(user) else None
 
     async def _format() -> AsyncIterator[str]:
-        async for event in subscribe(repo, user, job_id):
+        async for event in subscribe(repo, str(user["tenant_id"]), job_id, assigned_to=assigned_to):
             yield f"data: {json.dumps(event, default=str)}\n\n"
 
     return StreamingResponse(_format(), media_type="text/event-stream")

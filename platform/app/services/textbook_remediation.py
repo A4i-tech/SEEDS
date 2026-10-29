@@ -74,16 +74,20 @@ def serialize_job(job: RemediationJob) -> dict[str, object]:
 
 
 async def subscribe(
-    repo: TextbookRemediationRepository, user: dict[str, object], job_id: str, *, interval: float = POLL_INTERVAL_SECONDS
+    repo: TextbookRemediationRepository,
+    tenant_id: str,
+    job_id: str,
+    *,
+    assigned_to: str | None = None,
+    interval: float = POLL_INTERVAL_SECONDS,
 ) -> AsyncIterator[dict[str, object]]:
-    tenant_id = str(user["tenant_id"])
-    is_volunteer = user.get("role") == UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER.value
     previous: dict[str, object] | None = None
     while True:
         job = await repo.get(tenant_id, job_id)
         if job is None:
             return
-        if is_volunteer and job.assigned_to != str(user["sub"]):
+        if assigned_to is not None and job.assigned_to != assigned_to:
+            logger.info("Volunteer %s lost access to job %s", assigned_to, job_id)
             return
         payload = serialize_job(job)
         if job.status in _TERMINAL:
