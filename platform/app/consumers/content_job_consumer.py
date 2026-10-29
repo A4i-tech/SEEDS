@@ -400,12 +400,9 @@ async def _process_audio_content_job(
             # TTS for pull-model content
             if content_doc.get("is_pull_model"):
                 await _process_tts_for_content(content_doc, blob_provider)
-                title_audio_url = content_doc.get("title", {}).get("audio_url")
-                if title_audio_url:
-                    update_fields["title.audio_url"] = title_audio_url
-                theme_audio_url = content_doc.get("theme", {}).get("audio_url")
-                if theme_audio_url:
-                    update_fields["theme.audio_url"] = theme_audio_url
+                for field in ("title", "theme"):
+                    if audio_url := content_doc.get(field, {}).get("audio_url"):
+                        update_fields[f"{field}.audio_url"] = audio_url
 
             await content_repo.save_processed(content_id, update_fields)
             await job_repo.mark_completed(job_id)

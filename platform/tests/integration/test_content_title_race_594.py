@@ -1,25 +1,8 @@
-"""
-Reproduction test for issue #594 - content title edits do not reliably propagate.
-
-Root cause: `_process_audio_content_job` snapshots the content document via
-`find_raw_by_id` at job start, then unconditionally writes that snapshot's
-`title`/`theme` back to the DB in `save_processed()` at job completion. If the
-job is running (audio upload + title edit), or a title-only edit shortly after
-it, the job's completion overwrites the newer title with the stale value
-captured at job start.
-"""
-
 from __future__ import annotations
 
-import os
 import uuid
 from datetime import UTC, datetime
 from unittest.mock import AsyncMock, MagicMock, patch
-
-os.environ.setdefault("APP_MODE", "api")
-os.environ.setdefault("ENV", "development")
-os.environ.setdefault("MONGO_DB_CONNECTION_STRING", "")
-os.environ.setdefault("DB_CONNECTION", "")
 
 import pytest
 import pytest_asyncio
@@ -80,8 +63,6 @@ async def _seed(mock_db, *, is_pull_model, title, theme, audio_content):
 
 @pytest.mark.asyncio
 async def test_stale_content_snapshot_overwrites_concurrent_title_edit(mock_db):
-    """A title edit made WHILE an audio job is running is clobbered when the
-    job's completion saves its stale job-start snapshot."""
     from app.consumers.content_job_consumer import _process_audio_content_job
 
     content_id, job_id, content_repo, job_repo = await _seed(
@@ -100,7 +81,6 @@ async def test_stale_content_snapshot_overwrites_concurrent_title_edit(mock_db):
     mock_blob.get_container_client = MagicMock()
 
     async def _transcode_and_concurrently_edit_title(inp, out, **kwargs):
-        # Simulate a user PATCHing the title WHILE this job is still running.
         await mock_db["contentsV3"].update_one(
             {"_id": ObjectId(content_id)},
             {"$set": {"title": {"english": "New Title From Concurrent Edit"}}},
@@ -117,16 +97,13 @@ async def test_stale_content_snapshot_overwrites_concurrent_title_edit(mock_db):
 
     final_doc = await mock_db["contentsV3"].find_one({"_id": ObjectId(content_id)})
     assert final_doc["title"]["english"] == "New Title From Concurrent Edit", (
-        f"Root cause reproduced: job completion overwrote the concurrently-edited "
-        f"title with its stale job-start snapshot. Got: {final_doc['title']}"
+        f"job completion must not overwrite the concurrently-edited title with "
+        f"its stale job-start snapshot. Got: {final_doc['title']}"
     )
 
 
 @pytest.mark.asyncio
 async def test_pull_model_tts_updates_audio_url_without_clobbering_concurrent_edit(mock_db):
-    """Pull-model jobs must still persist the freshly-generated title/theme
-    audio_url, but must not clobber a concurrent title/theme text edit with
-    the stale job-start snapshot text."""
     from app.consumers.content_job_consumer import _process_audio_content_job
 
     content_id, job_id, content_repo, job_repo = await _seed(
