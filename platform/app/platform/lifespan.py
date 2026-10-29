@@ -186,13 +186,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     from app.repositories.content_aggregator_sync_job_repository import (  # noqa: PLC0415
         ContentAggregatorSyncJobRepository,
     )
+    from app.repositories.content_job_repository import ContentJobRepository  # noqa: PLC0415
     from app.repositories.textbook_remediation_repository import (  # noqa: PLC0415
         TextbookRemediationRepository,
     )
-
-    reconciled = await ContentAggregatorSyncJobRepository(get_database()).reconcile_interrupted_jobs()
-    if reconciled:
-        logger.info("Reconciled %d interrupted content aggregator sync jobs", reconciled)
 
     if settings.app_mode in ("consumer", "all"):
         reconciled = await TextbookRemediationRepository(get_database()).reconcile_interrupted_jobs()
@@ -212,6 +209,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await TranslationRepository.ensure_indexes(get_database())
     await TranslationVersionRepository.ensure_indexes(get_database())
     await TranslationAuditRepository.ensure_indexes(get_database())
+    await ContentAggregatorSyncJobRepository.ensure_indexes(get_database())
+    await ContentJobRepository.ensure_indexes(get_database())
+    await TextbookRemediationRepository.ensure_indexes(get_database())
 
     # Init conference manager (available in all modes)
     try:
@@ -226,6 +226,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         if reconciled:
             logger.info("Reconciled %d interrupted content aggregator sync jobs", reconciled)
         try:
+            from app.providers.service_bus import service_bus_provider  # noqa: PLC0415
+
+            await service_bus_provider.initialize()
             consumer_tasks = _make_consumer_tasks(conf_mgr)
         except Exception as exc:  # noqa: BLE001
             logger.error("Failed to start consumers: %s", exc)

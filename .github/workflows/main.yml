@@ -39,25 +39,25 @@ jobs:
     uses: ./.github/workflows/ci.yml
     with:
       upload_coverage: true
-    secrets: inherit
+    secrets: inherit  # nosemgrep: yaml.github-actions.security.secrets-inherit.secrets-inherit -- reusable workflow needs full secret set
 
   deploy-websocket-service-staging-workflow:
     needs: ci-workflow
     if: github.ref == 'refs/heads/a4i/staging'
     uses: ./.github/workflows/deploy-websocket-service-staging.yml
-    secrets: inherit
+    secrets: inherit  # nosemgrep: yaml.github-actions.security.secrets-inherit.secrets-inherit -- reusable workflow needs full secret set
 
   deploy-staging-workflow:
     needs: ci-workflow
     if: github.ref == 'refs/heads/a4i/staging'
     uses: ./.github/workflows/deploy-staging.yml
-    secrets: inherit
+    secrets: inherit  # nosemgrep: yaml.github-actions.security.secrets-inherit.secrets-inherit -- reusable workflow needs full secret set
 
   contentwebapp-e2e-workflow:
     needs: [deploy-staging-workflow, detect-contentwebapp-changes]
     if: github.ref == 'refs/heads/a4i/staging' && needs.detect-contentwebapp-changes.outputs.changed == 'true'
     uses: ./.github/workflows/contentwebapp-e2e.yml
-    secrets: inherit
+    secrets: inherit  # nosemgrep: yaml.github-actions.security.secrets-inherit.secrets-inherit -- reusable workflow needs full secret set
 
   teacherwebapp-e2e-workflow:
     needs: [deploy-staging-workflow, detect-teacherwebapp-changes]
@@ -69,24 +69,24 @@ jobs:
     needs: ci-workflow
     if: github.ref == 'refs/heads/a4i/main'
     uses: ./.github/workflows/deploy-main.yml
-    secrets: inherit
+    secrets: inherit  # nosemgrep: yaml.github-actions.security.secrets-inherit.secrets-inherit -- reusable workflow needs full secret set
 
   run-android-tests:
     if: github.ref == 'refs/heads/a4i/staging' || github.ref == 'refs/heads/a4i/main'
     uses: ./.github/workflows/android-tests.yml
-    secrets: inherit
+    secrets: inherit  # nosemgrep: yaml.github-actions.security.secrets-inherit.secrets-inherit -- reusable workflow needs full secret set
 
   deploy-android:
     needs: run-android-tests
     if: github.ref == 'refs/heads/a4i/staging' || github.ref == 'refs/heads/a4i/main'
     uses: ./.github/workflows/android-deploy.yml
-    secrets: inherit
+    secrets: inherit  # nosemgrep: yaml.github-actions.security.secrets-inherit.secrets-inherit -- reusable workflow needs full secret set
 
   run-coverage-summary:
     needs: ci-workflow
     if: github.ref == 'refs/heads/a4i/main'
     uses: ./.github/workflows/coverage-summary.yml
-    secrets: inherit
+    secrets: inherit  # nosemgrep: yaml.github-actions.security.secrets-inherit.secrets-inherit -- reusable workflow needs full secret set
 
   notify-teams:
     runs-on: ubuntu-latest
