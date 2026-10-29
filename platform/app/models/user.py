@@ -48,6 +48,7 @@ class UserRole(StrEnum):
     TENANT = "tenant"
     SCHOOL_ADMIN = "school_admin"
     CONTENT_CREATOR = "content_creator"
+    TEXTBOOK_REMEDIATION_VOLUNTEER = "textbook_remediation_volunteer"
 
 
 class User(BaseModel):

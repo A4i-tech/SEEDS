@@ -45,13 +45,14 @@ class TextbookRemediationRepository:
 
     async def create(
         self, *, job_id: ObjectId, tenant_id: str, source_name: str, source_url: str, language: str,
-        target_language: str | None = None,
+        created_by: str, target_language: str | None = None,
     ) -> RemediationJob:
         initial_lang = "detecting" if language in AUTO_LANGUAGES else language
         doc: dict[str, object] = {
             "_id": job_id, "tenant_id": tenant_id, "source_name": source_name, "source_url": source_url,
             "language": initial_lang, "status": JobStatus.PENDING.value, "stage": None,
             "created_at": datetime.now(UTC).isoformat(), "target_language": target_language,
+            "created_by": created_by,
         }
         await self._col.insert_one(doc)
         return RemediationJob.from_doc(doc)
@@ -60,8 +61,13 @@ class TextbookRemediationRepository:
         doc = await self._col.find_one({"_id": _oid(job_id), "tenant_id": tenant_id, "deleted_at": None})
         return RemediationJob.from_doc(doc) if doc else None
 
-    async def list_jobs(self, tenant_id: str, *, limit: int = 20) -> list[RemediationJob]:
-        docs = await self._col.find({"tenant_id": tenant_id, "deleted_at": None}).sort("created_at", -1).to_list(length=limit)
+    async def list_jobs(
+        self, tenant_id: str, *, limit: int = 20, assigned_to: str | None = None
+    ) -> list[RemediationJob]:
+        query: dict[str, object] = {"tenant_id": tenant_id, "deleted_at": None}
+        if assigned_to is not None:
+            query["assigned_to"] = assigned_to
+        docs = await self._col.find(query).sort("created_at", -1).to_list(length=limit)
         jobs = []
         for d in docs:
             try:
@@ -74,6 +80,16 @@ class TextbookRemediationRepository:
         doc = await self._col.find_one_and_update(
             {"_id": _oid(job_id), "tenant_id": tenant_id},
             {"$set": {"deleted_at": datetime.now(UTC).isoformat()}},
+            return_document=ReturnDocument.AFTER,
+        )
+        return RemediationJob.from_doc(doc) if doc else None
+
+    async def set_assignment(
+        self, tenant_id: str, job_id: str, assigned_to: str | None
+    ) -> RemediationJob | None:
+        doc = await self._col.find_one_and_update(
+            {"_id": _oid(job_id), "tenant_id": tenant_id, "deleted_at": None},
+            {"$set": {"assigned_to": assigned_to}},
             return_document=ReturnDocument.AFTER,
         )
         return RemediationJob.from_doc(doc) if doc else None
@@ -113,8 +129,14 @@ class TextbookRemediationRepository:
         )
         return RemediationJob.from_doc(doc) if doc else None
 
-    async def update_draft(self, job_id: str, draft_md: str, draft_url: str | None = None) -> RemediationJob | None:
-        update: dict[str, object] = {"draft_remediated_md": draft_md, "status": JobStatus.IN_REVIEW}
+    async def update_draft(
+        self, job_id: str, draft_md: str, draft_url: str | None = None, *, last_edited_by: str,
+    ) -> RemediationJob | None:
+        update: dict[str, object] = {
+            "draft_remediated_md": draft_md,
+            "status": JobStatus.IN_REVIEW,
+            "last_edited_by": last_edited_by,
+        }
         if draft_url:
             update[f"artifacts.{ArtifactName.DRAFT}"] = draft_url
         doc = await self._col.find_one_and_update(

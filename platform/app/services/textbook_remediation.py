@@ -25,12 +25,14 @@ from app.models.responses.remediation import (
     RemediationJobResponse,
     ReviewSummaryResponse,
 )
+from app.models.user import UserRole
 from app.platform.error_handling import NotFoundError, ValidationError
 from app.platform.settings import get_settings
 from app.providers.blob_storage import BlobStorageProvider
 from app.remediation.render import compile_docx_tex_pdf
 from app.remediation.translate import run_translation
 from app.repositories.textbook_remediation_repository import TextbookRemediationRepository
+from app.repositories.user_repository import UserRepository
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +64,9 @@ def serialize_job(job: RemediationJob) -> dict[str, object]:
         title=job.title,
         error=job.error,
         created_at=job.created_at,
+        created_by=job.created_by,
+        last_edited_by=job.last_edited_by,
+        assigned_to=job.assigned_to,
         finished_at=job.finished_at,
         target_language=job.target_language,
         translation_error=job.translation_error,
@@ -69,12 +74,20 @@ def serialize_job(job: RemediationJob) -> dict[str, object]:
 
 
 async def subscribe(
-    repo: TextbookRemediationRepository, tenant_id: str, job_id: str, *, interval: float = POLL_INTERVAL_SECONDS
+    repo: TextbookRemediationRepository,
+    tenant_id: str,
+    job_id: str,
+    *,
+    assigned_to: str | None = None,
+    interval: float = POLL_INTERVAL_SECONDS,
 ) -> AsyncIterator[dict[str, object]]:
     previous: dict[str, object] | None = None
     while True:
         job = await repo.get(tenant_id, job_id)
         if job is None:
+            return
+        if assigned_to is not None and job.assigned_to != assigned_to:
+            logger.info("Volunteer %s lost access to job %s", assigned_to, job_id)
             return
         payload = serialize_job(job)
         if job.status in _TERMINAL:
@@ -95,6 +108,7 @@ async def create_job(
     data: IO[bytes],
     language: str,
     target_language: str | None,
+    created_by: str,
 ) -> RemediationJob:
     job_id = ObjectId()
     url = await blob_provider.upload_file(
@@ -107,7 +121,30 @@ async def create_job(
         source_url=url,
         language=language,
         target_language=target_language,
+        created_by=created_by,
     )
+
+
+async def assign_job(
+    repo: TextbookRemediationRepository,
+    user_repo: UserRepository,
+    tenant_id: str,
+    job_id: str,
+    volunteer_id: str | None,
+) -> RemediationJob:
+    if volunteer_id is not None:
+        volunteer = await user_repo.find_by_id(volunteer_id)
+        if (
+            volunteer is None
+            or volunteer.role != UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER
+            or str(volunteer.tenant_id) != tenant_id
+        ):
+            raise ValidationError("volunteer_id must be an existing textbook remediation volunteer in this tenant")
+
+    updated = await repo.set_assignment(tenant_id, job_id, volunteer_id)
+    if updated is None:
+        raise NotFoundError("Remediation job", job_id)
+    return updated
 
 
 async def artifact_bytes(
@@ -140,6 +177,7 @@ async def save_draft(
     blob_provider: BlobStorageProvider,
     job: RemediationJob,
     draft_md: str,
+    last_edited_by: str,
 ) -> RemediationJob:
     url = await blob_provider.upload_file(
         get_settings().azure_storage_container,
@@ -147,7 +185,7 @@ async def save_draft(
         draft_md.encode("utf-8"),
         "text/markdown",
     )
-    updated = await repo.update_draft(job.job_id, draft_md, url)
+    updated = await repo.update_draft(job.job_id, draft_md, url, last_edited_by=last_edited_by)
     if updated is None:
         raise NotFoundError("Remediation job", job.job_id)
     return updated
