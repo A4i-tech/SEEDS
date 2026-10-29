@@ -43,23 +43,15 @@ class TestConnect:
         assert resp.headers["Cache-Control"] == "no-cache"
         assert resp.headers["X-Accel-Buffering"] == "no"
 
-    async def test_connect_yields_message_delivery(self) -> None:
+    @pytest.mark.parametrize("message", [{"a": 1}, [1, 2, 3]])
+    async def test_connect_yields_message_delivery(self, message: dict | list) -> None:
         mgr = SmartphoneConnectionManager("conf-1")
         resp = await mgr.connect(client=None)
         gen = resp.body_iterator
 
-        await mgr.send_message_to_client(client=None, message={"a": 1})
+        await mgr.send_message_to_client(client=None, message=message)
         chunk = await gen.__anext__()
-        assert chunk == f'data: {json.dumps({"a": 1})}\n\n'
-
-    async def test_connect_serializes_list_payload(self) -> None:
-        mgr = SmartphoneConnectionManager("conf-1")
-        resp = await mgr.connect(client=None)
-        gen = resp.body_iterator
-
-        await mgr.send_message_to_client(client=None, message=[1, 2, 3])
-        chunk = await gen.__anext__()
-        assert chunk == f"data: {json.dumps([1, 2, 3])}\n\n"
+        assert chunk == f"data: {json.dumps(message)}\n\n"
 
     async def test_connect_sentinel_ends_stream(self) -> None:
         mgr = SmartphoneConnectionManager("conf-1")
@@ -79,7 +71,7 @@ class TestConnect:
         chunk = await gen.__anext__()
         assert chunk == ": keepalive\n\n"
 
-    async def test_connect_cancelled_error_handled(self) -> None:
+    async def test_connect_cancelled_error_propagates(self) -> None:
         mgr = SmartphoneConnectionManager("conf-1")
         resp = await mgr.connect(client=None)
         gen = resp.body_iterator
@@ -87,7 +79,7 @@ class TestConnect:
         task = asyncio.ensure_future(gen.__anext__())
         await asyncio.sleep(0)
         task.cancel()
-        with pytest.raises(StopAsyncIteration):
+        with pytest.raises(asyncio.CancelledError):
             await task
 
 

@@ -85,6 +85,26 @@ class TestEnsureInitialized:
 
         fake_credentials.Certificate.assert_called_once_with("/path/to/service-account.json")
 
+    def test_malformed_inline_json_fails_clearly(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        set_auth_type(monkeypatch, "firebase")
+        monkeypatch.setenv("FIREBASE_SERVICE_ACCOUNT", '{"type": "service_account",}')
+
+        fake_firebase_admin = MagicMock()
+        fake_firebase_admin.app._apps = {}
+        fake_credentials = MagicMock()
+        fake_firebase_admin.credentials = fake_credentials
+
+        with (
+            patch.dict("sys.modules", {
+                "firebase_admin": fake_firebase_admin,
+                "firebase_admin.credentials": fake_credentials,
+            }),
+            pytest.raises(RuntimeError, match="FIREBASE_SERVICE_ACCOUNT looks like inline JSON"),
+        ):
+            mod._ensure_initialized()
+
+        fake_credentials.Certificate.assert_not_called()
+
     def test_reuses_existing_app_when_already_present(self, monkeypatch: pytest.MonkeyPatch) -> None:
         set_auth_type(monkeypatch, "firebase")
         monkeypatch.setenv("FIREBASE_SERVICE_ACCOUNT", json.dumps({"type": "service_account"}))

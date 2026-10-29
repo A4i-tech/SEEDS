@@ -265,6 +265,7 @@ class VonageAPIProvider:
         """Hang up every active call leg in the conference."""
         self.is_websocket_connected = False
         if self.redis_store is None:
+            logger.warning("vonage_api: redis_store not set; skipping end_conf for conf_id=%s", self.conf_id)
             return
         participants = await self.redis_store.get_all_participants(self.conf_id)
         for participant in participants.values():
@@ -288,9 +289,11 @@ class VonageAPIProvider:
     ) -> str | None:
         """Handle a Vonage call-transfer event; attach WebSocket if not yet connected."""
         if self.redis_store is None:
+            logger.warning("vonage_api: redis_store not set; skipping handle_call_transfer_event for conf_id=%s", self.conf_id)
             return None
         participant = await self.redis_store.get_participant_by_leg_id(self.conf_id, uuid)
         if participant is None:
+            logger.warning("vonage_api: unknown participant for call leg uuid=%s conf_id=%s", uuid, self.conf_id)
             return None
 
         if not self.vonage_conv_id:
@@ -313,6 +316,7 @@ class VonageAPIProvider:
     async def remove_participant(self, phone_number: str) -> None:
         """Hang up *phone_number* and remove from Redis."""
         if self.redis_store is None:
+            logger.warning("vonage_api: redis_store not set; skipping remove_participant for conf_id=%s", self.conf_id)
             return
         participant = await self.redis_store.get_participant(self.conf_id, phone_number)
         if participant:
@@ -322,10 +326,13 @@ class VonageAPIProvider:
                 action="hangup",
             )
             await self.redis_store.delete_participant(self.conf_id, phone_number)
+        else:
+            logger.warning("vonage_api: unknown participant phone_number=%s for remove_participant conf_id=%s", phone_number, self.conf_id)
 
     async def mute_participant(self, phone_number: str) -> None:
         """Mute *phone_number* via Vonage API."""
         if self.redis_store is None:
+            logger.warning("vonage_api: redis_store not set; skipping mute_participant for conf_id=%s", self.conf_id)
             return
         participant = await self.redis_store.get_participant(self.conf_id, phone_number)
         if participant:
@@ -334,10 +341,13 @@ class VonageAPIProvider:
                 uuid=participant.call_leg_id,
                 action="mute",
             )
+        else:
+            logger.warning("vonage_api: unknown participant phone_number=%s for mute_participant conf_id=%s", phone_number, self.conf_id)
 
     async def unmute_participant(self, phone_number: str) -> None:
         """Unmute *phone_number* via Vonage API."""
         if self.redis_store is None:
+            logger.warning("vonage_api: redis_store not set; skipping unmute_participant for conf_id=%s", self.conf_id)
             return
         participant = await self.redis_store.get_participant(self.conf_id, phone_number)
         if participant:
@@ -346,18 +356,22 @@ class VonageAPIProvider:
                 uuid=participant.call_leg_id,
                 action="unmute",
             )
+        else:
+            logger.warning("vonage_api: unknown participant phone_number=%s for unmute_participant conf_id=%s", phone_number, self.conf_id)
 
     async def play_announcement_to_conference(
         self, text: str, phone_numbers: list[str] | None = None
     ) -> None:
         """Play TTS *text* to each listed (or all) participant call legs."""
         if self.redis_store is None:
+            logger.warning("vonage_api: redis_store not set; skipping play_announcement_to_conference for conf_id=%s", self.conf_id)
             return
         all_participants = await self.redis_store.get_all_participants(self.conf_id)
         recipients = phone_numbers or list(all_participants.keys())
         for phone_number in recipients:
             info = all_participants.get(phone_number)
             if not info:
+                logger.warning("vonage_api: unknown participant phone_number=%s for play_announcement_to_conference conf_id=%s", phone_number, self.conf_id)
                 continue
             await self._play_tts_to_call_leg(info.call_leg_id, text)
 
@@ -393,6 +407,7 @@ class VonageAPIProvider:
     async def reconnect_websocket(self) -> None:
         """Attempt to re-attach the audio WebSocket to an active participant."""
         if self.redis_store is None:
+            logger.warning("vonage_api: redis_store not set; skipping reconnect_websocket for conf_id=%s", self.conf_id)
             return
         self.is_websocket_connected = False
         while not self.is_websocket_connected:

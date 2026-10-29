@@ -227,6 +227,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         except Exception as exc:  # noqa: BLE001
             logger.error("Failed to start consumers: %s", exc)
             raise
+        if not consumer_tasks:
+            logger.warning("No consumers started — running in degraded mode with zero consumer tasks")
 
     app.state.consumer_tasks = consumer_tasks
     app.state.conference_manager = conf_mgr

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import builtins
+import importlib
 import logging
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -170,14 +172,18 @@ class TestIsVoicedFrame:
         await t.process_chunk(_frame(t.frame_bytes))
         assert t.metrics["frames_voiced"] == 1
 
-    async def test_webrtc_vad_exception_falls_back_to_rms(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    async def test_webrtc_vad_exception_falls_back_to_rms(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture,
+    ) -> None:
         fake_vad_mod = MagicMock()
         fake_vad_mod.Vad.return_value = MagicMock(is_speech=MagicMock(side_effect=RuntimeError("bad frame")))
         settings = _make_settings(audio_silence_threshold=50)
         t = _make_transcriber(settings=settings, openai_cls=MagicMock(return_value=MagicMock()), webrtcvad_mod=fake_vad_mod, monkeypatch=monkeypatch)
 
-        await t.process_chunk(_frame(t.frame_bytes, amplitude=100))
+        with caplog.at_level(logging.WARNING, logger="app.services.audio.transcriber"):
+            await t.process_chunk(_frame(t.frame_bytes, amplitude=100))
         assert t.metrics["frames_voiced"] == 1
+        assert "webrtcvad.is_speech failed" in caplog.text
 
         await t.process_chunk(_frame(t.frame_bytes, amplitude=10))
         assert t.metrics["frames_voiced"] == 1
@@ -353,3 +359,24 @@ class TestTranscribeSegment:
 
         assert result["text"] == "visible text"
         assert "redacted" not in caplog.text
+
+
+class TestWebrtcvadModuleImport:
+    def test_import_error_falls_back_to_degraded_mode_with_log(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        real_import = builtins.__import__
+
+        def fake_import(name, *args, **kwargs):
+            if name == "webrtcvad":
+                raise ImportError("no module named webrtcvad")
+            return real_import(name, *args, **kwargs)
+
+        monkeypatch.setattr(builtins, "__import__", fake_import)
+        try:
+            with caplog.at_level(logging.WARNING, logger="app.services.audio.transcriber"):
+                importlib.reload(transcriber_module)
+            assert transcriber_module.webrtcvad is None
+            assert "webrtcvad not available" in caplog.text
+        finally:
+            importlib.reload(transcriber_module)

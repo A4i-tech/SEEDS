@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import importlib
 import logging
+from collections.abc import Callable
 from unittest.mock import AsyncMock, MagicMock, create_autospec, patch
 
 import pytest
@@ -124,7 +125,19 @@ class TestInitConferenceManager:
             )
 
 
-def _patch_consumer(monkeypatch, module_path, class_name):
+CONSUMER_SPECS: list[tuple[str, str]] = [
+    ("audio_recording_consumer", "AudioRecordingConsumer"),
+    ("audio_analysis_consumer", "AudioAnalysisConsumer"),
+    ("call_event_consumer", "CallEventConsumer"),
+    ("dtmf_consumer", "DtmfConsumer"),
+    ("call_webhook_consumer", "CallWebhookConsumer"),
+    ("content_job_consumer", "ContentJobConsumer"),
+    ("textbook_remediation_consumer", "TextbookRemediationConsumer"),
+    ("sync_job_consumer", "SyncJobConsumer"),
+]
+
+
+def _patch_consumer(monkeypatch: pytest.MonkeyPatch, module_path: str, class_name: str) -> MagicMock:
     cls = getattr(importlib.import_module(f"app.consumers.{module_path}"), class_name)
     mock_cls = create_autospec(cls)
     monkeypatch.setattr(f"app.consumers.{module_path}.{class_name}", mock_cls)
@@ -132,19 +145,9 @@ def _patch_consumer(monkeypatch, module_path, class_name):
 
 
 class TestMakeConsumerTasks:
-    def _patch_all_consumers(self, monkeypatch):
-        specs = [
-            ("audio_recording_consumer", "AudioRecordingConsumer"),
-            ("audio_analysis_consumer", "AudioAnalysisConsumer"),
-            ("call_event_consumer", "CallEventConsumer"),
-            ("dtmf_consumer", "DtmfConsumer"),
-            ("call_webhook_consumer", "CallWebhookConsumer"),
-            ("content_job_consumer", "ContentJobConsumer"),
-            ("textbook_remediation_consumer", "TextbookRemediationConsumer"),
-            ("sync_job_consumer", "SyncJobConsumer"),
-        ]
+    def _patch_all_consumers(self, monkeypatch: pytest.MonkeyPatch) -> dict[str, MagicMock]:
         mocks = {}
-        for module_path, class_name in specs:
+        for module_path, class_name in CONSUMER_SPECS:
             mocks[class_name] = _patch_consumer(monkeypatch, module_path, class_name)
         return mocks
 
@@ -154,23 +157,20 @@ class TestMakeConsumerTasks:
         await asyncio.gather(*tasks, return_exceptions=True)
 
     async def test_creates_task_for_every_consumer(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        self._patch_all_consumers(monkeypatch)
-        monkeypatch.setattr("app.platform.database.get_database", lambda: MagicMock())
+        mocks = self._patch_all_consumers(monkeypatch)
+        sentinel_db = MagicMock()
+        sentinel_mgr = MagicMock()
+        monkeypatch.setattr("app.platform.database.get_database", lambda: sentinel_db)
 
-        tasks = lifespan_module._make_consumer_tasks(conference_manager=MagicMock())
+        tasks = lifespan_module._make_consumer_tasks(conference_manager=sentinel_mgr)
         try:
             assert len(tasks) == 8
             names = {t.get_name() for t in tasks}
-            assert names == {
-                "AudioRecordingConsumer",
-                "AudioAnalysisConsumer",
-                "CallEventConsumer",
-                "DtmfConsumer",
-                "CallWebhookConsumer",
-                "ContentJobConsumer",
-                "TextbookRemediationConsumer",
-                "SyncJobConsumer",
-            }
+            assert names == {class_name for _, class_name in CONSUMER_SPECS}
+            mocks["AudioAnalysisConsumer"].assert_called_once_with(conference_manager=sentinel_mgr)
+            mocks["ContentJobConsumer"].assert_called_once_with(sentinel_db)
+            mocks["TextbookRemediationConsumer"].assert_called_once_with(sentinel_db)
+            mocks["SyncJobConsumer"].assert_called_once_with(sentinel_db)
         finally:
             await self._cleanup(tasks)
 
@@ -216,29 +216,8 @@ class TestMakeConsumerTasks:
         finally:
             await self._cleanup(tasks)
 
-    async def test_passes_conference_manager_to_audio_analysis_consumer(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        mocks = self._patch_all_consumers(monkeypatch)
-        monkeypatch.setattr("app.platform.database.get_database", lambda: MagicMock())
-        sentinel_mgr = MagicMock()
-
-        tasks = lifespan_module._make_consumer_tasks(conference_manager=sentinel_mgr)
-        try:
-            mocks["AudioAnalysisConsumer"].assert_called_once_with(conference_manager=sentinel_mgr)
-        finally:
-            await self._cleanup(tasks)
-
-    async def test_all_consumer_constructor_failures_are_isolated(self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
-        specs = [
-            ("audio_recording_consumer", "AudioRecordingConsumer"),
-            ("audio_analysis_consumer", "AudioAnalysisConsumer"),
-            ("call_event_consumer", "CallEventConsumer"),
-            ("dtmf_consumer", "DtmfConsumer"),
-            ("call_webhook_consumer", "CallWebhookConsumer"),
-            ("content_job_consumer", "ContentJobConsumer"),
-            ("textbook_remediation_consumer", "TextbookRemediationConsumer"),
-            ("sync_job_consumer", "SyncJobConsumer"),
-        ]
-        for module_path, class_name in specs:
+    async def test_all_consumer_constructor_failures_return_empty_list(self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
+        for module_path, class_name in CONSUMER_SPECS:
             monkeypatch.setattr(
                 f"app.consumers.{module_path}.{class_name}",
                 MagicMock(side_effect=RuntimeError("boom")),
@@ -248,24 +227,13 @@ class TestMakeConsumerTasks:
         with caplog.at_level(logging.ERROR, logger="app.platform.lifespan"):
             tasks = lifespan_module._make_consumer_tasks(conference_manager=MagicMock())
         assert tasks == []
-        for _, class_name in specs:
+        for _, class_name in CONSUMER_SPECS:
             assert f"Failed to initialise {class_name}: boom" in caplog.text
 
-    async def test_passes_db_to_db_backed_consumers(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        mocks = self._patch_all_consumers(monkeypatch)
-        sentinel_db = MagicMock()
-        monkeypatch.setattr("app.platform.database.get_database", lambda: sentinel_db)
 
-        tasks = lifespan_module._make_consumer_tasks(conference_manager=MagicMock())
-        try:
-            mocks["ContentJobConsumer"].assert_called_once_with(sentinel_db)
-            mocks["TextbookRemediationConsumer"].assert_called_once_with(sentinel_db)
-            mocks["SyncJobConsumer"].assert_called_once_with(sentinel_db)
-        finally:
-            await self._cleanup(tasks)
-
-
-def _patch_repo(monkeypatch, path, attr, reconcile=None):
+def _patch_repo(
+    monkeypatch: pytest.MonkeyPatch, path: str, attr: str, reconcile: int | None = None
+) -> MagicMock:
     cls = getattr(importlib.import_module(path), attr)
     mock_cls = create_autospec(cls)
     if reconcile is not None:
@@ -274,7 +242,39 @@ def _patch_repo(monkeypatch, path, attr, reconcile=None):
     return mock_cls
 
 
+def _reconcile_content_aggregator(tc: TestLifespan) -> None:
+    tc._repo_mocks["ContentAggregatorSyncJobRepository"].return_value.reconcile_interrupted_jobs.return_value = 3
+
+
+def _reconcile_textbook_remediation(tc: TestLifespan) -> None:
+    tc._repo_mocks["TextbookRemediationRepository"].return_value.reconcile_interrupted_jobs.return_value = 2
+
+
+def _reconcile_sync_job_service(tc: TestLifespan) -> None:
+    lifespan_module.get_sync_job_service.return_value.reconcile_interrupted_jobs = AsyncMock(return_value=5)
+
+
+def _fail_conference_manager_close(tc: TestLifespan, monkeypatch: pytest.MonkeyPatch) -> None:
+    conf_mgr = MagicMock(close=AsyncMock(side_effect=RuntimeError("close failed")))
+    tc._patch_common(monkeypatch, app_mode="api", init_conf_mgr=conf_mgr)
+
+
+def _fail_subodha_client_close(tc: TestLifespan, monkeypatch: pytest.MonkeyPatch) -> None:
+    tc._patch_common(monkeypatch, app_mode="api")
+    lifespan_module.close_subodha_client.side_effect = RuntimeError("close failed")
+
+
+def _fail_websocket_client_close(tc: TestLifespan, monkeypatch: pytest.MonkeyPatch) -> None:
+    tc._patch_common(monkeypatch, app_mode="api", init_conf_mgr=MagicMock(close=AsyncMock()))
+    fake_ws_client = MagicMock(initialize=AsyncMock(), close=AsyncMock(side_effect=RuntimeError("close failed")))
+    monkeypatch.setattr("app.providers.websocket_client.WebsocketClientProvider", MagicMock(return_value=fake_ws_client))
+
+
 class TestLifespan:
+    @pytest.fixture
+    def fake_app(self) -> FastAPI:
+        return FastAPI()
+
     def _patch_common(self, monkeypatch, app_mode="api", init_conf_mgr=None, make_tasks=None):
         monkeypatch.setattr(lifespan_module, "get_settings", lambda: _fake_settings(app_mode=app_mode))
         monkeypatch.setattr(lifespan_module, "init_database", AsyncMock())
@@ -304,10 +304,9 @@ class TestLifespan:
             MagicMock(return_value=MagicMock(initialize=AsyncMock(), close=AsyncMock())),
         )
 
-    async def test_api_mode_startup_and_shutdown(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    async def test_api_mode_startup_and_shutdown(self, monkeypatch: pytest.MonkeyPatch, fake_app: FastAPI) -> None:
         conf_mgr = MagicMock(close=AsyncMock())
         self._patch_common(monkeypatch, app_mode="api", init_conf_mgr=conf_mgr)
-        fake_app = FastAPI()
 
         async with lifespan_module.lifespan(fake_app):
             assert fake_app.state.consumer_tasks == []
@@ -321,10 +320,9 @@ class TestLifespan:
         self._repo_mocks["TextbookRemediationRepository"].return_value.reconcile_interrupted_jobs.assert_not_awaited()
         lifespan_module._make_consumer_tasks.assert_not_called()
 
-    async def test_consumer_mode_starts_tasks_and_reconciles(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    async def test_consumer_mode_starts_tasks_and_reconciles(self, monkeypatch: pytest.MonkeyPatch, fake_app: FastAPI) -> None:
         task = asyncio.get_running_loop().create_task(asyncio.sleep(10))
         self._patch_common(monkeypatch, app_mode="consumer", make_tasks=[task])
-        fake_app = FastAPI()
 
         async with lifespan_module.lifespan(fake_app):
             assert fake_app.state.consumer_tasks == [task]
@@ -334,10 +332,22 @@ class TestLifespan:
         assert task.done() is True
         lifespan_module._make_consumer_tasks.assert_called_once_with(fake_app.state.conference_manager)
 
-    async def test_consumer_task_creation_failure_reraises(self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
+    async def test_consumer_mode_zero_tasks_logs_degraded_warning(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, fake_app: FastAPI
+    ) -> None:
+        self._patch_common(monkeypatch, app_mode="consumer", make_tasks=[])
+
+        with caplog.at_level(logging.WARNING, logger="app.platform.lifespan"):
+            async with lifespan_module.lifespan(fake_app):
+                assert fake_app.state.consumer_tasks == []
+
+        assert "No consumers started" in caplog.text
+
+    async def test_consumer_task_creation_failure_reraises(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, fake_app: FastAPI
+    ) -> None:
         self._patch_common(monkeypatch, app_mode="all")
         lifespan_module._make_consumer_tasks.side_effect = RuntimeError("consumer startup failed")
-        fake_app = FastAPI()
 
         with (
             caplog.at_level(logging.ERROR, logger="app.platform.lifespan"),
@@ -348,40 +358,45 @@ class TestLifespan:
 
         assert "Failed to start consumers: consumer startup failed" in caplog.text
 
-    async def test_ensure_indexes_failure_propagates_before_yield(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    async def test_ensure_indexes_failure_propagates_before_yield(self, monkeypatch: pytest.MonkeyPatch, fake_app: FastAPI) -> None:
         self._patch_common(monkeypatch, app_mode="api")
         self._repo_mocks["WebsiteRepository"].ensure_indexes.side_effect = RuntimeError("idx")
-        fake_app = FastAPI()
 
         with pytest.raises(RuntimeError, match="idx"):
             async with lifespan_module.lifespan(fake_app):
                 pytest.fail("lifespan should not reach yield when ensure_indexes fails")
 
-    async def test_conference_manager_init_failure_is_non_fatal(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    async def test_conference_manager_init_failure_is_non_fatal(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, fake_app: FastAPI
+    ) -> None:
         self._patch_common(monkeypatch, app_mode="api")
         lifespan_module._init_conference_manager.side_effect = RuntimeError("vonage down")
-        fake_app = FastAPI()
 
-        async with lifespan_module.lifespan(fake_app):
-            assert fake_app.state.conference_manager is None
+        with caplog.at_level(logging.WARNING, logger="app.platform.lifespan"):
+            async with lifespan_module.lifespan(fake_app):
+                assert fake_app.state.conference_manager is None
 
-    async def test_websocket_client_initialized_when_conference_manager_present(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        assert "Conference manager init failed (non-fatal in test mode): vonage down" in caplog.text
+
+    async def test_websocket_client_initialized_when_conference_manager_present(
+        self, monkeypatch: pytest.MonkeyPatch, fake_app: FastAPI
+    ) -> None:
         self._patch_common(monkeypatch, app_mode="api", init_conf_mgr=MagicMock(close=AsyncMock()))
         fake_ws_client = MagicMock(initialize=AsyncMock(), close=AsyncMock())
         mock_ws_provider_cls = MagicMock(return_value=fake_ws_client)
         monkeypatch.setattr("app.providers.websocket_client.WebsocketClientProvider", mock_ws_provider_cls)
-        fake_app = FastAPI()
 
         async with lifespan_module.lifespan(fake_app):
             fake_ws_client.initialize.assert_awaited_once_with(fake_app.state.conference_manager)
 
         fake_ws_client.close.assert_awaited_once()
 
-    async def test_websocket_client_init_failure_is_non_fatal(self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
+    async def test_websocket_client_init_failure_is_non_fatal(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, fake_app: FastAPI
+    ) -> None:
         self._patch_common(monkeypatch, app_mode="api", init_conf_mgr=MagicMock(close=AsyncMock()))
         mock_ws_provider_cls = MagicMock(side_effect=RuntimeError("ws down"))
         monkeypatch.setattr("app.providers.websocket_client.WebsocketClientProvider", mock_ws_provider_cls)
-        fake_app = FastAPI()
 
         with caplog.at_level(logging.WARNING, logger="app.platform.lifespan"):
             async with lifespan_module.lifespan(fake_app):
@@ -391,79 +406,64 @@ class TestLifespan:
         lifespan_module.close_database.assert_awaited_once()
         lifespan_module.close_subodha_client.assert_awaited_once()
 
-    async def test_websocket_client_skipped_when_no_conference_manager(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    async def test_websocket_client_skipped_when_no_conference_manager(
+        self, monkeypatch: pytest.MonkeyPatch, fake_app: FastAPI
+    ) -> None:
         self._patch_common(monkeypatch, app_mode="api", init_conf_mgr=None)
         mock_ws_provider_cls = MagicMock()
         monkeypatch.setattr("app.providers.websocket_client.WebsocketClientProvider", mock_ws_provider_cls)
-        fake_app = FastAPI()
 
         async with lifespan_module.lifespan(fake_app):
             pass
 
         mock_ws_provider_cls.assert_not_called()
 
-    async def test_conference_manager_close_failure_is_swallowed(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        conf_mgr = MagicMock(close=AsyncMock(side_effect=RuntimeError("close failed")))
-        self._patch_common(monkeypatch, app_mode="api", init_conf_mgr=conf_mgr)
-        fake_app = FastAPI()
+    @pytest.mark.parametrize(
+        ("app_mode", "configure", "expected_log"),
+        [
+            ("api", _reconcile_content_aggregator, "Reconciled 3 interrupted content aggregator sync jobs"),
+            ("consumer", _reconcile_textbook_remediation, "Reconciled 2 interrupted textbook remediation jobs"),
+            ("all", _reconcile_sync_job_service, "Reconciled 5 interrupted content aggregator sync jobs"),
+        ],
+    )
+    async def test_logs_reconciled_jobs(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+        fake_app: FastAPI,
+        app_mode: str,
+        configure: Callable[[TestLifespan], None],
+        expected_log: str,
+    ) -> None:
+        self._patch_common(monkeypatch, app_mode=app_mode)
+        configure(self)
 
-        async with lifespan_module.lifespan(fake_app):
-            pass  # should not raise on shutdown
+        with caplog.at_level(logging.INFO, logger="app.platform.lifespan"):
+            async with lifespan_module.lifespan(fake_app):
+                pass
 
-        conf_mgr.close.assert_awaited_once()
+        assert expected_log in caplog.text
 
-    async def test_subodha_client_close_failure_is_swallowed(self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
-        self._patch_common(monkeypatch, app_mode="api")
-        lifespan_module.close_subodha_client.side_effect = RuntimeError("close failed")
-        fake_app = FastAPI()
+    @pytest.mark.parametrize(
+        ("configure", "expected_log"),
+        [
+            (_fail_conference_manager_close, "Conference manager close failed: close failed"),
+            (_fail_subodha_client_close, "Subodha client close failed: close failed"),
+            (_fail_websocket_client_close, "WebsocketClientProvider close failed: close failed"),
+        ],
+    )
+    async def test_close_failure_is_swallowed(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+        fake_app: FastAPI,
+        configure: Callable[[TestLifespan, pytest.MonkeyPatch], None],
+        expected_log: str,
+    ) -> None:
+        configure(self, monkeypatch)
 
         with caplog.at_level(logging.WARNING, logger="app.platform.lifespan"):
             async with lifespan_module.lifespan(fake_app):
-                pass  # should not raise
+                pass  # should not raise on shutdown
 
-        assert "Subodha client close failed: close failed" in caplog.text
-        lifespan_module.close_database.assert_awaited_once()
-
-    async def test_logs_reconciled_content_aggregator_jobs(self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
-        self._patch_common(monkeypatch, app_mode="api")
-        self._repo_mocks["ContentAggregatorSyncJobRepository"].return_value.reconcile_interrupted_jobs.return_value = 3
-        fake_app = FastAPI()
-
-        with caplog.at_level(logging.INFO, logger="app.platform.lifespan"):
-            async with lifespan_module.lifespan(fake_app):
-                pass
-
-        assert "Reconciled 3 interrupted content aggregator sync jobs" in caplog.text
-
-    async def test_logs_reconciled_textbook_remediation_jobs(self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
-        self._patch_common(monkeypatch, app_mode="consumer")
-        self._repo_mocks["TextbookRemediationRepository"].return_value.reconcile_interrupted_jobs.return_value = 2
-        fake_app = FastAPI()
-
-        with caplog.at_level(logging.INFO, logger="app.platform.lifespan"):
-            async with lifespan_module.lifespan(fake_app):
-                pass
-
-        assert "Reconciled 2 interrupted textbook remediation jobs" in caplog.text
-
-    async def test_logs_reconciled_sync_job_service_jobs(self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
-        self._patch_common(monkeypatch, app_mode="all")
-        lifespan_module.get_sync_job_service.return_value.reconcile_interrupted_jobs = AsyncMock(return_value=5)
-        fake_app = FastAPI()
-
-        with caplog.at_level(logging.INFO, logger="app.platform.lifespan"):
-            async with lifespan_module.lifespan(fake_app):
-                pass
-
-        assert "Reconciled 5 interrupted content aggregator sync jobs" in caplog.text
-
-    async def test_websocket_client_close_failure_is_swallowed(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        self._patch_common(monkeypatch, app_mode="api", init_conf_mgr=MagicMock(close=AsyncMock()))
-        fake_ws_client = MagicMock(initialize=AsyncMock(), close=AsyncMock(side_effect=RuntimeError("close failed")))
-        monkeypatch.setattr("app.providers.websocket_client.WebsocketClientProvider", MagicMock(return_value=fake_ws_client))
-        fake_app = FastAPI()
-
-        async with lifespan_module.lifespan(fake_app):
-            pass  # should not raise on shutdown
-
-        fake_ws_client.close.assert_awaited_once()
+        assert expected_log in caplog.text

@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import logging
 from unittest.mock import AsyncMock, MagicMock
+
+import pytest
 
 from app.models.action_history import ActionType
 from app.models.conference_state import ConferenceCallState
@@ -46,13 +49,18 @@ class TestSinkConferenceEvent:
         assert entry.owner == "+999"
         assert entry.metadata == {}
 
-    async def test_action_history_owner_defaults_to_empty_string(self) -> None:
-        conf = _make_conf(teacher_phone=None)
+    @pytest.mark.parametrize("teacher_phone", [None, ""])
+    async def test_action_history_owner_defaults_to_empty_string(
+        self, teacher_phone: str | None, caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        conf = _make_conf(teacher_phone=teacher_phone)
         event = SinkConferenceEvent(conf, on_sink_callback=None)
 
-        await event.execute_event()
+        with caplog.at_level(logging.WARNING):
+            await event.execute_event()
 
         assert conf.state.action_history[0].owner == ""
+        assert "teacher_phone_number missing" in caplog.text
 
     async def test_calls_update_state(self) -> None:
         conf = _make_conf()

@@ -26,7 +26,8 @@ logger = logging.getLogger(__name__)
 
 try:
     import webrtcvad  # type: ignore[import-untyped]
-except Exception:
+except ImportError:
+    logger.warning("webrtcvad not available, falling back to RMS-based voice activity detection")
     webrtcvad = None  # type: ignore[assignment]
 
 
@@ -111,8 +112,8 @@ class AudioTranscriber:
         if self.use_webrtc_vad and self.vad is not None:
             try:
                 return bool(self.vad.is_speech(frame, self.INPUT_RATE))
-            except Exception:
-                pass
+            except Exception as exc:  # noqa: BLE001
+                logger.warning("webrtcvad.is_speech failed, falling back to RMS detection: %s", exc)
         audio_np = np.frombuffer(frame, dtype=np.int16)
         rms = float(np.sqrt(np.mean(audio_np.astype(np.float64) ** 2)))
         self._rms_window.append(rms)

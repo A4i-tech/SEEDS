@@ -25,19 +25,16 @@ class SmartphoneConnectionManager:
         """Return an SSE StreamingResponse that streams queued messages to the teacher."""
 
         async def _event_stream():
-            try:
-                while True:
-                    try:
-                        payload = await asyncio.wait_for(self._queue.get(), timeout=_KEEPALIVE_INTERVAL)
-                    except TimeoutError:
-                        yield ": keepalive\n\n"
-                        continue
+            while True:
+                try:
+                    payload = await asyncio.wait_for(self._queue.get(), timeout=_KEEPALIVE_INTERVAL)
+                except TimeoutError:
+                    yield ": keepalive\n\n"
+                    continue
 
-                    if payload is None:  # sentinel — conference ended
-                        break
-                    yield f"data: {payload}\n\n"
-            except asyncio.CancelledError:
-                pass
+                if payload is None:  # sentinel — conference ended
+                    break
+                yield f"data: {payload}\n\n"
 
         return StreamingResponse(
             _event_stream(),

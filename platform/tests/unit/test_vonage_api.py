@@ -50,6 +50,13 @@ def _make_redis_store() -> MagicMock:
 _UNSET = object()
 
 
+@pytest.fixture
+def patched_sleep() -> AsyncMock:
+    mock = AsyncMock()
+    with patch("app.providers.vonage_api.asyncio.sleep", mock):
+        yield mock
+
+
 def make_provider(
     *,
     application_id: str = "app-id",
@@ -132,69 +139,63 @@ class TestCreateCallWithRetry:
         saved = await provider.redis_store.get_participant("conf-1", "123")
         assert saved.call_leg_id == "leg-1"
 
-    async def test_rate_limited_retries_then_succeeds(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    @pytest.mark.parametrize(
+        ("error", "reason"),
+        [
+            (ClientError("429 response from server"), "rate_limited"),
+            (ReadTimeout("timeout"), "network_error"),
+            (RequestsConnectionError("down"), "network_error"),
+        ],
+    )
+    async def test_retryable_error_retries_then_succeeds(
+        self, patched_sleep: AsyncMock, caplog: LogCaptureFixture, error: Exception, reason: str
+    ) -> None:
         provider = make_provider()
-        sleep_mock = AsyncMock()
-        monkeypatch.setattr("app.providers.vonage_api.asyncio.sleep", sleep_mock)
-        error = ClientError("429 response from server")
         resp = {"uuid": "leg-1", "conversation_uuid": "conv-1", "status": "started"}
         provider._client.voice.create_call = MagicMock(side_effect=[error, resp])
 
-        await provider.add_participant("123")
+        with caplog.at_level(logging.WARNING, logger="app.providers.vonage_api"):
+            await provider.add_participant("123")
 
         assert provider._client.voice.create_call.call_count == 2
-        sleep_mock.assert_awaited_once()
+        patched_sleep.assert_awaited_once()
+        assert reason in caplog.text
 
-    async def test_network_error_retries_then_succeeds(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        provider = make_provider()
-        monkeypatch.setattr("app.providers.vonage_api.asyncio.sleep", AsyncMock())
-        resp = {"uuid": "leg-1", "conversation_uuid": "conv-1", "status": "started"}
-        provider._client.voice.create_call = MagicMock(side_effect=[ReadTimeout("timeout"), resp])
-
-        await provider.add_participant("123")
-
-        assert provider._client.voice.create_call.call_count == 2
-
-    async def test_connection_error_retries_then_succeeds(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        provider = make_provider()
-        monkeypatch.setattr("app.providers.vonage_api.asyncio.sleep", AsyncMock())
-        resp = {"uuid": "leg-1", "conversation_uuid": "conv-1", "status": "started"}
-        provider._client.voice.create_call = MagicMock(
-            side_effect=[RequestsConnectionError("down"), resp]
-        )
-
-        await provider.add_participant("123")
-
-        assert provider._client.voice.create_call.call_count == 2
-
-    async def test_non_retryable_error_raises_immediately(self) -> None:
+    async def test_non_retryable_error_raises_immediately(self, caplog: LogCaptureFixture) -> None:
         provider = make_provider()
         provider._client.voice.create_call = MagicMock(side_effect=ValueError("boom"))
 
-        with pytest.raises(ValueError, match="boom"):
-            await provider.add_participant("123")
+        with caplog.at_level(logging.ERROR, logger="app.providers.vonage_api"):
+            with pytest.raises(ValueError, match="boom"):
+                await provider.add_participant("123")
 
         assert provider._client.voice.create_call.call_count == 1
+        assert "create_call failed" in caplog.text
 
-    async def test_non_429_client_error_not_retried(self) -> None:
+    async def test_non_429_client_error_not_retried(self, caplog: LogCaptureFixture) -> None:
         provider = make_provider()
         provider._client.voice.create_call = MagicMock(side_effect=ClientError("unauthorized"))
 
-        with pytest.raises(ClientError, match="unauthorized"):
-            await provider.add_participant("123")
+        with caplog.at_level(logging.ERROR, logger="app.providers.vonage_api"):
+            with pytest.raises(ClientError, match="unauthorized"):
+                await provider.add_participant("123")
 
         assert provider._client.voice.create_call.call_count == 1
+        assert "create_call failed" in caplog.text
 
-    async def test_exhausts_retries_and_raises(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    async def test_exhausts_retries_and_raises(
+        self, patched_sleep: AsyncMock, caplog: LogCaptureFixture
+    ) -> None:
         provider = make_provider()
-        monkeypatch.setattr("app.providers.vonage_api.asyncio.sleep", AsyncMock())
         error = ClientError("429 response from server")
         provider._client.voice.create_call = MagicMock(side_effect=error)
 
-        with pytest.raises(ClientError, match="429"):
-            await provider.add_participant("123")
+        with caplog.at_level(logging.ERROR, logger="app.providers.vonage_api"):
+            with pytest.raises(ClientError, match="429"):
+                await provider.add_participant("123")
 
         assert provider._client.voice.create_call.call_count == 5
+        assert "create_call failed" in caplog.text
 
 
 class TestAddParticipantToConference:
@@ -235,6 +236,19 @@ class TestAddParticipantToConference:
         assert provider.redis_store is None
 
 
+def _fail_get_call(provider: VonageAPIProvider) -> None:
+    provider._client.voice.get_call = MagicMock(side_effect=RuntimeError("boom"))
+
+
+def _not_answered_get_call(provider: VonageAPIProvider) -> None:
+    provider._client.voice.get_call = MagicMock(return_value={"status": "ringing"})
+
+
+def _fail_update_call(provider: VonageAPIProvider) -> None:
+    provider._client.voice.get_call = MagicMock(return_value={"status": "answered"})
+    provider._client.voice.update_call = MagicMock(side_effect=RuntimeError("boom"))
+
+
 class TestTryConnectingWebsocketWithParticipant:
     async def test_get_call_times_out_returns_false(self, caplog: LogCaptureFixture) -> None:
         provider = make_provider(call_timeout_seconds=0.01)
@@ -251,27 +265,34 @@ class TestTryConnectingWebsocketWithParticipant:
                 await provider.handle_call_transfer_event("leg-1", "conv-to-1")
 
         assert provider.is_websocket_connected is False
+        assert "get_call timed out" in caplog.text
 
-    async def test_get_call_raises_returns_false(self, caplog: LogCaptureFixture) -> None:
+    @pytest.mark.parametrize(
+        ("configure", "log_level", "log_fragment"),
+        [
+            (_fail_get_call, logging.ERROR, "get_call failed"),
+            (_not_answered_get_call, logging.INFO, "cannot attach WS"),
+            (_fail_update_call, logging.ERROR, "update_call (transfer) failed"),
+        ],
+    )
+    async def test_attach_failure_returns_false(
+        self,
+        caplog: LogCaptureFixture,
+        configure,
+        log_level: int,
+        log_fragment: str,
+    ) -> None:
         provider = make_provider()
         await _seed_participant(provider, "123")
-        provider._client.voice.get_call = MagicMock(side_effect=RuntimeError("boom"))
+        configure(provider)
 
-        with caplog.at_level(logging.ERROR, logger="app.providers.vonage_api"):
+        with caplog.at_level(log_level, logger="app.providers.vonage_api"):
             await provider.handle_call_transfer_event("leg-1", "conv-to-1")
 
         assert provider.is_websocket_connected is False
-
-    async def test_call_not_answered_returns_false(self, caplog: LogCaptureFixture) -> None:
-        provider = make_provider()
-        await _seed_participant(provider, "123")
-        provider._client.voice.get_call = MagicMock(return_value={"status": "ringing"})
-
-        with caplog.at_level(logging.INFO, logger="app.providers.vonage_api"):
-            await provider.handle_call_transfer_event("leg-1", "conv-to-1")
-
-        assert provider.is_websocket_connected is False
-        provider._client.voice.update_call.assert_not_called()
+        assert log_fragment in caplog.text
+        if log_fragment == "cannot attach WS":
+            provider._client.voice.update_call.assert_not_called()
 
     async def test_update_call_times_out_returns_false(self, caplog: LogCaptureFixture) -> None:
         provider = make_provider(call_timeout_seconds=0.05)
@@ -293,24 +314,13 @@ class TestTryConnectingWebsocketWithParticipant:
                 await provider.handle_call_transfer_event("leg-1", "conv-to-1")
 
         assert provider.is_websocket_connected is False
+        assert "update_call (transfer) timed out" in caplog.text
 
-    async def test_update_call_raises_returns_false(self, caplog: LogCaptureFixture) -> None:
-        provider = make_provider()
-        await _seed_participant(provider, "123")
-        provider._client.voice.get_call = MagicMock(return_value={"status": "answered"})
-        provider._client.voice.update_call = MagicMock(side_effect=RuntimeError("boom"))
-
-        with caplog.at_level(logging.ERROR, logger="app.providers.vonage_api"):
-            await provider.handle_call_transfer_event("leg-1", "conv-to-1")
-
-        assert provider.is_websocket_connected is False
-
-    async def test_attaches_successfully(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    async def test_attaches_successfully(self, patched_sleep: AsyncMock) -> None:
         provider = make_provider()
         await _seed_participant(provider, "123")
         provider._client.voice.get_call = MagicMock(return_value={"status": "answered"})
         provider._client.voice.update_call = MagicMock(return_value=None)
-        monkeypatch.setattr("app.providers.vonage_api.asyncio.sleep", AsyncMock())
 
         await provider.handle_call_transfer_event("leg-1", "conv-to-1")
 
@@ -387,20 +397,6 @@ class TestEndConf:
 
 
 class TestHandleCallTransferEvent:
-    async def test_no_redis_store_returns_none(self) -> None:
-        provider = make_provider(redis_store=None)
-
-        result = await provider.handle_call_transfer_event("leg-1", "conv-to-1")
-
-        assert result is None
-
-    async def test_unknown_participant_returns_none(self) -> None:
-        provider = make_provider()
-
-        result = await provider.handle_call_transfer_event("leg-1", "conv-to-1")
-
-        assert result is None
-
     async def test_known_participant_returns_phone_number(self, monkeypatch: pytest.MonkeyPatch) -> None:
         provider = make_provider()
         await _seed_participant(provider, "123")
@@ -471,53 +467,30 @@ class TestRemoveParticipant:
             uuid="leg-1", action="hangup"
         )
 
-    async def test_unknown_participant_is_noop(self) -> None:
-        provider = make_provider()
-
-        await provider.remove_participant("123")
-
-        provider._client.voice.update_call.assert_not_called()
-
-    async def test_no_redis_store_is_noop(self) -> None:
-        provider = make_provider(redis_store=None)
-
-        await provider.remove_participant("123")
-
-        provider._client.voice.update_call.assert_not_called()
-
-
 class TestMuteUnmuteParticipant:
-    async def test_mute_calls_update_call_with_mute_action(self) -> None:
+    @pytest.mark.parametrize(
+        ("method_name", "action"),
+        [
+            ("mute_participant", "mute"),
+            ("unmute_participant", "unmute"),
+        ],
+    )
+    async def test_calls_update_call_with_action(self, method_name: str, action: str) -> None:
         provider = make_provider()
         await _seed_participant(provider, "123")
         provider._client.voice.update_call = MagicMock(return_value=None)
 
-        await provider.mute_participant("123")
+        await getattr(provider, method_name)("123")
 
-        provider._client.voice.update_call.assert_called_once_with(uuid="leg-1", action="mute")
+        provider._client.voice.update_call.assert_called_once_with(uuid="leg-1", action=action)
 
-    async def test_unmute_calls_update_call_with_unmute_action(self) -> None:
-        provider = make_provider()
-        await _seed_participant(provider, "123")
-        provider._client.voice.update_call = MagicMock(return_value=None)
 
-        await provider.unmute_participant("123")
+def _fail_create_talk(provider: VonageAPIProvider) -> None:
+    provider._client.voice.create_talk = MagicMock(side_effect=RuntimeError("boom"))
 
-        provider._client.voice.update_call.assert_called_once_with(uuid="leg-1", action="unmute")
 
-    async def test_mute_unknown_participant_is_noop(self) -> None:
-        provider = make_provider()
-
-        await provider.mute_participant("123")
-
-        provider._client.voice.update_call.assert_not_called()
-
-    async def test_unmute_no_redis_store_is_noop(self) -> None:
-        provider = make_provider(redis_store=None)
-
-        await provider.unmute_participant("123")
-
-        provider._client.voice.update_call.assert_not_called()
+def _remove_create_talk(provider: VonageAPIProvider) -> None:
+    del provider._client.voice.create_talk
 
 
 class TestPlayTtsToCallLeg:
@@ -530,32 +503,30 @@ class TestPlayTtsToCallLeg:
 
         provider._client.voice.create_talk.assert_called_once_with(uuid="leg-1", text="hello")
 
-    async def test_falls_back_to_transfer_when_create_talk_raises(self) -> None:
+    @pytest.mark.parametrize(
+        ("configure", "expect_create_talk_log"),
+        [
+            (_fail_create_talk, True),
+            (_remove_create_talk, False),
+        ],
+    )
+    async def test_falls_back_to_transfer(
+        self, caplog: LogCaptureFixture, configure, expect_create_talk_log: bool
+    ) -> None:
         provider = make_provider()
         await _seed_participant(provider, "123", call_leg_id="leg-1")
-        provider._client.voice.create_talk = MagicMock(side_effect=RuntimeError("boom"))
+        configure(provider)
         provider._client.voice.update_call = MagicMock(return_value=None)
 
-        await provider.play_announcement_to_conference("hello", phone_numbers=["123"])
+        with caplog.at_level(logging.WARNING, logger="app.providers.vonage_api"):
+            await provider.play_announcement_to_conference("hello", phone_numbers=["123"])
 
         kwargs = provider._client.voice.update_call.call_args.kwargs
         assert kwargs["uuid"] == "leg-1"
         ncco = kwargs["params"]["destination"]["ncco"]
         talk_step = next(step for step in ncco if step["action"] == "talk")
         assert talk_step["text"] == "hello"
-
-    async def test_falls_back_to_transfer_when_create_talk_unavailable(self) -> None:
-        provider = make_provider()
-        await _seed_participant(provider, "123", call_leg_id="leg-1")
-        del provider._client.voice.create_talk
-        provider._client.voice.update_call = MagicMock(return_value=None)
-
-        await provider.play_announcement_to_conference("hello", phone_numbers=["123"])
-
-        kwargs = provider._client.voice.update_call.call_args.kwargs
-        ncco = kwargs["params"]["destination"]["ncco"]
-        talk_step = next(step for step in ncco if step["action"] == "talk")
-        assert talk_step["text"] == "hello"
+        assert ("create_talk failed" in caplog.text) is expect_create_talk_log
 
     async def test_logs_warning_when_transfer_fallback_also_fails(
         self, caplog: LogCaptureFixture
@@ -572,13 +543,6 @@ class TestPlayTtsToCallLeg:
 
 
 class TestPlayAnnouncementToConference:
-    async def test_no_redis_store_is_noop(self) -> None:
-        provider = make_provider(redis_store=None)
-
-        await provider.play_announcement_to_conference("hello")
-
-        assert True
-
     async def test_plays_to_explicit_recipients(self) -> None:
         provider = make_provider()
         await _seed_participant(provider, "123", call_leg_id="leg-1")
@@ -609,6 +573,22 @@ class TestPlayAnnouncementToConference:
 
         assert set(played) == {"leg-1", "leg-2"}
 
+    async def test_unknown_recipient_logs_warning_and_skips(self, caplog: LogCaptureFixture) -> None:
+        provider = make_provider()
+        await _seed_participant(provider, "123", call_leg_id="leg-1")
+        played: list[str] = []
+
+        async def fake_play(call_leg_id, text):
+            played.append(call_leg_id)
+            return True
+
+        with patch.object(provider, "_play_tts_to_call_leg", side_effect=fake_play):
+            with caplog.at_level(logging.WARNING, logger="app.providers.vonage_api"):
+                await provider.play_announcement_to_conference("hello", phone_numbers=["123", "999"])
+
+        assert played == ["leg-1"]
+        assert "unknown participant" in caplog.text
+
 
 class TestReconnectWebsocket:
     async def test_connects_on_first_attempt_for_matching_participant(self) -> None:
@@ -635,14 +615,12 @@ class TestReconnectWebsocket:
         matching = mock_attach.call_args.args[0]
         assert matching.phone_number == "123"
 
-    async def test_retries_with_sleep_until_connected(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    async def test_retries_with_sleep_until_connected(self, patched_sleep: AsyncMock) -> None:
         provider = make_provider()
         provider.vonage_conv_id = "conv-match"
         await _seed_participant(
             provider, "123", call_leg_id="leg-1", conference_conv_id="conv-match"
         )
-        sleep_mock = AsyncMock()
-        monkeypatch.setattr("app.providers.vonage_api.asyncio.sleep", sleep_mock)
 
         attempts = {"count": 0}
 
@@ -659,7 +637,7 @@ class TestReconnectWebsocket:
             await provider.reconnect_websocket()
 
         assert provider.is_websocket_connected is True
-        sleep_mock.assert_awaited()
+        patched_sleep.assert_awaited()
 
     async def test_no_matching_participant_still_sleeps_and_retries(
         self, monkeypatch: pytest.MonkeyPatch
@@ -679,3 +657,54 @@ class TestReconnectWebsocket:
         await provider.reconnect_websocket()
 
         assert sleep_calls["count"] >= 2
+
+
+class TestNoRedisStoreWarnings:
+    @pytest.mark.parametrize(
+        ("call", "expected_log_fragment"),
+        [
+            (lambda p: p.end_conf(), "skipping end_conf"),
+            (lambda p: p.handle_call_transfer_event("leg-1", "conv-to-1"), "skipping handle_call_transfer_event"),
+            (lambda p: p.remove_participant("123"), "skipping remove_participant"),
+            (lambda p: p.mute_participant("123"), "skipping mute_participant"),
+            (lambda p: p.unmute_participant("123"), "skipping unmute_participant"),
+            (lambda p: p.play_announcement_to_conference("hi"), "skipping play_announcement_to_conference"),
+            (lambda p: p.reconnect_websocket(), "skipping reconnect_websocket"),
+        ],
+        ids=["end_conf", "handle_call_transfer_event", "remove_participant", "mute_participant", "unmute_participant", "play_announcement_to_conference", "reconnect_websocket"],
+    )
+    async def test_no_redis_store_logs_warning_and_is_noop(
+        self, caplog: LogCaptureFixture, call, expected_log_fragment: str,
+    ) -> None:
+        provider = make_provider(redis_store=None)
+
+        with caplog.at_level(logging.WARNING, logger="app.providers.vonage_api"):
+            await call(provider)
+
+        assert expected_log_fragment in caplog.text
+
+
+class TestUnknownParticipantWarnings:
+    @pytest.mark.parametrize(
+        ("call", "expected_log_fragment"),
+        [
+            (lambda p: p.handle_call_transfer_event("leg-missing", "conv-to-1"), "unknown participant for call leg uuid=leg-missing"),
+            (lambda p: p.remove_participant("missing"), "unknown participant phone_number=missing for remove_participant"),
+            (lambda p: p.mute_participant("missing"), "unknown participant phone_number=missing for mute_participant"),
+            (lambda p: p.unmute_participant("missing"), "unknown participant phone_number=missing for unmute_participant"),
+            (lambda p: p.play_announcement_to_conference("hi", ["missing"]), "unknown participant phone_number=missing for play_announcement_to_conference"),
+        ],
+        ids=["handle_call_transfer_event", "remove_participant", "mute_participant", "unmute_participant", "play_announcement_to_conference"],
+    )
+    async def test_unknown_participant_logs_warning_and_is_noop(
+        self, caplog: LogCaptureFixture, call, expected_log_fragment: str,
+    ) -> None:
+        provider = make_provider()
+
+        with caplog.at_level(logging.WARNING, logger="app.providers.vonage_api"):
+            result = await call(provider)
+
+        assert expected_log_fragment in caplog.text
+        provider._client.voice.update_call.assert_not_called()
+        if "call leg" in expected_log_fragment:
+            assert result is None

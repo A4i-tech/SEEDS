@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from app.services.conference_service import ConferenceCall
 logger = logging.getLogger(__name__)
 
+
 class MuteParticipantEvent(ConferenceEvent):
     def __init__(self, phone_number: str, conf_call: ConferenceCall, stream_system_message: bool = True) -> None:
         self.phone_number = phone_number
@@ -21,6 +22,9 @@ class MuteParticipantEvent(ConferenceEvent):
 
     async def execute_event(self) -> None:
         if self.phone_number not in self.conf_call.state.participants:
+            logger.warning(
+                "MuteParticipantEvent: unknown participant phone_number=%s, no-op", self.phone_number
+            )
             return
         await self.conf_call.communication_api.mute_participant(self.phone_number)
         self.conf_call.state.participants[self.phone_number].is_muted = True

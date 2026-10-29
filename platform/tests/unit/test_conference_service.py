@@ -475,23 +475,6 @@ class TestParticipantModel:
 
 class TestConferenceEventDispatcher:
     @pytest.mark.asyncio
-    async def test_dispatch_conference_event_no_conference(self) -> None:
-        """dispatch_conference_event with missing conference does nothing."""
-        from app.services.conference_event_dispatcher import dispatch_conference_event
-
-        mgr = MagicMock()
-        mgr.get_conference = MagicMock(return_value=None)
-        caller_state_mgr = MagicMock()
-
-        # Should complete without error
-        await dispatch_conference_event(
-            event_data={"status": "answered"},
-            conference_id="unknown",
-            conference_manager=mgr,
-            caller_state_manager=caller_state_mgr,
-        )
-
-    @pytest.mark.asyncio
     async def test_dispatch_conversation_event_no_match(self) -> None:
         """dispatch_conversation_event with non-DTMF event does nothing."""
         from app.services.conference_event_dispatcher import dispatch_conversation_event

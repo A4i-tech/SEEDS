@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import logging
 from unittest.mock import create_autospec
+
+import pytest
 
 from app.models.action_history import ActionType
 from app.models.conference_state import ConferenceCallState
@@ -35,14 +38,17 @@ def _make_conf(teacher_phone="+111", student_phones=None, student_muted=False):
 
 
 class TestMuteParticipantEvent:
-    async def test_unknown_participant_is_noop(self) -> None:
+    async def test_unknown_participant_is_noop(self, caplog: pytest.LogCaptureFixture) -> None:
         conf = _make_conf(student_phones=[])
         event = MuteParticipantEvent(phone_number="+999", conf_call=conf)
 
-        await event.execute_event()
+        with caplog.at_level(logging.WARNING):
+            await event.execute_event()
 
         conf.communication_api.mute_participant.assert_not_called()
         conf.update_state.assert_not_called()
+        assert "unknown participant" in caplog.text
+        assert "+999" in caplog.text
 
     async def test_mutes_student_and_streams_system_message(self) -> None:
         conf = _make_conf(student_phones=["+222"])

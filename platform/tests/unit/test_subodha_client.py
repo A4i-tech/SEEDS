@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, patch
 
@@ -73,13 +74,24 @@ def _make_client(settings=None, transport=None):
         return SubodhaClient(transport=transport)
 
 
+@pytest.fixture
+def patched_sleep(monkeypatch: pytest.MonkeyPatch) -> AsyncMock:
+    sleeps: list[float] = []
+    mock = AsyncMock(side_effect=lambda s: sleeps.append(s))
+    mock.sleeps = sleeps
+    monkeypatch.setattr(subodha_client_module.asyncio, "sleep", mock)
+    return mock
+
+
 class TestExtractVideoData:
     def test_returns_none_when_no_metadata_tag(self) -> None:
         assert _extract_video_data("<div>no metadata</div>") is None
 
-    def test_returns_none_on_invalid_json(self) -> None:
+    def test_returns_none_on_invalid_json(self, caplog: pytest.LogCaptureFixture) -> None:
         html = '<div data-metadata="not-json"></div>'
-        assert _extract_video_data(html) is None
+        with caplog.at_level(logging.WARNING, logger="app.providers.subodha_client"):
+            assert _extract_video_data(html) is None
+        assert "Subodha video metadata is malformed" in caplog.text
 
     def test_extracts_fields_from_valid_metadata(self) -> None:
         meta = {
@@ -110,31 +122,36 @@ class TestWithRetry:
         assert result == "ok"
         fn.assert_awaited_once()
 
-    async def test_retries_on_429_then_succeeds(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        sleeps = []
-        monkeypatch.setattr(subodha_client_module.asyncio, "sleep", AsyncMock(side_effect=lambda s: sleeps.append(s)))
+    @pytest.mark.parametrize(
+        ("error", "base_delay", "expected_sleep"),
+        [
+            (httpx.HTTPStatusError(
+                "429", request=httpx.Request("GET", "http://x"),
+                response=_response(status_code=429, headers={"retry-after": "2"}),
+            ), 5.0, 2),
+            (httpx.HTTPStatusError(
+                "503", request=httpx.Request("GET", "http://x"), response=_response(status_code=503),
+            ), 5.0, 5.0),
+            (httpx.ConnectError("boom"), 1.0, 1.0),
+        ],
+    )
+    async def test_retries_then_succeeds(
+        self,
+        patched_sleep: AsyncMock,
+        caplog: pytest.LogCaptureFixture,
+        error: Exception,
+        base_delay: float,
+        expected_sleep: float,
+    ) -> None:
+        fn = AsyncMock(side_effect=[error, "ok"])
 
-        resp = _response(status_code=429, headers={"retry-after": "2"})
-        err = httpx.HTTPStatusError("429", request=httpx.Request("GET", "http://x"), response=resp)
-        fn = AsyncMock(side_effect=[err, "ok"])
-
-        result = await _with_retry(fn, label="courses", retries=3, base_delay=5.0)
+        with caplog.at_level(logging.WARNING, logger="app.providers.subodha_client"):
+            result = await _with_retry(fn, label="courses", retries=3, base_delay=base_delay)
 
         assert result == "ok"
-        assert sleeps == [2]
-
-    async def test_retries_on_503_without_retry_after_uses_base_delay(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        sleeps = []
-        monkeypatch.setattr(subodha_client_module.asyncio, "sleep", AsyncMock(side_effect=lambda s: sleeps.append(s)))
-
-        resp = _response(status_code=503)
-        err = httpx.HTTPStatusError("503", request=httpx.Request("GET", "http://x"), response=resp)
-        fn = AsyncMock(side_effect=[err, "ok"])
-
-        result = await _with_retry(fn, label="courses", retries=3, base_delay=5.0)
-
-        assert result == "ok"
-        assert sleeps == [5.0]
+        assert patched_sleep.sleeps == [expected_sleep]
+        assert "retry" in caplog.text
+        assert "waiting" in caplog.text
 
     async def test_non_retryable_status_raises_immediately(self) -> None:
         resp = _response(status_code=500)
@@ -145,19 +162,7 @@ class TestWithRetry:
             await _with_retry(fn, label="courses")
         fn.assert_awaited_once()
 
-    async def test_retries_on_transport_error_then_succeeds(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        sleeps = []
-        monkeypatch.setattr(subodha_client_module.asyncio, "sleep", AsyncMock(side_effect=lambda s: sleeps.append(s)))
-
-        fn = AsyncMock(side_effect=[httpx.ConnectError("boom"), "ok"])
-
-        result = await _with_retry(fn, label="courses", retries=3, base_delay=1.0)
-
-        assert result == "ok"
-        assert sleeps == [1.0]
-
-    async def test_exhausts_retries_and_raises_runtime_error(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr(subodha_client_module.asyncio, "sleep", AsyncMock())
+    async def test_exhausts_retries_and_raises_runtime_error(self, patched_sleep: AsyncMock) -> None:
         fn = AsyncMock(side_effect=httpx.ConnectError("boom"))
 
         with pytest.raises(RuntimeError, match="failed after 2 retries"):
@@ -274,7 +279,7 @@ class TestGetSession:
 
 
 class TestLoginFailures:
-    async def test_login_failure_raises_runtime_error(self) -> None:
+    async def test_login_failure_raises_runtime_error(self, caplog: pytest.LogCaptureFixture) -> None:
         def handler(request: httpx.Request) -> httpx.Response:
             if request.method == "GET":
                 return _response(status_code=200)
@@ -286,10 +291,12 @@ class TestLoginFailures:
 
         client = _make_client(transport=_transport(handler))
 
-        with pytest.raises(RuntimeError, match="Subodha login failed"):
-            await client.get_session()
+        with caplog.at_level(logging.ERROR, logger="app.providers.subodha_client"):
+            with pytest.raises(RuntimeError, match="Subodha login failed"):
+                await client.get_session()
+        assert "login failed" in caplog.text
 
-    async def test_login_non_json_response_treated_as_failure(self) -> None:
+    async def test_login_non_json_response_treated_as_failure(self, caplog: pytest.LogCaptureFixture) -> None:
         def handler(request: httpx.Request) -> httpx.Response:
             if request.method == "GET":
                 return _response(status_code=200)
@@ -297,46 +304,49 @@ class TestLoginFailures:
 
         client = _make_client(transport=_transport(handler))
 
-        with pytest.raises(RuntimeError, match="Subodha login failed"):
-            await client.get_session()
+        with caplog.at_level(logging.ERROR, logger="app.providers.subodha_client"):
+            with pytest.raises(RuntimeError, match="Subodha login failed"):
+                await client.get_session()
+        assert "login failed" in caplog.text
 
 
 class TestListAllCourses:
-    async def test_paginates_until_no_next_url(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr(subodha_client_module.asyncio, "sleep", AsyncMock())
+    @pytest.mark.parametrize(
+        ("pages", "expected_ids", "expected_urls"),
+        [
+            (
+                [
+                    {"results": [{"id": "c1"}], "pagination": {"next": "https://lms.example.com/api/courses/v1/courses/?page=2&page_size=50"}},
+                    {"results": [{"id": "c2"}], "pagination": {}},
+                ],
+                ["c1", "c2"],
+                [
+                    "https://lms.example.com/api/courses/v1/courses/?page=1&page_size=50",
+                    "https://lms.example.com/api/courses/v1/courses/?page=2&page_size=50",
+                ],
+            ),
+            (
+                [{"results": [{"id": "only"}], "pagination": {}}],
+                ["only"],
+                ["https://lms.example.com/api/courses/v1/courses/?page=1&page_size=50"],
+            ),
+        ],
+    )
+    async def test_paginates_until_no_next_url(
+        self, patched_sleep: AsyncMock, pages: list[dict], expected_ids: list[str], expected_urls: list[str]
+    ) -> None:
         requested_urls: list[str] = []
-        next_page_url = "https://lms.example.com/api/courses/v1/courses/?page=2&page_size=50"
 
         def handler(request: httpx.Request) -> httpx.Response:
             requested_urls.append(str(request.url))
-            if len(requested_urls) == 1:
-                return _response(status_code=200, json_data={"results": [{"id": "c1"}], "pagination": {"next": next_page_url}})
-            return _response(status_code=200, json_data={"results": [{"id": "c2"}], "pagination": {}})
+            return _response(status_code=200, json_data=pages[len(requested_urls) - 1])
 
         client = _make_client(transport=_transport(handler))
 
         courses = await client.list_all_courses()
 
-        assert [c["id"] for c in courses] == ["c1", "c2"]
-        assert requested_urls == [
-            "https://lms.example.com/api/courses/v1/courses/?page=1&page_size=50",
-            next_page_url,
-        ]
-
-    async def test_single_page_returns_all_results(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setattr(subodha_client_module.asyncio, "sleep", AsyncMock())
-        requested_urls: list[str] = []
-
-        def handler(request: httpx.Request) -> httpx.Response:
-            requested_urls.append(str(request.url))
-            return _response(status_code=200, json_data={"results": [{"id": "only"}], "pagination": {}})
-
-        client = _make_client(transport=_transport(handler))
-
-        courses = await client.list_all_courses()
-
-        assert [c["id"] for c in courses] == ["only"]
-        assert requested_urls == ["https://lms.example.com/api/courses/v1/courses/?page=1&page_size=50"]
+        assert [c["id"] for c in courses] == expected_ids
+        assert requested_urls == expected_urls
 
 
 class TestFetchBlocks:
@@ -377,11 +387,10 @@ class TestEnrichBlocksWithContent:
         assert block["student_view_html"] == ""
         assert block["student_view_data"]["sources"] == ["v.mp4"]
 
-    async def test_enriches_html_block_strips_staff_debug(self) -> None:
-        raw = (
-            '<div class="xblock"><p>Lesson</p>'
-            '<div class="wrap-instructor-info">debug</div></div>'
-        )
+    async def test_enriches_html_block(self) -> None:
+        # Staff-debug stripping itself is covered in test_subodha_client_html_cleanup.py;
+        # this just exercises the html-type dispatch wiring in enrich_blocks_with_content.
+        raw = '<div class="xblock"><p>Lesson</p></div>'
 
         def handler(request: httpx.Request) -> httpx.Response:
             return _response(status_code=200, text=raw)
@@ -400,36 +409,21 @@ class TestEnrichBlocksWithContent:
         assert block["student_view_html"] == "<p>Lesson</p>"
         assert block["student_view_data"] is None
 
-    async def test_skips_blocks_without_student_view_url(self) -> None:
+    @pytest.mark.parametrize(
+        "block",
+        [
+            {"id": "b1", "type": "html"},
+            {"id": "b1", "type": "other", "student_view_url": "https://x/b1"},
+        ],
+    )
+    async def test_skips_block_when_not_enrichable(self, block: dict) -> None:
         client = _make_client(transport=_transport(_unexpected_request))
 
-        blocks_response = {"blocks": {"b1": {"id": "b1", "type": "html"}}}
+        blocks_response = {"blocks": {"b1": dict(block)}}
 
         result = await client.enrich_blocks_with_content(blocks_response, "session=abc")
 
-        assert result["blocks"]["b1"] == {"id": "b1", "type": "html"}
-
-    async def test_skips_blocks_with_unsupported_type(self) -> None:
-        client = _make_client(transport=_transport(_unexpected_request))
-
-        blocks_response = {"blocks": {"b1": {"id": "b1", "type": "other", "student_view_url": "https://x/b1"}}}
-
-        await client.enrich_blocks_with_content(blocks_response, "session=abc")
-
-    async def test_raises_when_any_block_fails(self) -> None:
-        def handler(request: httpx.Request) -> httpx.Response:
-            raise RuntimeError("network down")
-
-        client = _make_client(transport=_transport(handler))
-
-        blocks_response = {
-            "blocks": {
-                "b1": {"id": "b1", "type": "html", "student_view_url": "https://x/b1"},
-            }
-        }
-
-        with pytest.raises(RuntimeError, match="xblocks failed to enrich"):
-            await client.enrich_blocks_with_content(blocks_response, "session=abc")
+        assert result["blocks"]["b1"] == block
 
     async def test_partial_failure_still_reports_all_failures(self) -> None:
         ok_html = '<div class="xblock"><p>ok</p></div>'
@@ -485,11 +479,9 @@ class TestFetchAsset:
 
 
 class TestSingleton:
-    def setup_method(self) -> None:
-        subodha_client_module._client = None
-
-    def teardown_method(self) -> None:
-        subodha_client_module._client = None
+    @pytest.fixture(autouse=True)
+    def _reset_singleton(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setattr(subodha_client_module, "_client", None)
 
     def test_get_subodha_client_returns_singleton(self) -> None:
         with patch("app.providers.subodha_client.get_settings", return_value=_make_settings()):
@@ -497,14 +489,15 @@ class TestSingleton:
             c2 = get_subodha_client()
         assert c1 is c2
 
-    async def test_close_subodha_client_closes_and_resets(self) -> None:
+    async def test_close_subodha_client_closes_and_resets(self, monkeypatch: pytest.MonkeyPatch) -> None:
         with patch("app.providers.subodha_client.get_settings", return_value=_make_settings()):
             client = get_subodha_client()
-        client.aclose = AsyncMock()
+        mock_aclose = AsyncMock()
+        monkeypatch.setattr(client, "aclose", mock_aclose)
 
         await close_subodha_client()
 
-        client.aclose.assert_awaited_once()
+        mock_aclose.assert_awaited_once()
         assert subodha_client_module._client is None
 
     async def test_close_subodha_client_is_noop_when_never_created(self) -> None:

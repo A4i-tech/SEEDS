@@ -51,11 +51,17 @@ def _ensure_initialized() -> None:
     from firebase_admin import credentials  # noqa: PLC0415
 
     # Accept either a raw JSON string or a file path.
-    try:
-        service_account_dict = json.loads(service_account_raw)
+    stripped = service_account_raw.lstrip()
+    if stripped.startswith("{"):
+        try:
+            service_account_dict = json.loads(service_account_raw)
+        except json.JSONDecodeError as exc:
+            raise RuntimeError(
+                "FIREBASE_SERVICE_ACCOUNT looks like inline JSON but failed to parse: "
+                f"{exc}"
+            ) from exc
         cred = credentials.Certificate(service_account_dict)
-    except (json.JSONDecodeError, ValueError):
-        # Treat as a file path
+    else:
         cred = credentials.Certificate(service_account_raw)
 
     if not firebase_admin.app._apps:  # type: ignore[attr-defined]
