@@ -200,8 +200,24 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
       cancelled = true;
     };
   }, [siteId, route, lang, toast]);
+  const extraLoadCancelRef = useRef(null);
+
+  const reload = useCallback(() => {
+    if (extraLoadCancelRef.current) {
+      extraLoadCancelRef.current();
+    }
+    extraLoadCancelRef.current = load();
+  }, [load]);
+
   useEffect(() => {
-    return load();
+    const cancel = load();
+    return () => {
+      cancel();
+      if (extraLoadCancelRef.current) {
+        extraLoadCancelRef.current();
+        extraLoadCancelRef.current = null;
+      }
+    };
   }, [load]);
 
   const segments = useMemo(() => (docs ? docs.map((d) => toSegment(d, lang)) : []), [docs, lang]);
@@ -306,7 +322,7 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
         } else {
           toast({ message: `Approved ${approved}, skipped ${skipped}`, tone: "good" });
         }
-        load();
+        reload();
       } catch (e) {
         toast({ message: e.message, tone: "crit" });
       }
@@ -500,7 +516,7 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
           defaultLang={lang}
           onClose={() => setImportOpen(false)}
           onImported={() => {
-            load();
+            reload();
             onDataChanged?.();
           }}
         />

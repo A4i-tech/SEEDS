@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import Modal from "../shared/Modal";
 import Select from "../shared/Select";
 import "../shared/buttons.css";
@@ -54,6 +54,13 @@ function TranslationImportDialog({ siteId, languages, defaultLang, onClose, onIm
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
   const [failure, setFailure] = useState(null);
+  const resultRef = useRef(null);
+
+  useEffect(() => {
+    if (result && resultRef.current) {
+      resultRef.current.focus();
+    }
+  }, [result]);
 
   const target = useMemo(
     () => (table && !table.error && lang ? selectTargetColumn(table, lang) : null),
@@ -111,8 +118,13 @@ function TranslationImportDialog({ siteId, languages, defaultLang, onClose, onIm
     }
   };
 
+  const handleClose = () => {
+    if (busy) return;
+    onClose();
+  };
+
   return (
-    <Modal title="Import translations" onClose={onClose} maxWidth={640}>
+    <Modal title="Import translations" onClose={handleClose} maxWidth={640}>
       <div className="import-dialog-scroll" data-testid="import-dialog-scroll">
         <label className="label" htmlFor="import-csv-file">
           CSV file
@@ -180,7 +192,7 @@ function TranslationImportDialog({ siteId, languages, defaultLang, onClose, onIm
         {failure && <p className="error-message">{failure}</p>}
 
         {result && (
-          <div role="status">
+          <div role="status" ref={resultRef} tabIndex={-1}>
             <p className={result.failed ? "error-message" : "success-message"}>
               {`Updated ${result.updated}, created ${result.created}, unchanged ${result.unchanged}, skipped blank ${result.skippedBlank}, failed ${result.failed}`}
             </p>
@@ -232,7 +244,12 @@ function TranslationImportDialog({ siteId, languages, defaultLang, onClose, onIm
       </div>
 
       <div className="modal-actions">
-        <button type="button" className="action-ghost-button" onClick={onClose}>
+        <button
+          type="button"
+          className="action-ghost-button"
+          onClick={handleClose}
+          disabled={busy}
+        >
           {result ? "Close" : "Cancel"}
         </button>
         {!result && (

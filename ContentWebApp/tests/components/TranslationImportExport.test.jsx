@@ -769,4 +769,40 @@ describe("Import review fixes", () => {
     expect(message).toHaveTextContent(/\.\. segments/);
     expect(message).toHaveTextContent(/2048/);
   });
+
+  test("the dialog cannot be closed while an import is running", async () => {
+    let resolveImport;
+    translationService.importTranslations.mockReturnValue(
+      new Promise((resolve) => {
+        resolveImport = resolve;
+      })
+    );
+    const dialog = await openWithFile(`${HEADER}\n"k1","/","Hello","ಹಲೋ"\n`);
+    await within(dialog).findByText(/1 rows/);
+
+    await userEvent.click(within(dialog).getByRole("button", { name: "Import" }));
+    await within(dialog).findByRole("button", { name: "Importing…" });
+
+    expect(within(dialog).getByRole("button", { name: "Cancel" })).toBeDisabled();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await userEvent.click(within(dialog).getByRole("button", { name: String.fromCharCode(0x2715) }));
+    expect(screen.getByRole("dialog", { name: "Import translations" })).toBeInTheDocument();
+
+    resolveImport(importOk);
+    await within(dialog).findByRole("button", { name: "Close" });
+    expect(within(dialog).getByRole("button", { name: "Close" })).toBeEnabled();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+    expect(screen.queryByRole("dialog", { name: "Import translations" })).not.toBeInTheDocument();
+  });
+
+  test("the result region receives focus once the import completes", async () => {
+    translationService.importTranslations.mockResolvedValue(importOk);
+    const dialog = await openWithFile(`${HEADER}\n"k1","/","Hello","ಹಲೋ"\n`);
+    await within(dialog).findByText(/1 rows/);
+
+    await userEvent.click(within(dialog).getByRole("button", { name: "Import" }));
+
+    const status = await within(dialog).findByRole("status");
+    await waitFor(() => expect(status).toHaveFocus());
+  });
 });

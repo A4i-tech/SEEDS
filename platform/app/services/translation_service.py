@@ -152,10 +152,14 @@ class TranslationService:
             self._provider_instance = self._provider_factory()
         return self._provider_instance
 
-    async def _ensure_site_active(self, site_id: str) -> dict[str, Any]:
-        website = await self._website_repo.find_by_site_id(site_id)
+    @staticmethod
+    def _assert_website_active(website: dict[str, Any] | None, site_id: str) -> None:
         if not website or website.get("status") != "Active":
             raise NotFoundError("website", site_id)
+
+    async def _ensure_site_active(self, site_id: str) -> dict[str, Any]:
+        website = await self._website_repo.find_by_site_id(site_id)
+        self._assert_website_active(website, site_id)
         return website
 
     async def _ensure_site_owned_by_tenant(self, site_id: str, tenant_id: str) -> dict[str, Any]:
@@ -268,8 +272,7 @@ class TranslationService:
 
     async def generate_for_review(self, site_id: str, tenant_id: str, route: str, lang: str) -> dict[str, str]:
         website = await self._ensure_site_owned_by_tenant(site_id, tenant_id)
-        if website.get("status") != "Active":
-            raise NotFoundError("website", site_id)
+        self._assert_website_active(website, site_id)
         return await self._generate_translations(site_id, route, lang, serve_pending=True)
 
     def _is_first_party(self, site_id: str) -> bool:
@@ -578,8 +581,7 @@ class TranslationService:
         state: ImportState = "pending",
     ) -> dict[str, Any]:
         website = await self._ensure_site_owned_by_tenant(site_id, tenant_id)
-        if website.get("status") != "Active":
-            raise NotFoundError("website", site_id)
+        self._assert_website_active(website, site_id)
         await self._ensure_lang_enabled(site_id, lang, website)
 
         counts = {"updated": 0, "created": 0, "unchanged": 0, "skipped_blank": 0}
@@ -621,7 +623,7 @@ class TranslationService:
         for row_no, route, key, source, text in parsed:
             doc = existing.get((route, key))
             entry = ((doc or {}).get("translations") or {}).get(lang)
-            current = (entry or {}).get("text") or ""
+            current = _normalize_newlines((entry or {}).get("text") or "")
 
             if doc is not None and _canonical_source(doc.get("source_text") or "") != source:
                 fail(row_no, route, key, "source_mismatch")
@@ -761,6 +763,7 @@ class TranslationService:
             )
 
         failed_ops: set[int] = set()
+        bulk_write_unknown = False
         if ops:
             try:
                 await self._repo.bulk_write(ops)
@@ -770,6 +773,14 @@ class TranslationService:
                     "import_translations: %d row(s) failed to write",
                     len(failed_ops),
                     extra={"site_id": site_id, "failed_rows": sorted(planned[i]["row"] for i in failed_ops)},
+                )
+            except PyMongoError:
+                bulk_write_unknown = True
+                logger.error(
+                    "import_translations: bulk_write raised an unexpected database error; "
+                    "row outcomes could not be confirmed from the write call itself",
+                    extra={"site_id": site_id, "row_count": len(planned)},
+                    exc_info=True,
                 )
 
         warnings: list[ImportRowError] = []
@@ -796,6 +807,14 @@ class TranslationService:
             else:
                 applied_at = {(d["route"], d["key"]): _same_instant(d.get("approved_at"), now) for d in stored}
                 failed_ops |= {i for i in guarded if not applied_at.get((planned[i]["route"], planned[i]["key"]))}
+
+        if bulk_write_unknown:
+            # bulk_write itself raised a non-BulkWriteError PyMongoError (timeout/network/server
+            # selection, etc). Rows covered by the version guard-read above were already resolved
+            # (confirmed, failed, or unverified) from a fresh read of the database. Every other row
+            # has no independent way to confirm its outcome, so treat it as unverified rather than
+            # claiming success or failure.
+            unverified |= {i for i in range(len(planned)) if i not in failed_ops and i not in guarded}
 
         written: list[_PlannedRow] = []
         for index, plan in enumerate(planned):

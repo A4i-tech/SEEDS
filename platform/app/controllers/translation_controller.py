@@ -21,7 +21,11 @@ from app.models.responses.translation import (
 from app.platform.auth.dependencies import require_tenant, require_translation_reviewer
 from app.platform.security import limiter
 from app.services.analytics_service import AnalyticsService, get_analytics_service
-from app.services.translation_service import TranslationService, get_translation_service
+from app.services.translation_service import (
+    IMPORT_ROUTE_MAX_LENGTH,
+    TranslationService,
+    get_translation_service,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +39,7 @@ def _tenant_id(user: dict[str, Any]) -> str:
 class ExtractItem(BaseModel):
     key: str
     text: str = Field(max_length=5000)
-    route: str = Field(max_length=2048)
+    route: str = Field(max_length=IMPORT_ROUTE_MAX_LENGTH)
     source_lang: str = "en"
 
 
@@ -66,7 +70,7 @@ async def extract(
 async def get_translations(
     request: Request,
     site_id: str,
-    route: str = Query(max_length=2048),
+    route: str = Query(max_length=IMPORT_ROUTE_MAX_LENGTH),
     lang: str = Query(max_length=32),
     service: TranslationService = Depends(get_translation_service),
 ) -> dict[str, str]:
@@ -79,7 +83,7 @@ async def get_translations(
 )
 async def generate_translations(
     site_id: str,
-    route: str = Query(max_length=2048),
+    route: str = Query(max_length=IMPORT_ROUTE_MAX_LENGTH),
     lang: str = Query(max_length=32),
     service: TranslationService = Depends(get_translation_service),
     user: dict[str, Any] = Depends(require_tenant),
@@ -124,7 +128,9 @@ async def list_translations(
     summary="Bulk import translations for one language into a site (CSV rows parsed client-side)",
     response_model=TranslationImportResponse,
 )
+@limiter.limit("100/minute")
 async def import_translations(
+    request: Request,
     site_id: str,
     body: TranslationImportRequest,
     service: TranslationService = Depends(get_translation_service),

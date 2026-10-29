@@ -192,6 +192,20 @@ async def test_import_source_comparison_tolerates_crlf_from_excel(service, repo)
     assert (await _doc(repo, key))["translations"]["kn"]["text"] == "ಒಂದು\nಎರಡು"
 
 
+async def test_import_newline_convention_only_change_stays_unchanged_and_approved(service, repo):
+    key = await _seed(repo, lang="kn", text="Line one\nLine two", status="approved")
+    doc_before = await _doc(repo, key)
+    approved_at_before = doc_before["translations"]["kn"]["approved_at"]
+
+    res = await _import(service, [_row("Hello World", "Line one\r\nLine two")])
+
+    assert res["unchanged"] == 1
+    translation = (await _doc(repo, key))["translations"]["kn"]
+    assert translation["status"] == "approved"
+    assert translation["approved_by"] == "rev"
+    assert translation["approved_at"] == approved_at_before
+
+
 @pytest.mark.parametrize(
     ("row", "reason"),
     [
@@ -406,6 +420,28 @@ async def test_import_partial_write_failure_reports_the_failed_rows(service, rep
     assert (await _doc(repo, sdk_rolling_hash("Second")))["translations"] == {}
     audit = await service.get_audit_trail(SITE, TENANT)
     assert [a["key"] for a in audit] == [sdk_rolling_hash("First")]
+
+
+async def test_import_unknown_bulk_write_outcome_is_not_reported_as_failed_or_confirmed(service, repo, monkeypatch):
+    await _seed(repo, "First")
+    await _seed(repo, "Second")
+
+    async def _boom(ops):
+        await real_write(ops)
+        raise PyMongoError("connection reset")
+
+    real_write = service._repo.bulk_write
+    monkeypatch.setattr(service._repo, "bulk_write", _boom)
+
+    res = await _import(service, [_row("First", "one"), _row("Second", "two")])
+
+    assert res["failed"] == 0 and res["updated"] == 2
+    assert [(w.row, w.route, w.key, w.reason) for w in res["warnings"]] == [
+        (1, "/", sdk_rolling_hash("First"), "version_not_recorded"),
+        (2, "/", sdk_rolling_hash("Second"), "version_not_recorded"),
+    ]
+    assert (await _doc(repo, sdk_rolling_hash("First")))["translations"]["kn"]["text"] == "one"
+    assert (await _doc(repo, sdk_rolling_hash("Second")))["translations"]["kn"]["text"] == "two"
 
 
 async def test_import_mixed_rows_report_each_outcome(service, repo):
