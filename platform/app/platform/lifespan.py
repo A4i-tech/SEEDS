@@ -191,10 +191,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         TextbookRemediationRepository,
     )
 
-    reconciled = await ContentAggregatorSyncJobRepository(get_database()).reconcile_interrupted_jobs()
-    if reconciled:
-        logger.info("Reconciled %d interrupted content aggregator sync jobs", reconciled)
-
     if settings.app_mode in ("consumer", "all"):
         reconciled = await TextbookRemediationRepository(get_database()).reconcile_interrupted_jobs()
         if reconciled:
@@ -230,6 +226,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         if reconciled:
             logger.info("Reconciled %d interrupted content aggregator sync jobs", reconciled)
         try:
+            from app.providers.service_bus import service_bus_provider  # noqa: PLC0415
+
+            await service_bus_provider.initialize()
             consumer_tasks = _make_consumer_tasks(conf_mgr)
         except Exception as exc:  # noqa: BLE001
             logger.error("Failed to start consumers: %s", exc)
