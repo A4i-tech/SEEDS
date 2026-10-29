@@ -12,16 +12,26 @@ const INSTANCES = {
   onrender: {
     baseURL: 'https://teacher-webapp.onrender.com',
   },
-  // Unconfirmed: no teacher-webapp dev URL found in-repo; guessed from the ContentWebApp dev URL convention.
+  // No confirmed teacher-webapp dev URL exists in-repo; set E2E_BASE_URL to run against dev.
   dev: {
-    baseURL: 'https://teacher-webapp-dev.a4i-lab.in',
+    baseURL: null,
   },
 };
 
-function getInstance(name = process.env.E2E_INSTANCE || 'dev') {
+function getInstance(name = process.env.E2E_INSTANCE) {
+  if (!name) {
+    console.warn('E2E_INSTANCE not set, defaulting to "dev"');
+    name = 'dev';
+  }
   const instance = INSTANCES[name];
   if (!instance) {
     throw new Error(`Unknown E2E_INSTANCE "${name}". Known instances: ${Object.keys(INSTANCES).join(', ')}`);
+  }
+  if (process.env.E2E_BASE_URL) {
+    return { ...instance, baseURL: process.env.E2E_BASE_URL };
+  }
+  if (!instance.baseURL) {
+    throw new Error(`No confirmed baseURL for E2E_INSTANCE "${name}". Set E2E_BASE_URL to run against it.`);
   }
   return instance;
 }

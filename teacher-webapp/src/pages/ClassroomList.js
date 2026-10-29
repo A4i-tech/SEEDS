@@ -327,7 +327,7 @@ const ClassroomList = () => {
                     <IconButton
                       size="small"
                       onClick={() => handleEdit(classroom.id)}
-                      aria-label="Edit"
+                      aria-label={`Edit ${classroom.name}`}
                       sx={{ color: "primary.main" }}
                     >
                       <EditIcon />
@@ -335,7 +335,7 @@ const ClassroomList = () => {
                     <IconButton
                       size="small"
                       onClick={() => handleDeleteClick(classroom)}
-                      aria-label="Delete"
+                      aria-label={`Delete ${classroom.name}`}
                       sx={{ color: "error.main" }}
                     >
                       <DeleteIcon />

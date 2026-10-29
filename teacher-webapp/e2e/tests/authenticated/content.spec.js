@@ -9,13 +9,16 @@ const { ContentDetailsPage } = require('../../pages/ContentDetailsPage');
 // deterministically without seeded audio content).
 async function openLibraryOrSkip(test, page, classroomListPage, contentDrawerPage) {
   await classroomListPage.goto();
+  const contentResponse = page.waitForResponse(
+    (res) => /\/content(\?|$)/.test(res.url()) && res.request().method() === 'GET'
+  );
   await classroomListPage.playContentButton.click();
   await contentDrawerPage.searchInput.waitFor();
-  const hasContent = await contentDrawerPage.firstContentItem().isVisible().catch(() => false);
-  test.skip(!hasContent, 'No content available in the library for this tenant');
+  const body = await (await contentResponse).json();
+  test.skip(!body.data || body.data.length === 0, 'No content available in the library for this tenant');
+  await expect(contentDrawerPage.firstContentItem()).toBeVisible({ timeout: 10000 });
 }
 
-// TC-TCONT-001: Verify Content Library opens from classrooms page
 test('TC-TCONT-001 Content Library opens from classrooms page and lists content', async ({ page }) => {
   const classroomListPage = new ClassroomListPage(page);
   const contentDrawerPage = new ContentDrawerPage(page);
@@ -27,18 +30,18 @@ test('TC-TCONT-001 Content Library opens from classrooms page and lists content'
   await expect(page.getByText('Content Library')).toBeVisible();
 });
 
-// TC-TCONT-002: Verify Content Library filter by type
 test('TC-TCONT-002 filtering the Content Library by type shows only matching content', async ({ page }) => {
   const classroomListPage = new ClassroomListPage(page);
   const contentDrawerPage = new ContentDrawerPage(page);
 
   await openLibraryOrSkip(test, page, classroomListPage, contentDrawerPage);
 
-  // Filter tabs are rendered as MUI Chips: "All" plus one chip per distinct
-  // content type present in the fetched content.
-  const filterTab = page.locator('.MuiChip-root').nth(1);
-  const hasTypeTab = await filterTab.isVisible().catch(() => false);
+  // Filter tabs are rendered as Chips in the labelled filter group: "All"
+  // plus one chip per distinct content type present in the fetched content.
+  const typeTabs = contentDrawerPage.filterGroup.getByRole('button').filter({ hasNotText: 'All' });
+  const hasTypeTab = (await typeTabs.count()) > 0;
   test.skip(!hasTypeTab, 'Only a single content type is available for this tenant; no type filter to test');
+  const filterTab = typeTabs.first();
 
   const typeLabel = (await filterTab.innerText()).trim();
   await filterTab.click();
@@ -51,7 +54,6 @@ test('TC-TCONT-002 filtering the Content Library by type shows only matching con
   await expect(typeChips).toHaveCount(cardCount, { timeout: 10000 });
 });
 
-// TC-TCONT-003: Verify Content Library "All" filter resets
 test('TC-TCONT-003 selecting the "All" filter resets the content list', async ({ page }) => {
   const classroomListPage = new ClassroomListPage(page);
   const contentDrawerPage = new ContentDrawerPage(page);
@@ -61,17 +63,16 @@ test('TC-TCONT-003 selecting the "All" filter resets the content list', async ({
   const items = page.locator('[role="presentation"] .MuiTypography-body2');
   const initialCount = await items.count();
 
-  const typeTab = page.locator('.MuiChip-root').nth(1);
-  const hasTypeTab = await typeTab.isVisible().catch(() => false);
+  const typeTabs = contentDrawerPage.filterGroup.getByRole('button').filter({ hasNotText: 'All' });
+  const hasTypeTab = (await typeTabs.count()) > 0;
   test.skip(!hasTypeTab, 'No type filter tabs available for this tenant');
 
-  await typeTab.click();
+  await typeTabs.first().click();
   await contentDrawerPage.allFilterTab.click();
 
   await expect(items).toHaveCount(initialCount, { timeout: 10000 });
 });
 
-// TC-TCONT-004: Verify Content Library search narrows the list
 test('TC-TCONT-004 searching the Content Library narrows the list to matching items', async ({ page }) => {
   const classroomListPage = new ClassroomListPage(page);
   const contentDrawerPage = new ContentDrawerPage(page);
@@ -91,7 +92,6 @@ test('TC-TCONT-004 searching the Content Library narrows the list to matching it
   }
 });
 
-// TC-TCONT-005: Verify Content Library search with no matches
 test('TC-TCONT-005 searching the Content Library with no matches shows an empty state', async ({ page }) => {
   const classroomListPage = new ClassroomListPage(page);
   const contentDrawerPage = new ContentDrawerPage(page);
@@ -105,7 +105,6 @@ test('TC-TCONT-005 searching the Content Library with no matches shows an empty 
   await expect(contentDrawerPage.noResultsMessage).toBeVisible({ timeout: 10000 });
 });
 
-// TC-TCONT-006: Verify Content Library pagination ("Load more")
 test('TC-TCONT-006 Load more appends additional content items', async ({ page }) => {
   const classroomListPage = new ClassroomListPage(page);
   const contentDrawerPage = new ContentDrawerPage(page);
@@ -129,7 +128,6 @@ test('TC-TCONT-006 Load more appends additional content items', async ({ page })
   }).toPass({ timeout: 10000 });
 });
 
-// TC-TCONT-007: Verify opening a content item plays it with correct title/duration
 test('TC-TCONT-007 opening a content item plays it with the correct title and duration', async ({ page }) => {
   const classroomListPage = new ClassroomListPage(page);
   const contentDrawerPage = new ContentDrawerPage(page);
@@ -155,7 +153,6 @@ test('TC-TCONT-007 opening a content item plays it with the correct title and du
   ).toBeGreaterThan(0);
 });
 
-// TC-TCONT-008: Verify pause and resume playback
 test('TC-TCONT-008 pausing and resuming playback keeps position', async ({ page }) => {
   const classroomListPage = new ClassroomListPage(page);
   const contentDrawerPage = new ContentDrawerPage(page);
@@ -193,7 +190,6 @@ test('TC-TCONT-008 pausing and resuming playback keeps position', async ({ page 
   expect(resumedAt).toBeGreaterThanOrEqual(pausedAt - 0.5);
 });
 
-// TC-TCONT-009: Verify rewind control moves playback position back
 test('TC-TCONT-009 rewind control moves playback position back', async ({ page }) => {
   const classroomListPage = new ClassroomListPage(page);
   const contentDrawerPage = new ContentDrawerPage(page);
@@ -219,7 +215,6 @@ test('TC-TCONT-009 rewind control moves playback position back', async ({ page }
   ).toBeLessThan(beforeRewind);
 });
 
-// TC-TCONT-010: Verify playback speed control
 test('TC-TCONT-010 selecting a playback speed changes the audio playback rate', async ({ page }) => {
   const classroomListPage = new ClassroomListPage(page);
   const contentDrawerPage = new ContentDrawerPage(page);
@@ -249,7 +244,6 @@ test('TC-TCONT-010 selecting a playback speed changes the audio playback rate', 
   }
 });
 
-// TC-TCONT-011: Verify closing the Content Library
 test('TC-TCONT-011 closing the Content Library closes the dialog', async ({ page }) => {
   const classroomListPage = new ClassroomListPage(page);
   const contentDrawerPage = new ContentDrawerPage(page);
@@ -281,14 +275,10 @@ test('REG-594-TITLE [#594 regression] content details page title matches the API
   const contentId = new URL((await playResponse).url()).pathname.split('/').filter(Boolean).pop();
 
   const contentDetailsPage = new ContentDetailsPage(page);
-  const detailsResponse = page.waitForResponse(
-    (res) => res.url().endsWith(`/content/${contentId}`) && res.request().method() === 'GET'
-  );
   await contentDetailsPage.goto(contentId);
-  const body = await (await detailsResponse).json();
-  const expectedTitle = body.title.english && body.title.local
-    ? `${body.title.english} (${body.title.local})`
-    : body.title.english || body.title.local || 'Untitled';
 
-  await expect(contentDetailsPage.title).toHaveText(expectedTitle, { timeout: 10000 });
+  // Assert against the title shown in the list card rather than re-deriving
+  // the details page's title-formatting formula here, which would duplicate
+  // production logic instead of verifying it.
+  await expect(contentDetailsPage.title).toHaveText(title, { timeout: 10000 });
 });

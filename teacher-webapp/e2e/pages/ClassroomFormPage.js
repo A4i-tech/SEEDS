@@ -32,7 +32,13 @@ class ClassroomFormPage {
   async addFirstAvailableStudent() {
     await this.studentSearchInput.click();
     const firstOption = this.page.getByRole('option').first();
-    const hasOption = await firstOption.isVisible({ timeout: 5000 }).catch(() => false);
+    let hasOption = true;
+    try {
+      await firstOption.waitFor({ timeout: 5000 });
+    } catch (error) {
+      if (error.name !== 'TimeoutError') throw error;
+      hasOption = false;
+    }
     if (!hasOption) {
       await this.page.keyboard.press('Escape');
       return null;

@@ -7,6 +7,7 @@ class ContentDrawerPage {
     this.closeButton = page.getByRole('button', { name: 'Close' });
     this.loadMoreButton = page.getByRole('button', { name: 'Load more' });
     this.allFilterTab = page.getByRole('button', { name: 'All', exact: true });
+    this.filterGroup = page.getByRole('group', { name: 'Content type filters' });
     this.noResultsMessage = page.getByText(/no content matches your search/i);
     this.nowPlayingLabel = page.getByText('Now Playing', { exact: true });
     this.nowPlayingTitle = this.nowPlayingLabel.locator('xpath=following-sibling::*[1]');
@@ -21,7 +22,7 @@ class ContentDrawerPage {
   }
 
   filterTab(label) {
-    return this.page.getByRole('button', { name: label, exact: true });
+    return this.filterGroup.getByRole('button', { name: label, exact: true });
   }
 
   firstContentItem() {

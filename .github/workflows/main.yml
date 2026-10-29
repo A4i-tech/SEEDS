@@ -7,32 +7,21 @@ on:
 
 jobs:
 
-  detect-contentwebapp-changes:
+  detect-changes:
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/a4i/staging'
     outputs:
-      changed: ${{ steps.filter.outputs.changed }}
+      contentwebapp: ${{ steps.filter.outputs.contentwebapp }}
+      teacherwebapp: ${{ steps.filter.outputs.teacherwebapp }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
         id: filter
         with:
           filters: |
-            changed:
+            contentwebapp:
               - 'ContentWebApp/**'
-
-  detect-teacherwebapp-changes:
-    runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/a4i/staging'
-    outputs:
-      changed: ${{ steps.filter.outputs.changed }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: dorny/paths-filter@v3
-        id: filter
-        with:
-          filters: |
-            changed:
+            teacherwebapp:
               - 'teacher-webapp/**'
 
   ci-workflow:
@@ -54,14 +43,14 @@ jobs:
     secrets: inherit  # nosemgrep: yaml.github-actions.security.secrets-inherit.secrets-inherit -- reusable workflow needs full secret set
 
   contentwebapp-e2e-workflow:
-    needs: [deploy-staging-workflow, detect-contentwebapp-changes]
-    if: github.ref == 'refs/heads/a4i/staging' && needs.detect-contentwebapp-changes.outputs.changed == 'true'
+    needs: [deploy-staging-workflow, detect-changes]
+    if: github.ref == 'refs/heads/a4i/staging' && needs.detect-changes.outputs.contentwebapp == 'true'
     uses: ./.github/workflows/contentwebapp-e2e.yml
     secrets: inherit  # nosemgrep: yaml.github-actions.security.secrets-inherit.secrets-inherit -- reusable workflow needs full secret set
 
   teacherwebapp-e2e-workflow:
-    needs: [deploy-staging-workflow, detect-teacherwebapp-changes]
-    if: github.ref == 'refs/heads/a4i/staging' && needs.detect-teacherwebapp-changes.outputs.changed == 'true'
+    needs: [deploy-staging-workflow, detect-changes]
+    if: github.ref == 'refs/heads/a4i/staging' && needs.detect-changes.outputs.teacherwebapp == 'true'
     uses: ./.github/workflows/teacher-webapp-e2e.yml
     secrets: inherit
 

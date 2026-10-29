@@ -1,39 +1,19 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
-const { uniqueClassroomName } = require('../../fixtures/instances');
+const { createClassroomWithStudents } = require('../../fixtures/classroomHelpers');
 const { ClassroomListPage } = require('../../pages/ClassroomListPage');
-const { ClassroomFormPage } = require('../../pages/ClassroomFormPage');
 const { ClassroomDetailPage } = require('../../pages/ClassroomDetailPage');
 
 test.describe.configure({ mode: 'serial' });
 
-async function createClassroomWithStudents(page, count) {
-  const classroomListPage = new ClassroomListPage(page);
-  const classroomFormPage = new ClassroomFormPage(page);
-  const name = uniqueClassroomName();
-
-  await classroomListPage.goto();
-  await classroomListPage.openCreate();
-  await classroomFormPage.fillName(name);
-
-  const studentNames = [];
-  for (let i = 0; i < count; i++) {
-    const label = await classroomFormPage.addFirstAvailableStudent();
-    if (!label) break;
-    studentNames.push(label.split(' - ')[0]);
-  }
-
-  await classroomFormPage.submit();
-  await classroomListPage.heading.waitFor();
-  return { name, studentNames };
-}
-
-// TC-TCONF-001: Verify selecting a single student for conference
 test('TC-TCONF-001 selecting a single student for conference marks it selected', async ({ page }) => {
   const classroomListPage = new ClassroomListPage(page);
   const classroomDetailPage = new ClassroomDetailPage(page);
   const { name, studentNames } = await createClassroomWithStudents(page, 1);
-  test.skip(studentNames.length < 1, 'No students registered for this teacher account to verify selection');
+  expect(
+    studentNames.length,
+    'No students registered for this teacher account; seed at least 1 student to verify selection'
+  ).toBeGreaterThanOrEqual(1);
 
   await classroomListPage.viewClassroom(name);
   await classroomDetailPage.editButton.waitFor();
@@ -43,12 +23,14 @@ test('TC-TCONF-001 selecting a single student for conference marks it selected',
   await expect(classroomDetailPage.studentCheckbox(studentNames[0])).toBeChecked();
 });
 
-// TC-TCONF-002: Verify selecting multiple students for conference
 test('TC-TCONF-002 selecting multiple students for conference marks all selected', async ({ page }) => {
   const classroomListPage = new ClassroomListPage(page);
   const classroomDetailPage = new ClassroomDetailPage(page);
   const { name, studentNames } = await createClassroomWithStudents(page, 2);
-  test.skip(studentNames.length < 2, 'Fewer than 2 students registered for this teacher account to verify multi-select');
+  expect(
+    studentNames.length,
+    'Fewer than 2 students registered for this teacher account; seed at least 2 students to verify multi-select'
+  ).toBeGreaterThanOrEqual(2);
 
   await classroomListPage.viewClassroom(name);
   await classroomDetailPage.editButton.waitFor();
@@ -61,12 +43,14 @@ test('TC-TCONF-002 selecting multiple students for conference marks all selected
   }
 });
 
-// TC-TCONF-003: Verify Start Conference button state before/after selecting students
 test('TC-TCONF-003 Start Conference button is disabled until a student is selected', async ({ page }) => {
   const classroomListPage = new ClassroomListPage(page);
   const classroomDetailPage = new ClassroomDetailPage(page);
   const { name, studentNames } = await createClassroomWithStudents(page, 1);
-  test.skip(studentNames.length < 1, 'No students registered for this teacher account to verify button state');
+  expect(
+    studentNames.length,
+    'No students registered for this teacher account; seed at least 1 student to verify button state'
+  ).toBeGreaterThanOrEqual(1);
 
   await classroomListPage.viewClassroom(name);
   await classroomDetailPage.editButton.waitFor();
@@ -76,12 +60,14 @@ test('TC-TCONF-003 Start Conference button is disabled until a student is select
   await expect(classroomDetailPage.startConferenceButton).toBeEnabled();
 });
 
-// TC-TCONF-START: Verify Start Conference reaches the real call screen against the real backend
 test('TC-TCONF-START starting a conference against the real backend reaches the call screen', async ({ page }) => {
   const classroomListPage = new ClassroomListPage(page);
   const classroomDetailPage = new ClassroomDetailPage(page);
   const { name, studentNames } = await createClassroomWithStudents(page, 1);
-  test.skip(studentNames.length < 1, 'No students registered for this teacher account to verify conference start');
+  expect(
+    studentNames.length,
+    'No students registered for this teacher account; seed at least 1 student to verify conference start'
+  ).toBeGreaterThanOrEqual(1);
 
   await classroomListPage.viewClassroom(name);
   await classroomDetailPage.editButton.waitFor();
@@ -89,8 +75,10 @@ test('TC-TCONF-START starting a conference against the real backend reaches the 
   await classroomDetailPage.toggleStudent(studentNames[0]);
   await classroomDetailPage.startConference();
 
-  await expect(classroomDetailPage.callScreenHeading).toBeVisible({ timeout: 15000 });
-  await expect(classroomDetailPage.endConferenceButton).toBeVisible();
-
-  await classroomDetailPage.endConferenceButton.click();
+  try {
+    await expect(classroomDetailPage.callScreenHeading).toBeVisible({ timeout: 15000 });
+    await expect(classroomDetailPage.endConferenceButton).toBeVisible();
+  } finally {
+    await classroomDetailPage.endConferenceButton.click().catch(() => {});
+  }
 });

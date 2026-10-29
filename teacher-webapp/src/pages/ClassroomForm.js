@@ -287,7 +287,7 @@ const ClassroomForm = () => {
                         <IconButton
                           edge="end"
                           onClick={() => handleRemoveStudent(student.id)}
-                          aria-label="Remove student"
+                          aria-label={`Remove student ${student.name}`}
                           sx={{ color: "error.main" }}
                         >
                           <DeleteIcon />

@@ -5,6 +5,10 @@ const { getInstance, authFile } = require('./e2e/fixtures/instances');
 const instanceName = process.env.E2E_INSTANCE || 'dev';
 const instance = getInstance(instanceName);
 
+if (!process.env.E2E_TEACHER_PHONE || !process.env.E2E_TEACHER_PASSWORD) {
+  throw new Error('E2E_TEACHER_PHONE and E2E_TEACHER_PASSWORD must be set to run teacher-webapp E2E tests');
+}
+
 module.exports = defineConfig({
   testDir: './e2e',
   timeout: 60000,
@@ -12,7 +16,7 @@ module.exports = defineConfig({
   use: {
     baseURL: instance.baseURL,
     headless: true,
-    screenshot: 'on',
+    screenshot: 'only-on-failure',
     video: 'off',
   },
   webServer:
@@ -35,7 +39,6 @@ module.exports = defineConfig({
     {
       name: 'setup',
       testMatch: /e2e\/auth\/auth\.setup\.js/,
-      dependencies: ['chromium'],
     },
     {
       name: 'chromium-teacher-authenticated',

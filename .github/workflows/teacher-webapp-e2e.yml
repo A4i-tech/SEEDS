@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
     inputs:
       e2e_instance:
-        description: "E2E_INSTANCE to run against (local is not reachable from a GitHub-hosted runner, so it is not offered here)"
+        description: "E2E_INSTANCE to run against (local is omitted; it isn't reachable from a GitHub-hosted runner)"
         type: choice
         options:
           - onrender
@@ -46,10 +46,19 @@ jobs:
 
       - name: Run Playwright E2E tests
         env:
-          TARGET_INSTANCE: ${{ inputs.e2e_instance }}
+          E2E_INSTANCE: ${{ inputs.e2e_instance }}
           E2E_TEACHER_PHONE: ${{ secrets.E2E_TEACHER_PHONE }}
           E2E_TEACHER_PASSWORD: ${{ secrets.E2E_TEACHER_PASSWORD }}
-        run: npm run "test:e2e:$TARGET_INSTANCE"
+        run: npm run test:e2e
+
+      - name: Verify tests actually ran
+        if: always()
+        run: |
+          node -e "
+            const r = require('./e2e-results.json');
+            const ran = r.suites && r.stats && (r.stats.expected + r.stats.unexpected + r.stats.flaky) > 0;
+            if (!ran) { console.error('All tests were skipped; nothing actually ran.'); process.exit(1); }
+          "
 
       - name: Upload Playwright report
         if: always()

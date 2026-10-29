@@ -4,7 +4,6 @@ const { PERSONAS } = require('../fixtures/instances');
 const { LoginPage } = require('../pages/LoginPage');
 const { ClassroomListPage } = require('../pages/ClassroomListPage');
 
-// TC-TAUTH-001: Verify teacher login with valid credentials
 test('TC-TAUTH-001 teacher login with valid credentials redirects to /classrooms', async ({ page }) => {
   const loginPage = new LoginPage(page);
   const classroomListPage = new ClassroomListPage(page);
@@ -16,28 +15,29 @@ test('TC-TAUTH-001 teacher login with valid credentials redirects to /classrooms
   expect(new URL(page.url()).pathname).toBe('/classrooms');
 });
 
-// TC-TAUTH-002: Verify login fails with wrong password
 test('TC-TAUTH-002 login fails with wrong password for a registered phone number', async ({ page }) => {
   const loginPage = new LoginPage(page);
   const { identifier } = PERSONAS.teacher;
 
   await loginPage.login(identifier, 'WrongPass@1');
 
-  await expect(page.getByText(/incorrect|invalid|failed|error/i).first()).toBeVisible({ timeout: 10000 });
+  await expect(page.getByRole('alert').getByText('Username or password incorrect', { exact: true })).toBeVisible({
+    timeout: 10000,
+  });
   expect(new URL(page.url()).pathname).not.toBe('/classrooms');
 });
 
-// TC-TAUTH-003: Verify login fails with unregistered phone number
 test('TC-TAUTH-003 login fails with an unregistered phone number', async ({ page }) => {
   const loginPage = new LoginPage(page);
 
   await loginPage.login('9999999999', 'SomePass@1');
 
-  await expect(page.getByText(/incorrect|invalid|failed|error/i).first()).toBeVisible({ timeout: 10000 });
+  await expect(page.getByRole('alert').getByText('Username or password incorrect', { exact: true })).toBeVisible({
+    timeout: 10000,
+  });
   expect(new URL(page.url()).pathname).not.toBe('/classrooms');
 });
 
-// TC-TAUTH-004: Verify phone number field is required
 test('TC-TAUTH-004 login fails when phone number field is left blank', async ({ page }) => {
   const loginPage = new LoginPage(page);
   await loginPage.goto();
@@ -49,7 +49,6 @@ test('TC-TAUTH-004 login fails when phone number field is left blank', async ({ 
   expect(new URL(page.url()).pathname).not.toBe('/classrooms');
 });
 
-// TC-TAUTH-005: Verify password field is required
 test('TC-TAUTH-005 login fails when password field is left blank', async ({ page }) => {
   const loginPage = new LoginPage(page);
   const { identifier } = PERSONAS.teacher;
@@ -62,7 +61,6 @@ test('TC-TAUTH-005 login fails when password field is left blank', async ({ page
   expect(new URL(page.url()).pathname).not.toBe('/classrooms');
 });
 
-// TC-TAUTH-006: Verify session persists on page reload
 test('TC-TAUTH-006 session persists on page reload', async ({ page }) => {
   const loginPage = new LoginPage(page);
   const classroomListPage = new ClassroomListPage(page);
@@ -77,7 +75,6 @@ test('TC-TAUTH-006 session persists on page reload', async ({ page }) => {
   expect(new URL(page.url()).pathname).toBe('/classrooms');
 });
 
-// TC-TAUTH-007: Verify logout
 test('TC-TAUTH-007 logout signs the teacher out and redirects to the login page', async ({ page }) => {
   const loginPage = new LoginPage(page);
   const classroomListPage = new ClassroomListPage(page);
@@ -92,17 +89,21 @@ test('TC-TAUTH-007 logout signs the teacher out and redirects to the login page'
   await loginPage.phoneInput.waitFor();
 });
 
-// REG-595-LOGIN (#595 regression, not a documented TC): Verify there is no self-registration
-// entry point on the login page.
-test('REG-595-LOGIN [#595 regression] login page has no self-registration entry point', async ({ page }) => {
+// REG-595-LOGIN (#595 regression): Verify an E2E login test exists using an already-created
+// test teacher account, as required by #595.
+test('REG-595-LOGIN [#595 regression] login with an already-created test teacher account reaches /classrooms', async ({
+  page,
+}) => {
   const loginPage = new LoginPage(page);
-  await loginPage.goto();
+  const classroomListPage = new ClassroomListPage(page);
+  const { identifier, password } = PERSONAS.teacher;
 
-  await expect(page.getByRole('button', { name: /register|sign up/i })).toHaveCount(0);
-  await expect(page.getByRole('link', { name: /register|sign up/i })).toHaveCount(0);
+  await loginPage.login(identifier, password);
+  await classroomListPage.heading.waitFor();
+
+  expect(new URL(page.url()).pathname).toBe('/classrooms');
 });
 
-// TC-TNEG-007: Verify login shows an error instead of silently failing when local storage is unavailable
 test('TC-TNEG-007 login shows an error when local storage is unavailable', async ({ page }) => {
   await page.addInitScript(() => {
     Object.defineProperty(window, 'localStorage', {
