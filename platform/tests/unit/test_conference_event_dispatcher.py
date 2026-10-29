@@ -9,6 +9,8 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 from app.services.conference_event_dispatcher import dispatch_conference_event
+from app.services.conference_service import ConferenceCall
+from app.services.confevents.vonage.vonage_call_leg_transfer_event import VonageCallTransferEvent
 
 
 def _make_manager(conf):
@@ -18,7 +20,8 @@ def _make_manager(conf):
 
 
 def _make_conf():
-    conf = MagicMock()
+    conf = MagicMock(spec=ConferenceCall)
+    conf.conf_id = "conf-1"
     conf.queue_event = AsyncMock()
     return conf
 
@@ -80,6 +83,13 @@ class TestDispatchConferenceEvent:
         await dispatch_conference_event(transfer_payload, "conf-1", manager, caller_state_manager)
 
         conf.queue_event.assert_awaited_once()
+        queued_event = conf.queue_event.call_args.args[0]
+        assert isinstance(queued_event, VonageCallTransferEvent)
+        assert queued_event.conversation_uuid_from == "conv-from"
+        assert queued_event.type == "transfer"
+        assert queued_event.uuid == "leg-1"
+        assert queued_event.conversation_uuid_to == "conv-to"
+        assert queued_event.timestamp == "2026-01-01T00:00:00Z"
 
     async def test_unmatched_payload_is_logged_and_does_not_raise(self, caplog: pytest.LogCaptureFixture) -> None:
         conf = _make_conf()

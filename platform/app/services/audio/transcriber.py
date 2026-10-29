@@ -55,22 +55,19 @@ class AudioTranscriber:
         self.api_timeout = settings.audio_api_timeout_seconds
         self.silence_threshold = settings.audio_silence_threshold
         self.frame_duration_ms = settings.audio_vad_frame_ms
-        if self.frame_duration_ms not in (10, 20, 30):
-            logger.warning("Invalid AUDIO_VAD_FRAME_MS=%s; using 20ms", self.frame_duration_ms)
-            self.frame_duration_ms = 20
 
-        self.vad_aggressiveness = max(0, min(3, settings.audio_webrtc_vad_aggressiveness))
+        self.vad_aggressiveness = settings.audio_webrtc_vad_aggressiveness
         self.min_speech_ms = settings.audio_vad_min_speech_ms
         self.silence_flush_ms = settings.audio_vad_silence_flush_ms
         self.max_segment_sec = settings.audio_vad_max_segment_sec
-        self.start_speech_frames = max(1, settings.audio_vad_start_speech_frames)
+        self.start_speech_frames = settings.audio_vad_start_speech_frames
         self.frame_bytes = int(self.INPUT_RATE * 2 * self.frame_duration_ms / 1000)
         self.max_segment_bytes = int(self.INPUT_RATE * 2 * self.max_segment_sec)
         pre_speech_ms = settings.audio_vad_pre_speech_ms
         self.pre_speech_frames_count = max(1, pre_speech_ms // self.frame_duration_ms)
         self.overlap_bytes = int(self.INPUT_RATE * 2 * settings.audio_vad_overlap_ms / 1000)
         self.end_silence_frames = max(1, self.silence_flush_ms // self.frame_duration_ms)
-        self.metrics_log_every_segments = max(1, settings.audio_vad_metrics_log_every_segments)
+        self.metrics_log_every_segments = settings.audio_vad_metrics_log_every_segments
 
         self.pending_frame_buffer = bytearray()
         self.segment_buffer = bytearray()

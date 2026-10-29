@@ -3,36 +3,48 @@
 from __future__ import annotations
 
 import asyncio
+import importlib
 import logging
-from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, create_autospec, patch
 
 import pytest
+from fastapi import FastAPI
 
 import app.platform.lifespan as lifespan_module
+from app.platform.settings import Settings
 
 
 @pytest.fixture(autouse=True)
-def _reset_conference_manager():
-    lifespan_module._conference_manager = None
-    yield
-    lifespan_module._conference_manager = None
+def _reset_conference_manager(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(lifespan_module, "_conference_manager", None)
+
+
+_BASE_SETTINGS = Settings(
+    vonage_conference_application_private_key64="",
+    vonage_conference_application_id="app-id",
+    vonage_number="+100",
+    events_webhook_ep="https://hooks.example.com",
+    vonage_call_timeout_seconds=30.0,
+    websocket_service_url="wss://ws.example.com",
+    app_mode="api",
+    env="development",
+    version="1.0",
+)
 
 
 def _fake_settings(**overrides):
-    base = {
-        "vonage_conference_application_private_key64": "",
-        "vonage_conference_application_id": "app-id",
-        "vonage_number": "+100",
-        "events_webhook_ep": "https://hooks.example.com",
-        "vonage_call_timeout_seconds": 30.0,
-        "websocket_service_url": "wss://ws.example.com",
-        "app_mode": "api",
-        "env": "test",
-        "version": "1.0",
-    }
-    base.update(overrides)
-    return SimpleNamespace(**base)
+    return _BASE_SETTINGS.model_copy(update=overrides) if overrides else _BASE_SETTINGS
+
+
+def _capture_manager_kwargs(mock_manager_cls):
+    captured = {}
+
+    def _capture(**kw):
+        captured.update(kw)
+        return MagicMock()
+
+    mock_manager_cls.side_effect = _capture
+    return captured
 
 
 class TestGetConferenceManager:
@@ -70,27 +82,23 @@ class TestInitConferenceManager:
             patch("app.providers.smartphone_connection.SmartphoneConnectionManagerFactory"),
             patch("app.services.conference_service.ConferenceCallManager") as mock_manager_cls,
         ):
-            mock_manager_cls.return_value = MagicMock()
-            mock_manager_cls.side_effect = lambda **kw: kw["communication_api_factory"].create("conf1", "ws://x") and MagicMock()
+            captured = _capture_manager_kwargs(mock_manager_cls)
 
             lifespan_module._init_conference_manager()
+            captured["communication_api_factory"].create("conf1", "ws://x")
 
             mock_provider.assert_called_once()
             assert mock_provider.call_args.kwargs["private_key"] == "decoded-key-material-placeholder"
 
-    def test_invalid_base64_falls_back_to_raw_value(self) -> None:
+    def test_invalid_base64_raises(self) -> None:
+        import binascii
+
         settings = _fake_settings(vonage_conference_application_private_key64="not-valid-base64!!!")
         with (
             patch("app.platform.lifespan.get_settings", return_value=settings),
-            patch("app.providers.vonage_api.VonageAPIProvider") as mock_provider,
-            patch("app.providers.smartphone_connection.SmartphoneConnectionManagerFactory"),
-            patch("app.services.conference_service.ConferenceCallManager") as mock_manager_cls,
+            pytest.raises(binascii.Error),
         ):
-            mock_manager_cls.side_effect = lambda **kw: kw["communication_api_factory"].create("conf1", "ws://x") and MagicMock()
-
             lifespan_module._init_conference_manager()
-
-            assert mock_provider.call_args.kwargs["private_key"] == "not-valid-base64!!!"
 
     def test_vonage_api_factory_creates_provider_with_expected_args(self) -> None:
         settings = _fake_settings()
@@ -100,13 +108,7 @@ class TestInitConferenceManager:
             patch("app.providers.smartphone_connection.SmartphoneConnectionManagerFactory"),
             patch("app.services.conference_service.ConferenceCallManager") as mock_manager_cls,
         ):
-            captured = {}
-
-            def _capture(**kw):
-                captured.update(kw)
-                return MagicMock()
-
-            mock_manager_cls.side_effect = _capture
+            captured = _capture_manager_kwargs(mock_manager_cls)
             lifespan_module._init_conference_manager()
 
             captured["communication_api_factory"].create("conf-99", "wss://leg")
@@ -122,8 +124,9 @@ class TestInitConferenceManager:
             )
 
 
-def _patch_consumer(monkeypatch, module_path, class_name, instance=None):
-    mock_cls = MagicMock(return_value=instance or MagicMock(run=AsyncMock()))
+def _patch_consumer(monkeypatch, module_path, class_name):
+    cls = getattr(importlib.import_module(f"app.consumers.{module_path}"), class_name)
+    mock_cls = create_autospec(cls)
     monkeypatch.setattr(f"app.consumers.{module_path}.{class_name}", mock_cls)
     return mock_cls
 
@@ -262,12 +265,11 @@ class TestMakeConsumerTasks:
             await self._cleanup(tasks)
 
 
-def _patch_repo(monkeypatch, path, attr, ensure_indexes=None, reconcile=None):
-    mock_cls = MagicMock()
-    if ensure_indexes is not None:
-        mock_cls.ensure_indexes = AsyncMock(return_value=None)
+def _patch_repo(monkeypatch, path, attr, reconcile=None):
+    cls = getattr(importlib.import_module(path), attr)
+    mock_cls = create_autospec(cls)
     if reconcile is not None:
-        mock_cls.return_value.reconcile_interrupted_jobs = AsyncMock(return_value=reconcile)
+        mock_cls.return_value.reconcile_interrupted_jobs.return_value = reconcile
     monkeypatch.setattr(f"{path}.{attr}", mock_cls)
     return mock_cls
 
@@ -280,20 +282,18 @@ class TestLifespan:
         monkeypatch.setattr(lifespan_module, "get_database", lambda: MagicMock())
         monkeypatch.setattr(lifespan_module, "close_subodha_client", AsyncMock())
 
-        _patch_repo(monkeypatch, "app.repositories.content_aggregator_sync_job_repository", "ContentAggregatorSyncJobRepository", ensure_indexes=True, reconcile=0)
-        _patch_repo(monkeypatch, "app.repositories.content_job_repository", "ContentJobRepository", ensure_indexes=True)
-        self._textbook_remediation_repo_mock = _patch_repo(monkeypatch, "app.repositories.textbook_remediation_repository", "TextbookRemediationRepository", ensure_indexes=True, reconcile=0)
-        _patch_repo(monkeypatch, "app.repositories.website_repository", "WebsiteRepository", ensure_indexes=True)
-        _patch_repo(monkeypatch, "app.repositories.translation_repository", "TranslationRepository", ensure_indexes=True)
-        _patch_repo(monkeypatch, "app.repositories.translation_version_repository", "TranslationVersionRepository", ensure_indexes=True)
-        _patch_repo(monkeypatch, "app.repositories.translation_audit_repository", "TranslationAuditRepository", ensure_indexes=True)
+        self._repo_mocks = {
+            "ContentAggregatorSyncJobRepository": _patch_repo(monkeypatch, "app.repositories.content_aggregator_sync_job_repository", "ContentAggregatorSyncJobRepository", reconcile=0),
+            "ContentJobRepository": _patch_repo(monkeypatch, "app.repositories.content_job_repository", "ContentJobRepository"),
+            "TextbookRemediationRepository": _patch_repo(monkeypatch, "app.repositories.textbook_remediation_repository", "TextbookRemediationRepository", reconcile=0),
+            "WebsiteRepository": _patch_repo(monkeypatch, "app.repositories.website_repository", "WebsiteRepository"),
+            "TranslationRepository": _patch_repo(monkeypatch, "app.repositories.translation_repository", "TranslationRepository"),
+            "TranslationVersionRepository": _patch_repo(monkeypatch, "app.repositories.translation_version_repository", "TranslationVersionRepository"),
+            "TranslationAuditRepository": _patch_repo(monkeypatch, "app.repositories.translation_audit_repository", "TranslationAuditRepository"),
+        }
 
-        monkeypatch.setattr(
-            lifespan_module,
-            "_init_conference_manager",
-            MagicMock(return_value=init_conf_mgr if init_conf_mgr is not None else MagicMock(close=AsyncMock())),
-        )
-        monkeypatch.setattr(lifespan_module, "_make_consumer_tasks", MagicMock(return_value=make_tasks or []))
+        monkeypatch.setattr(lifespan_module, "_init_conference_manager", MagicMock(return_value=init_conf_mgr))
+        monkeypatch.setattr(lifespan_module, "_make_consumer_tasks", MagicMock(return_value=make_tasks))
         monkeypatch.setattr(
             lifespan_module,
             "get_sync_job_service",
@@ -305,23 +305,26 @@ class TestLifespan:
         )
 
     async def test_api_mode_startup_and_shutdown(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        self._patch_common(monkeypatch, app_mode="api")
-        fake_app = SimpleNamespace(state=SimpleNamespace())
+        conf_mgr = MagicMock(close=AsyncMock())
+        self._patch_common(monkeypatch, app_mode="api", init_conf_mgr=conf_mgr)
+        fake_app = FastAPI()
 
         async with lifespan_module.lifespan(fake_app):
             assert fake_app.state.consumer_tasks == []
-            assert fake_app.state.conference_manager is not None
+            assert fake_app.state.conference_manager is conf_mgr
 
         lifespan_module.close_database.assert_awaited_once()
         lifespan_module.close_subodha_client.assert_awaited_once()
         lifespan_module.get_sync_job_service.return_value.reconcile_interrupted_jobs.assert_not_awaited()
-        self._textbook_remediation_repo_mock.return_value.reconcile_interrupted_jobs.assert_not_awaited()
+        for repo_mock in self._repo_mocks.values():
+            repo_mock.ensure_indexes.assert_awaited_once()
+        self._repo_mocks["TextbookRemediationRepository"].return_value.reconcile_interrupted_jobs.assert_not_awaited()
         lifespan_module._make_consumer_tasks.assert_not_called()
 
     async def test_consumer_mode_starts_tasks_and_reconciles(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        task = asyncio.get_event_loop().create_task(asyncio.sleep(10))
+        task = asyncio.get_running_loop().create_task(asyncio.sleep(10))
         self._patch_common(monkeypatch, app_mode="consumer", make_tasks=[task])
-        fake_app = SimpleNamespace(state=SimpleNamespace())
+        fake_app = FastAPI()
 
         async with lifespan_module.lifespan(fake_app):
             assert fake_app.state.consumer_tasks == [task]
@@ -331,29 +334,43 @@ class TestLifespan:
         assert task.done() is True
         lifespan_module._make_consumer_tasks.assert_called_once_with(fake_app.state.conference_manager)
 
-    async def test_consumer_task_creation_failure_reraises(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    async def test_consumer_task_creation_failure_reraises(self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
         self._patch_common(monkeypatch, app_mode="all")
         lifespan_module._make_consumer_tasks.side_effect = RuntimeError("consumer startup failed")
-        fake_app = SimpleNamespace(state=SimpleNamespace())
+        fake_app = FastAPI()
 
-        with pytest.raises(RuntimeError, match="consumer startup failed"):
+        with (
+            caplog.at_level(logging.ERROR, logger="app.platform.lifespan"),
+            pytest.raises(RuntimeError, match="consumer startup failed"),
+        ):
             async with lifespan_module.lifespan(fake_app):
                 pass
+
+        assert "Failed to start consumers: consumer startup failed" in caplog.text
+
+    async def test_ensure_indexes_failure_propagates_before_yield(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        self._patch_common(monkeypatch, app_mode="api")
+        self._repo_mocks["WebsiteRepository"].ensure_indexes.side_effect = RuntimeError("idx")
+        fake_app = FastAPI()
+
+        with pytest.raises(RuntimeError, match="idx"):
+            async with lifespan_module.lifespan(fake_app):
+                pytest.fail("lifespan should not reach yield when ensure_indexes fails")
 
     async def test_conference_manager_init_failure_is_non_fatal(self, monkeypatch: pytest.MonkeyPatch) -> None:
         self._patch_common(monkeypatch, app_mode="api")
         lifespan_module._init_conference_manager.side_effect = RuntimeError("vonage down")
-        fake_app = SimpleNamespace(state=SimpleNamespace())
+        fake_app = FastAPI()
 
         async with lifespan_module.lifespan(fake_app):
             assert fake_app.state.conference_manager is None
 
     async def test_websocket_client_initialized_when_conference_manager_present(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        self._patch_common(monkeypatch, app_mode="api")
+        self._patch_common(monkeypatch, app_mode="api", init_conf_mgr=MagicMock(close=AsyncMock()))
         fake_ws_client = MagicMock(initialize=AsyncMock(), close=AsyncMock())
         mock_ws_provider_cls = MagicMock(return_value=fake_ws_client)
         monkeypatch.setattr("app.providers.websocket_client.WebsocketClientProvider", mock_ws_provider_cls)
-        fake_app = SimpleNamespace(state=SimpleNamespace())
+        fake_app = FastAPI()
 
         async with lifespan_module.lifespan(fake_app):
             fake_ws_client.initialize.assert_awaited_once_with(fake_app.state.conference_manager)
@@ -361,10 +378,10 @@ class TestLifespan:
         fake_ws_client.close.assert_awaited_once()
 
     async def test_websocket_client_init_failure_is_non_fatal(self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
-        self._patch_common(monkeypatch, app_mode="api")
+        self._patch_common(monkeypatch, app_mode="api", init_conf_mgr=MagicMock(close=AsyncMock()))
         mock_ws_provider_cls = MagicMock(side_effect=RuntimeError("ws down"))
         monkeypatch.setattr("app.providers.websocket_client.WebsocketClientProvider", mock_ws_provider_cls)
-        fake_app = SimpleNamespace(state=SimpleNamespace())
+        fake_app = FastAPI()
 
         with caplog.at_level(logging.WARNING, logger="app.platform.lifespan"):
             async with lifespan_module.lifespan(fake_app):
@@ -376,10 +393,9 @@ class TestLifespan:
 
     async def test_websocket_client_skipped_when_no_conference_manager(self, monkeypatch: pytest.MonkeyPatch) -> None:
         self._patch_common(monkeypatch, app_mode="api", init_conf_mgr=None)
-        lifespan_module._init_conference_manager.return_value = None
         mock_ws_provider_cls = MagicMock()
         monkeypatch.setattr("app.providers.websocket_client.WebsocketClientProvider", mock_ws_provider_cls)
-        fake_app = SimpleNamespace(state=SimpleNamespace())
+        fake_app = FastAPI()
 
         async with lifespan_module.lifespan(fake_app):
             pass
@@ -389,7 +405,7 @@ class TestLifespan:
     async def test_conference_manager_close_failure_is_swallowed(self, monkeypatch: pytest.MonkeyPatch) -> None:
         conf_mgr = MagicMock(close=AsyncMock(side_effect=RuntimeError("close failed")))
         self._patch_common(monkeypatch, app_mode="api", init_conf_mgr=conf_mgr)
-        fake_app = SimpleNamespace(state=SimpleNamespace())
+        fake_app = FastAPI()
 
         async with lifespan_module.lifespan(fake_app):
             pass  # should not raise on shutdown
@@ -399,7 +415,7 @@ class TestLifespan:
     async def test_subodha_client_close_failure_is_swallowed(self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
         self._patch_common(monkeypatch, app_mode="api")
         lifespan_module.close_subodha_client.side_effect = RuntimeError("close failed")
-        fake_app = SimpleNamespace(state=SimpleNamespace())
+        fake_app = FastAPI()
 
         with caplog.at_level(logging.WARNING, logger="app.platform.lifespan"):
             async with lifespan_module.lifespan(fake_app):
@@ -410,8 +426,8 @@ class TestLifespan:
 
     async def test_logs_reconciled_content_aggregator_jobs(self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
         self._patch_common(monkeypatch, app_mode="api")
-        _patch_repo(monkeypatch, "app.repositories.content_aggregator_sync_job_repository", "ContentAggregatorSyncJobRepository", ensure_indexes=True, reconcile=3)
-        fake_app = SimpleNamespace(state=SimpleNamespace())
+        self._repo_mocks["ContentAggregatorSyncJobRepository"].return_value.reconcile_interrupted_jobs.return_value = 3
+        fake_app = FastAPI()
 
         with caplog.at_level(logging.INFO, logger="app.platform.lifespan"):
             async with lifespan_module.lifespan(fake_app):
@@ -421,8 +437,8 @@ class TestLifespan:
 
     async def test_logs_reconciled_textbook_remediation_jobs(self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
         self._patch_common(monkeypatch, app_mode="consumer")
-        _patch_repo(monkeypatch, "app.repositories.textbook_remediation_repository", "TextbookRemediationRepository", ensure_indexes=True, reconcile=2)
-        fake_app = SimpleNamespace(state=SimpleNamespace())
+        self._repo_mocks["TextbookRemediationRepository"].return_value.reconcile_interrupted_jobs.return_value = 2
+        fake_app = FastAPI()
 
         with caplog.at_level(logging.INFO, logger="app.platform.lifespan"):
             async with lifespan_module.lifespan(fake_app):
@@ -433,7 +449,7 @@ class TestLifespan:
     async def test_logs_reconciled_sync_job_service_jobs(self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
         self._patch_common(monkeypatch, app_mode="all")
         lifespan_module.get_sync_job_service.return_value.reconcile_interrupted_jobs = AsyncMock(return_value=5)
-        fake_app = SimpleNamespace(state=SimpleNamespace())
+        fake_app = FastAPI()
 
         with caplog.at_level(logging.INFO, logger="app.platform.lifespan"):
             async with lifespan_module.lifespan(fake_app):
@@ -442,10 +458,10 @@ class TestLifespan:
         assert "Reconciled 5 interrupted content aggregator sync jobs" in caplog.text
 
     async def test_websocket_client_close_failure_is_swallowed(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        self._patch_common(monkeypatch, app_mode="api")
+        self._patch_common(monkeypatch, app_mode="api", init_conf_mgr=MagicMock(close=AsyncMock()))
         fake_ws_client = MagicMock(initialize=AsyncMock(), close=AsyncMock(side_effect=RuntimeError("close failed")))
         monkeypatch.setattr("app.providers.websocket_client.WebsocketClientProvider", MagicMock(return_value=fake_ws_client))
-        fake_app = SimpleNamespace(state=SimpleNamespace())
+        fake_app = FastAPI()
 
         async with lifespan_module.lifespan(fake_app):
             pass  # should not raise on shutdown

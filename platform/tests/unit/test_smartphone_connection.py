@@ -22,12 +22,17 @@ class TestSmartphoneConnectionManagerFactory:
         assert isinstance(mgr, SmartphoneConnectionManager)
         assert mgr.conf_id == "conf-1"
 
-    def test_create_returns_independent_instances(self) -> None:
+    async def test_create_returns_independent_instances(self) -> None:
         factory = SmartphoneConnectionManagerFactory()
         mgr1 = factory.create("conf-1")
         mgr2 = factory.create("conf-2")
         assert mgr1 is not mgr2
-        assert mgr1._queue is not mgr2._queue
+
+        resp1 = await mgr1.connect(client=None)
+        gen1 = resp1.body_iterator
+        await mgr1.send_message_to_client(client=None, message={"a": 1})
+        chunk = await gen1.__anext__()
+        assert chunk == f'data: {json.dumps({"a": 1})}\n\n'
 
 
 class TestConnect:
@@ -79,12 +84,11 @@ class TestConnect:
         resp = await mgr.connect(client=None)
         gen = resp.body_iterator
 
-        async def raise_cancelled():
-            raise asyncio.CancelledError
-
-        mgr._queue.get = raise_cancelled
+        task = asyncio.ensure_future(gen.__anext__())
+        await asyncio.sleep(0)
+        task.cancel()
         with pytest.raises(StopAsyncIteration):
-            await gen.__anext__()
+            await task
 
 
 class TestDisconnect:
@@ -95,24 +99,33 @@ class TestDisconnect:
 
     async def test_disconnect_puts_sentinel_on_queue(self) -> None:
         mgr = SmartphoneConnectionManager("conf-1")
+        resp = await mgr.connect(client=None)
+        gen = resp.body_iterator
+
         await mgr.disconnect(client=None)
-        assert mgr._queue.get_nowait() is None
+
+        with pytest.raises(StopAsyncIteration):
+            await gen.__anext__()
 
 
 class TestSendMessageToClient:
     async def test_send_message_queues_json(self) -> None:
         mgr = SmartphoneConnectionManager("conf-1")
+        resp = await mgr.connect(client=None)
+        gen = resp.body_iterator
+
         await mgr.send_message_to_client(client=None, message={"k": "v"})
-        queued = mgr._queue.get_nowait()
-        assert queued == json.dumps({"k": "v"})
+        chunk = await gen.__anext__()
 
-    async def test_send_message_queue_full_is_swallowed(self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
+        assert chunk == f'data: {json.dumps({"k": "v"})}\n\n'
+
+    async def test_send_message_queue_full_is_swallowed(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        real_queue_cls = asyncio.Queue
+        monkeypatch.setattr(smartphone_connection_module.asyncio, "Queue", lambda: real_queue_cls(maxsize=1))
         mgr = SmartphoneConnectionManager("conf-1")
-
-        def raise_full(item):
-            raise asyncio.QueueFull
-
-        monkeypatch.setattr(mgr._queue, "put_nowait", raise_full)
+        await mgr.send_message_to_client(client=None, message={"k": "v"})
 
         with caplog.at_level(logging.WARNING, logger="app.providers.smartphone_connection"):
             await mgr.send_message_to_client(client=None, message={"k": "v"})

@@ -114,15 +114,15 @@ class Settings(BaseSettings):
     audio_analysis_enabled: bool = True
     audio_analysis_db_logging_enabled: bool = False
     audio_silence_threshold: int = 300
-    audio_webrtc_vad_aggressiveness: int = 2
-    audio_vad_frame_ms: int = 20
-    audio_vad_start_speech_frames: int = 2
+    audio_webrtc_vad_aggressiveness: int = Field(default=2, ge=0, le=3)
+    audio_vad_frame_ms: Literal[10, 20, 30] = 20
+    audio_vad_start_speech_frames: int = Field(default=2, ge=1)
     audio_vad_pre_speech_ms: int = 120
     audio_vad_min_speech_ms: int = 200
     audio_vad_silence_flush_ms: int = 400
     audio_vad_overlap_ms: int = 120
     audio_vad_max_segment_sec: float = 12.0
-    audio_vad_metrics_log_every_segments: int = 20
+    audio_vad_metrics_log_every_segments: int = Field(default=20, ge=1)
     audio_hold_similarity_threshold: float = 0.82
     audio_hold_min_text_chars: int = 6
     audio_transcript_logging_enabled: bool = False

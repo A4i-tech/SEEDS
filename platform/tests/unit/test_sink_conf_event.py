@@ -5,16 +5,18 @@ from __future__ import annotations
 from unittest.mock import AsyncMock, MagicMock
 
 from app.models.action_history import ActionType
+from app.models.conference_state import ConferenceCallState
+from app.models.participant import Participant, Role
 from app.services.confevents.sink_conf_event import SinkConferenceEvent
 
 
 def _make_conf(connection_manager=None, teacher_phone="+111"):
+    participants = {}
+    if teacher_phone:
+        participants[teacher_phone] = Participant(name="Teacher", phone_number=teacher_phone, role=Role.TEACHER)
+    state = ConferenceCallState(is_running=True, teacher_phone_number=teacher_phone, participants=participants)
     conf = MagicMock()
-    conf.state = MagicMock()
-    conf.state.is_running = True
-    conf.state.action_history = []
-    conf.state.teacher_phone_number = teacher_phone
-    conf.state.get_teacher.return_value = "teacher-obj"
+    conf.state = state
     conf.update_state = AsyncMock()
     conf.stop_remote_audio_relay = MagicMock()
     conf.schedule_capture_finalize = MagicMock()
@@ -74,19 +76,22 @@ class TestSinkConferenceEvent:
         conn_mgr = MagicMock()
         conn_mgr.disconnect = AsyncMock()
         conf = _make_conf(connection_manager=conn_mgr)
+        teacher = conf.state.get_teacher()
         event = SinkConferenceEvent(conf, on_sink_callback=None)
 
         await event.execute_event()
 
-        conn_mgr.disconnect.assert_awaited_once_with("teacher-obj")
+        conn_mgr.disconnect.assert_awaited_once_with(teacher)
 
     async def test_skips_disconnect_when_no_connection_manager(self) -> None:
         conf = _make_conf(connection_manager=None)
+        spy = MagicMock(side_effect=conf.state.get_teacher)
+        object.__setattr__(conf.state, "get_teacher", spy)
         event = SinkConferenceEvent(conf, on_sink_callback=None)
 
         await event.execute_event()
 
-        conf.state.get_teacher.assert_not_called()
+        spy.assert_not_called()
 
     async def test_invokes_on_sink_callback_when_provided(self) -> None:
         conf = _make_conf()

@@ -106,11 +106,11 @@ async def _with_retry(fn, *, label: str = "", retries: int = 5, base_delay: floa
 class SubodhaClient:
     """Stateful client: owns the HTTP connection pool and LMS session cookie."""
 
-    def __init__(self) -> None:
+    def __init__(self, transport: httpx.BaseTransport | None = None) -> None:
         settings = get_settings()
         self._settings = settings
         self._base_url = settings.subodha_base_url
-        self._http = httpx.AsyncClient(timeout=30.0)
+        self._http = httpx.AsyncClient(timeout=30.0, transport=transport)
         self._session_cookie: str | None = None
         self._session_expires_at: datetime | None = None
 

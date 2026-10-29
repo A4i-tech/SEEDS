@@ -82,7 +82,7 @@ async def verify_firebase_token(id_token: str) -> dict[str, Any]:
 
     decoded: dict[str, Any] = firebase_auth.verify_id_token(id_token)  # type: ignore[arg-type]
 
-    uid: str = decoded.get("uid", "")
+    uid: str = decoded["uid"]
     email: str = decoded.get("email", "")
 
     # Custom claims are nested under the token payload.

@@ -2,29 +2,24 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import create_autospec
 
 from app.models.action_history import ActionType
 from app.models.conference_state import ConferenceCallState
 from app.models.participant import CallStatus, Participant, Role
 from app.models.system_audio_messages import SystemAudioMessages
+from app.providers.vonage_api import VonageAPIProvider
+from app.services.conference_service import ConferenceCall
 from app.services.confevents.add_participant_event import AddParticipantEvent
 from app.services.confevents.mute_participant_event import MuteParticipantEvent
 from app.services.confevents.remove_participant_event import RemoveParticipantEvent
 from app.services.confevents.unmute_participant_event import UnmuteParticipantEvent
 
 
-def _make_conf(teacher_phone="+111", student_phones=None):
+def _make_conf(teacher_phone="+111", student_phones=None, student_muted=False):
     student_phones = student_phones if student_phones is not None else ["+222"]
-    conf = MagicMock()
-    conf.communication_api = MagicMock()
-    conf.communication_api.mute_participant = AsyncMock()
-    conf.communication_api.unmute_participant = AsyncMock()
-    conf.communication_api.add_participant = AsyncMock()
-    conf.communication_api.remove_participant = AsyncMock()
-    conf.communication_api.play_announcement_to_conference = AsyncMock()
-    conf.stream_system_message = AsyncMock()
-    conf.update_state = AsyncMock()
+    conf = create_autospec(ConferenceCall, instance=True)
+    conf.communication_api = create_autospec(VonageAPIProvider, instance=True)
 
     state = ConferenceCallState()
     state.teacher_phone_number = teacher_phone
@@ -33,7 +28,7 @@ def _make_conf(teacher_phone="+111", student_phones=None):
     )
     for phone in student_phones:
         state.participants[phone] = Participant(
-            name="Student", phone_number=phone, role=Role.STUDENT, call_status=CallStatus.CONNECTED, is_muted=True,
+            name="Student", phone_number=phone, role=Role.STUDENT, call_status=CallStatus.CONNECTED, is_muted=student_muted,
         )
     conf.state = state
     return conf
@@ -91,7 +86,7 @@ class TestUnmuteParticipantEvent:
         conf.communication_api.unmute_participant.assert_not_called()
 
     async def test_unmutes_student_resets_raised_hand_and_streams_message(self) -> None:
-        conf = _make_conf(student_phones=["+222"])
+        conf = _make_conf(student_phones=["+222"], student_muted=True)
         conf.state.participants["+222"].is_raised = True
         conf.state.participants["+222"].raised_at = 123
         event = UnmuteParticipantEvent(phone_number="+222", conf_call=conf)

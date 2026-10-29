@@ -62,14 +62,7 @@ def _init_conference_manager() -> ConferenceCallManager:
 
     # Decode base64 private key if set
     private_key_raw = settings.vonage_conference_application_private_key64
-    private_key: str
-    if private_key_raw:
-        try:
-            private_key = base64.b64decode(private_key_raw).decode()
-        except Exception:
-            private_key = private_key_raw  # Already PEM
-    else:
-        private_key = ""
+    private_key = base64.b64decode(private_key_raw, validate=True).decode() if private_key_raw else ""
 
     class _VonageAPIFactory:
         def create(self, conf_id: str, ws_url: str) -> VonageAPIProvider:
