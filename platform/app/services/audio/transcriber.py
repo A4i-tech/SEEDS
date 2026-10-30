@@ -44,8 +44,10 @@ class AudioTranscriber:
 
         self.client: AsyncOpenAI | None = None
         self.analysis_enabled = settings.audio_analysis_enabled
-        if self.analysis_enabled and settings.openai_api_key:
-            self.client = AsyncOpenAI(api_key=settings.openai_api_key)
+        base_url = settings.transcription_base_url
+        self.model = settings.transcription_model
+        if self.analysis_enabled and (settings.openai_api_key or base_url):
+            self.client = AsyncOpenAI(api_key=settings.openai_api_key or "dummy", base_url=base_url)
         elif self.analysis_enabled:
             logger.warning("AudioTranscriber: OPENAI_API_KEY not set — transcription disabled")
         else:
@@ -183,7 +185,7 @@ class AudioTranscriber:
             buf.name = "audio.wav"
             transcript = await asyncio.wait_for(
                 self.client.audio.transcriptions.create(
-                    model="whisper-1", file=buf, language="en", response_format="verbose_json"
+                    model=self.model, file=buf, language="en", response_format="verbose_json"
                 ),
                 timeout=self.api_timeout,
             )

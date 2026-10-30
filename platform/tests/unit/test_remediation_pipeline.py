@@ -145,8 +145,11 @@ async def _run_sleeping_pipeline(tmp_path, monkeypatch, **kwargs):
     started: dict[str, object] = {}
     real_exec = asyncio.create_subprocess_exec
 
+    base_url = kwargs.pop("openai_base_url", "")
+
     class _Settings:
         openai_api_key = ""
+        openai_base_url = base_url
         mistral_ocr_api_key = ""
         mistral_ocr_endpoint = ""
         mistral_ocr_model = ""
@@ -162,6 +165,7 @@ async def _run_sleeping_pipeline(tmp_path, monkeypatch, **kwargs):
     async def fake_exec(*args, **exec_kwargs):
         proc = await real_exec(sys.executable, "-c", "import time; time.sleep(30)", **exec_kwargs)
         started["proc"] = proc
+        started["env"] = exec_kwargs["env"]
         return proc
 
     monkeypatch.setattr(pipeline_mod.asyncio, "create_subprocess_exec", fake_exec)
@@ -188,6 +192,7 @@ async def test_run_pipeline_kills_child_on_cancellation(tmp_path, monkeypatch):
 
     assert started["proc"].returncode is not None
     assert time.monotonic() - start < 5
+
 
 
 @pytest.mark.asyncio
