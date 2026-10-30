@@ -5,12 +5,22 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Request, Response, status
+from fastapi.responses import JSONResponse
 
+from app.controllers._auth_helpers import logout_bearer_fallback
 from app.models.requests.auth_requests import TeacherLoginRequest, TeacherRegisterRequest
 from app.models.responses.login import LoginResponse, MessageResponse
 from app.models.responses.user import UserPublicResponse
-from app.platform.auth.dependencies import get_current_user, require_role
+from app.platform.auth.dependencies import (
+    REFRESH_COOKIE_NAME,
+    clear_refresh_cookie,
+    get_current_user,
+    oauth2_scheme,
+    require_role,
+    set_refresh_cookie,
+)
+from app.platform.error_handling import AppError, build_error_response
 from app.services.auth_service import AuthService, TeacherCreate, get_auth_service
 
 logger = logging.getLogger(__name__)
@@ -21,13 +31,19 @@ router = APIRouter(prefix="/teacher", tags=["Auth"])
 @router.post("/login", summary="Teacher login", status_code=status.HTTP_200_OK)
 async def teacher_login(
     body: TeacherLoginRequest,
+    response: Response,
     service: AuthService = Depends(get_auth_service),
 ) -> LoginResponse:
     result = await service.login_by_phone(
         phone=body.phone_number,
         password=body.password,
     )
-    return LoginResponse(token=result["token"], user=result["user"])
+    set_refresh_cookie(response, result["refresh_token"])
+    return LoginResponse(
+        token=result["access_token"],
+        user=result["user"],
+        expires_in=result["expires_in"],
+    )
 
 
 @router.post(
@@ -59,9 +75,25 @@ async def teacher_register(
     "/logout",
     summary="Teacher logout",
     status_code=status.HTTP_200_OK,
-    dependencies=[Depends(require_role("teacher", "content_creator"))],
+    response_model=None,
 )
-async def teacher_logout() -> MessageResponse:
+async def teacher_logout(
+    request: Request,
+    response: Response,
+    token: str | None = Depends(oauth2_scheme),
+    service: AuthService = Depends(get_auth_service),
+) -> MessageResponse | JSONResponse:
+    refresh_token = request.cookies.get(REFRESH_COOKIE_NAME)
+    if refresh_token:
+        try:
+            await service.logout_by_refresh_token(refresh_token)
+        except AppError as exc:
+            error_response = build_error_response(exc)
+            clear_refresh_cookie(error_response)
+            return error_response
+    else:
+        await logout_bearer_fallback(token, service)
+    clear_refresh_cookie(response)
     return MessageResponse(message="Logout successful")
 
 
