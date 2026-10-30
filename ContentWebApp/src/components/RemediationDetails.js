@@ -112,35 +112,35 @@ const RemediationDetails = () => {
 
   useEffect(() => {
     const controller = new AbortController();
-    textbookRemediationService
-      .getJob(jobId)
-      .then((current) => {
+    (async () => {
+      try {
+        const current = await textbookRemediationService.getJob(jobId);
         setJob(current);
         if (current.draft_remediated_md) {
           hasSeededDraftRef.current = true;
           setDraftText(current.draft_remediated_md);
         }
         if (current.status === JOB_STATUS.PENDING || current.status === JOB_STATUS.RUNNING) {
-          return textbookRemediationService.streamJob(jobId, (event) => setJob(event.job), {
+          await textbookRemediationService.streamJob(jobId, (event) => setJob(event.job), {
             signal: controller.signal,
           });
         }
-        return undefined;
-      })
-      .catch((jobError) => {
+      } catch (jobError) {
         if (!controller.signal.aborted) setError(jobError.message);
-      });
+      }
+    })();
     return () => controller.abort();
   }, [jobId]);
 
   useEffect(() => {
     const controller = new AbortController();
-    textbookRemediationService
-      .getReviewSummary(jobId, { signal: controller.signal })
-      .then((res) => setReviewSummary(res))
-      .catch((summaryErr) => {
+    (async () => {
+      try {
+        setReviewSummary(await textbookRemediationService.getReviewSummary(jobId, { signal: controller.signal }));
+      } catch (summaryErr) {
         if (!controller.signal.aborted) setError(summaryErr.message);
-      });
+      }
+    })();
     return () => controller.abort();
   }, [jobId]);
 
@@ -166,20 +166,18 @@ const RemediationDetails = () => {
 
   useEffect(() => {
     const controller = new AbortController();
-    ["raw", "corrected"].forEach((name) => {
+    ["raw", "corrected"].forEach(async (name) => {
       if (!artifacts[name] || documents[name] !== undefined) return;
-      textbookRemediationService
-        .getArtifactText(jobId, name, { signal: controller.signal })
-        .then((text) => {
-          setDocuments((prev) => ({ ...prev, [name]: text }));
-          if (name === "corrected" && !hasSeededDraftRef.current) {
-            hasSeededDraftRef.current = true;
-            setDraftText(text);
-          }
-        })
-        .catch((textError) => {
-          if (!controller.signal.aborted) setError(textError.message);
-        });
+      try {
+        const text = await textbookRemediationService.getArtifactText(jobId, name, { signal: controller.signal });
+        setDocuments((prev) => ({ ...prev, [name]: text }));
+        if (name === "corrected" && !hasSeededDraftRef.current) {
+          hasSeededDraftRef.current = true;
+          setDraftText(text);
+        }
+      } catch (textError) {
+        if (!controller.signal.aborted) setError(textError.message);
+      }
     });
     return () => controller.abort();
   }, [artifacts, documents, jobId]);
@@ -341,7 +339,13 @@ const RemediationDetails = () => {
               </div>
 
               <div className="button-group">
-                <button type="button" className="action-ghost-button" onClick={() => handleSaveDraft().catch(() => {})}>
+                <button type="button" className="action-ghost-button" onClick={async () => {
+                    try {
+                      await handleSaveDraft();
+                    } catch {
+                      return;
+                    }
+                  }}>
                   Save draft
                 </button>
 

@@ -1,3 +1,4 @@
+// Markdown list item: indent, bullet (-, *, +) or number with . or ), spaces, text. Groups: 1 indent, 2 marker, 3 gap, 4 text.
 const LIST_ITEM_RE = /^(\s*)([-*+]|\d+[.)])(\s+)(.*)$/;
 // Whole-block markdown image: ![alt](path "optional title"). Groups: 1 alt, 2 path (no spaces or ")"), 3 title.
 // Anchored ^...$ so a paragraph that merely contains an image is not classified as an image block.
@@ -5,11 +6,15 @@ const IMAGE_RE = /^!\[([^\]]*)\]\(([^)\s]+)(?:\s+"([^"]*)")?\)$/;
 
 export function classifyBlock(raw) {
   const trimmed = raw.trim();
+  // HTML comment spanning the whole block
   if (/^<!--[\s\S]*-->$/.test(trimmed)) return "marker";
+  // Display math wrapped in $$...$$
   if (/^\$\$[\s\S]*\$\$$/.test(trimmed)) return "math";
   if (IMAGE_RE.test(trimmed)) return "image";
+  // ATX heading: 1-6 # then a space
   if (/^#{1,6}\s/.test(trimmed)) return "heading";
   const lines = trimmed.split("\n");
+  // Table: header row has a pipe and row 2 is only dashes, colons, pipes and spaces
   if (lines.length >= 2 && /\|/.test(lines[0]) && /^\s*\|?[\s:-]+\|?[\s:-]*\|?\s*$/.test(lines[1])) return "table";
   if (lines.every((line) => LIST_ITEM_RE.test(line))) return "list";
   return "paragraph";

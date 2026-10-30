@@ -31,8 +31,8 @@ function Rows({ labels, values }) {
 }
 
 export function RemediationRunDetails({ models, metrics }) {
-  const hasModels = models && Object.values(models).some((value) => value != null);
-  const hasMetrics = metrics && Object.values(metrics).some((value) => value != null);
+  const hasModels = Object.values(models).some((value) => value != null);
+  const hasMetrics = Object.values(metrics).some((value) => value != null);
   if (!hasModels && !hasMetrics) return null;
 
   return (
