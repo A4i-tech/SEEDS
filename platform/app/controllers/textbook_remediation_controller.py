@@ -5,11 +5,18 @@ import logging
 from collections.abc import AsyncIterator
 from pathlib import Path
 
+from azure.core.exceptions import ResourceNotFoundError
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
-from fastapi.responses import Response, StreamingResponse
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
-from app.models.remediation_job import ARTIFACTS, IMAGE_CONTENT_TYPES, ArtifactName, RemediationJob
+from app.models.remediation_job import (
+    ARTIFACTS,
+    IMAGE_CONTENT_TYPES,
+    ArtifactName,
+    JobStatus,
+    RemediationJob,
+)
 from app.models.responses.remediation import (
     CreateRemediationJobResponse,
     FindingsPageResponse,
@@ -19,7 +26,7 @@ from app.models.responses.remediation import (
 )
 from app.models.user import UserRole
 from app.platform.auth.dependencies import require_role
-from app.platform.error_handling import NotFoundError, ValidationError
+from app.platform.error_handling import AppError, NotFoundError, ValidationError
 from app.platform.settings import get_settings
 from app.providers.blob_storage import BlobStorageProvider, get_blob_storage_provider
 from app.repositories.textbook_remediation_repository import (
@@ -28,9 +35,10 @@ from app.repositories.textbook_remediation_repository import (
 )
 from app.services.language_registry import SUPPORTED_LANGUAGES
 from app.services.textbook_remediation import (
-    artifact_bytes as _artifact_bytes,
+    artifact_chunks as _artifact_chunks,
 )
 from app.services.textbook_remediation import (
+    braille_job,
     create_job,
     findings_page,
     review_summary,
@@ -69,6 +77,36 @@ class VerifyJobRequest(BaseModel):
 
 class TranslateJobRequest(BaseModel):
     target_language: str
+
+
+async def _closing(chunks: AsyncIterator[bytes]) -> AsyncIterator[bytes]:
+    try:
+        async for chunk in chunks:
+            yield chunk
+    finally:
+        aclose = getattr(chunks, "aclose", None)
+        if aclose is not None:
+            await aclose()
+
+
+async def _stream_blob(
+    blob_provider: BlobStorageProvider, blob_path: str, media_type: str, not_found_kind: str, not_found_id: str
+) -> StreamingResponse:
+    container = get_settings().azure_storage_container
+    try:
+        size = await blob_provider.blob_size(container, blob_path)
+        chunks = await blob_provider.download_chunks(container, blob_path)
+    except ResourceNotFoundError as exc:
+        raise NotFoundError(not_found_kind, not_found_id) from exc
+    return StreamingResponse(
+        _closing(chunks),
+        media_type=media_type,
+        headers={
+            "Cache-Control": "private, max-age=86400",
+            "X-Content-Type-Options": "nosniff",
+            "Content-Length": str(size),
+        },
+    )
 
 
 async def _get_job(repo: TextbookRemediationRepository, tenant_id: str, job_id: str) -> RemediationJob:
@@ -165,11 +203,11 @@ async def get_remediation_artifact(
     user: dict[str, object] = Depends(require_remediation_access),
     repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
     blob_provider: BlobStorageProvider = Depends(get_blob_storage_provider),
-) -> Response:
+) -> StreamingResponse:
     job = await _get_job(repo, str(user["tenant_id"]), job_id)
-    data, content_type = await _artifact_bytes(job, name, blob_provider)
-    return Response(
-        content=data,
+    chunks, content_type = await _artifact_chunks(job, name, blob_provider)
+    return StreamingResponse(
+        _closing(chunks),
         media_type=content_type,
         headers={"Content-Disposition": f'attachment; filename="{ARTIFACTS[ArtifactName(name)][0]}"'},
     )
@@ -182,7 +220,7 @@ async def get_remediation_image(
     user: dict[str, object] = Depends(require_remediation_access),
     repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
     blob_provider: BlobStorageProvider = Depends(get_blob_storage_provider),
-) -> Response:
+) -> StreamingResponse:
     await _get_job(repo, str(user["tenant_id"]), job_id)
 
     safe_name = Path(image_name).name
@@ -190,16 +228,34 @@ async def get_remediation_image(
     if content_type is None:
         raise NotFoundError("Image", safe_name)
 
-    blob_path = f"textbook-remediation/{job_id}/images/{safe_name}"
-    try:
-        data = await blob_provider.download_file(get_settings().azure_storage_container, blob_path)
-    except Exception:
-        raise NotFoundError("Image", safe_name)
+    return await _stream_blob(
+        blob_provider, f"textbook-remediation/{job_id}/images/{safe_name}", content_type, "Image", safe_name
+    )
 
-    return Response(
-        content=data,
-        media_type=content_type,
-        headers={"Cache-Control": "private, max-age=86400", "X-Content-Type-Options": "nosniff"},
+
+@router.get("/jobs/{job_id}/pages/{page_num}", summary="Serve one rendered page of the original scan for a remediation job")
+async def get_remediation_page(
+    job_id: str,
+    page_num: int,
+    user: dict[str, object] = Depends(require_remediation_access),
+    repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
+    blob_provider: BlobStorageProvider = Depends(get_blob_storage_provider),
+) -> StreamingResponse:
+    job = await _get_job(repo, str(user["tenant_id"]), job_id)
+
+    if not job.source_page_count:
+        if job.status in (JobStatus.PENDING, JobStatus.RUNNING):
+            raise AppError(
+                "PAGES_NOT_READY",
+                "The source pages are still being rendered. Try again in a few seconds.",
+                409,
+            )
+        raise NotFoundError("Page", str(page_num))
+    if page_num < 1 or page_num > job.source_page_count:
+        raise NotFoundError("Page", str(page_num))
+
+    return await _stream_blob(
+        blob_provider, f"textbook-remediation/{job_id}/pages/{page_num}.jpg", "image/jpeg", "Page", str(page_num)
     )
 
 
@@ -238,8 +294,14 @@ async def verify_remediation_job(
     blob_provider: BlobStorageProvider = Depends(get_blob_storage_provider),
 ) -> dict[str, object]:
     job = await _get_job(repo, str(user["tenant_id"]), job_id)
-    verified_by = str(user.get("email") or user.get("name") or user.get("id") or "reviewer")
-    updated = await verify_job(repo, blob_provider, job, title=payload.title, verified_by=verified_by)
+    identity = str(user.get("email") or user.get("sub") or "")
+    if not identity:
+        raise AppError(
+            "IDENTITY_MISSING",
+            "Your signed-in account has no email or account ID, so the review cannot be recorded. Sign in again.",
+            400,
+        )
+    updated = await verify_job(repo, blob_provider, job, title=payload.title, verified_by=identity, edited_by=identity)
     return serialize_job(updated)
 
 
@@ -255,6 +317,17 @@ async def translate_remediation_job(
     _validate_language(payload.target_language)
     updated = await translate_job(repo, blob_provider, job, payload.target_language)
     return serialize_job(updated)
+
+
+@router.post("/jobs/{job_id}/braille", response_model=RemediationJobResponse, summary="Generate a BRF file and review report from a verified document")
+async def braille_remediation_job(
+    job_id: str,
+    user: dict[str, object] = Depends(require_remediation_access),
+    repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
+    blob_provider: BlobStorageProvider = Depends(get_blob_storage_provider),
+) -> dict[str, object]:
+    job = await _get_job(repo, str(user["tenant_id"]), job_id)
+    return serialize_job(await braille_job(repo, blob_provider, job))
 
 
 @router.get("/jobs/{job_id}/review-summary", response_model=ReviewSummaryResponse, summary="Aggregated review summary of figures, tables, and flags")

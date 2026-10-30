@@ -7,14 +7,23 @@ import RowActions from "../shared/RowActions";
 import Select from "../shared/Select";
 import { StageProgress } from "./StageProgress";
 import { SyncAllProgress } from "../shared/SyncAllProgress";
-import { ARTIFACT_DOWNLOADS } from "../../artifactDownloads";
+import { ARTIFACT_DOWNLOADS, artifactFilename } from "../../artifactDownloads";
 import { JOB_STATUS } from "../../../utils/remediationStatus";
 import "./RemediationTab.css";
 import "../shared/cards.css";
 import "../shared/buttons.css";
 import "../shared/tables.css";
 
-const ARTIFACT_LABELS = { docx: "Word", pdf: "PDF", tex: "LaTeX" };
+const ARTIFACT_LABELS = {
+  docx: "Word",
+  pdf: "PDF",
+  tex: "LaTeX",
+  translated_docx: "Word (translated)",
+  translated_pdf: "PDF (translated)",
+  translated_tex: "LaTeX (translated)",
+  brf: "BRF",
+  braille_report: "Braille report",
+};
 
 const RemediationTab = () => {
   const navigate = useNavigate();
@@ -22,7 +31,7 @@ const RemediationTab = () => {
   const fileRef = useRef(null);
   const [selectedFile, setSelectedFile] = useState(null);
   const [targetLanguage, setTargetLanguage] = useState("");
-  const [targetLanguageOptions, setTargetLanguageOptions] = useState([{ value: "", label: "No translation" }]);
+  const [targetLanguageOptions, setTargetLanguageOptions] = useState([{ value: "", label: "Keep original language" }]);
   const [languagesError, setLanguagesError] = useState(null);
 
   useEffect(() => {
@@ -31,7 +40,7 @@ const RemediationTab = () => {
       .getLanguages({ signal: controller.signal })
       .then(({ languages }) => {
         setTargetLanguageOptions([
-          { value: "", label: "No translation" },
+          { value: "", label: "Keep original language" },
           ...languages.map((lang) => ({ value: lang.code, label: lang.name })),
         ]);
       })
@@ -73,7 +82,7 @@ const RemediationTab = () => {
             Textbook PDF <span style={{ color: "var(--color-danger-dot)" }}>*</span>
           </span>
           <input ref={fileRef} type="file" accept="application/pdf" onChange={handleFile} style={{ display: "none" }} />
-          <button type="button" className="action-ghost-button" onClick={() => fileRef.current && fileRef.current.click()}>
+          <button type="button" className="action-ghost-button" onClick={() => fileRef.current.click()}>
             Choose PDF File
           </button>
           {selectedFile && <span className="table-cell-secondary">{selectedFile.name}</span>}
@@ -82,7 +91,7 @@ const RemediationTab = () => {
             value={targetLanguage}
             onChange={setTargetLanguage}
             options={targetLanguageOptions}
-            placeholder="No translation"
+            placeholder="Keep original language"
           />
           {languagesError && <span className="content-details-error">Could not load languages: {languagesError}</span>}
           <button
@@ -111,10 +120,10 @@ const RemediationTab = () => {
             <thead>
               <tr>
                 <th className="table-header">Textbook</th>
-                <th className="table-header">Language</th>
-                <th className="table-header">Status</th>
-                <th className="table-header">Stage</th>
                 <th className="table-header">Artifacts</th>
+                <th className="table-header">Language</th>
+                <th className="table-header">Stage</th>
+                <th className="table-header">Status</th>
                 <th className="table-header">Actions</th>
               </tr>
             </thead>
@@ -123,6 +132,33 @@ const RemediationTab = () => {
                 <tr key={job.job_id}>
                   <td className="table-cell table-cell-truncate">
                     <MiddleEllipsis text={job.source_name} />
+                  </td>
+                  <td className="table-cell">
+                    {ARTIFACT_DOWNLOADS.some((entry) => job.artifacts[entry.key]) ? (
+                      <div className="action-buttons-wrapper">
+                        {ARTIFACT_DOWNLOADS.map(
+                          (entry) =>
+                            job.artifacts[entry.key] && (
+                              <button
+                                key={entry.key}
+                                type="button"
+                                className="remediation-link"
+                                onClick={() =>
+                                  textbookRemediationService.downloadArtifact(
+                                    job.job_id,
+                                    entry.key,
+                                    artifactFilename(job, entry)
+                                  )
+                                }
+                              >
+                                {ARTIFACT_LABELS[entry.key]}
+                              </button>
+                            )
+                        )}
+                      </div>
+                    ) : (
+                      <span className="table-cell-secondary">—</span>
+                    )}
                   </td>
                   <td className="table-cell">
                     {job.detected_language ? (
@@ -136,40 +172,16 @@ const RemediationTab = () => {
                     ) : (
                       <span style={{ fontWeight: 600 }}>{job.language}</span>
                     )}
-                  </td>
-                  <td className="table-cell">
-                    <span className={`remediation-status remediation-status-${job.status}`}>{job.status}</span>
-                    {job.error && <div className="table-cell-secondary">{job.error}</div>}
+                    {job.translation_error && (
+                      <div className="content-details-error">{job.translation_error}</div>
+                    )}
                   </td>
                   <td className="table-cell">
                     <StageProgress job={job} />
                   </td>
                   <td className="table-cell">
-                    {ARTIFACT_DOWNLOADS.some((entry) => job.artifacts[entry.key]) ? (
-                      <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
-                        {ARTIFACT_DOWNLOADS.map(
-                          (entry) =>
-                            job.artifacts[entry.key] && (
-                              <button
-                                key={entry.key}
-                                type="button"
-                                className="remediation-link"
-                                onClick={() =>
-                                  textbookRemediationService.downloadArtifact(
-                                    job.job_id,
-                                    entry.key,
-                                    `${job.source_name.replace(/\.pdf$/i, "")}.${entry.ext}`
-                                  )
-                                }
-                              >
-                                {ARTIFACT_LABELS[entry.key]}
-                              </button>
-                            )
-                        )}
-                      </div>
-                    ) : (
-                      <span className="table-cell-secondary">—</span>
-                    )}
+                    <span className={`remediation-status remediation-status-${job.status}`}>{job.status}</span>
+                    {job.error && <div className="table-cell-secondary">{job.error}</div>}
                   </td>
                   <td className="table-cell">
                     <RowActions

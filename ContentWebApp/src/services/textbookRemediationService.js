@@ -46,6 +46,20 @@ export const textbookRemediationService = {
     );
   },
 
+  async getSourcePdf(jobId, { signal } = {}) {
+    return apiFetchBlob(
+      `${BASE}/jobs/${encodeURIComponent(jobId)}/artifacts/source`,
+      { headers: getAuthHeaders(), signal }
+    );
+  },
+
+  async getSourcePage(jobId, pageNum, { signal } = {}) {
+    return apiFetchBlob(
+      `${BASE}/jobs/${encodeURIComponent(jobId)}/pages/${encodeURIComponent(pageNum)}`,
+      { headers: getAuthHeaders(), signal }
+    );
+  },
+
   async getImage(jobId, imageName, { signal } = {}) {
     return apiFetchBlob(
       `${BASE}/jobs/${encodeURIComponent(jobId)}/images/${encodeURIComponent(imageName)}`,
@@ -110,6 +124,13 @@ export const textbookRemediationService = {
       method: "POST",
       headers: getAuthHeaders(),
       body: JSON.stringify({ target_language: targetLanguage }),
+    });
+  },
+
+  async brailleJob(jobId) {
+    return apiFetch(`${BASE}/jobs/${encodeURIComponent(jobId)}/braille`, {
+      method: "POST",
+      headers: getAuthHeaders(),
     });
   },
 };
