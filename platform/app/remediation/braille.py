@@ -4,6 +4,7 @@ import re
 import textwrap
 from pathlib import Path
 
+import louis
 import pypandoc
 
 from app.platform.error_handling import ValidationError
@@ -33,6 +34,7 @@ _HTML_TABLE_RE = re.compile(r"<table\b.*?</table>", re.DOTALL | re.IGNORECASE)
 _PIPE_RULE_RE = re.compile(r"^[ \t]*\|?[ \t]*:?-+:?[ \t]*\|[ \t|:\-]*$", re.MULTILINE)
 _EMPTY_ALT_RE = re.compile(r"!\[\s*\]\(")
 _UNMAPPED_RE = re.compile(r"\\x[0-9a-fA-F]{4}")
+_RAW_HTML_RE = re.compile(r"<[a-zA-Z][^>]*>")
 _ODD_SPACE_RE = re.compile(r"[  -  ]")
 
 
@@ -69,6 +71,9 @@ def _prepare(markdown: str) -> tuple[str, dict[str, int], list[dict[str, str]]]:
     counts["images_without_alt"] = len(_EMPTY_ALT_RE.findall(body))
     if counts["images_without_alt"]:
         warnings.append(_warning("image", f"{counts['images_without_alt']} image(s) have no alt text. Add a description before final approval.", "low"))
+    raw_html = len(_RAW_HTML_RE.findall(body))
+    if raw_html:
+        warnings.append(_warning("html", f"{raw_html} raw HTML element(s) were left out. Check the page for missing content.", "medium"))
     return body, counts, warnings
 
 
@@ -97,8 +102,6 @@ def build_braille(markdown: str, language: str) -> tuple[str, dict[str, object]]
         raise ValidationError(
             f"Braille is not available for language {language!r}. Supported languages: {sorted(LANGUAGE_TABLES)}."
         )
-    import louis
-
     text, counts, warnings = markdown_to_braille_text(markdown)
     tables = [DISPLAY_TABLE, table]
     louis.checkTable(tables)

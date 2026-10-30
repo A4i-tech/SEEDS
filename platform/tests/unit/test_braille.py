@@ -34,14 +34,18 @@ def test_preprocess_flattens_structure_and_counts_review_items():
     assert {w["type"] for w in warnings} == {"equation", "table", "image"}
 
 
+def test_raw_html_is_reported_as_left_out():
+    _, _, warnings = markdown_to_braille_text("Hello <span>there</span>")
+
+    assert any(w["type"] == "html" for w in warnings)
+
+
 def test_unsupported_language_fails_loudly():
     with pytest.raises(ValidationError, match="not available for language 'bn'"):
         build_braille(MARKDOWN, "bn")
 
 
 def test_build_braille_pages_fit_braille_cells():
-    pytest.importorskip("louis")
-
     brf, report = build_braille("word " * 400, "en")
 
     assert all(len(line) <= 40 for page in brf.split("\f") for line in page.split("\r\n"))
