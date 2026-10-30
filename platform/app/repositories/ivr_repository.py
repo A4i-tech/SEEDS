@@ -1,7 +1,7 @@
 """IVR repository — PyMongo async data access for IVR FSM state and logs."""
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Any
 
 from pymongo.asynchronous.database import AsyncDatabase
@@ -122,7 +122,7 @@ class IVRRepository(BaseRepository):
         current_version = doc.get("version", 0)
         new_version = current_version + 1
         doc["version"] = new_version
-        doc["updated_at"] = datetime.now(UTC)
+        doc["updated_at"] = datetime.utcnow()
         doc.pop("pending_dtmf", None)
         doc.pop("last_dtmf_message_id", None)
         try:
@@ -150,7 +150,7 @@ class IVRRepository(BaseRepository):
                         "should_hangup": None,
                         "created_at": datetime.utcnow(),
                     },
-                    "updated_at": datetime.now(UTC),
+                    "updated_at": datetime.utcnow(),
                 }
             },
         )
@@ -174,7 +174,7 @@ class IVRRepository(BaseRepository):
     async def record_dtmf_processed(self, call_leg_id: str, message_id: str) -> None:
         await self._ongoing_col.update_one(
             {"_id": call_leg_id},
-            {"$set": {"last_dtmf_message_id": message_id, "updated_at": datetime.now(UTC)}},
+            {"$set": {"last_dtmf_message_id": message_id, "updated_at": datetime.utcnow()}},
         )
 
     async def peek_dtmf_result(self, call_leg_id: str, message_id: str) -> dict[str, Any] | None:
@@ -186,7 +186,7 @@ class IVRRepository(BaseRepository):
     async def pop_dtmf_result(self, call_leg_id: str, message_id: str) -> dict[str, Any] | None:
         doc = await self._ongoing_col.find_one_and_update(
             {"_id": call_leg_id, "pending_dtmf.message_id": message_id},
-            {"$unset": {"pending_dtmf": ""}, "$set": {"updated_at": datetime.now(UTC)}},
+            {"$unset": {"pending_dtmf": ""}, "$set": {"updated_at": datetime.utcnow()}},
         )
         return doc.get("pending_dtmf") if doc else None
 
@@ -208,7 +208,7 @@ class IVRRepository(BaseRepository):
                     "pending_dtmf.waiting": False,
                     "pending_dtmf.ncco": ncco,
                     "pending_dtmf.should_hangup": should_hangup,
-                    "updated_at": datetime.now(UTC),
+                    "updated_at": datetime.utcnow(),
                 }
             },
         )
@@ -219,7 +219,7 @@ class IVRRepository(BaseRepository):
             {"_id": conversation_id},
             {
                 "$push": {"stream_playback": item},
-                "$set": {"updated_at": datetime.now(UTC)},
+                "$set": {"updated_at": datetime.utcnow()},
             },
         )
 
@@ -228,7 +228,7 @@ class IVRRepository(BaseRepository):
     ) -> None:
         await self._ongoing_col.update_one(
             {"_id": conversation_id, "stream_playback.play_id": play_id},
-            {"$set": {f"stream_playback.$.{field}": value, "updated_at": datetime.now(UTC)}},
+            {"$set": {f"stream_playback.$.{field}": value, "updated_at": datetime.utcnow()}},
         )
 
     # ------------------------------------------------------------------

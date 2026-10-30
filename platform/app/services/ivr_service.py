@@ -48,7 +48,7 @@ logger = logging.getLogger(__name__)
 
 
 def _stale_cutoff() -> datetime:
-    return datetime.now(UTC) - timedelta(minutes=get_settings().stale_wait_in_minutes)
+    return datetime.utcnow() - timedelta(minutes=get_settings().stale_wait_in_minutes)
 
 
 def _get_factory_and_accumulator():
@@ -226,8 +226,8 @@ class IVRService:
             fsm_id=latest_fsm.fsm_id,
             current_state_id=latest_fsm.init_state_id,
             current_conversation_uuid=conv_uuid,
-            created_at=datetime.now(),
-            updated_at=datetime.now(UTC),
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow(),
             tenant_id=tenant_id,
         )
         await ongoing_col.replace_one(
@@ -362,7 +362,7 @@ class IVRService:
                 *_keep_listening_ncco,
             ], False
 
-        input_time = datetime.now()
+        input_time = datetime.utcnow()
 
         next_actions: list[Any] | None = None
         next_state_id: str | None = None
@@ -500,7 +500,7 @@ class IVRService:
 
         update_ops: dict[str, Any] = {
             "current_conversation_uuid": conversation_uuid,
-            "updated_at": datetime.now(UTC),
+            "updated_at": datetime.utcnow(),
         }
         if timestamp_str:
             try:
@@ -515,7 +515,7 @@ class IVRService:
         try:
             status_enum = IVRCallStatus(status)
             if status_enum in IVRCallStatus.end_statuses():
-                update_ops["stopped_at"] = datetime.now()
+                update_ops["stopped_at"] = datetime.utcnow()
                 update_ops["duration"] = duration
 
                 await ongoing_col.update_one({"_id": call_leg_id}, {"$set": update_ops})
