@@ -76,9 +76,12 @@ async def fetch_and_store_assets(
                 if await blob_provider.exists(container, blob_name):
                     url_map[relative_url] = blob_provider.get_container_client(container).get_blob_client(blob_name).url
                 else:
-                    data = await client.fetch_asset(relative_url, session_cookie)
-                    content_type = mimetypes.guess_type(file_name)[0] or "application/octet-stream"
-                    url_map[relative_url] = await blob_provider.upload_file(container, blob_name, data, content_type)
+                    handle = await client.fetch_asset(relative_url, session_cookie)
+                    try:
+                        content_type = mimetypes.guess_type(file_name)[0] or "application/octet-stream"
+                        url_map[relative_url] = await blob_provider.upload_file(container, blob_name, handle, content_type)
+                    finally:
+                        handle.close()
                 stats["saved"] += 1
             except Exception as exc:  # noqa: BLE001
                 logger.warning("[subodha-assets] SKIP %s: %s", relative_url, exc)
