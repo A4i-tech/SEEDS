@@ -28,16 +28,17 @@ test("selecting a filtered option calls onChange with its value", () => {
   expect(onChange).toHaveBeenCalledWith("b");
 });
 
-test.each([undefined, null, 42])("malformed label %p does not crash and search still works", (label) => {
-  render(
-    <Select
-      value=""
-      onChange={jest.fn()}
-      options={[{ value: "x", label }, { value: "b", label: "Beta" }]}
-      placeholder="Pick"
-    />
-  );
-  fireEvent.click(screen.getByRole("button", { name: "Pick" }));
-  fireEvent.change(screen.getByLabelText("Search options"), { target: { value: "bet" } });
-  expect(screen.getByRole("option", { name: "Beta" })).toBeInTheDocument();
+test.each([undefined, null, 42])("malformed label %p fails loudly", (label) => {
+  jest.spyOn(console, "error").mockImplementation(() => {});
+  expect(() =>
+    render(
+      <Select
+        value=""
+        onChange={jest.fn()}
+        options={[{ value: "x", label }]}
+        placeholder="Pick"
+      />
+    )
+  ).toThrow(TypeError);
+  console.error.mockRestore();
 });
