@@ -151,7 +151,10 @@ def _make_consumer_tasks(conference_manager: Any) -> list[asyncio.Task]:  # type
         from app.consumers.textbook_remediation_consumer import (
             TextbookRemediationConsumer,  # noqa: PLC0415
         )
-        consumer_specs.append(("TextbookRemediationConsumer", TextbookRemediationConsumer(db)))
+        consumer_specs.extend(
+            (f"TextbookRemediationConsumer-{n}", TextbookRemediationConsumer(db))
+            for n in range(1, get_settings().remediation_workers + 1)
+        )
     except Exception as exc:  # noqa: BLE001
         logger.error("Failed to initialise TextbookRemediationConsumer: %s", exc)
 
