@@ -1,6 +1,7 @@
 import React, { useEffect, useCallback } from "react";
 import ReactFlow, { MiniMap, Background, useNodesState, useEdgesState } from "reactflow";
 import "reactflow/dist/style.css";
+import { SEEDS_URL } from "../Constants";
 
 function createFlowElements(data) {
   let nodes = [];
@@ -79,7 +80,7 @@ export default function ViewIVR() {
 
   const fetchFSMData = useCallback(async () => {
     try {
-      const response = await fetch("http://127.0.0.1:8000/getFSM");
+      const response = await fetch(`${SEEDS_URL}/getFSM`);
       const data = await response.json();
       console.log(data);
       const { nodes, edges } = createFlowElements(data);

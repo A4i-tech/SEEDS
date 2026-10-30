@@ -228,45 +228,49 @@ class ServiceBusProvider:
         self._call_event: _AzureQueueHandle | None = None
         self._sync_jobs: _AzureQueueHandle | None = None
         self._initialized = False
+        self._init_lock = asyncio.Lock()
 
     async def initialize(self) -> None:
-        if self._initialized:
-            logger.warning("ServiceBusProvider already initialized")
-            return
+        async with self._init_lock:
+            if self._initialized:
+                return
+            await self._do_initialize()
 
+    async def _do_initialize(self) -> None:
         from app.platform.settings import get_settings  # noqa: PLC0415
 
         settings = get_settings()
         conn_str = settings.azure_service_bus_connection_string
 
-        if not conn_str:
-            logger.warning(
-                "AZURE_SERVICE_BUS_CONNECTION_STRING not set — ServiceBusProvider running in no-op mode"
-            )
-            self._initialized = True
-            return
+        handles = [
+            _AzureQueueHandle(conn_str, settings.call_webhook_queue_name),
+            _AzureQueueHandle(conn_str, settings.dtmf_input_queue_name),
+            _AzureQueueHandle(conn_str, settings.call_event_queue_name),
+            _AzureQueueHandle(conn_str, settings.sync_jobs_queue_name),
+        ]
+        try:
+            results = await asyncio.gather(*(h.initialize() for h in handles), return_exceptions=True)
+            failures = [(h, r) for h, r in zip(handles, results, strict=True) if isinstance(r, BaseException)]
+            if failures:
+                for h, r in failures:
+                    logger.error("Failed to initialize queue %s: %s", h.queue_name, r)
+                raise failures[0][1]
+        except BaseException:
+            await asyncio.gather(*(h.close() for h in handles), return_exceptions=True)
+            raise
 
-        self._call_webhook = _AzureQueueHandle(conn_str, settings.call_webhook_queue_name)
-        self._dtmf_input = _AzureQueueHandle(conn_str, settings.dtmf_input_queue_name)
-        self._call_event = _AzureQueueHandle(conn_str, settings.call_event_queue_name)
-        self._sync_jobs = _AzureQueueHandle(conn_str, settings.sync_jobs_queue_name)
-
-        await asyncio.gather(
-            self._call_webhook.initialize(),
-            self._dtmf_input.initialize(),
-            self._call_event.initialize(),
-            self._sync_jobs.initialize(),
-        )
+        self._call_webhook, self._dtmf_input, self._call_event, self._sync_jobs = handles
         self._initialized = True
         logger.info("ServiceBusProvider initialized (4 queues)")
 
     async def close(self) -> None:
-        handles = [self._call_webhook, self._dtmf_input, self._call_event, self._sync_jobs]
-        close_tasks = [h.close() for h in handles if h is not None]
-        if close_tasks:
-            await asyncio.gather(*close_tasks, return_exceptions=True)
-        self._initialized = False
-        logger.info("ServiceBusProvider closed")
+        async with self._init_lock:
+            handles = [self._call_webhook, self._dtmf_input, self._call_event, self._sync_jobs]
+            close_tasks = [h.close() for h in handles if h is not None]
+            if close_tasks:
+                await asyncio.gather(*close_tasks, return_exceptions=True)
+            self._initialized = False
+            logger.info("ServiceBusProvider closed")
 
     def _get_handle(self, queue_name: str) -> _AzureQueueHandle | None:
         mapping: dict[str, _AzureQueueHandle | None] = {

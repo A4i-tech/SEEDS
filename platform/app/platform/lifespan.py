@@ -186,13 +186,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     from app.repositories.content_aggregator_sync_job_repository import (  # noqa: PLC0415
         ContentAggregatorSyncJobRepository,
     )
+    from app.repositories.content_job_repository import ContentJobRepository  # noqa: PLC0415
     from app.repositories.textbook_remediation_repository import (  # noqa: PLC0415
         TextbookRemediationRepository,
     )
-
-    reconciled = await ContentAggregatorSyncJobRepository(get_database()).reconcile_interrupted_jobs()
-    if reconciled:
-        logger.info("Reconciled %d interrupted content aggregator sync jobs", reconciled)
 
     if settings.app_mode in ("consumer", "all"):
         reconciled = await TextbookRemediationRepository(get_database()).reconcile_interrupted_jobs()
@@ -212,6 +209,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await TranslationRepository.ensure_indexes(get_database())
     await TranslationVersionRepository.ensure_indexes(get_database())
     await TranslationAuditRepository.ensure_indexes(get_database())
+    await ContentAggregatorSyncJobRepository.ensure_indexes(get_database())
+    await ContentJobRepository.ensure_indexes(get_database())
+    await TextbookRemediationRepository.ensure_indexes(get_database())
 
     # Init conference manager (available in all modes)
     try:
@@ -219,6 +219,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     except Exception as exc:  # noqa: BLE001
         logger.warning("Conference manager init failed (non-fatal in test mode): %s", exc)
         conf_mgr = None  # type: ignore[assignment]
+
+    from app.providers.service_bus import service_bus_provider  # noqa: PLC0415
+
+    await service_bus_provider.initialize()
 
     consumer_tasks: list[asyncio.Task] = []  # type: ignore[type-arg]
     if settings.app_mode in ("consumer", "all"):
@@ -268,6 +272,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             await ws_client.close()
         except Exception as exc:
             logger.warning("WebsocketClientProvider close failed: %s", exc)
+
+    await service_bus_provider.close()
 
     if conf_mgr is not None:
         try:
