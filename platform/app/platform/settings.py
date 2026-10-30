@@ -4,7 +4,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -87,6 +87,11 @@ class Settings(BaseSettings):
     embedding_base_url: str | None = None
     transcription_model: str = "whisper-1"
     embedding_model: str = "text-embedding-3-small"
+
+    @field_validator("openai_base_url", "transcription_base_url", "embedding_base_url", mode="before")
+    @classmethod
+    def _empty_urls_to_none(cls, v: object) -> object:
+        return None if isinstance(v, str) and not v.strip() else v
 
     mistral_ocr_api_key: str = Field(default="", repr=False)
     mistral_ocr_endpoint: str = ""

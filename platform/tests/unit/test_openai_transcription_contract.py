@@ -41,3 +41,10 @@ async def test_segment_is_transcribed_by_mock_server():
     assert result is not None
     assert result["text"] == "ok"
     assert isinstance(result["duration"], float)
+
+
+def test_settings_normalizes_empty_base_urls_to_none():
+    s = Settings(_env_file=None, openai_base_url="  ", transcription_base_url="", embedding_base_url="   ")
+    assert s.openai_base_url is None
+    assert s.transcription_base_url is None
+    assert s.embedding_base_url is None
