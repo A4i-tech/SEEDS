@@ -31,6 +31,8 @@ const ARTIFACT_LABELS = {
   translated_docx: "Download translated Word",
   translated_pdf: "Download translated PDF",
   translated_tex: "Download translated LaTeX",
+  brf: "Download BRF",
+  braille_report: "Download Braille report",
 };
 
 const OriginalScan = ({ hasPageImages, sourcePageUrl, sourcePdfUrl, bookPageNum }) => {
@@ -267,6 +269,18 @@ const RemediationDetails = () => {
     }
   };
 
+  const handleGenerateBraille = async () => {
+    try {
+      setActionMessage("Generating Braille files...");
+      setJob(await textbookRemediationService.brailleJob(jobId));
+      setActionMessage("Braille files ready.");
+      setTimeout(() => setActionMessage(null), 4000);
+    } catch (bErr) {
+      setError(bErr.message);
+      setActionMessage(null);
+    }
+  };
+
   const loadingDocs = !documents.raw && !documents.corrected && job && isRemediationDone(job.status);
 
   return (
@@ -357,6 +371,12 @@ const RemediationDetails = () => {
                   <span className="gate-badge gate-badge-verified remediation-verified-badge">
                     ✓ Verified & Saved to Library
                   </span>
+                )}
+
+                {job.status === JOB_STATUS.VERIFIED && !job.artifacts.brf && (
+                  <button type="button" className="action-ghost-button" onClick={handleGenerateBraille}>
+                    Generate Braille
+                  </button>
                 )}
 
                 {ARTIFACT_DOWNLOADS.some((entry) => job.artifacts[entry.key]) && (
