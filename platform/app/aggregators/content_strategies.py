@@ -7,6 +7,7 @@ future aggregators) the node came from — that's the adapter's job.
 from __future__ import annotations
 
 import abc
+import asyncio
 import html as html_lib
 import logging
 
@@ -65,7 +66,7 @@ class TextStrategy(ContentStrategy):
     async def process(self, raw: RawItemPayload, ctx: BlobContext, blob: BlobStorageProvider) -> ContentPayload:
         raw_html = raw or ""
         try:
-            markdown = html_to_markdown(raw_html)
+            markdown = await asyncio.to_thread(html_to_markdown, raw_html)
         except (RuntimeError, OSError) as exc:
             logger.warning("[content-strategies] pandoc conversion failed for %s: %s", ctx.blob_prefix, exc)
             safe_html = _sanitize_html(raw_html)

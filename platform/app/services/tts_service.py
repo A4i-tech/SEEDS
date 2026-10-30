@@ -10,9 +10,13 @@ SECURITY:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
 logger = logging.getLogger(__name__)
+
+_TTS_CONCURRENCY = 8
+_tts_semaphore = asyncio.Semaphore(_TTS_CONCURRENCY)
 
 # ---------------------------------------------------------------------------
 # Language / voice mappings (from ttsService.js)
@@ -39,14 +43,12 @@ _VOICE_NAME: dict[str, str] = {
 }
 
 
-def _get_tts_attributes(language: str) -> tuple[str, str] | None:
+def _get_tts_attributes(language: str) -> tuple[str, str]:
     """Return (language_code, voice_name) for *language*, or None if unsupported."""
     lang_code = _TRANSLATION_TO_AZURE.get(language.lower())
-    if not lang_code:
-        return None
-    voice = _VOICE_NAME.get(lang_code)
+    voice = _VOICE_NAME.get(lang_code or "")
     if not voice:
-        return None
+        raise ValueError(f"TTS: unsupported language {language!r}")
     return lang_code, voice
 
 
@@ -66,7 +68,7 @@ def _build_ssml(text: str, language_code: str, voice_name: str, rate: str = "1.0
 async def synthesize(
     text: str,
     language: str,
-    voice: str | None = None,
+    voice: str = "",
     rate: str = "1.0",
 ) -> bytes:
     """Convert *text* to speech audio and return raw WAV/MP3 bytes.
@@ -88,11 +90,7 @@ async def synthesize(
     from app.platform.settings import get_settings  # noqa: PLC0415
 
     settings = get_settings()
-    attrs = _get_tts_attributes(language)
-    if attrs is None:
-        raise ValueError(f"TTS: unsupported language {language!r}")
-
-    lang_code, default_voice = attrs
+    lang_code, default_voice = _get_tts_attributes(language)
     voice_name = voice or default_voice
 
     logger.info("tts_service: synthesising text_len=%d lang=%s voice=%s", len(text), lang_code, voice_name)
@@ -124,7 +122,8 @@ async def synthesize(
         )
 
         synthesizer = sdk.SpeechSynthesizer(speech_config=speech_config, audio_config=None)
-        result = synthesizer.speak_ssml_async(ssml).get()
+        async with _tts_semaphore:
+            result = await asyncio.to_thread(lambda: synthesizer.speak_ssml_async(ssml).get())
 
         if result.reason == sdk.ResultReason.SynthesizingAudioCompleted:
             audio_data: bytes = bytes(result.audio_data)
@@ -133,9 +132,9 @@ async def synthesize(
         else:
             raise RuntimeError(f"TTS SDK synthesis failed: {result.cancellation_details.error_details}")
 
-    except (ImportError, AttributeError):
+    except ImportError as exc:
         # SDK not installed or key missing — use REST endpoint
-        pass
+        logger.warning("tts_service: SDK unavailable, using REST fallback - %s", exc)
 
     # --- REST fallback ---
     return await _synthesize_via_rest(ssml, settings)
