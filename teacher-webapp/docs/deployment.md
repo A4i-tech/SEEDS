@@ -11,9 +11,14 @@
 - Select the appropriate branch for deployment (e.g., `main` or `a4i/main`)
 
 ## 3. Environment Variables
-Set these in the platform dashboard (do NOT commit secrets):
+Set these as container environment variables.
+
+The container reads them at start, not at build time.
+
+The container exits with an error if one is missing.
 ```
 REACT_APP_API_BASE_URL = <your-backend-api-url>
+REACT_APP_STORAGE_ACCOUNT_NAME = <azure-storage-account-name>
 ```
 
 > **Note:** Only include variables relevant to your service. Do not commit secrets to version control.
