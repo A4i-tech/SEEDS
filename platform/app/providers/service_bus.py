@@ -242,13 +242,6 @@ class ServiceBusProvider:
         settings = get_settings()
         conn_str = settings.azure_service_bus_connection_string
 
-        if not conn_str:
-            logger.warning(
-                "AZURE_SERVICE_BUS_CONNECTION_STRING not set — ServiceBusProvider running in no-op mode"
-            )
-            self._initialized = True
-            return
-
         handles = [
             _AzureQueueHandle(conn_str, settings.call_webhook_queue_name),
             _AzureQueueHandle(conn_str, settings.dtmf_input_queue_name),
