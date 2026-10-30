@@ -21,6 +21,8 @@ from fastapi import FastAPI
 
 from app.platform.database import close_database, get_database, init_database
 from app.platform.settings import get_settings
+from app.providers.hexis_client import close_hexis_client
+from app.providers.iris_client import close_iris_client
 from app.providers.subodha_client import close_subodha_client
 from app.services.content_aggregator_sync_jobs import get_sync_job_service
 
@@ -157,7 +159,17 @@ def _make_consumer_tasks(conference_manager: Any) -> list[asyncio.Task]:  # type
 
     try:
         from app.consumers.sync_job_consumer import SyncJobConsumer  # noqa: PLC0415
-        consumer_specs.append(("SyncJobConsumer", SyncJobConsumer(db)))
+        from app.services.hexis_service import get_hexis_service  # noqa: PLC0415
+        from app.services.iris_service import get_iris_service  # noqa: PLC0415
+        from app.services.subodha_service import get_subodha_service  # noqa: PLC0415
+
+        consumer_specs.append(("SubodhaSyncJobConsumer", SyncJobConsumer(get_subodha_service(db))))
+        consumer_specs.append(("HexisSyncJobConsumer", SyncJobConsumer(get_hexis_service(db))))
+        settings = get_settings()
+        if settings.iris_mobile or settings.iris_password:
+            consumer_specs.append(("IrisSyncJobConsumer", SyncJobConsumer(get_iris_service(db))))
+        else:
+            logger.warning("Iris credentials not set; Iris sync consumer not started")
     except Exception as exc:  # noqa: BLE001
         logger.error("Failed to initialise SyncJobConsumer: %s", exc)
 
@@ -292,6 +304,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     try:
         await close_subodha_client()
+        await close_hexis_client()
+        await close_iris_client()
     except Exception as exc:
         logger.warning("Subodha client close failed: %s", exc)
 
