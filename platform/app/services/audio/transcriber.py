@@ -44,11 +44,10 @@ class AudioTranscriber:
 
         self.client: AsyncOpenAI | None = None
         self.analysis_enabled = settings.audio_analysis_enabled
-        base_url = settings.transcription_base_url or None
+        base_url = settings.transcription_base_url
         self.model = settings.transcription_model
         if self.analysis_enabled and (settings.openai_api_key or base_url):
-            # self-hosted servers may need no key, but the client requires one
-            self.client = AsyncOpenAI(api_key=settings.openai_api_key or "unused", base_url=base_url)
+            self.client = AsyncOpenAI(api_key=settings.openai_api_key or "dummy", base_url=base_url)
         elif self.analysis_enabled:
             logger.warning("AudioTranscriber: OPENAI_API_KEY not set — transcription disabled")
         else:

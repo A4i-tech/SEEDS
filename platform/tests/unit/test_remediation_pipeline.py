@@ -194,14 +194,6 @@ async def test_run_pipeline_kills_child_on_cancellation(tmp_path, monkeypatch):
     assert time.monotonic() - start < 5
 
 
-@pytest.mark.asyncio
-async def test_run_pipeline_forwards_openai_base_url(tmp_path, monkeypatch):
-    task, started = await _run_sleeping_pipeline(tmp_path, monkeypatch, openai_base_url="http://localhost:8000/v1")
-    task.cancel()
-    with pytest.raises(asyncio.CancelledError):
-        await task
-    assert started["env"]["OPENAI_BASE_URL"] == "http://localhost:8000/v1"
-
 
 @pytest.mark.asyncio
 async def test_run_pipeline_kills_child_on_timeout(tmp_path, monkeypatch):

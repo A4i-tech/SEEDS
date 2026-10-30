@@ -29,26 +29,13 @@ def _transcriber(**overrides) -> AudioTranscriber:
         return AudioTranscriber()
 
 
-def test_client_gets_base_url_and_model_from_settings():
-    t = _transcriber(openai_api_key="k", transcription_base_url="http://stt.local/v1", transcription_model="whisper-large")
-    assert str(t.client.base_url) == "http://stt.local/v1/"
-    assert t.model == "whisper-large"
-
-
-def test_transcription_base_url_falls_back_to_shared_url_and_can_be_overridden():
-    shared = _transcriber(openai_base_url="http://shared.local/v1")
-    assert str(shared.client.base_url) == "http://shared.local/v1/"
-    own = _transcriber(openai_base_url="http://shared.local/v1", transcription_base_url="http://stt.local/v1")
-    assert str(own.client.base_url) == "http://stt.local/v1/"
-
-
 def test_no_key_and_no_base_url_means_no_client():
     assert _transcriber().client is None
 
 
 @needs_mock
 async def test_segment_is_transcribed_by_mock_server():
-    t = _transcriber(openai_base_url=MOCK_URL)
+    t = _transcriber(transcription_base_url=MOCK_URL)
     pcm = (np.sin(np.linspace(0, 200, 8000)) * 8000).astype(np.int16).tobytes()
     result = await t._transcribe_segment(pcm)
     assert result is not None

@@ -29,8 +29,17 @@ class HoldDetector:
     EMBEDDING_RETRY_DELAY_SEC = 0.3
 
     def __init__(self, threshold: float = 0.82) -> None:
-        self.client = None
-        self.model = ""
+        settings = get_settings()
+        self.model = settings.embedding_model
+        base_url = settings.embedding_base_url
+        if settings.openai_api_key or base_url:
+            from openai import AsyncOpenAI  # type: ignore[import-untyped]  # noqa: PLC0415
+
+            self.client: AsyncOpenAI | None = AsyncOpenAI(api_key=settings.openai_api_key or "dummy", base_url=base_url)
+        else:
+            self.client = None
+            logger.warning("HoldDetector: OPENAI_API_KEY not set — rule-based mode only")
+
         self.threshold = float(os.getenv("AUDIO_HOLD_SIMILARITY_THRESHOLD", str(threshold)))
         self.min_chars = int(os.getenv("AUDIO_HOLD_MIN_TEXT_CHARS", "6"))
         self.api_timeout = float(os.getenv("AUDIO_API_TIMEOUT_SECONDS", "8.0"))
@@ -48,22 +57,8 @@ class HoldDetector:
     @classmethod
     async def create(cls, threshold: float = 0.82) -> HoldDetector:
         instance = cls(threshold)
-        instance._init_client()
         await instance._load_embeddings()
         return instance
-
-    def _init_client(self) -> None:
-
-        settings = get_settings()
-        base_url = settings.embedding_base_url or None
-        self.model = settings.embedding_model
-        if not (settings.openai_api_key or base_url):
-            logger.warning("HoldDetector: OPENAI_API_KEY not set — rule-based mode only")
-            return
-        from openai import AsyncOpenAI  # type: ignore[import-untyped]  # noqa: PLC0415
-
-        # self-hosted servers may need no key, but the client requires one
-        self.client = AsyncOpenAI(api_key=settings.openai_api_key or "unused", base_url=base_url)
 
     @staticmethod
     def _normalize_text(text: str) -> str:
