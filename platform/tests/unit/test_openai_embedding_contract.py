@@ -42,3 +42,10 @@ async def test_embeddings_from_mock_server_are_1536_wide_and_deterministic():
     second = await d._get_embeddings(["hello world"])
     assert len(first[0]) == 1536
     assert first == second
+
+
+async def test_empty_base_url_keeps_rule_based_detection():
+    d = _detector(embedding_base_url="   ")
+    assert d.client is None
+    result = await d.detect("Thank you for holding. Please stay on the line.")
+    assert result["detection_method"] == "rule_based_exact_phrase"

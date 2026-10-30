@@ -48,3 +48,8 @@ def test_settings_normalizes_empty_base_urls_to_none():
     assert s.openai_base_url is None
     assert s.transcription_base_url is None
     assert s.embedding_base_url is None
+
+
+def test_empty_base_url_disables_transcriber():
+    t = _transcriber(transcription_base_url="   ")
+    assert t.client is None
