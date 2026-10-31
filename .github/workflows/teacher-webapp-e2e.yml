@@ -1,0 +1,77 @@
+name: Teacher WebApp E2E
+
+on:
+  workflow_call:
+    inputs:
+      e2e_instance:
+        description: "E2E_INSTANCE to run against"
+        type: string
+        default: dev
+  workflow_dispatch:
+    inputs:
+      e2e_instance:
+        description: "E2E_INSTANCE to run against (local is omitted; it isn't reachable from a GitHub-hosted runner)"
+        type: choice
+        options:
+          - onrender
+          - dev
+        default: dev
+
+concurrency:
+  group: teacher-webapp-e2e-${{ github.ref }}-${{ github.event_name }}-${{ inputs.e2e_instance }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: Teacher WebApp E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: teacher-webapp
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Playwright E2E tests
+        env:
+          E2E_INSTANCE: ${{ inputs.e2e_instance }}
+          E2E_TEACHER_PHONE: ${{ secrets.E2E_TEACHER_PHONE }}
+          E2E_TEACHER_PASSWORD: ${{ secrets.E2E_TEACHER_PASSWORD }}
+        run: npm run test:e2e
+
+      - name: Verify tests actually ran
+        if: always()
+        run: |
+          node -e "
+            const r = require('./e2e-results.json');
+            const ran = r.suites && r.stats && (r.stats.expected + r.stats.unexpected + r.stats.flaky) > 0;
+            if (!ran || r.stats.skipped > 0) { console.error('Authenticated tests were skipped; nothing actually ran.'); process.exit(1); }
+          "
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: teacher-webapp-playwright-report
+          path: teacher-webapp/playwright-report/
+          retention-days: 14
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: teacher-webapp-test-results
+          path: teacher-webapp/test-results/
+          retention-days: 14
