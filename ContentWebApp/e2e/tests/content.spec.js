@@ -91,20 +91,14 @@ test.describe('tenant content lifecycle: create, cross-school visibility, update
     await contentListPage.waitForRow(id);
   });
 
-  // NOTE (see also A4i-tech/.github issue for content edit propagation):
-  // reproduced live, multiple times, an edit (PATCH, 200 OK) that never became
-  // visible even in the editing tenant's OWN list within several minutes, let
-  // alone to other school accounts — while content CREATION consistently
-  // propagates within seconds (TC-CONT-003/004, both fast and reliable every
-  // time). This session's own heavy repeated content-creation load may also
-  // have built up real backend job-queue backlog by this point, so "edits are
-  // broken" and "the queue is just backed up right now" can't be fully
-  // separated from here — but the asymmetry between fast, reliable creates and
-  // slow/absent edit propagation is real and worth a backend-side look either
-  // way. These two tests assert only what's directly observable without an
-  // unbounded wait: the PATCH itself returns 200, and the pre-edit title keeps
-  // showing everywhere for at least the next 10s.
-  test('TC-CONT-005 tenant content update — PATCH accepted (200); propagation not asserted, see note above', async ({
+  // NOTE (see also A4i-tech/.github#594): a title-only edit (PATCH, 200 OK)
+  // was previously observed never becoming visible — even in the editing
+  // tenant's OWN list — due to a frontend hydrate-effect race that overwrote
+  // the just-saved title with a stale server snapshot. That race is fixed
+  // (see AddStory.js fetchTitlesUnderTheme hydrate effect); these two tests
+  // now assert the updated title actually propagates, both to the editing
+  // tenant's own list and to a school account.
+  test('TC-CONT-005 tenant content update — PATCH accepted (200) and updated title propagates', async ({
     page,
     browser,
   }) => {
@@ -133,11 +127,13 @@ test.describe('tenant content lifecycle: create, cross-school visibility, update
     const a4iContentPage = new ContentPage(a4iPage);
     const a4iContentListPage = new ContentListPage(a4iPage);
     await a4iContentPage.waitForLoad();
-    await expect(a4iContentListPage.row(id)).toBeVisible({ timeout: 10000 });
+    await a4iContentListPage.waitForRow(updatedId);
+    await expect(a4iContentListPage.row(updatedId)).toBeVisible();
+    await expect(a4iContentListPage.row(id)).toHaveCount(0);
     await a4iContext.close();
   });
 
-  test('TC-CONT-006 tenant content update — pre-edit title still visible to school@test-a4i.local, then cleanup', async ({
+  test('TC-CONT-006 tenant content update — updated title visible to school@test-a4i.local, then cleanup', async ({
     page,
   }) => {
     const loginPage = new LoginPage(page);
@@ -146,18 +142,18 @@ test.describe('tenant content lifecycle: create, cross-school visibility, update
 
     await loginPage.login(PERSONAS.school.identifier, PERSONAS.school.password);
     await contentPage.waitForLoad();
-    await expect(contentListPage.row(id)).toBeVisible({ timeout: 10000 });
+    await contentListPage.waitForRow(updatedId);
+    await expect(contentListPage.row(updatedId)).toBeVisible();
+    await expect(contentListPage.row(id)).toHaveCount(0);
 
-    // Cleanup: delete as the tenant that created it, by whichever id is
-    // actually showing — per the note above, that's the pre-edit `id`, not
-    // `updatedId`, as of this run. Only a read happened before this (no
-    // mutating action), so the logout-after-mutation race from TC-CONT-005
-    // isn't in play here — plain HeaderPage.logout() (already hardened to
-    // retry until the token actually clears) is fine.
+    // Only a read happened before this (no mutating action), so the
+    // logout-after-mutation race from TC-CONT-005 isn't in play here — plain
+    // HeaderPage.logout() (already hardened to retry until the token
+    // actually clears) is fine.
     await new HeaderPage(page).logout();
     await loginPage.login(PERSONAS.tenant.identifier, PERSONAS.tenant.password);
     await contentPage.waitForLoad();
-    await contentListPage.deleteEitherId(updatedId, id);
+    await contentListPage.deleteContent(updatedId);
   });
 
   test.afterAll(async ({ browser }) => {
@@ -261,12 +257,10 @@ test.describe('school content lifecycle + isolation (unique per run, self-cleani
     await contentListPage.deleteContent(a4iId);
   });
 
-  // See the note above TC-CONT-005: an edit's title change was observed
-  // taking well over a minute (or not completing within this suite's run) to
-  // show up even in the editing account's own list — same asymmetry as the
-  // tenant case, this time same-account rather than cross-account. Asserts
-  // only the PATCH status; doesn't require the DOM to reflect it.
-  test('TC-CONT-012 school content update — PATCH accepted (200); propagation not asserted, see TC-CONT-005 note', async ({
+  // See the note above TC-CONT-005: the title-only edit hydrate-effect race
+  // (A4i-tech/.github#594) is fixed, so the updated title is asserted to
+  // propagate into the editing account's own list.
+  test('TC-CONT-012 school content update — PATCH accepted (200) and updated title propagates', async ({
     page,
   }) => {
     const loginPage = new LoginPage(page);
@@ -281,6 +275,10 @@ test.describe('school content lifecycle + isolation (unique per run, self-cleani
     await addContentPage.englishTitleInput.fill(`school-test-a4i-content-${updatedId}`);
     const status = await addContentPage.save();
     expect(status).toBe(200);
+
+    await contentListPage.waitForRow(updatedId);
+    await expect(contentListPage.row(updatedId)).toBeVisible();
+    await expect(contentListPage.row(schoolId)).toHaveCount(0);
   });
 
   test('TC-CONT-013 school can delete content', async ({ page }) => {
@@ -290,9 +288,7 @@ test.describe('school content lifecycle + isolation (unique per run, self-cleani
 
     await loginPage.login(PERSONAS.school.identifier, PERSONAS.school.password);
     await contentPage.waitForLoad();
-    // Cleanup by whichever id is actually showing — per the TC-CONT-012 note,
-    // that's the pre-edit schoolId, not updatedId, as of this run.
-    await contentListPage.deleteContent(schoolId);
+    await contentListPage.deleteContent(updatedId);
   });
 
   test.afterAll(async ({ browser }) => {
@@ -347,8 +343,8 @@ test.describe('content creator content CRUD (unique per run, self-cleaning)', ()
     await contentListPage.waitForRow(id);
   });
 
-  // See the note above TC-CONT-005 — same asymmetry observed here too.
-  test('TC-CONT-016 content creator content update — PATCH accepted (200); propagation not asserted, see TC-CONT-005 note', async ({
+  // See the note above TC-CONT-005 — same fix applies here too.
+  test('TC-CONT-016 content creator content update — PATCH accepted (200) and updated title propagates', async ({
     page,
   }) => {
     const loginPage = new LoginPage(page);
@@ -363,6 +359,10 @@ test.describe('content creator content CRUD (unique per run, self-cleaning)', ()
     await addContentPage.englishTitleInput.fill(`cc-content-${updatedId}`);
     const status = await addContentPage.save();
     expect(status).toBe(200);
+
+    await contentListPage.waitForRow(updatedId);
+    await expect(contentListPage.row(updatedId)).toBeVisible();
+    await expect(contentListPage.row(id)).toHaveCount(0);
   });
 
   test('TC-CONT-017 content creator can delete content', async ({ page }) => {
@@ -372,9 +372,7 @@ test.describe('content creator content CRUD (unique per run, self-cleaning)', ()
 
     await loginPage.login(PERSONAS.contentCreator.identifier, PERSONAS.contentCreator.password);
     await contentPage.waitForLoad();
-    // Cleanup by whichever id is actually showing — per the TC-CONT-016 note,
-    // that's the pre-edit id, not updatedId, as of this run.
-    await contentListPage.deleteEitherId(updatedId, id);
+    await contentListPage.deleteContent(updatedId);
   });
 
   test.afterAll(async ({ browser }) => {
