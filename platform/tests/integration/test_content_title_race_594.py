@@ -33,11 +33,6 @@ async def mock_db():
 
 
 async def _seed(mock_db, *, is_pull_model, title, theme, audio_content):
-    """Insert a content doc + pending job and return the repos/ids tests need.
-
-    Only the setup genuinely shared by both tests below lives here — each
-    test's concurrent-edit hook, patching, and assertions stay explicit.
-    """
     from app.repositories.content_job_repository import ContentJobRepository
     from app.repositories.content_repository import ContentRepository
 
@@ -73,9 +68,9 @@ async def _seed(mock_db, *, is_pull_model, title, theme, audio_content):
 
 
 @pytest.mark.asyncio
-async def test_stale_content_snapshot_overwrites_concurrent_title_edit(mock_db):
-    """A title edit made WHILE an audio job is running is clobbered when the
-    job's completion saves its stale job-start snapshot."""
+async def test_job_completion_does_not_overwrite_concurrent_title_edit(mock_db):
+    """A title edit made WHILE an audio job is running must not be clobbered
+    when the job's completion saves its stale job-start snapshot."""
     from app.consumers.content_job_consumer import _process_audio_content_job
 
     content_id, job_id, content_repo, job_repo = await _seed(
@@ -171,15 +166,11 @@ async def test_pull_model_tts_updates_audio_url_without_clobbering_concurrent_ed
         f"TTS completion clobbered the concurrently-edited theme text. Got: {final_doc['theme']}"
     )
     assert final_doc["title"]["audio_url"] == f"https://myaccount.blob.core.windows.net/experience-titles/{content_id}/1.0.mp3"
-    assert final_doc["theme"]["audio_url"] == "https://myaccount.blob.core.windows.net/theme-titles/Animals/1.0.mp3"
-    assert final_doc["title"]["audio_url"] != final_doc["theme"]["audio_url"]
+    assert final_doc["theme"]["audio_url"] == "https://myaccount.blob.core.windows.net/theme-titles/Animals/english/1.0.mp3"
 
 
 @pytest.mark.asyncio
 async def test_existing_theme_audio_is_reused_without_resynthesizing():
-    """When theme audio already exists in blob storage, `_process_tts_for_content`
-    must reuse the existing blob's URL and must not call `tts_service.synthesize`
-    or `upload_file` for the theme."""
     from app.consumers.content_job_consumer import _process_tts_for_content
 
     content_doc = {
@@ -189,7 +180,7 @@ async def test_existing_theme_audio_is_reused_without_resynthesizing():
         "theme": {"english": "Animals", "local": "Animals"},
     }
 
-    existing_blob_url = "https://myaccount.blob.core.windows.net/theme-titles/Animals/1.0.mp3"
+    existing_blob_url = "https://myaccount.blob.core.windows.net/theme-titles/Animals/english/1.0.mp3"
     blob_client = MagicMock()
     blob_client.get_blob_properties = AsyncMock(return_value={})
     blob_client.url = existing_blob_url

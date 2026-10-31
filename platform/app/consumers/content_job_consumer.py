@@ -318,7 +318,7 @@ async def _process_tts_for_content(content_doc: dict, blob_provider) -> None:
     theme_local = (theme.get("local") or "").strip()
 
     if theme_english:
-        theme_blob_name = f"{theme_english}/1.0.mp3"
+        theme_blob_name = f"{theme_english}/{language}/1.0.mp3"
         # Check if theme audio already exists
         try:
             container_client = blob_provider.get_container_client("theme-titles")

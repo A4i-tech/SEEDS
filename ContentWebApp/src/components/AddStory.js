@@ -182,12 +182,12 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
         setAnswerAudioSrc(`${AUDIO_BASE_URL}/${content.id}/answer.mp3`);
       }
     }
-  }, [content, contentType, fetchTitlesUnderTheme]);
+  }, [content, contentType]);
 
   useEffect(() => {
     if (!content) return;
-    fetchTitlesUnderTheme(content.language.toLowerCase(), content.theme.english);
-  }, [content, contentType, fetchTitlesUnderTheme]);
+    fetchTitlesUnderTheme(content.language, content.theme.english);
+  }, [content, fetchTitlesUnderTheme]);
 
   const [file, setFile] = useState();
   const [answerFile, setAnswerFile] = useState();

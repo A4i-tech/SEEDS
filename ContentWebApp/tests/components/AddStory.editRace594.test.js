@@ -34,18 +34,10 @@ const siblingContent = {
 };
 
 const otherContent = {
+  ...content,
   id: "story3",
-  type: "Story",
-  description: "",
-  language: "en",
   title: { english: "Other Title", local: "Other Title", audio_url: "" },
   theme: { english: "Space", local: "Space", audio_url: "" },
-  audio_content: [],
-  created_by: "tester",
-  is_pull_model: false,
-  is_teacher_app: false,
-  is_processed: false,
-  is_deleted: false,
 };
 
 describe("AddStory #594 title race", () => {
