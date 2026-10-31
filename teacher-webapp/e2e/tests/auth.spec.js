@@ -21,7 +21,7 @@ test('TC-TAUTH-002 login fails with wrong password for a registered phone number
 
   await loginPage.login(identifier, 'WrongPass@1');
 
-  await expect(page.getByRole('alert').getByText('Username or password incorrect', { exact: true })).toBeVisible({
+  await expect(page.getByRole('alert').getByText('Invalid phone or password', { exact: true })).toBeVisible({
     timeout: 10000,
   });
   expect(new URL(page.url()).pathname).not.toBe('/classrooms');
@@ -32,7 +32,7 @@ test('TC-TAUTH-003 login fails with an unregistered phone number', async ({ page
 
   await loginPage.login('9999999999', 'SomePass@1');
 
-  await expect(page.getByRole('alert').getByText('Username or password incorrect', { exact: true })).toBeVisible({
+  await expect(page.getByRole('alert').getByText('Invalid phone or password', { exact: true })).toBeVisible({
     timeout: 10000,
   });
   expect(new URL(page.url()).pathname).not.toBe('/classrooms');
@@ -89,8 +89,6 @@ test('TC-TAUTH-007 logout signs the teacher out and redirects to the login page'
   await loginPage.phoneInput.waitFor();
 });
 
-// REG-595-LOGIN (#595 regression): Verify an E2E login test exists using an already-created
-// test teacher account, as required by #595.
 test('REG-595-LOGIN [#595 regression] login with an already-created test teacher account reaches /classrooms', async ({
   page,
 }) => {

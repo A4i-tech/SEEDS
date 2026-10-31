@@ -18,16 +18,13 @@ const INSTANCES = {
   },
 };
 
-function getInstance(name = process.env.E2E_INSTANCE) {
-  if (!name) {
-    console.warn('E2E_INSTANCE not set, defaulting to "dev"');
-    name = 'dev';
-  }
+function getInstance(name) {
   const instance = INSTANCES[name];
   if (!instance) {
     throw new Error(`Unknown E2E_INSTANCE "${name}". Known instances: ${Object.keys(INSTANCES).join(', ')}`);
   }
   if (process.env.E2E_BASE_URL) {
+    console.log(`E2E_BASE_URL override: running "${name}" against ${process.env.E2E_BASE_URL}`);
     return { ...instance, baseURL: process.env.E2E_BASE_URL };
   }
   if (!instance.baseURL) {

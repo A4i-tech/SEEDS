@@ -52,6 +52,8 @@ jobs:
     needs: [deploy-staging-workflow, detect-changes]
     if: github.ref == 'refs/heads/a4i/staging' && needs.detect-changes.outputs.teacherwebapp == 'true'
     uses: ./.github/workflows/teacher-webapp-e2e.yml
+    with:
+      e2e_instance: onrender
     secrets: inherit
 
   deploy-main-workflow:

@@ -4,7 +4,7 @@ class ClassroomListPage {
   constructor(page) {
     this.page = page;
     this.heading = page.getByRole('heading', { name: 'My Classrooms' });
-    this.createClassroomButton = page.getByRole('button', { name: 'Create Classroom' });
+    this.createClassroomButton = page.getByRole('button', { name: 'Create Classroom' }).first();
     this.playContentButton = page.getByRole('button', { name: 'Play Content' });
     this.logoutButton = page.getByRole('button', { name: 'Logout' });
   }

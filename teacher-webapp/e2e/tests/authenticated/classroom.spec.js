@@ -1,6 +1,7 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
 const { uniqueClassroomName } = require('../../fixtures/instances');
+const { createClassroomWithStudents } = require('../../fixtures/classroomHelpers');
 const { ClassroomListPage } = require('../../pages/ClassroomListPage');
 const { ClassroomFormPage } = require('../../pages/ClassroomFormPage');
 const { ClassroomDetailPage } = require('../../pages/ClassroomDetailPage');
@@ -11,13 +12,14 @@ let classroomsToCleanup = [];
 
 test.afterEach(async ({ page }) => {
   const classroomListPage = new ClassroomListPage(page);
-  for (const name of classroomsToCleanup) {
+  const namesToDelete = classroomsToCleanup;
+  classroomsToCleanup = [];
+  for (const name of namesToDelete) {
     await classroomListPage.goto();
     if (await classroomListPage.classroomCard(name).count()) {
       await classroomListPage.deleteClassroom(name);
     }
   }
-  classroomsToCleanup = [];
 });
 
 test('TC-TCLS-001 My Classrooms list loads and shows the classroom list', async ({ page }) => {
@@ -50,13 +52,14 @@ test('TC-TCLS-003 create classroom fails without a name', async ({ page }) => {
   await classroomListPage.goto();
   await classroomListPage.openCreate();
   await classroomFormPage.nameInput.waitFor();
+  await classroomFormPage.fillName('   ');
   await classroomFormPage.submit();
 
   await expect(page.getByText('Class name is required')).toBeVisible({ timeout: 10000 });
   await expect(classroomFormPage.nameInput).toBeVisible();
 });
 
-test('TC-TCLS-004 create classroom without any students succeeds', async ({ page }) => {
+test('TC-TCLS-004 create classroom without any students is rejected', async ({ page }) => {
   const classroomListPage = new ClassroomListPage(page);
   const classroomFormPage = new ClassroomFormPage(page);
   const name = uniqueClassroomName();
@@ -65,25 +68,25 @@ test('TC-TCLS-004 create classroom without any students succeeds', async ({ page
   await classroomListPage.openCreate();
   await classroomFormPage.fillName(name);
   await classroomFormPage.submit();
-  classroomsToCleanup.push(name);
 
-  await classroomListPage.heading.waitFor();
-  const card = classroomListPage.classroomCard(name);
-  await expect(card).toBeVisible();
-  await expect(card.getByText('0 Students')).toBeVisible();
+  await expect(page.getByText('Request failed with status code 422')).toBeVisible({ timeout: 10000 });
+  await expect(classroomFormPage.nameInput).toBeVisible();
 });
 
 test('TC-TCLS-005 classroom detail view shows the student list for conference selection', async ({ page }) => {
   const classroomListPage = new ClassroomListPage(page);
   const classroomFormPage = new ClassroomFormPage(page);
   const classroomDetailPage = new ClassroomDetailPage(page);
-  const name = uniqueClassroomName();
-
-  await classroomListPage.goto();
-  await classroomListPage.openCreate();
-  await classroomFormPage.fillName(name);
-  await classroomFormPage.submit();
+  const { name, studentNames } = await createClassroomWithStudents(page, 1);
+  if (!studentNames.length) {
+    throw new Error('No students registered for the E2E teacher account; seed at least one student fixture to run TC-TCLS-005');
+  }
   classroomsToCleanup.push(name);
+
+  await classroomListPage.editClassroom(name);
+  await classroomFormPage.nameInput.waitFor();
+  await classroomFormPage.removeStudent(studentNames[0]);
+  await classroomFormPage.submit();
   await classroomListPage.heading.waitFor();
 
   await classroomListPage.viewClassroom(name);
@@ -124,7 +127,7 @@ test('TC-TCLS-006 edit classroom name updates it in the dashboard', async ({ pag
   await classroomListPage.openCreate();
   await classroomFormPage.fillName(originalName);
   await classroomFormPage.submit();
-  classroomsToCleanup.push(renamedName);
+  classroomsToCleanup.push(originalName);
   await classroomListPage.heading.waitFor();
 
   await classroomListPage.editClassroom(originalName);
@@ -133,6 +136,8 @@ test('TC-TCLS-006 edit classroom name updates it in the dashboard', async ({ pag
   await classroomFormPage.submit();
 
   await classroomListPage.heading.waitFor();
+  classroomsToCleanup = classroomsToCleanup.filter((n) => n !== originalName);
+  classroomsToCleanup.push(renamedName);
   await expect(classroomListPage.classroomCard(renamedName)).toBeVisible();
   await expect(classroomListPage.classroomCard(originalName)).toHaveCount(0);
 });

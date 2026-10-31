@@ -15,6 +15,7 @@ class ContentDrawerPage {
     this.rewindButton = page.getByRole('button', { name: 'Rewind 10 seconds' });
     this.speedSelect = page.getByLabel('Playback speed');
     this.audio = page.locator('audio');
+    this.itemCards = page.locator('.MuiDrawer-paper .MuiChip-root:not([role="button"])');
   }
 
   contentItem(title) {

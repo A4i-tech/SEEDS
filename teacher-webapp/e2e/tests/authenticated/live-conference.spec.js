@@ -1,10 +1,14 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
-const { createClassroomWithStudents } = require('../../fixtures/classroomHelpers');
+const { createClassroomWithStudents, cleanupClassrooms } = require('../../fixtures/classroomHelpers');
 const { ClassroomListPage } = require('../../pages/ClassroomListPage');
 const { ClassroomDetailPage } = require('../../pages/ClassroomDetailPage');
 
 test.describe.configure({ mode: 'serial' });
+
+test.afterEach(async ({ page }) => {
+  await cleanupClassrooms(page);
+});
 
 test('TC-TCONF-001 selecting a single student for conference marks it selected', async ({ page }) => {
   const classroomListPage = new ClassroomListPage(page);
@@ -75,10 +79,7 @@ test('TC-TCONF-START starting a conference against the real backend reaches the 
   await classroomDetailPage.toggleStudent(studentNames[0]);
   await classroomDetailPage.startConference();
 
-  try {
-    await expect(classroomDetailPage.callScreenHeading).toBeVisible({ timeout: 15000 });
-    await expect(classroomDetailPage.endConferenceButton).toBeVisible();
-  } finally {
-    await classroomDetailPage.endConferenceButton.click().catch(() => {});
-  }
+  await expect(classroomDetailPage.callScreenHeading).toBeVisible({ timeout: 15000 });
+  await expect(classroomDetailPage.endConferenceButton).toBeVisible();
+  await classroomDetailPage.endConferenceButton.click();
 });

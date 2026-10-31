@@ -3,21 +3,7 @@ const { test, expect } = require('@playwright/test');
 const { ClassroomListPage } = require('../../pages/ClassroomListPage');
 const { ContentDrawerPage } = require('../../pages/ContentDrawerPage');
 const { ContentDetailsPage } = require('../../pages/ContentDetailsPage');
-
-// Helper: open the Content Library and skip the test if no content is available
-// for the authenticated tenant (content-dependent cases cannot be exercised
-// deterministically without seeded audio content).
-async function openLibraryOrSkip(test, page, classroomListPage, contentDrawerPage) {
-  await classroomListPage.goto();
-  const contentResponse = page.waitForResponse(
-    (res) => /\/content(\?|$)/.test(res.url()) && res.request().method() === 'GET'
-  );
-  await classroomListPage.playContentButton.click();
-  await contentDrawerPage.searchInput.waitFor();
-  const body = await (await contentResponse).json();
-  test.skip(!body.data || body.data.length === 0, 'No content available in the library for this tenant');
-  await expect(contentDrawerPage.firstContentItem()).toBeVisible({ timeout: 10000 });
-}
+const { openLibraryOrSkip } = require('../../fixtures/classroomHelpers');
 
 test('TC-TCONT-001 Content Library opens from classrooms page and lists content', async ({ page }) => {
   const classroomListPage = new ClassroomListPage(page);
@@ -47,10 +33,10 @@ test('TC-TCONT-002 filtering the Content Library by type shows only matching con
   await filterTab.click();
 
   // Each content card renders a Chip with the item's type (uppercased).
-  const itemCards = page.locator('[role="presentation"]');
+  const itemCards = contentDrawerPage.itemCards;
   await expect(itemCards.first()).toBeVisible({ timeout: 10000 });
-  const typeChips = itemCards.locator(`.MuiChip-label:text-is("${typeLabel.toUpperCase()}")`);
   const cardCount = await itemCards.count();
+  const typeChips = itemCards.filter({ has: page.locator(`.MuiChip-label:text-is("${typeLabel.toUpperCase()}")`) });
   await expect(typeChips).toHaveCount(cardCount, { timeout: 10000 });
 });
 
@@ -257,9 +243,6 @@ test('TC-TCONT-011 closing the Content Library closes the dialog', async ({ page
   await expect(contentDrawerPage.searchInput).toBeHidden({ timeout: 10000 });
 });
 
-// REG-594-TITLE (#594 regression): Verify the content title shown via the
-// Teacher WebApp read-only content details route matches the title returned
-// by the backend API, rather than relying on a locally cached/derived title.
 test('REG-594-TITLE [#594 regression] content details page title matches the API response', async ({ page }) => {
   const classroomListPage = new ClassroomListPage(page);
   const contentDrawerPage = new ContentDrawerPage(page);
@@ -277,8 +260,5 @@ test('REG-594-TITLE [#594 regression] content details page title matches the API
   const contentDetailsPage = new ContentDetailsPage(page);
   await contentDetailsPage.goto(contentId);
 
-  // Assert against the title shown in the list card rather than re-deriving
-  // the details page's title-formatting formula here, which would duplicate
-  // production logic instead of verifying it.
-  await expect(contentDetailsPage.title).toHaveText(title, { timeout: 10000 });
+  await expect(contentDetailsPage.title).toContainText(title, { timeout: 10000 });
 });

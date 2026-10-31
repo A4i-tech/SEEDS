@@ -4,7 +4,7 @@ class ClassroomFormPage {
   constructor(page) {
     this.page = page;
     this.nameInput = page.getByLabel('Classroom Name');
-    this.studentSearchInput = page.getByLabel('Search and Add Student');
+    this.studentSearchInput = page.getByRole('textbox', { name: 'Search and Add Student' });
     this.submitButton = page.getByRole('button', { name: /Create Classroom|Update Classroom/ });
     this.cancelButton = page.getByRole('button', { name: 'Cancel' });
   }
@@ -31,6 +31,7 @@ class ClassroomFormPage {
    */
   async addFirstAvailableStudent() {
     await this.studentSearchInput.click();
+    await this.studentSearchInput.press('ArrowDown');
     const firstOption = this.page.getByRole('option').first();
     let hasOption = true;
     try {

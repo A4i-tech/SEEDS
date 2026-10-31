@@ -57,7 +57,7 @@ jobs:
           node -e "
             const r = require('./e2e-results.json');
             const ran = r.suites && r.stats && (r.stats.expected + r.stats.unexpected + r.stats.flaky) > 0;
-            if (!ran) { console.error('All tests were skipped; nothing actually ran.'); process.exit(1); }
+            if (!ran || r.stats.skipped > 0) { console.error('Authenticated tests were skipped; nothing actually ran.'); process.exit(1); }
           "
 
       - name: Upload Playwright report
