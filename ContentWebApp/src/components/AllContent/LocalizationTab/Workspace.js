@@ -15,6 +15,8 @@ import { Pagination } from "../../ContentAggregatorDetails/Pagination";
 import { translationService } from "../../../services/translationService";
 import { toSegment } from "../../../utils/segments";
 import { useToast } from "./Toast";
+import TranslationImportDialog from "./TranslationImportDialog";
+import { MAX_EXPORT_ROWS, buildTranslationCsv, downloadCsv } from "../../../utils/translationCsv";
 
 function EmptyState({ title, message, action }) {
   return (
@@ -150,7 +152,7 @@ function TransRow({ seg, idx, onEdit, onApprove, onReject, onCopy }) {
   );
 }
 
-export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pagesError = null }) {
+export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pagesError = null, onDataChanged }) {
   const { siteId, route, lang } = scope;
   const { toast } = useToast();
   const [docs, setDocs] = useState(null);
@@ -160,6 +162,7 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
   const [statusTab, setStatusTab] = useState("all");
   const rowsPerPage = 10;
   const [pageOffset, setPageOffset] = useState(0);
+  const [importOpen, setImportOpen] = useState(false);
 
   const load = useCallback(() => {
     let cancelled = false;
@@ -197,8 +200,24 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
       cancelled = true;
     };
   }, [siteId, route, lang, toast]);
+  const extraLoadCancelRef = useRef(null);
+
+  const reload = useCallback(() => {
+    if (extraLoadCancelRef.current) {
+      extraLoadCancelRef.current();
+    }
+    extraLoadCancelRef.current = load();
+  }, [load]);
+
   useEffect(() => {
-    return load();
+    const cancel = load();
+    return () => {
+      cancel();
+      if (extraLoadCancelRef.current) {
+        extraLoadCancelRef.current();
+        extraLoadCancelRef.current = null;
+      }
+    };
   }, [load]);
 
   const segments = useMemo(() => (docs ? docs.map((d) => toSegment(d, lang)) : []), [docs, lang]);
@@ -303,7 +322,7 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
         } else {
           toast({ message: `Approved ${approved}, skipped ${skipped}`, tone: "good" });
         }
-        load();
+        reload();
       } catch (e) {
         toast({ message: e.message, tone: "crit" });
       }
@@ -318,6 +337,31 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
       toast({ message: `Approved ${succeeded.length}, ${failed} failed`, tone: "crit" });
     } else {
       toast({ message: `Approved ${succeeded.length} segments`, tone: "good" });
+    }
+  };
+
+  const exportCsv = async () => {
+    try {
+      const exported = await translationService.listTranslations({ siteId });
+      if (!exported.length) return toast({ message: "Nothing to export", tone: "info" });
+      const site = sites.find((s) => s.siteId === siteId);
+      const slug = (site?.name || site?.domain || siteId).replace(/[^a-z0-9]+/gi, "-");
+      const languageName = languages.find((l) => l.code === lang)?.name;
+      downloadCsv(
+        buildTranslationCsv({ docs: exported, lang, languageName }),
+        `${slug}-${lang}.csv`
+      );
+      if (exported.length >= MAX_EXPORT_ROWS) {
+        toast({
+          message: `Exported ${exported.length} rows, but ${MAX_EXPORT_ROWS.toLocaleString("en-US")} is the most one export can hold, so this file may be incomplete.`,
+          tone: "crit",
+          duration: 20000,
+        });
+      } else {
+        toast({ message: `Exported ${exported.length} rows`, tone: "good" });
+      }
+    } catch (e) {
+      toast({ message: e.message, tone: "crit" });
     }
   };
 
@@ -342,6 +386,12 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
           />
           <button type="button" className="tertiary-button" onClick={approveAll} disabled={!ready}>
             Approve all
+          </button>
+          <button type="button" className="tertiary-button" onClick={() => setImportOpen(true)} disabled={!siteId}>
+            Import
+          </button>
+          <button type="button" className="tertiary-button" onClick={exportCsv} disabled={!siteId || !lang}>
+            Export
           </button>
         </div>
       </div>
@@ -458,6 +508,18 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
             {savedAt ? <>Last saved {new Date(savedAt).toLocaleTimeString()}</> : "All changes auto-saved"}
           </p>
         </>
+      )}
+      {importOpen && (
+        <TranslationImportDialog
+          siteId={siteId}
+          languages={languages}
+          defaultLang={lang}
+          onClose={() => setImportOpen(false)}
+          onImported={() => {
+            reload();
+            onDataChanged?.();
+          }}
+        />
       )}
     </div>
   );

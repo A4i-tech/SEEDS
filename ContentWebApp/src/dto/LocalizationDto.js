@@ -62,3 +62,15 @@ export const toTranslationRejectRequest = ({ lang, reason = "" }) => ({ lang, re
 export const toExtractRequest = ({ siteId, items }) => ({ site_id: siteId, items });
 
 export const toBulkApproveRequest = ({ route, lang }) => ({ route, lang });
+
+export const toTranslationImportRequest = ({ lang, overwriteBlank, state, rows }) => ({
+  lang,
+  overwrite_blank: overwriteBlank,
+  state,
+  rows,
+});
+
+export const fromTranslationImportResponse = ({ skipped_blank: skippedBlank, ...rest }) => ({
+  ...rest,
+  skippedBlank,
+});
