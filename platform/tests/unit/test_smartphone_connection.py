@@ -16,16 +16,13 @@ from app.providers.smartphone_connection import (
 
 
 class TestSmartphoneConnectionManagerFactory:
-    def test_create_returns_manager_with_conf_id(self) -> None:
-        factory = SmartphoneConnectionManagerFactory()
-        mgr = factory.create("conf-1")
-        assert isinstance(mgr, SmartphoneConnectionManager)
-        assert mgr.conf_id == "conf-1"
-
     async def test_create_returns_independent_instances(self) -> None:
         factory = SmartphoneConnectionManagerFactory()
         mgr1 = factory.create("conf-1")
         mgr2 = factory.create("conf-2")
+        assert isinstance(mgr1, SmartphoneConnectionManager)
+        assert mgr1.conf_id == "conf-1"
+        assert mgr2.conf_id == "conf-2"
         assert mgr1 is not mgr2
 
         resp1 = await mgr1.connect(client=None)

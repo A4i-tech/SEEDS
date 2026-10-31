@@ -33,7 +33,7 @@ _BASE_SETTINGS = Settings(
 )
 
 
-def _make_settings(**overrides):
+def _make_settings(**overrides: object) -> Settings:
     return _BASE_SETTINGS.model_copy(update=overrides) if overrides else _BASE_SETTINGS
 
 
@@ -51,7 +51,9 @@ def _vad_settings(**overrides):
     return _make_settings(**base)
 
 
-def _make_transcriber(*, settings, openai_cls, webrtcvad_mod, monkeypatch):
+def _make_transcriber(
+    *, settings: Settings, openai_cls: MagicMock, webrtcvad_mod: object, monkeypatch: pytest.MonkeyPatch
+) -> AudioTranscriber:
     with (
         patch("app.services.audio.transcriber.get_settings", return_value=settings),
         patch("openai.AsyncOpenAI", openai_cls),
@@ -74,16 +76,28 @@ class TestInit:
         assert t.client == mock_openai.return_value
         mock_openai.assert_called_once_with(api_key="sk-test")
 
-    def test_client_none_when_enabled_but_no_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        settings = _make_settings(audio_analysis_enabled=True, openai_api_key="")
-        t = _make_transcriber(settings=settings, openai_cls=MagicMock(return_value=MagicMock()), webrtcvad_mod=None, monkeypatch=monkeypatch)
+    @pytest.mark.parametrize(
+        ("analysis_enabled", "api_key", "expected_log"),
+        [
+            pytest.param(True, "", "OPENAI_API_KEY not set", id="enabled_but_no_key"),
+            pytest.param(False, "sk-test", None, id="analysis_disabled"),
+        ],
+    )
+    def test_client_none_when_disabled_or_no_key(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+        analysis_enabled: bool,
+        api_key: str,
+        expected_log: str | None,
+    ) -> None:
+        settings = _make_settings(audio_analysis_enabled=analysis_enabled, openai_api_key=api_key)
+        with caplog.at_level(logging.WARNING, logger="app.services.audio.transcriber"):
+            t = _make_transcriber(settings=settings, openai_cls=MagicMock(return_value=MagicMock()), webrtcvad_mod=None, monkeypatch=monkeypatch)
         assert t.client is None
-
-    def test_client_none_when_analysis_disabled(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        settings = _make_settings(audio_analysis_enabled=False, openai_api_key="sk-test")
-        t = _make_transcriber(settings=settings, openai_cls=MagicMock(return_value=MagicMock()), webrtcvad_mod=None, monkeypatch=monkeypatch)
-        assert t.client is None
-        assert t.analysis_enabled is False
+        assert t.analysis_enabled is analysis_enabled
+        if expected_log:
+            assert expected_log in caplog.text
 
     def test_valid_frame_duration_is_kept(self, monkeypatch: pytest.MonkeyPatch) -> None:
         settings = _make_settings(audio_vad_frame_ms=30)
@@ -97,17 +111,27 @@ class TestInit:
         assert t.max_segment_bytes == int(8000 * 2 * 1.0)
         assert t.overlap_bytes == 0
 
-    def test_uses_webrtc_vad_when_module_present(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        fake_vad_mod = MagicMock()
-        fake_vad_mod.Vad.return_value = "vad-instance"
+    @pytest.mark.parametrize(
+        ("webrtcvad_mod", "expected_use_webrtc_vad", "expected_vad"),
+        [
+            pytest.param("present", True, "vad-instance", id="module_present"),
+            pytest.param(None, False, None, id="module_absent"),
+        ],
+    )
+    def test_webrtc_vad_init_depends_on_module_presence(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        webrtcvad_mod: str | None,
+        expected_use_webrtc_vad: bool,
+        expected_vad: str | None,
+    ) -> None:
+        fake_vad_mod = None
+        if webrtcvad_mod == "present":
+            fake_vad_mod = MagicMock()
+            fake_vad_mod.Vad.return_value = "vad-instance"
         t = _make_transcriber(settings=_make_settings(), openai_cls=MagicMock(return_value=MagicMock()), webrtcvad_mod=fake_vad_mod, monkeypatch=monkeypatch)
-        assert t.use_webrtc_vad is True
-        assert t.vad == "vad-instance"
-
-    def test_no_webrtc_vad_when_module_absent(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        t = _make_transcriber(settings=_make_settings(), openai_cls=MagicMock(return_value=MagicMock()), webrtcvad_mod=None, monkeypatch=monkeypatch)
-        assert t.use_webrtc_vad is False
-        assert t.vad is None
+        assert t.use_webrtc_vad is expected_use_webrtc_vad
+        assert t.vad == expected_vad
 
 
 class TestProcessChunk:
@@ -218,15 +242,23 @@ class TestConsumeFrame:
     def _settings(self):
         return _vad_settings()
 
+    def _make_consume_frame_transcriber(
+        self, monkeypatch: pytest.MonkeyPatch, **settings_overrides: object
+    ) -> AudioTranscriber:
+        settings = self._settings()
+        for key, value in settings_overrides.items():
+            setattr(settings, key, value)
+        return _make_transcriber(settings=settings, openai_cls=MagicMock(return_value=MagicMock()), webrtcvad_mod=None, monkeypatch=monkeypatch)
+
     async def test_inactive_segment_buffers_pre_speech_frames(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        t = _make_transcriber(settings=self._settings(), openai_cls=MagicMock(return_value=MagicMock()), webrtcvad_mod=None, monkeypatch=monkeypatch)
+        t = self._make_consume_frame_transcriber(monkeypatch)
         result = await t.process_chunk(_frame(t.frame_bytes, amplitude=0))
         assert result is None
         assert t.segment_active is False
         assert len(t.pre_speech_buffer) == 1
 
     async def test_segment_activates_after_start_speech_frames(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        t = _make_transcriber(settings=self._settings(), openai_cls=MagicMock(return_value=MagicMock()), webrtcvad_mod=None, monkeypatch=monkeypatch)
+        t = self._make_consume_frame_transcriber(monkeypatch)
         voiced = _frame(t.frame_bytes, amplitude=1000)
         await t.process_chunk(voiced)
         await t.process_chunk(voiced)
@@ -234,9 +266,7 @@ class TestConsumeFrame:
         assert t.speech_frames == 2
 
     async def test_segment_finalizes_after_trailing_silence(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        settings = self._settings()
-        settings.audio_vad_min_speech_ms = 20
-        t = _make_transcriber(settings=settings, openai_cls=MagicMock(return_value=MagicMock()), webrtcvad_mod=None, monkeypatch=monkeypatch)
+        t = self._make_consume_frame_transcriber(monkeypatch, audio_vad_min_speech_ms=20)
         t.client.audio.transcriptions.create = AsyncMock(return_value=SimpleNamespace(text="ok", duration=1.0))
 
         voiced = _frame(t.frame_bytes, amplitude=1000)
@@ -253,9 +283,7 @@ class TestConsumeFrame:
         t.client.audio.transcriptions.create.assert_awaited_once()
 
     async def test_short_segment_is_dropped_without_transcribing(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        settings = self._settings()
-        settings.audio_vad_min_speech_ms = 1000
-        t = _make_transcriber(settings=settings, openai_cls=MagicMock(return_value=MagicMock()), webrtcvad_mod=None, monkeypatch=monkeypatch)
+        t = self._make_consume_frame_transcriber(monkeypatch, audio_vad_min_speech_ms=1000)
         t.client.audio.transcriptions.create = AsyncMock()
 
         voiced = _frame(t.frame_bytes, amplitude=1000)
@@ -271,11 +299,12 @@ class TestConsumeFrame:
         assert t.metrics["segments_dropped_short"] == 1
 
     async def test_segment_finalizes_when_max_segment_bytes_exceeded(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        settings = self._settings()
-        settings.audio_vad_max_segment_sec = 0.001
-        settings.audio_vad_min_speech_ms = 0
-        settings.audio_vad_silence_flush_ms = 100000
-        t = _make_transcriber(settings=settings, openai_cls=MagicMock(return_value=MagicMock()), webrtcvad_mod=None, monkeypatch=monkeypatch)
+        t = self._make_consume_frame_transcriber(
+            monkeypatch,
+            audio_vad_max_segment_sec=0.001,
+            audio_vad_min_speech_ms=0,
+            audio_vad_silence_flush_ms=100000,
+        )
         t.client.audio.transcriptions.create = AsyncMock(return_value=SimpleNamespace(text="", duration=0))
 
         voiced = _frame(t.frame_bytes, amplitude=1000)

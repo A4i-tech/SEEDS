@@ -64,14 +64,6 @@ class TestMuteParticipantEvent:
         assert entry.metadata == {"phone_number": "+222", "is_muted": True}
         conf.update_state.assert_awaited_once()
 
-    async def test_muting_teacher_skips_system_message(self) -> None:
-        conf = _make_conf(teacher_phone="+111", student_phones=[])
-        event = MuteParticipantEvent(phone_number="+111", conf_call=conf)
-
-        await event.execute_event()
-
-        conf.stream_system_message.assert_not_called()
-
     async def test_stream_system_message_false_skips_broadcast(self) -> None:
         conf = _make_conf(student_phones=["+222"])
         event = MuteParticipantEvent(phone_number="+222", conf_call=conf, stream_system_message=False)
@@ -108,13 +100,15 @@ class TestUnmuteParticipantEvent:
         entry = conf.state.action_history[-1]
         assert entry.metadata == {"phone_number": "+222", "is_muted": False}
 
-    async def test_unmuting_teacher_skips_system_message(self) -> None:
-        conf = _make_conf(teacher_phone="+111", student_phones=[])
-        event = UnmuteParticipantEvent(phone_number="+111", conf_call=conf)
 
-        await event.execute_event()
+@pytest.mark.parametrize("event_cls", [MuteParticipantEvent, UnmuteParticipantEvent])
+async def test_teacher_skips_system_message(event_cls) -> None:
+    conf = _make_conf(teacher_phone="+111", student_phones=[])
+    event = event_cls(phone_number="+111", conf_call=conf)
 
-        conf.stream_system_message.assert_not_called()
+    await event.execute_event()
+
+    conf.stream_system_message.assert_not_called()
 
 
 class TestRemoveParticipantEvent:

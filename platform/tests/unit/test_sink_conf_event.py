@@ -119,6 +119,23 @@ class TestSinkConferenceEvent:
         conf.update_state.assert_awaited_once()
         conf.end_processing_conf_events_from_queue.assert_called_once()
 
+    async def test_update_state_failure_propagates_and_halts_teardown(self) -> None:
+        conn_mgr = MagicMock()
+        conn_mgr.disconnect = AsyncMock()
+        conf = _make_conf(connection_manager=conn_mgr)
+        callback = MagicMock()
+        conf.update_state.side_effect = RuntimeError("db down")
+        event = SinkConferenceEvent(conf, on_sink_callback=callback)
+
+        with pytest.raises(RuntimeError, match="db down"):
+            await event.execute_event()
+
+        conf.stop_remote_audio_relay.assert_not_called()
+        conf.schedule_capture_finalize.assert_not_called()
+        conf.end_processing_conf_events_from_queue.assert_not_called()
+        conn_mgr.disconnect.assert_not_awaited()
+        callback.assert_not_called()
+
     async def test_full_order_of_operations(self) -> None:
         conn_mgr = MagicMock()
         conn_mgr.disconnect = AsyncMock()

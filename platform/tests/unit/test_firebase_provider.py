@@ -43,9 +43,22 @@ class TestEnsureInitialized:
         with pytest.raises(RuntimeError, match="FIREBASE_SERVICE_ACCOUNT is not configured"):
             mod._ensure_initialized()
 
-    def test_initializes_new_app_from_json_string(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    @pytest.mark.parametrize(
+        ("service_account_raw", "expected_cert_arg"),
+        [
+            pytest.param(
+                json.dumps({"type": "service_account"}), {"type": "service_account"}, id="json_string",
+            ),
+            pytest.param(
+                "/path/to/service-account.json", "/path/to/service-account.json", id="file_path",
+            ),
+        ],
+    )
+    def test_initializes_new_app(
+        self, monkeypatch: pytest.MonkeyPatch, service_account_raw: str, expected_cert_arg: object,
+    ) -> None:
         set_auth_type(monkeypatch, "firebase")
-        monkeypatch.setenv("FIREBASE_SERVICE_ACCOUNT", json.dumps({"type": "service_account"}))
+        monkeypatch.setenv("FIREBASE_SERVICE_ACCOUNT", service_account_raw)
 
         fake_firebase_admin = MagicMock()
         fake_firebase_admin.app._apps = {}
@@ -60,34 +73,22 @@ class TestEnsureInitialized:
         }):
             mod._ensure_initialized()
 
-        fake_credentials.Certificate.assert_called_once_with({"type": "service_account"})
+        fake_credentials.Certificate.assert_called_once_with(expected_cert_arg)
         fake_firebase_admin.initialize_app.assert_called_once_with("fake-cred")
         fake_firebase_admin.get_app.assert_not_called()
         assert mod._initialized is True
         assert mod._firebase_app == "fake-app"
 
-    def test_initializes_from_file_path_when_not_json(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    @pytest.mark.parametrize(
+        "bad_json",
+        [
+            pytest.param('{"type": "service_account",}', id="trailing_comma"),
+            pytest.param('{"type": "service_accou', id="truncated"),
+        ],
+    )
+    def test_malformed_inline_json_fails_clearly(self, monkeypatch: pytest.MonkeyPatch, bad_json: str) -> None:
         set_auth_type(monkeypatch, "firebase")
-        monkeypatch.setenv("FIREBASE_SERVICE_ACCOUNT", "/path/to/service-account.json")
-
-        fake_firebase_admin = MagicMock()
-        fake_firebase_admin.app._apps = {}
-        fake_firebase_admin.initialize_app.return_value = "fake-app"
-        fake_credentials = MagicMock()
-        fake_credentials.Certificate.return_value = "fake-cred"
-        fake_firebase_admin.credentials = fake_credentials
-
-        with patch.dict("sys.modules", {
-            "firebase_admin": fake_firebase_admin,
-            "firebase_admin.credentials": fake_credentials,
-        }):
-            mod._ensure_initialized()
-
-        fake_credentials.Certificate.assert_called_once_with("/path/to/service-account.json")
-
-    def test_malformed_inline_json_fails_clearly(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        set_auth_type(monkeypatch, "firebase")
-        monkeypatch.setenv("FIREBASE_SERVICE_ACCOUNT", '{"type": "service_account",}')
+        monkeypatch.setenv("FIREBASE_SERVICE_ACCOUNT", bad_json)
 
         fake_firebase_admin = MagicMock()
         fake_firebase_admin.app._apps = {}
@@ -104,6 +105,30 @@ class TestEnsureInitialized:
             mod._ensure_initialized()
 
         fake_credentials.Certificate.assert_not_called()
+
+    def test_nonexistent_file_path_error_propagates(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        set_auth_type(monkeypatch, "firebase")
+        monkeypatch.setenv("FIREBASE_SERVICE_ACCOUNT", "/no/such/service-account.json")
+
+        fake_firebase_admin = MagicMock()
+        fake_firebase_admin.app._apps = {}
+        fake_credentials = MagicMock()
+        fake_credentials.Certificate.side_effect = FileNotFoundError(
+            "[Errno 2] No such file or directory: '/no/such/service-account.json'"
+        )
+        fake_firebase_admin.credentials = fake_credentials
+
+        with (
+            patch.dict("sys.modules", {
+                "firebase_admin": fake_firebase_admin,
+                "firebase_admin.credentials": fake_credentials,
+            }),
+            pytest.raises(FileNotFoundError, match="No such file or directory"),
+        ):
+            mod._ensure_initialized()
+
+        fake_credentials.Certificate.assert_called_once_with("/no/such/service-account.json")
+        fake_firebase_admin.initialize_app.assert_not_called()
 
     def test_reuses_existing_app_when_already_present(self, monkeypatch: pytest.MonkeyPatch) -> None:
         set_auth_type(monkeypatch, "firebase")
@@ -151,20 +176,37 @@ class TestVerifyFirebaseToken:
         fake_auth.verify_id_token.assert_called_once_with("fake-token")
 
     @pytest.mark.asyncio
-    async def test_falls_back_to_nested_claims(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    @pytest.mark.parametrize(
+        ("decoded", "expected_role", "expected_tenant"),
+        [
+            pytest.param(
+                {"role": "admin", "tenant_id": "tenant-2"}, "admin", "tenant-2", id="top_level",
+            ),
+            pytest.param(
+                {"claims": {"role": "admin", "tenant_id": "tenant-2"}}, "admin", "tenant-2", id="nested",
+            ),
+        ],
+    )
+    async def test_role_and_tenant_from_top_level_or_nested_claims(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        decoded: dict,
+        expected_role: str,
+        expected_tenant: str,
+    ) -> None:
         monkeypatch.setattr(mod, "_initialized", True)
         fake_auth = MagicMock()
         fake_auth.verify_id_token.return_value = {
             "uid": "user-1",
             "email": "a@example.com",
-            "claims": {"role": "admin", "tenant_id": "tenant-2"},
+            **decoded,
         }
 
         with patch.dict("sys.modules", {"firebase_admin.auth": fake_auth}):
             result = await mod.verify_firebase_token("fake-token")
 
-        assert result["role"] == "admin"
-        assert result["tenant_id"] == "tenant-2"
+        assert result["role"] == expected_role
+        assert result["tenant_id"] == expected_tenant
 
     @pytest.mark.asyncio
     async def test_missing_optional_fields_default_to_empty_string(self, monkeypatch: pytest.MonkeyPatch) -> None:
