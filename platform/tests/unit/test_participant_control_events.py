@@ -75,13 +75,16 @@ class TestMuteParticipantEvent:
 
 
 class TestUnmuteParticipantEvent:
-    async def test_unknown_participant_is_noop(self) -> None:
+    async def test_unknown_participant_is_noop(self, caplog: pytest.LogCaptureFixture) -> None:
         conf = _make_conf(student_phones=[])
         event = UnmuteParticipantEvent(phone_number="+999", conf_call=conf)
 
-        await event.execute_event()
+        with caplog.at_level(logging.WARNING):
+            await event.execute_event()
 
         conf.communication_api.unmute_participant.assert_not_called()
+        assert "unknown participant" in caplog.text
+        assert "+999" in caplog.text
 
     async def test_unmutes_student_resets_raised_hand_and_streams_message(self) -> None:
         conf = _make_conf(student_phones=["+222"], student_muted=True)
@@ -112,14 +115,17 @@ async def test_teacher_skips_system_message(event_cls) -> None:
 
 
 class TestRemoveParticipantEvent:
-    async def test_unknown_participant_is_noop(self) -> None:
+    async def test_unknown_participant_is_noop(self, caplog: pytest.LogCaptureFixture) -> None:
         conf = _make_conf(student_phones=[])
         event = RemoveParticipantEvent(phone_number="+999", conf_call=conf)
 
-        await event.execute_event()
+        with caplog.at_level(logging.WARNING):
+            await event.execute_event()
 
         conf.communication_api.remove_participant.assert_not_called()
         conf.update_state.assert_not_called()
+        assert "unknown participant" in caplog.text
+        assert "+999" in caplog.text
 
     async def test_removes_student_and_announces_to_remaining(self) -> None:
         conf = _make_conf(teacher_phone="+111", student_phones=["+222", "+333"])
