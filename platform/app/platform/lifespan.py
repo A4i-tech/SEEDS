@@ -220,15 +220,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.warning("Conference manager init failed (non-fatal in test mode): %s", exc)
         conf_mgr = None  # type: ignore[assignment]
 
+    from app.providers.service_bus import service_bus_provider  # noqa: PLC0415
+
+    await service_bus_provider.initialize()
+
     consumer_tasks: list[asyncio.Task] = []  # type: ignore[type-arg]
     if settings.app_mode in ("consumer", "all"):
         reconciled = await get_sync_job_service(get_database()).reconcile_interrupted_jobs()
         if reconciled:
             logger.info("Reconciled %d interrupted content aggregator sync jobs", reconciled)
         try:
-            from app.providers.service_bus import service_bus_provider  # noqa: PLC0415
-
-            await service_bus_provider.initialize()
             consumer_tasks = _make_consumer_tasks(conf_mgr)
         except Exception as exc:  # noqa: BLE001
             logger.error("Failed to start consumers: %s", exc)
@@ -271,6 +272,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             await ws_client.close()
         except Exception as exc:
             logger.warning("WebsocketClientProvider close failed: %s", exc)
+
+    await service_bus_provider.close()
 
     if conf_mgr is not None:
         try:
