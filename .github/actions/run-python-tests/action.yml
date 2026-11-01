@@ -13,9 +13,10 @@ runs:
   steps:
     - name: Run tests with coverage
       env:
+        DIRECTORY: ${{ inputs.directory }}
         COVERAGE_THRESHOLD_INPUT: ${{ inputs.coverage_threshold }}
       run: |
-        cd ${{ inputs.directory }}
+        cd "$DIRECTORY"
         FAIL_UNDER=""
         if [ -n "$COVERAGE_THRESHOLD_INPUT" ]; then
           FAIL_UNDER="--cov-fail-under=$COVERAGE_THRESHOLD_INPUT"

@@ -152,6 +152,35 @@ The service logs key events for easier tracking and debugging:
 - When WebSocket connections are closed or reconnected.
 - Errors during audio streaming.
 
+### Environment Variables
+
+- **`OTEL_SERVICE_NAME`** (deployment setting): set to `websocket-service` so `cloud_RoleName` in Application Insights is `websocket-service`. Until it is set, `cloud_RoleName` is `unknown_service:node` in kube-dev and the App Service site name in prod (`web-socket-service-main`), and the `cloud_RoleName == "websocket-service"` queries below return no rows.
+- **`LOG_LEVEL`** (optional): Minimum log level to emit — one of `debug`, `info`, `warn`, `error`. Defaults to `info` if unset or unrecognized.
+- **`APPLICATIONINSIGHTS_CONNECTION_STRING`** (optional): Azure Application Insights connection string. When set, winston output is auto-collected by Application Insights. If unset, logs are still written as JSON to stdout/stderr, but nothing is sent to Azure.
+
+### Sample KQL Queries
+
+Once logs are flowing into Application Insights, use Log Analytics to inspect them:
+
+```kusto
+// Traces for this service, filtered by event type
+traces
+| where cloud_RoleName == "websocket-service"
+| where customDimensions.eventType == "play_audio_requested"
+| order by timestamp desc
+
+// Trace correlation and session for a specific WebSocket connection
+traces
+| where cloud_RoleName == "websocket-service"
+| where customDimensions.sessionId == "connection1"
+| order by timestamp desc
+
+// Exceptions logged by the websocket service
+exceptions
+| where cloud_RoleName == "websocket-service"
+| order by timestamp desc
+```
+
 ## State Management
 
 Each connection maintains its own state:
