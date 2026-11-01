@@ -21,7 +21,7 @@ class RemoveParticipantEvent(ConferenceEvent):
     async def execute_event(self) -> None:
         if self.phone_number not in self.conf_call.state.participants:
             logger.warning(
-                "RemoveParticipantEvent: unknown participant phone_number=%s, no-op", self.phone_number
+                "RemoveParticipantEvent: unknown participant phone_number=<redacted>, no-op"
             )
             return
         participant = self.conf_call.state.participants[self.phone_number]

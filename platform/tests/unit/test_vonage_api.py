@@ -689,10 +689,10 @@ class TestUnknownParticipantWarnings:
         ("call", "expected_log_fragment"),
         [
             (lambda p: p.handle_call_transfer_event("leg-missing", "conv-to-1"), "unknown participant for call leg uuid=leg-missing"),
-            (lambda p: p.remove_participant("missing"), "unknown participant phone_number=missing for remove_participant"),
-            (lambda p: p.mute_participant("missing"), "unknown participant phone_number=missing for mute_participant"),
-            (lambda p: p.unmute_participant("missing"), "unknown participant phone_number=missing for unmute_participant"),
-            (lambda p: p.play_announcement_to_conference("hi", ["missing"]), "unknown participant phone_number=missing for play_announcement_to_conference"),
+            (lambda p: p.remove_participant("missing"), "unknown participant phone_number=<redacted> for remove_participant"),
+            (lambda p: p.mute_participant("missing"), "unknown participant phone_number=<redacted> for mute_participant"),
+            (lambda p: p.unmute_participant("missing"), "unknown participant phone_number=<redacted> for unmute_participant"),
+            (lambda p: p.play_announcement_to_conference("hi", ["missing"]), "unknown participant phone_number=<redacted> for play_announcement_to_conference"),
         ],
         ids=["handle_call_transfer_event", "remove_participant", "mute_participant", "unmute_participant", "play_announcement_to_conference"],
     )
@@ -708,3 +708,5 @@ class TestUnknownParticipantWarnings:
         provider._client.voice.update_call.assert_not_called()
         if "call leg" in expected_log_fragment:
             assert result is None
+        else:
+            assert "phone_number=missing" not in caplog.text

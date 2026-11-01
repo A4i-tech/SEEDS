@@ -327,7 +327,7 @@ class VonageAPIProvider:
             )
             await self.redis_store.delete_participant(self.conf_id, phone_number)
         else:
-            logger.warning("vonage_api: unknown participant phone_number=%s for remove_participant conf_id=%s", phone_number, self.conf_id)
+            logger.warning("vonage_api: unknown participant phone_number=<redacted> for remove_participant conf_id=%s", self.conf_id)
 
     async def mute_participant(self, phone_number: str) -> None:
         """Mute *phone_number* via Vonage API."""
@@ -342,7 +342,7 @@ class VonageAPIProvider:
                 action="mute",
             )
         else:
-            logger.warning("vonage_api: unknown participant phone_number=%s for mute_participant conf_id=%s", phone_number, self.conf_id)
+            logger.warning("vonage_api: unknown participant phone_number=<redacted> for mute_participant conf_id=%s", self.conf_id)
 
     async def unmute_participant(self, phone_number: str) -> None:
         """Unmute *phone_number* via Vonage API."""
@@ -357,7 +357,7 @@ class VonageAPIProvider:
                 action="unmute",
             )
         else:
-            logger.warning("vonage_api: unknown participant phone_number=%s for unmute_participant conf_id=%s", phone_number, self.conf_id)
+            logger.warning("vonage_api: unknown participant phone_number=<redacted> for unmute_participant conf_id=%s", self.conf_id)
 
     async def play_announcement_to_conference(
         self, text: str, phone_numbers: list[str] | None = None
@@ -371,7 +371,7 @@ class VonageAPIProvider:
         for phone_number in recipients:
             info = all_participants.get(phone_number)
             if not info:
-                logger.warning("vonage_api: unknown participant phone_number=%s for play_announcement_to_conference conf_id=%s", phone_number, self.conf_id)
+                logger.warning("vonage_api: unknown participant phone_number=<redacted> for play_announcement_to_conference conf_id=%s", self.conf_id)
                 continue
             await self._play_tts_to_call_leg(info.call_leg_id, text)
 

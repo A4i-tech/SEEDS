@@ -48,7 +48,8 @@ class TestMuteParticipantEvent:
         conf.communication_api.mute_participant.assert_not_called()
         conf.update_state.assert_not_called()
         assert "unknown participant" in caplog.text
-        assert "+999" in caplog.text
+        assert "<redacted>" in caplog.text
+        assert "+999" not in caplog.text
 
     async def test_mutes_student_and_streams_system_message(self) -> None:
         conf = _make_conf(student_phones=["+222"])
@@ -84,7 +85,8 @@ class TestUnmuteParticipantEvent:
 
         conf.communication_api.unmute_participant.assert_not_called()
         assert "unknown participant" in caplog.text
-        assert "+999" in caplog.text
+        assert "<redacted>" in caplog.text
+        assert "+999" not in caplog.text
 
     async def test_unmutes_student_resets_raised_hand_and_streams_message(self) -> None:
         conf = _make_conf(student_phones=["+222"], student_muted=True)
@@ -125,7 +127,8 @@ class TestRemoveParticipantEvent:
         conf.communication_api.remove_participant.assert_not_called()
         conf.update_state.assert_not_called()
         assert "unknown participant" in caplog.text
-        assert "+999" in caplog.text
+        assert "<redacted>" in caplog.text
+        assert "+999" not in caplog.text
 
     async def test_removes_student_and_announces_to_remaining(self) -> None:
         conf = _make_conf(teacher_phone="+111", student_phones=["+222", "+333"])

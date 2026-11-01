@@ -243,7 +243,7 @@ def _patch_repo(
 
 
 def _reconcile_content_aggregator(tc: TestLifespan) -> None:
-    tc._repo_mocks["ContentAggregatorSyncJobRepository"].return_value.reconcile_interrupted_jobs.return_value = 3
+    lifespan_module.get_sync_job_service.return_value.reconcile_interrupted_jobs = AsyncMock(return_value=3)
 
 
 def _reconcile_textbook_remediation(tc: TestLifespan) -> None:
@@ -302,6 +302,10 @@ class TestLifespan:
         monkeypatch.setattr(
             "app.providers.websocket_client.WebsocketClientProvider",
             MagicMock(return_value=MagicMock(initialize=AsyncMock(), close=AsyncMock())),
+        )
+        monkeypatch.setattr(
+            "app.providers.service_bus.service_bus_provider",
+            MagicMock(initialize=AsyncMock(), close=AsyncMock()),
         )
 
     async def test_api_mode_startup_and_shutdown(self, monkeypatch: pytest.MonkeyPatch, fake_app: FastAPI) -> None:
@@ -421,7 +425,7 @@ class TestLifespan:
     @pytest.mark.parametrize(
         ("app_mode", "configure", "expected_log"),
         [
-            ("api", _reconcile_content_aggregator, "Reconciled 3 interrupted content aggregator sync jobs"),
+            ("consumer", _reconcile_content_aggregator, "Reconciled 3 interrupted content aggregator sync jobs"),
             ("consumer", _reconcile_textbook_remediation, "Reconciled 2 interrupted textbook remediation jobs"),
             ("all", _reconcile_sync_job_service, "Reconciled 5 interrupted content aggregator sync jobs"),
         ],
