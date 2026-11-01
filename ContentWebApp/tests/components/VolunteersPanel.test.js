@@ -26,7 +26,7 @@ test("populated volunteer list renders the table", () => {
 test("flash message renders with the given messageType", () => {
   render(
     <VolunteersPanel
-      volunteers={[]}
+      volunteers={[{ id: "vol-1", name: "Volunteer One", email: "vol1@example.com" }]}
       isLoading={false}
       onCreateVolunteer={noop}
       message="Failed to create volunteer"
@@ -34,4 +34,18 @@ test("flash message renders with the given messageType", () => {
     />
   );
   expect(screen.getByText("Failed to create volunteer")).toHaveClass("error-message");
+});
+
+test("fetch error shows the error message instead of the empty state", () => {
+  render(
+    <VolunteersPanel
+      volunteers={[]}
+      isLoading={false}
+      onCreateVolunteer={noop}
+      message="Failed to load volunteers."
+      messageType="error"
+    />
+  );
+  expect(screen.queryByText("No volunteers yet.")).not.toBeInTheDocument();
+  expect(screen.getAllByText("Failed to load volunteers.").length).toBeGreaterThan(0);
 });

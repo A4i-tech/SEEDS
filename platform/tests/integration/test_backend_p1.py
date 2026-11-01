@@ -20,6 +20,7 @@ Coverage:
 from __future__ import annotations
 
 import os
+from typing import Any
 
 # Set minimal env vars before app imports resolve settings
 os.environ.setdefault("SECRET_KEY", "test-secret-key-for-integration-tests-32ch")
@@ -94,7 +95,9 @@ async def _seed_teacher(mock_db, phone: str = "+911234567890", password: str = "
     return doc
 
 
-async def _seed_tenant(mock_db, email: str = "tenant@test.com", password: str = "TenantPass@1") -> dict:
+async def _seed_tenant(
+    mock_db, email: str = "tenant@test.com", password: str = "TenantPass@1"
+) -> dict:
     """Insert a tenant user and return its dict."""
     doc = {
         "role": UserRole.TENANT.value,
@@ -110,33 +113,38 @@ async def _seed_tenant(mock_db, email: str = "tenant@test.com", password: str = 
 
 
 def _teacher_token(user_id: str, school_id: str = "school001", tenant_id: str = "tenant001") -> str:
-    return create_access_token({
-        "sub": user_id,
-        "role": "teacher",
-        "school_id": school_id,
-        "tenant_id": tenant_id,
-    })
+    return create_access_token(
+        {
+            "sub": user_id,
+            "role": "teacher",
+            "school_id": school_id,
+            "tenant_id": tenant_id,
+        }
+    )
 
 
 def _school_admin_token(school_id: str, tenant_id: str = "tenant001") -> str:
-    return create_access_token({
-        "sub": school_id,
-        "role": "school_admin",
-        "school_id": school_id,
-        "tenant_id": tenant_id,
-    })
+    return create_access_token(
+        {
+            "sub": school_id,
+            "role": "school_admin",
+            "school_id": school_id,
+            "tenant_id": tenant_id,
+        }
+    )
 
 
 def _tenant_token(user_id: str) -> str:
-    return create_access_token({
-        "sub": user_id,
-        "role": "tenant",
-        "tenant_id": user_id,
-    })
+    return create_access_token(
+        {
+            "sub": user_id,
+            "role": "tenant",
+            "tenant_id": user_id,
+        }
+    )
 
 
-async def _seed_volunteer(mock_db, email: str = "volunteer@test.com") -> dict:
-    """Insert a textbook remediation volunteer user and return its dict."""
+async def _seed_volunteer(mock_db, email: str = "volunteer@test.com") -> dict[str, Any]:
     doc = {
         "role": UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER.value,
         "name": "Test Volunteer",
@@ -150,11 +158,13 @@ async def _seed_volunteer(mock_db, email: str = "volunteer@test.com") -> dict:
 
 
 def _volunteer_token(user_id: str, tenant_id: str = "tenant001") -> str:
-    return create_access_token({
-        "sub": user_id,
-        "role": "textbook_remediation_volunteer",
-        "tenant_id": tenant_id,
-    })
+    return create_access_token(
+        {
+            "sub": user_id,
+            "role": "textbook_remediation_volunteer",
+            "tenant_id": tenant_id,
+        }
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -164,7 +174,6 @@ def _volunteer_token(user_id: str, tenant_id: str = "tenant001") -> str:
 
 @pytest.mark.asyncio
 async def test_teacher_login_returns_token(client, mock_db):
-    """POST /teacher/login with valid credentials returns token."""
     await _seed_teacher(mock_db, "+911234567890", "Test@1234")
 
     resp = await client.post(
@@ -278,7 +287,6 @@ async def test_remediation_me_requires_auth(client):
 
 @pytest.mark.asyncio
 async def test_tenant_me_unchanged_for_tenant_role(client, mock_db):
-    """Adding /textbook-remediation/me must not change /tenant/me for the tenant role."""
     tenant = await _seed_tenant(mock_db)
     token = _tenant_token(tenant["_id"])
 
@@ -292,7 +300,6 @@ async def test_tenant_me_unchanged_for_tenant_role(client, mock_db):
 
 @pytest.mark.asyncio
 async def test_tenant_me_rejects_volunteer_token(client, mock_db):
-    """/tenant/me must reject a volunteer token."""
     volunteer = await _seed_volunteer(mock_db)
     token = _volunteer_token(volunteer["_id"])
 
@@ -304,30 +311,104 @@ async def test_tenant_me_rejects_volunteer_token(client, mock_db):
 
 
 @pytest.mark.asyncio
+async def test_create_volunteer_as_tenant(client, mock_db):
+    """POST /tenant/volunteers creates a volunteer scoped to the authenticated tenant;
+    school_id is not accepted and is not set on the created user."""
+    tenant = await _seed_tenant(mock_db)
+    token = _tenant_token(tenant["_id"])
+
+    resp = await client.post(
+        "/tenant/volunteers",
+        json={"email": "newvol@test.com", "password": "Volunteer@1", "name": "New Volunteer"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 201
+    body = resp.json()
+    assert body["email"] == "newvol@test.com"
+    assert body.get("school_id") is None
+
+    stored = await mock_db["users"].find_one({"email": "newvol@test.com"})
+    assert str(stored["tenant_id"]) == tenant["_id"]
+    assert stored.get("school_id") is None
+
+
+@pytest.mark.asyncio
+async def test_create_volunteer_rejects_school_id(client, mock_db):
+    """POST /tenant/volunteers must reject an unexpected school_id field."""
+    tenant = await _seed_tenant(mock_db)
+    token = _tenant_token(tenant["_id"])
+
+    resp = await client.post(
+        "/tenant/volunteers",
+        json={
+            "email": "newvol2@test.com",
+            "password": "Volunteer@1",
+            "name": "New Volunteer",
+            "school_id": "school001",
+        },
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_create_volunteer_rejects_school_admin(client, mock_db):
+    """POST /tenant/volunteers must reject a school_admin token (tenant role required)."""
+    token = _school_admin_token("school001")
+
+    resp = await client.post(
+        "/tenant/volunteers",
+        json={"email": "newvol3@test.com", "password": "Volunteer@1", "name": "New Volunteer"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("role", ["teacher", "content_creator", "textbook_remediation_volunteer"])
+async def test_create_volunteer_rejects_non_tenant_roles(client, mock_db, role):
+    """POST /tenant/volunteers must reject every non-tenant role."""
+    token = create_access_token({"sub": "someone", "role": role, "tenant_id": "tenant001"})
+
+    resp = await client.post(
+        "/tenant/volunteers",
+        json={"email": f"{role}@test.com", "password": "Volunteer@1", "name": "New Volunteer"},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
 async def test_list_volunteers_scopes_by_authenticated_sub(client, mock_db):
     """GET /tenant/volunteers must scope by the authenticated sub, not the tenant_id claim."""
     own_tenant = await _seed_tenant(mock_db, email="owner@test.com")
     other_tenant = await _seed_tenant(mock_db, email="other@test.com")
-    await mock_db["users"].insert_one({
-        "role": UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER.value,
-        "name": "Mine",
-        "email": "mine@test.com",
-        "tenant_id": ObjectId(own_tenant["_id"]),
-        "is_active": True,
-    })
-    await mock_db["users"].insert_one({
-        "role": UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER.value,
-        "name": "Theirs",
-        "email": "theirs@test.com",
-        "tenant_id": ObjectId(other_tenant["_id"]),
-        "is_active": True,
-    })
+    await mock_db["users"].insert_one(
+        {
+            "role": UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER.value,
+            "name": "Mine",
+            "email": "mine@test.com",
+            "tenant_id": ObjectId(own_tenant["_id"]),
+            "is_active": True,
+        }
+    )
+    await mock_db["users"].insert_one(
+        {
+            "role": UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER.value,
+            "name": "Theirs",
+            "email": "theirs@test.com",
+            "tenant_id": ObjectId(other_tenant["_id"]),
+            "is_active": True,
+        }
+    )
 
-    token = create_access_token({
-        "sub": own_tenant["_id"],
-        "role": "tenant",
-        "tenant_id": other_tenant["_id"],
-    })
+    token = create_access_token(
+        {
+            "sub": own_tenant["_id"],
+            "role": "tenant",
+            "tenant_id": other_tenant["_id"],
+        }
+    )
     resp = await client.get(
         "/tenant/volunteers",
         headers={"Authorization": f"Bearer {token}"},
@@ -443,13 +524,15 @@ async def test_list_schools_with_tenant_token(client, mock_db):
     # tenant_id stored as ObjectId to match UserRepository's coerced writes/reads.
     from bson import ObjectId
 
-    await mock_db["users"].insert_one({
-        "role": UserRole.SCHOOL_ADMIN.value,
-        "tenant_id": ObjectId(tenant["_id"]),
-        "name": "Seeded School",
-        "email": "seeded@school.com",
-        "is_active": True,
-    })
+    await mock_db["users"].insert_one(
+        {
+            "role": UserRole.SCHOOL_ADMIN.value,
+            "tenant_id": ObjectId(tenant["_id"]),
+            "name": "Seeded School",
+            "email": "seeded@school.com",
+            "is_active": True,
+        }
+    )
 
     resp = await client.get(
         "/school",
@@ -474,14 +557,16 @@ async def test_list_classes_by_school(client, mock_db):
 
     school_id = "testschool001"
     # Seed classrooms
-    await mock_db["classes"].insert_one({
-        "school_id": school_id,
-        "name": "Class A",
-        "teacher": teacher["_id"],
-        "students": [],
-        "leaders": [],
-        "content_ids": [],
-    })
+    await mock_db["classes"].insert_one(
+        {
+            "school_id": school_id,
+            "name": "Class A",
+            "teacher": teacher["_id"],
+            "students": [],
+            "leaders": [],
+            "content_ids": [],
+        }
+    )
 
     resp = await client.get(
         f"/class?school_id={school_id}",

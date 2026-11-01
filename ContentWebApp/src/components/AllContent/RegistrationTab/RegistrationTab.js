@@ -5,6 +5,7 @@ import StudentsSection from "./StudentsSection";
 import SchoolsPanel from "./SchoolsPanel";
 import VolunteersPanel from "./VolunteersPanel";
 import { getRole } from "../../../utils/authHelpers";
+import { USER_ROLES } from "../../../Constants";
 import "./css/RegistrationTab.css";
 import "../shared/buttons.css";
 import "../shared/cards.css";
@@ -40,24 +41,24 @@ const RegistrationTab = ({
   const [activeSection, setActiveSection] = useState("teachers");
   const [tenantSection, setTenantSection] = useState("schools");
 
-  if (getRole() === "tenant") {
+  if (getRole() === USER_ROLES.TENANT) {
+    const tenantSections = [
+      { key: "schools", label: "Schools" },
+      { key: "volunteers", label: "Volunteers" },
+    ];
     return (
       <div className="card registration-page-card">
         <div className="pill-tabs">
-          <button
-            type="button"
-            className={`pill-tab ${tenantSection === "schools" ? "pill-tab--active" : ""}`}
-            onClick={() => setTenantSection("schools")}
-          >
-            Schools
-          </button>
-          <button
-            type="button"
-            className={`pill-tab ${tenantSection === "volunteers" ? "pill-tab--active" : ""}`}
-            onClick={() => setTenantSection("volunteers")}
-          >
-            Volunteers
-          </button>
+          {tenantSections.map(({ key, label }) => (
+            <button
+              key={key}
+              type="button"
+              className={`pill-tab ${tenantSection === key ? "pill-tab--active" : ""}`}
+              onClick={() => setTenantSection(key)}
+            >
+              {label}
+            </button>
+          ))}
         </div>
 
         {tenantSection === "schools" ? (

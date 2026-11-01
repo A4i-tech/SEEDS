@@ -1,6 +1,6 @@
 import { useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { SEEDS_URL } from "../Constants";
+import { ME_URL_BY_ROLE } from "../Constants";
 import { getAuthHeaders, isAuthenticated, clearAuth } from "../utils/authHelpers";
 import { apiFetch } from "../services/api";
 import { TeacherDto } from "../dto/TeacherDto";
@@ -57,14 +57,10 @@ export const useAuth = () => {
     const tokenPayload = getTokenPayload();
     const role = tokenPayload.role || tokenPayload.iss || null;
     const nameFromToken = tokenPayload.name || null;
-    const meUrl =
-      role === "school_admin"
-        ? `${SEEDS_URL}/school/admin/me`
-        : role === "teacher" || role === "content_creator"
-          ? `${SEEDS_URL}/teacher/me`
-          : role === "textbook_remediation_volunteer"
-            ? `${SEEDS_URL}/textbook-remediation/me`
-            : `${SEEDS_URL}/tenant/me`;
+    const meUrl = ME_URL_BY_ROLE[role];
+    if (!meUrl) {
+      throw new Error(`Unknown user role: ${role}`);
+    }
 
     cachedUserPromise = apiFetch(meUrl, {
       method: "GET",

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AppHeader from "./AllContent/Header/AppHeader";
 import { useAuth } from "../hooks/useAuth";
-import { SEEDS_URL, USER_ROLES } from "../Constants";
+import { SEEDS_URL, USER_ROLES, TAB_ROLES } from "../Constants";
 import "./AllContent/AllContent.css";
 import "./AllContent/shared/cards.css";
 import "./AllContent/shared/buttons.css";
@@ -28,8 +28,6 @@ const Profile = () => {
   const handleTabChange = (tab) => {
     navigate("/content", { state: { activeTab: tab } });
   };
-
-  const restricted = [USER_ROLES.CONTENT_CREATOR, USER_ROLES.TEXTBOOK_REMEDIATION_VOLUNTEER];
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -115,10 +113,10 @@ const Profile = () => {
           onTabChange={handleTabChange}
           currentUser={currentUser}
           onLogout={logout}
-          showContent={profile && profile.role !== USER_ROLES.TEXTBOOK_REMEDIATION_VOLUNTEER}
-          showRegistration={profile && !restricted.includes(profile.role)}
-          showAnalytics={profile && !restricted.includes(profile.role)}
-          showLocalization={profile && profile.role === USER_ROLES.TENANT}
+          showContent={Boolean(profile) && TAB_ROLES.content.includes(profile.role)}
+          showRegistration={Boolean(profile) && TAB_ROLES.registration.includes(profile.role)}
+          showAnalytics={Boolean(profile) && TAB_ROLES.analytics.includes(profile.role)}
+          showLocalization={Boolean(profile) && TAB_ROLES.localization.includes(profile.role)}
         />
 
         {loading || !profile ? (

@@ -10,3 +10,22 @@ export const USER_ROLES = {
   SCHOOL_ADMIN: "school_admin",
   TEXTBOOK_REMEDIATION_VOLUNTEER: "textbook_remediation_volunteer",
 };
+export const TAB_ROLES = {
+  content: [USER_ROLES.TEACHER, USER_ROLES.CONTENT_CREATOR, USER_ROLES.TENANT, USER_ROLES.SCHOOL_ADMIN],
+  remediation: [
+    USER_ROLES.TENANT,
+    USER_ROLES.SCHOOL_ADMIN,
+    USER_ROLES.CONTENT_CREATOR,
+    USER_ROLES.TEXTBOOK_REMEDIATION_VOLUNTEER,
+  ],
+  registration: [USER_ROLES.TENANT, USER_ROLES.SCHOOL_ADMIN],
+  analytics: [USER_ROLES.TENANT, USER_ROLES.SCHOOL_ADMIN],
+  localization: [USER_ROLES.TENANT],
+};
+export const ME_URL_BY_ROLE = {
+  [USER_ROLES.SCHOOL_ADMIN]: `${SEEDS_URL}/school/admin/me`,
+  [USER_ROLES.TEACHER]: `${SEEDS_URL}/teacher/me`,
+  [USER_ROLES.CONTENT_CREATOR]: `${SEEDS_URL}/teacher/me`,
+  [USER_ROLES.TEXTBOOK_REMEDIATION_VOLUNTEER]: `${SEEDS_URL}/textbook-remediation/me`,
+  [USER_ROLES.TENANT]: `${SEEDS_URL}/tenant/me`,
+};

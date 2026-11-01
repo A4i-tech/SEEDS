@@ -19,8 +19,12 @@ def repo():
 
 async def _create(repo, tenant_id="tenant-a"):
     return await repo.create(
-        job_id=ObjectId(), tenant_id=tenant_id, source_name="book.pdf",
-        source_url="https://blob/source.pdf", language="kn", created_by="tester",
+        job_id=ObjectId(),
+        tenant_id=tenant_id,
+        source_name="book.pdf",
+        source_url="https://blob/source.pdf",
+        language="kn",
+        created_by="tester",
     )
 
 
@@ -86,8 +90,14 @@ async def test_reconcile_fails_jobs_stranded_by_a_restart(repo):
 
 def test_serialize_job_numbers_the_stage_for_a_progress_bar():
     job = RemediationJob(
-        job_id="j", tenant_id="t", source_name="book.pdf", source_url="u", language="kn",
-        status="running", stage="review",
+        job_id="j",
+        tenant_id="t",
+        source_name="book.pdf",
+        source_url="u",
+        language="kn",
+        status="running",
+        stage="review",
+        created_by="tester",
     )
     payload = serialize_job(job)
     assert (payload["stage_index"], payload["stage_count"]) == (2, len(STAGES))
@@ -95,8 +105,14 @@ def test_serialize_job_numbers_the_stage_for_a_progress_bar():
 
 def test_serialize_job_reports_stage_zero_before_the_first_stage():
     job = RemediationJob(
-        job_id="j", tenant_id="t", source_name="book.pdf", source_url="u", language="kn",
-        status="pending", stage=None,
+        job_id="j",
+        tenant_id="t",
+        source_name="book.pdf",
+        source_url="u",
+        language="kn",
+        status="pending",
+        stage=None,
+        created_by="tester",
     )
     assert serialize_job(job)["stage_index"] == 0
 
@@ -130,7 +146,8 @@ async def test_subscribe_yields_each_change_then_done(repo):
 
 @pytest.mark.asyncio
 async def test_subscribe_stops_on_an_unknown_job(repo):
-    assert [e async for e in subscribe(repo, _TENANT_ID, "000000000000000000000000", interval=0)] == []
+    events = [e async for e in subscribe(repo, _TENANT_ID, "000000000000000000000000", interval=0)]
+    assert events == [{"event": "revoked", "reason": "not_found"}]
 
 
 @pytest.mark.asyncio
@@ -144,7 +161,7 @@ async def test_subscribe_stops_once_a_volunteer_is_unassigned(repo):
         events.append(event)
         if len(events) == 1:
             await repo.set_assignment("tenant-a", job.job_id, None)
-    assert [e["event"] for e in events] == ["progress"]
+    assert [e["event"] for e in events] == ["progress", "revoked"]
 
 
 from app.controllers.textbook_remediation_controller import (  # noqa: E402
@@ -174,7 +191,9 @@ from app.platform.error_handling import ForbiddenError, NotFoundError, Validatio
 
 
 class _StubUpload:
-    def __init__(self, data: bytes, content_type: str = "application/pdf", filename: str = "book.pdf"):
+    def __init__(
+        self, data: bytes, content_type: str = "application/pdf", filename: str = "book.pdf"
+    ):
         import io
 
         self.file = io.BytesIO(data)
@@ -205,16 +224,10 @@ class _StubBlob:
 
 @pytest.mark.asyncio
 async def test_remediation_access_allows_the_content_roles_and_blocks_teachers():
-    for role in ("tenant", "school_admin", "content_creator"):
+    for role in ("tenant", "school_admin", "content_creator", "textbook_remediation_volunteer"):
         assert await require_remediation_access(user={"role": role}) == {"role": role}
     with pytest.raises(ForbiddenError):
         await require_remediation_access(user={"role": "teacher"})
-
-
-@pytest.mark.asyncio
-async def test_remediation_access_allows_the_textbook_remediation_volunteer():
-    user = {"role": "textbook_remediation_volunteer"}
-    assert await require_remediation_access(user=user) == user
 
 
 @pytest.mark.asyncio
@@ -241,8 +254,12 @@ async def test_list_jobs_is_tenant_scoped(repo):
 
 async def _create_other(repo, tenant_id="tenant-a"):
     return await repo.create(
-        job_id=ObjectId(), tenant_id=tenant_id, source_name="other.pdf",
-        source_url="https://blob/other.pdf", language="kn", created_by="tester",
+        job_id=ObjectId(),
+        tenant_id=tenant_id,
+        source_name="other.pdf",
+        source_url="https://blob/other.pdf",
+        language="kn",
+        created_by="tester",
     )
 
 
@@ -318,19 +335,37 @@ async def test_all_single_job_endpoints_404_for_an_unassigned_volunteer(repo):
     checks = [
         lambda: get_remediation_job(created.job_id, user=user, repo=repo),
         lambda: stream_remediation_job(created.job_id, user=user, repo=repo),
-        lambda: get_remediation_artifact(created.job_id, "docx", user=user, repo=repo, blob_provider=blob),
-        lambda: get_remediation_image(created.job_id, "fig1.png", user=user, repo=repo, blob_provider=blob),
+        lambda: get_remediation_artifact(
+            created.job_id, "docx", user=user, repo=repo, blob_provider=blob
+        ),
+        lambda: get_remediation_image(
+            created.job_id, "fig1.png", user=user, repo=repo, blob_provider=blob
+        ),
         lambda: get_remediation_findings(
-            created.job_id, name="findings", limit=50, offset=0, user=user, repo=repo, blob_provider=blob
+            created.job_id,
+            name="findings",
+            limit=50,
+            offset=0,
+            user=user,
+            repo=repo,
+            blob_provider=blob,
         ),
         lambda: save_remediation_draft(
-            created.job_id, DraftUpdateRequest(draft_md="x"), user=user, repo=repo, blob_provider=blob
+            created.job_id,
+            DraftUpdateRequest(draft_md="x"),
+            user=user,
+            repo=repo,
+            blob_provider=blob,
         ),
         lambda: verify_remediation_job(
             created.job_id, VerifyJobRequest(title="x"), user=user, repo=repo, blob_provider=blob
         ),
         lambda: translate_remediation_job(
-            created.job_id, TranslateJobRequest(target_language="hi"), user=user, repo=repo, blob_provider=blob
+            created.job_id,
+            TranslateJobRequest(target_language="hi"),
+            user=user,
+            repo=repo,
+            blob_provider=blob,
         ),
         lambda: get_review_summary(created.job_id, user=user, repo=repo, blob_provider=blob),
     ]
@@ -339,84 +374,74 @@ async def test_all_single_job_endpoints_404_for_an_unassigned_volunteer(repo):
             await check()
 
 
-@pytest.mark.asyncio
-async def test_get_job_fails_closed_when_the_volunteer_token_has_no_sub(repo):
-    created = await _create(repo)
-    user = {"role": "textbook_remediation_volunteer", "tenant_id": "tenant-a"}
-    with pytest.raises(KeyError):
-        await _get_job(repo, user, created.job_id)
-
-
-class _StubDb:
-    def __getitem__(self, _key):
-        return None
-
-
 class _FakeUserRepo:
-    def __init__(self, _db, *, user=None):
+    def __init__(self, *, user=None):
         self._user = user
 
-    async def find_by_id(self, _user_id):
+    async def find_active_volunteer(self, _tenant_id, _volunteer_id):
         return self._user
 
 
 def _fake_volunteer(tenant_id="tenant-a"):
-    return SimpleNamespace(id="vol-1", role=UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER, tenant_id=tenant_id)
+    return SimpleNamespace(
+        id="vol-1", role=UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER, tenant_id=tenant_id
+    )
 
 
 @pytest.mark.asyncio
-async def test_assign_sets_assigned_to_for_a_valid_volunteer(repo, monkeypatch):
+async def test_assign_sets_assigned_to_for_a_valid_volunteer(repo):
     created = await _create(repo)
-    monkeypatch.setattr(
-        "app.controllers.textbook_remediation_controller.UserRepository",
-        lambda db: _FakeUserRepo(db, user=_fake_volunteer()),
-    )
+    volunteer_id = str(ObjectId())
     user = {"role": "tenant", "tenant_id": "tenant-a", "sub": "admin-1"}
     result = await assign_remediation_job(
-        created.job_id, AssignJobRequest(volunteer_id="vol-1"), user=user, repo=repo, db=None,
+        created.job_id,
+        AssignJobRequest(volunteer_id=volunteer_id),
+        user=user,
+        repo=repo,
+        user_repo=_FakeUserRepo(user=_fake_volunteer()),
     )
-    assert result["assigned_to"] == "vol-1"
+    assert result["assigned_to"] == volunteer_id
 
 
 @pytest.mark.asyncio
-async def test_assign_rejects_a_volunteer_from_another_tenant(repo, monkeypatch):
+async def test_assign_rejects_a_volunteer_from_another_tenant(repo):
     created = await _create(repo)
-    monkeypatch.setattr(
-        "app.controllers.textbook_remediation_controller.UserRepository",
-        lambda db: _FakeUserRepo(db, user=_fake_volunteer(tenant_id="tenant-b")),
-    )
     user = {"role": "tenant", "tenant_id": "tenant-a", "sub": "admin-1"}
     with pytest.raises(ValidationError):
         await assign_remediation_job(
-            created.job_id, AssignJobRequest(volunteer_id="vol-1"), user=user, repo=repo, db=None,
+            created.job_id,
+            AssignJobRequest(volunteer_id=str(ObjectId())),
+            user=user,
+            repo=repo,
+            user_repo=_FakeUserRepo(user=None),
         )
 
 
 @pytest.mark.asyncio
-async def test_assign_rejects_a_non_volunteer_target(repo, monkeypatch):
+async def test_assign_rejects_a_non_volunteer_target(repo):
     created = await _create(repo)
-    monkeypatch.setattr(
-        "app.controllers.textbook_remediation_controller.UserRepository",
-        lambda db: _FakeUserRepo(db, user=SimpleNamespace(id="t1", role=UserRole.TEACHER, tenant_id="tenant-a")),
-    )
     user = {"role": "tenant", "tenant_id": "tenant-a", "sub": "admin-1"}
     with pytest.raises(ValidationError):
         await assign_remediation_job(
-            created.job_id, AssignJobRequest(volunteer_id="t1"), user=user, repo=repo, db=None,
+            created.job_id,
+            AssignJobRequest(volunteer_id=str(ObjectId())),
+            user=user,
+            repo=repo,
+            user_repo=_FakeUserRepo(user=None),
         )
 
 
 @pytest.mark.asyncio
-async def test_assign_rejects_a_nonexistent_target(repo, monkeypatch):
+async def test_assign_rejects_a_nonexistent_target(repo):
     created = await _create(repo)
-    monkeypatch.setattr(
-        "app.controllers.textbook_remediation_controller.UserRepository",
-        lambda db: _FakeUserRepo(db, user=None),
-    )
     user = {"role": "tenant", "tenant_id": "tenant-a", "sub": "admin-1"}
     with pytest.raises(ValidationError):
         await assign_remediation_job(
-            created.job_id, AssignJobRequest(volunteer_id="missing"), user=user, repo=repo, db=None,
+            created.job_id,
+            AssignJobRequest(volunteer_id=str(ObjectId())),
+            user=user,
+            repo=repo,
+            user_repo=_FakeUserRepo(user=None),
         )
 
 
@@ -430,7 +455,11 @@ async def test_unassign_revokes_volunteer_access_immediately(repo):
     assert (await _get_job(repo, volunteer, created.job_id)).job_id == created.job_id
 
     result = await assign_remediation_job(
-        created.job_id, AssignJobRequest(volunteer_id=None), user=admin, repo=repo, db=_StubDb(),
+        created.job_id,
+        AssignJobRequest(volunteer_id=None),
+        user=admin,
+        repo=repo,
+        user_repo=_FakeUserRepo(user=None),
     )
     assert result["assigned_to"] is None
 
@@ -460,10 +489,10 @@ async def test_volunteer_is_rejected_from_non_remediation_endpoints():
         _require_content_read,
         _require_content_write,
         _require_tenant,
-        require_role("school_admin"),  # school_controller / teacher_controller / student_controller
-        _require_class_access,  # class_controller
-        require_role("teacher", "content_creator"),  # conference_controller
-        require_tenant,  # glossary_controller / translation_controller
+        require_role("school_admin"),
+        _require_class_access,
+        require_role("teacher", "content_creator"),
+        require_tenant,
     ):
         with pytest.raises(ForbiddenError):
             await dependency(user=volunteer)
@@ -479,8 +508,12 @@ async def test_get_rejects_a_job_from_a_different_tenant(repo):
 async def test_create_job_uploads_the_pdf_and_stores_its_url(repo):
     blob = _StubBlob()
     result = await create_remediation_job(
-        file=_StubUpload(b"%PDF-1.7 body"), language="kn", target_language="",
-        user={"tenant_id": "tenant-a", "sub": "tester"}, repo=repo, blob_provider=blob
+        file=_StubUpload(b"%PDF-1.7 body"),
+        language="kn",
+        target_language="",
+        user={"tenant_id": "tenant-a", "sub": "tester"},
+        repo=repo,
+        blob_provider=blob,
     )
     job = await repo.get("tenant-a", result["job_id"])
     assert job.source_url == f"https://blob/textbook-remediation/{job.job_id}/source.pdf"
@@ -492,8 +525,12 @@ async def test_create_job_uploads_the_pdf_and_stores_its_url(repo):
 @pytest.mark.asyncio
 async def test_create_job_stores_the_target_language_when_given(repo):
     result = await create_remediation_job(
-        file=_StubUpload(b"%PDF-1.7 body"), language="kn", target_language="hi",
-        user={"tenant_id": "tenant-a", "sub": "tester"}, repo=repo, blob_provider=_StubBlob()
+        file=_StubUpload(b"%PDF-1.7 body"),
+        language="kn",
+        target_language="hi",
+        user={"tenant_id": "tenant-a", "sub": "tester"},
+        repo=repo,
+        blob_provider=_StubBlob(),
     )
     job = await repo.get("tenant-a", result["job_id"])
     assert job.target_language == "hi"
@@ -502,8 +539,12 @@ async def test_create_job_stores_the_target_language_when_given(repo):
 @pytest.mark.asyncio
 async def test_create_job_stores_and_exposes_the_creating_user(repo):
     result = await create_remediation_job(
-        file=_StubUpload(b"%PDF-1.7 body"), language="kn", target_language="",
-        user={"tenant_id": "tenant-a", "sub": "volunteer@seeds.org"}, repo=repo, blob_provider=_StubBlob()
+        file=_StubUpload(b"%PDF-1.7 body"),
+        language="kn",
+        target_language="",
+        user={"tenant_id": "tenant-a", "sub": "volunteer@seeds.org"},
+        repo=repo,
+        blob_provider=_StubBlob(),
     )
     job = await repo.get("tenant-a", result["job_id"])
     assert job.created_by == "volunteer@seeds.org"
@@ -513,9 +554,17 @@ async def test_create_job_stores_and_exposes_the_creating_user(repo):
 @pytest.mark.asyncio
 async def test_create_job_uses_sub_even_when_email_and_name_are_present(repo):
     result = await create_remediation_job(
-        file=_StubUpload(b"%PDF-1.7 body"), language="kn", target_language="",
-        user={"tenant_id": "tenant-a", "sub": "user-123", "email": "decoy@seeds.org", "name": "Decoy"},
-        repo=repo, blob_provider=_StubBlob(),
+        file=_StubUpload(b"%PDF-1.7 body"),
+        language="kn",
+        target_language="",
+        user={
+            "tenant_id": "tenant-a",
+            "sub": "user-123",
+            "email": "decoy@seeds.org",
+            "name": "Decoy",
+        },
+        repo=repo,
+        blob_provider=_StubBlob(),
     )
     job = await repo.get("tenant-a", result["job_id"])
     assert job.created_by == "user-123"
@@ -533,7 +582,11 @@ async def test_create_job_uses_sub_even_when_email_and_name_are_present(repo):
 async def test_create_job_rejects_bad_input(repo, upload, language, message):
     with pytest.raises(ValidationError, match=message):
         await create_remediation_job(
-            file=upload, language=language, user={"tenant_id": "tenant-a"}, repo=repo, blob_provider=_StubBlob()
+            file=upload,
+            language=language,
+            user={"tenant_id": "tenant-a"},
+            repo=repo,
+            blob_provider=_StubBlob(),
         )
 
 
@@ -555,7 +608,9 @@ async def test_artifact_bytes_404s_before_the_stage_that_writes_it_has_run(repo)
 async def test_artifact_bytes_serves_the_recorded_url(repo):
     created = await _create(repo)
     job = await repo.record_artifacts(created.job_id, {"corrected": "https://blob/c.md"}, {})
-    data, content_type = await _artifact_bytes(job, "corrected", _StubBlob({"https://blob/c.md": b"# hello"}))
+    data, content_type = await _artifact_bytes(
+        job, "corrected", _StubBlob({"https://blob/c.md": b"# hello"})
+    )
     assert (data, content_type) == (b"# hello", "text/markdown")
 
 
@@ -564,8 +619,11 @@ async def test_get_remediation_image_serves_the_owning_tenant(repo):
     created = await _create(repo)
     blob_path = f"textbook-remediation/{created.job_id}/images/fig1.png"
     response = await get_remediation_image(
-        created.job_id, "fig1.png",
-        user={"tenant_id": "tenant-a"}, repo=repo, blob_provider=_StubBlob({blob_path: b"png-bytes"}),
+        created.job_id,
+        "fig1.png",
+        user={"tenant_id": "tenant-a"},
+        repo=repo,
+        blob_provider=_StubBlob({blob_path: b"png-bytes"}),
     )
     assert response.body == b"png-bytes"
 
@@ -575,8 +633,11 @@ async def test_get_remediation_image_blocks_a_different_tenant(repo):
     created = await _create(repo)
     with pytest.raises(NotFoundError):
         await get_remediation_image(
-            created.job_id, "fig1.png",
-            user={"tenant_id": "tenant-b"}, repo=repo, blob_provider=_StubBlob(),
+            created.job_id,
+            "fig1.png",
+            user={"tenant_id": "tenant-b"},
+            repo=repo,
+            blob_provider=_StubBlob(),
         )
 
 
@@ -623,7 +684,12 @@ async def test_verify_job_uses_sub_even_when_email_and_name_are_present(repo):
     verified = await verify_remediation_job(
         created.job_id,
         VerifyJobRequest(title="x"),
-        user={"tenant_id": "tenant-a", "sub": "reviewer-1", "email": "decoy@seeds.org", "name": "Decoy"},
+        user={
+            "tenant_id": "tenant-a",
+            "sub": "reviewer-1",
+            "email": "decoy@seeds.org",
+            "name": "Decoy",
+        },
         repo=repo,
         blob_provider=blob,
     )
@@ -648,10 +714,12 @@ async def test_review_summary(repo):
 async def test_review_summary_skips_a_null_rule_without_dropping_later_rows(repo):
     created = await _create(repo)
     job = await repo.record_artifacts(created.job_id, {"remediation": "https://blob/r.jsonl"}, {})
-    lines = "\n".join([
-        json.dumps({"rule": None}),
-        json.dumps({"rule": "table_summary", "id": "t1"}),
-    ])
+    lines = "\n".join(
+        [
+            json.dumps({"rule": None}),
+            json.dumps({"rule": "table_summary", "id": "t1"}),
+        ]
+    )
     summary = await get_review_summary(
         job.job_id,
         user={"tenant_id": "tenant-a"},
@@ -682,9 +750,13 @@ async def test_create_job_inserts_nothing_when_the_upload_fails(repo):
 
     with pytest.raises(RuntimeError, match="blob storage is down"):
         await create_job(
-            repo, _FailingBlob(),
-            tenant_id="tenant-a", source_name="book.pdf",
-            data=io.BytesIO(b"%PDF-1.7"), language="kn", target_language=None,
+            repo,
+            _FailingBlob(),
+            tenant_id="tenant-a",
+            source_name="book.pdf",
+            data=io.BytesIO(b"%PDF-1.7"),
+            language="kn",
+            target_language=None,
             created_by="tester",
         )
     assert await repo.list_jobs("tenant-a") == []
@@ -700,7 +772,9 @@ async def test_consumer_upload_raises_when_a_required_artifact_is_missing(tmp_pa
 
 
 @pytest.mark.asyncio
-async def test_upload_images_marks_an_image_corrupted_after_three_failed_attempts(tmp_path, monkeypatch):
+async def test_upload_images_marks_an_image_corrupted_after_three_failed_attempts(
+    tmp_path, monkeypatch
+):
     from unittest.mock import AsyncMock
 
     from app.consumers.textbook_remediation_consumer import _upload_images
@@ -735,8 +809,9 @@ async def test_verify_job_uploads_go_under_the_verified_path(repo, monkeypatch):
     monkeypatch.setattr(remediation_service, "_compile_verified", _fake_compile)
     blob = _StubBlob()
 
-    await remediation_service.verify_job(repo, blob, job, title="Title", verified_by="reviewer@seeds.org")
+    await remediation_service.verify_job(
+        repo, blob, job, title="Title", verified_by="reviewer@seeds.org"
+    )
 
     assert f"textbook-remediation/{created.job_id}/verified/remediated.docx" in blob.uploaded
     assert f"textbook-remediation/{created.job_id}/verified/remediated.tex" in blob.uploaded
-

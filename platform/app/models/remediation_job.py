@@ -118,7 +118,7 @@ class RemediationJob(BaseModel):
     title: str | None = None
     error: str | None = None
     created_at: str = ""
-    created_by: str | None = None
+    created_by: str
     last_edited_by: str | None = None
     assigned_to: str | None = None
     finished_at: str | None = None

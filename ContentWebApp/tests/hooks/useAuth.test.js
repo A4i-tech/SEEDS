@@ -27,3 +27,11 @@ test("getCurrentUser requests /textbook-remediation/me for a volunteer token", a
   expect(url).toMatch(/\/textbook-remediation\/me$/);
   expect(url).not.toMatch(/\/tenant\/me$/);
 });
+
+test("getCurrentUser rejects for an unrecognized role instead of falling back to /tenant/me", async () => {
+  setToken({ role: "mystery_role", name: "X" });
+  const { result } = renderHook(() => useAuth());
+
+  await expect(result.current.getCurrentUser()).rejects.toThrow(/mystery_role/);
+  expect(apiFetch).not.toHaveBeenCalled();
+});

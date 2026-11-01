@@ -1,10 +1,8 @@
 import { useState, useCallback, useEffect } from "react";
 import { volunteerService } from "../services/volunteerService";
 import { useFlashMessage } from "./useFlashMessage";
-import { getRole } from "../utils/authHelpers";
-import { USER_ROLES } from "../Constants";
 
-export const useVolunteers = (activeTab) => {
+export const useVolunteers = (enabled) => {
   const [volunteers, setVolunteers] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const { message, messageType, flashMessage } = useFlashMessage();
@@ -14,34 +12,35 @@ export const useVolunteers = (activeTab) => {
     try {
       const data = await volunteerService.getVolunteers();
       setVolunteers(data);
+      return true;
     } catch (error) {
       flashMessage(error.message || "Failed to load volunteers.", "error");
+      return false;
     } finally {
       setIsLoading(false);
     }
   }, [flashMessage]);
 
   useEffect(() => {
-    if ((activeTab === "registration" || activeTab === "remediation") && getRole() === USER_ROLES.TENANT) {
-      fetchVolunteers();
-    }
-  }, [activeTab, fetchVolunteers]);
+    if (enabled) fetchVolunteers();
+  }, [enabled, fetchVolunteers]);
 
   const createVolunteer = useCallback(
     async (name, email, password) => {
-      if (!name || !email || !password) {
-        flashMessage("Name, email, and password are required.", "error");
-        return false;
-      }
       try {
         await volunteerService.createVolunteer(name, email, password);
-        flashMessage("Volunteer created successfully!", "success");
-        await fetchVolunteers();
-        return true;
       } catch (error) {
         flashMessage(error.message || "Failed to create volunteer.", "error");
         return false;
       }
+      const refreshed = await fetchVolunteers();
+      flashMessage(
+        refreshed
+          ? "Volunteer created successfully!"
+          : "Volunteer created, but refreshing the list failed.",
+        refreshed ? "success" : "error"
+      );
+      return true;
     },
     [fetchVolunteers, flashMessage]
   );

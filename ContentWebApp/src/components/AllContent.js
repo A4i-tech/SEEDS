@@ -16,7 +16,7 @@ import RegistrationTab from "./AllContent/RegistrationTab/RegistrationTab";
 import AnalyticsTab from "./AllContent/AnalyticsTab/AnalyticsTab";
 import LocalizationTab from "./AllContent/LocalizationTab/LocalizationTab";
 import RemediationTab from "./AllContent/RemediationTab/RemediationTab";
-import { USER_ROLES } from "../Constants";
+import { USER_ROLES, TAB_ROLES } from "../Constants";
 import "./AllContent/AllContent.css";
 import "./AllContent/shared/responsive.css";
 
@@ -30,18 +30,9 @@ const AllContent = () => {
 
   const navigate = useNavigate();
   const { getAuthHeaders, logout, getCurrentUser } = useAuth();
-  const isVolunteer = currentUserRole === USER_ROLES.TEXTBOOK_REMEDIATION_VOLUNTEER;
-  const canViewContent = [
-    USER_ROLES.TEACHER,
-    USER_ROLES.CONTENT_CREATOR,
-    USER_ROLES.TENANT,
-    USER_ROLES.SCHOOL_ADMIN,
-  ].includes(currentUserRole);
-  const canViewRemediation =
-    currentUserRole === USER_ROLES.TENANT ||
-    currentUserRole === USER_ROLES.SCHOOL_ADMIN ||
-    currentUserRole === USER_ROLES.CONTENT_CREATOR ||
-    isVolunteer;
+  const canManage = currentUserRole === USER_ROLES.TENANT;
+  const canViewContent = TAB_ROLES.content.includes(currentUserRole);
+  const canViewRemediation = TAB_ROLES.remediation.includes(currentUserRole);
   const {
     content,
     allContent,
@@ -96,13 +87,20 @@ const AllContent = () => {
     message: volunteerMessage,
     messageType: volunteerMessageType,
     createVolunteer,
-  } = useVolunteers(activeTab);
+  } = useVolunteers(canManage);
 
   const ivrURL = process.env.REACT_APP_API_BASE_URL;
-  const canViewRegistration =
-    currentUserRole === USER_ROLES.TENANT || currentUserRole === USER_ROLES.SCHOOL_ADMIN;
-  const canViewAnalytics = canViewRegistration;
-  const canViewLocalization = currentUserRole === USER_ROLES.TENANT;
+  const canViewRegistration = TAB_ROLES.registration.includes(currentUserRole);
+  const canViewAnalytics = TAB_ROLES.analytics.includes(currentUserRole);
+  const canViewLocalization = TAB_ROLES.localization.includes(currentUserRole);
+  const tabs = [
+    canViewContent && "content",
+    canViewContent && "ivr",
+    canViewRegistration && "registration",
+    canViewAnalytics && "analytics",
+    canViewLocalization && "localization",
+    canViewRemediation && "remediation",
+  ].filter(Boolean);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -122,22 +120,10 @@ const AllContent = () => {
   }, [getCurrentUser]);
 
   useEffect(() => {
-    if (isVolunteer) {
-      setActiveTab("remediation");
-      return;
+    if (!tabs.includes(activeTab)) {
+      setActiveTab(tabs[0] || null);
     }
-    if (!canViewContent && activeTab === "content") {
-      setActiveTab(canViewRegistration ? "registration" : canViewAnalytics ? "analytics" : "content");
-      return;
-    }
-    if (
-      (!canViewRegistration && activeTab === "registration") ||
-      (!canViewAnalytics && activeTab === "analytics") ||
-      (!canViewLocalization && activeTab === "localization")
-    ) {
-      setActiveTab("content");
-    }
-  }, [activeTab, canViewAnalytics, canViewContent, canViewLocalization, canViewRegistration, isVolunteer]);
+  }, [activeTab, tabs]);
 
   const handleUpdateIVR = useCallback(async () => {
     setIsUpdatingIVR(true);
@@ -186,6 +172,10 @@ const AllContent = () => {
 
         {updateIVRStatus && <div className="status-message">{updateIVRStatus}</div>}
 
+        {tabs.length === 0 && (
+          <div className="status-message">No sections are available for your role.</div>
+        )}
+
         {canViewContent && (activeTab === "content" || activeTab === "ivr") && (
           <div className="tabs-container">
             <button
@@ -224,7 +214,7 @@ const AllContent = () => {
             onLoadMore={loadMore}
             isUpdatingIVR={isUpdatingIVR}
             onSyncAll={syncAll}
-            isTenant={currentUserRole === USER_ROLES.TENANT}
+            isTenant={canManage}
             syncingAll={syncingAll}
             syncAllProgress={syncAllProgress}
             courseSyncStates={courseStates}
@@ -235,7 +225,14 @@ const AllContent = () => {
 
         {canViewContent && activeTab === "ivr" && <IVRTab />}
 
-        {canViewRemediation && activeTab === "remediation" && <RemediationTab volunteers={volunteers} />}
+        {canViewRemediation && activeTab === "remediation" && (
+          <RemediationTab
+            volunteers={volunteers}
+            canManage={canManage}
+            volunteerMessage={volunteerMessage}
+            volunteerMessageType={volunteerMessageType}
+          />
+        )}
 
         {canViewAnalytics && activeTab === "analytics" && <AnalyticsTab />}
 

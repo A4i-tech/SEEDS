@@ -18,10 +18,9 @@ from app.models.responses.analytics_response import AnalyticsResponse
 from app.models.responses.dashboard import TenantDashboardResponse
 from app.models.responses.login import MessageResponse
 from app.models.responses.user import UserPublicResponse
-from app.models.user import UserRole
 from app.platform.auth.dependencies import get_current_user, require_tenant
 from app.repositories.ivr_repository import IVRRepository
-from app.services.auth_service import AuthService, TeacherCreate, TenantCreate, get_auth_service
+from app.services.auth_service import AuthService, TenantCreate, get_auth_service
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +105,9 @@ async def tenant_change_password(
     current_user: dict[str, Any] = Depends(require_tenant),
     service: AuthService = Depends(get_auth_service),
 ) -> MessageResponse:
-    await service.change_password(current_user.get("sub", ""), body.current_password, body.new_password)
+    await service.change_password(
+        current_user.get("sub", ""), body.current_password, body.new_password
+    )
     return MessageResponse(message="Password changed successfully")
 
 
@@ -129,21 +130,13 @@ async def create_volunteer(
     current_user: dict[str, Any] = Depends(require_tenant),
     service: AuthService = Depends(get_auth_service),
 ) -> UserPublicResponse:
-    data = TeacherCreate(
-        name=body.name.strip(),
-        email=body.email,
-        password=body.password,
-        role=UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER.value,
-        tenant_id=current_user["sub"],
-    )
-    user = await service.register_teacher(data)
+    user = await service.register_volunteer(current_user["sub"], body)
     return UserPublicResponse.from_domain(user)
 
 
 @router.get(
     "/volunteers",
     summary="List textbook remediation volunteers for this tenant",
-    status_code=status.HTTP_200_OK,
 )
 async def list_volunteers(
     current_user: dict[str, Any] = Depends(require_tenant),

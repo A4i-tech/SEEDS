@@ -12,14 +12,11 @@ from app.models.responses.login import LoginResponse, MessageResponse
 from app.models.responses.user import UserPublicResponse
 from app.models.user import UserRole
 from app.platform.auth.dependencies import get_current_user, require_role
-from app.platform.error_handling import ForbiddenError
 from app.services.auth_service import AuthService, TeacherCreate, get_auth_service
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/teacher", tags=["Auth"])
-
-_ALLOWED_TEACHER_REGISTER_ROLES = frozenset({UserRole.TEACHER.value, UserRole.CONTENT_CREATOR.value})
 
 
 @router.post("/login", summary="Teacher login", status_code=status.HTTP_200_OK)
@@ -46,14 +43,12 @@ async def teacher_register(
     current_user: dict[str, Any] = Depends(get_current_user),
     service: AuthService = Depends(get_auth_service),
 ) -> UserPublicResponse:
-    if body.role not in _ALLOWED_TEACHER_REGISTER_ROLES:
-        raise ForbiddenError(f"school_admin cannot register a user with role {body.role!r}")
     data = TeacherCreate(
         name=body.name.strip(),
         email=body.phone_number,
         password=body.password,
         phone=body.phone_number,
-        role=body.role,
+        role=UserRole(body.role),
         tenant_id=current_user.get("tenant_id"),
         school_id=current_user.get("school_id"),
     )

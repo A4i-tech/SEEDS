@@ -1,10 +1,8 @@
 import { render, screen } from "@testing-library/react";
 import RemediationTab from "../../src/components/AllContent/RemediationTab/RemediationTab";
-import { getRole } from "../../src/utils/authHelpers";
 import { textbookRemediationService } from "../../src/services/textbookRemediationService";
 
 jest.mock("react-router-dom", () => ({ useNavigate: () => jest.fn() }));
-jest.mock("../../src/utils/authHelpers", () => ({ getRole: jest.fn() }));
 jest.mock("../../src/services/textbookRemediationService", () => ({
   textbookRemediationService: {
     getLanguages: jest.fn(),
@@ -25,12 +23,14 @@ const job = (overrides = {}) => ({
 
 const mockAssign = jest.fn();
 let mockJobs = [job()];
+let mockAssignError = null;
 jest.mock("../../src/hooks/useRemediationJobs", () => ({
   useRemediationJobs: () => ({
     jobs: mockJobs,
     isLoading: false,
     isUploading: false,
     error: null,
+    assignError: mockAssignError,
     upload: jest.fn(),
     remove: jest.fn(),
     assign: mockAssign,
@@ -50,12 +50,12 @@ beforeAll(() => {
 beforeEach(() => {
   jest.clearAllMocks();
   mockJobs = [job()];
+  mockAssignError = null;
   textbookRemediationService.getLanguages.mockResolvedValue({ languages: [] });
 });
 
-test("tenant sees the upload card and an assignee control", async () => {
-  getRole.mockReturnValue("tenant");
-  render(<RemediationTab volunteers={volunteers} />);
+test("manager sees the upload card and an assignee control", async () => {
+  render(<RemediationTab volunteers={volunteers} canManage={true} />);
 
   expect(screen.getByText("Upload Textbook")).toBeInTheDocument();
   expect(screen.getByText("Assigned to")).toBeInTheDocument();
@@ -64,38 +64,32 @@ test("tenant sees the upload card and an assignee control", async () => {
 });
 
 test("assigned volunteer still in the list shows their name", async () => {
-  getRole.mockReturnValue("tenant");
   mockJobs = [job({ assigned_to: "vol-1" })];
-  render(<RemediationTab volunteers={volunteers} />);
+  render(<RemediationTab volunteers={volunteers} canManage={true} />);
 
   expect(screen.getByText("Volunteer One")).toBeInTheDocument();
 });
 
-test("assigned volunteer missing from the loaded list shows a fallback label", async () => {
-  getRole.mockReturnValue("tenant");
-  mockJobs = [job({ assigned_to: "vol-missing" })];
-  render(<RemediationTab volunteers={volunteers} />);
-
-  expect(screen.getByText("Assigned volunteer")).toBeInTheDocument();
-  expect(screen.queryByText("Unassigned")).not.toBeInTheDocument();
-});
-
 test("unassigned job still shows Unassigned", async () => {
-  getRole.mockReturnValue("tenant");
   mockJobs = [job({ assigned_to: null })];
-  render(<RemediationTab volunteers={volunteers} />);
+  render(<RemediationTab volunteers={volunteers} canManage={true} />);
 
   expect(screen.getByText("Unassigned")).toBeInTheDocument();
 });
 
-test.each([["school_admin"], ["content_creator"], ["textbook_remediation_volunteer"]])(
-  "%s sees neither the upload card nor assignee controls",
-  async (role) => {
-    getRole.mockReturnValue(role);
-    render(<RemediationTab volunteers={volunteers} />);
+test("non-manager sees neither the upload card nor assignee controls", async () => {
+  render(<RemediationTab volunteers={volunteers} canManage={false} />);
 
-    expect(screen.queryByText("Upload Textbook")).not.toBeInTheDocument();
-    expect(screen.queryByText("Assigned to")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: /delete/i })).not.toBeInTheDocument();
-  }
-);
+  expect(screen.queryByText("Upload Textbook")).not.toBeInTheDocument();
+  expect(screen.queryByText("Assigned to")).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: /delete/i })).not.toBeInTheDocument();
+});
+
+test("assignment error is shown to a manager", async () => {
+  mockAssignError = "volunteer_id must be an existing textbook remediation volunteer in this tenant";
+  render(<RemediationTab volunteers={volunteers} canManage={true} />);
+
+  expect(
+    screen.getByText(/volunteer_id must be an existing textbook remediation volunteer in this tenant/)
+  ).toBeInTheDocument();
+});

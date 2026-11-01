@@ -167,7 +167,7 @@ test("surfaces a failed assignment", async () => {
     await result.current.assign("job-1", "someone-else");
   });
 
-  expect(result.current.error).toBe("volunteer_id must be an existing textbook remediation volunteer in this tenant");
+  expect(result.current.assignError).toBe("volunteer_id must be an existing textbook remediation volunteer in this tenant");
 });
 
 test("aborts every stream on unmount", async () => {

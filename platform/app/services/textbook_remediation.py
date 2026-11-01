@@ -25,7 +25,6 @@ from app.models.responses.remediation import (
     RemediationJobResponse,
     ReviewSummaryResponse,
 )
-from app.models.user import UserRole
 from app.platform.error_handling import NotFoundError, ValidationError
 from app.platform.settings import get_settings
 from app.providers.blob_storage import BlobStorageProvider
@@ -85,9 +84,12 @@ async def subscribe(
     while True:
         job = await repo.get(tenant_id, job_id)
         if job is None:
+            logger.warning("Remediation job %s disappeared mid-stream", job_id)
+            yield {"event": "revoked", "reason": "not_found"}
             return
         if assigned_to is not None and job.assigned_to != assigned_to:
-            logger.info("Volunteer %s lost access to job %s", assigned_to, job_id)
+            logger.warning("Volunteer %s lost access to job %s", assigned_to, job_id)
+            yield {"event": "revoked", "reason": "unassigned"}
             return
         payload = serialize_job(job)
         if job.status in _TERMINAL:
@@ -112,7 +114,10 @@ async def create_job(
 ) -> RemediationJob:
     job_id = ObjectId()
     url = await blob_provider.upload_file(
-        get_settings().azure_storage_container, f"textbook-remediation/{job_id}/source.pdf", data, "application/pdf"
+        get_settings().azure_storage_container,
+        f"textbook-remediation/{job_id}/source.pdf",
+        data,
+        "application/pdf",
     )
     return await repo.create(
         job_id=job_id,
@@ -133,13 +138,11 @@ async def assign_job(
     volunteer_id: str | None,
 ) -> RemediationJob:
     if volunteer_id is not None:
-        volunteer = await user_repo.find_by_id(volunteer_id)
-        if (
-            volunteer is None
-            or volunteer.role != UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER
-            or str(volunteer.tenant_id) != tenant_id
-        ):
-            raise ValidationError("volunteer_id must be an existing textbook remediation volunteer in this tenant")
+        volunteer = await user_repo.find_active_volunteer(tenant_id, volunteer_id)
+        if volunteer is None:
+            raise ValidationError(
+                "volunteer_id must be an active textbook remediation volunteer in this tenant"
+            )
 
     updated = await repo.set_assignment(tenant_id, job_id, volunteer_id)
     if updated is None:
@@ -166,7 +169,7 @@ async def findings_page(
 ) -> dict[str, object]:
     data, _ = await artifact_bytes(job, name, blob_provider)
     lines = [line for line in data.decode("utf-8").splitlines() if line.strip()]
-    page = [json.loads(line) for line in lines[offset:offset + limit]]
+    page = [json.loads(line) for line in lines[offset : offset + limit]]
     return FindingsPageResponse(
         findings=page, total=len(lines), offset=offset, has_more=offset + limit < len(lines)
     ).model_dump(mode="json")
@@ -210,7 +213,9 @@ async def verify_job(
         with tempfile.TemporaryDirectory() as tmpdir:
             out_dir = Path(tmpdir)
             try:
-                out_docx, out_tex, out_pdf = await asyncio.to_thread(_compile_verified, job.draft_remediated_md, out_dir)
+                out_docx, out_tex, out_pdf = await asyncio.to_thread(
+                    _compile_verified, job.draft_remediated_md, out_dir
+                )
             except Exception as exc:
                 logger.error("Could not compile verified artifacts for job %s: %s", job.job_id, exc)
                 raise ValidationError(f"Could not build the verified document: {exc}") from exc
@@ -254,7 +259,9 @@ async def translate_job(
             job.job_id, remediated_bytes, target_language, job.language, blob_provider
         )
         if not translated_urls:
-            raise ValidationError("Translation produced no downloadable file. Try again, or pick a different target language.")
+            raise ValidationError(
+                "Translation produced no downloadable file. Try again, or pick a different target language."
+            )
     except Exception as exc:
         await repo.set_translation_error(job.job_id, str(exc))
         raise
@@ -269,7 +276,9 @@ def _parse_jsonl(data: bytes) -> list[dict[str, object]]:
     return [json.loads(line) for line in data.decode("utf-8").splitlines() if line.strip()]
 
 
-async def review_summary(job: RemediationJob, blob_provider: BlobStorageProvider) -> dict[str, object]:
+async def review_summary(
+    job: RemediationJob, blob_provider: BlobStorageProvider
+) -> dict[str, object]:
     incomplete = False
     diagrams: list[DiagramResponse] = []
     if ArtifactName.ALT in job.artifacts:
@@ -278,7 +287,9 @@ async def review_summary(job: RemediationJob, blob_provider: BlobStorageProvider
             for item in _parse_jsonl(data):
                 diagrams.append(
                     DiagramResponse(
-                        id=str(item.get("id") or item.get("image_name") or f"diag_{len(diagrams) + 1}"),
+                        id=str(
+                            item.get("id") or item.get("image_name") or f"diag_{len(diagrams) + 1}"
+                        ),
                         page=item.get("page", 1),
                         image_name=str(item.get("image_name") or item.get("src") or ""),
                         alt_text=str(item.get("alt_text") or item.get("replacement") or ""),
