@@ -346,6 +346,7 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
       const exported = await translationService.listTranslations({ siteId });
       if (!exported.length) return toast({ message: "Nothing to export", tone: "info" });
       const site = sites.find((s) => s.siteId === siteId);
+      if (!site) throw new Error("Site not found");
       const slug = (site.name || site.domain).replace(/[^a-z0-9]+/gi, "-");
       const languageName = languages.find((l) => l.code === lang)?.name;
       downloadBlob(
