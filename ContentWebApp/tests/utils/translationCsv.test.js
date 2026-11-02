@@ -6,6 +6,7 @@ import {
   buildImportRows as buildRows,
   buildTranslationCsv,
   countQuestionMarkTranslations,
+  findLongRows,
   findShortRows,
   parseTranslationCsv,
   questionMarkError,
@@ -161,6 +162,14 @@ describe("parseTranslationCsv", () => {
 
     expect(buildImportRows(table, 3)).toEqual([]);
     expect(findShortRows(table, 3)).toEqual([2]);
+  });
+
+  test("flags a row with more cells than the header instead of silently dropping the extra fields", () => {
+    const table = parseTranslationCsv(
+      "\"Asset ID\",\"Route\",\"English, en\",\"Kannada, kn\"\n\"k1\",\"/\",\"Hello\",\"ಹಲೋ\",\"extra\"\n"
+    );
+
+    expect(findLongRows(table)).toEqual([2]);
   });
 
   test("an empty file or one without an Asset ID header is an error", () => {

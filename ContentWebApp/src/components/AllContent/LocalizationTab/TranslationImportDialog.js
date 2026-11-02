@@ -10,6 +10,7 @@ import {
   MAX_IMPORT_ROWS,
   buildImportRows,
   countQuestionMarkTranslations,
+  findLongRows,
   findShortRows,
   parseTranslationCsv,
   questionMarkError,
@@ -67,23 +68,31 @@ function TranslationImportDialog({ siteId, languages, defaultLang, onClose, onIm
     [table, lang]
   );
   const tooManyRows = table && !table.error && table.rows.length > MAX_IMPORT_ROWS;
+  const longRows = useMemo(
+    () => (table && !table.error && !tooManyRows ? findLongRows(table) : []),
+    [table, tooManyRows]
+  );
   const shortRows = useMemo(
     () =>
-      target && target.index !== undefined && !tooManyRows ? findShortRows(table, target.index) : [],
-    [table, target, tooManyRows]
+      target && target.index !== undefined && !tooManyRows && !longRows.length
+        ? findShortRows(table, target.index)
+        : [],
+    [table, target, tooManyRows, longRows]
   );
   const importRows = useMemo(
     () =>
-      target && target.index !== undefined && !tooManyRows && !shortRows.length
+      target && target.index !== undefined && !tooManyRows && !longRows.length && !shortRows.length
         ? buildImportRows(table, target.index)
         : null,
-    [table, target, tooManyRows, shortRows]
+    [table, target, tooManyRows, longRows, shortRows]
   );
   const questionMarks = importRows ? countQuestionMarkTranslations(importRows) : 0;
   const problem =
     table?.error ||
     target?.error ||
     (tooManyRows && `The CSV has more than ${MAX_IMPORT_ROWS} rows.`) ||
+    (longRows.length > 0 &&
+      `Row${longRows.length === 1 ? "" : "s"} ${longRows.join(", ")} ${longRows.length === 1 ? "has" : "have"} more columns than the header. Fix the file and import again.`) ||
     (shortRows.length > 0 &&
       `Row${shortRows.length === 1 ? "" : "s"} ${shortRows.join(", ")} ${shortRows.length === 1 ? "has" : "have"} fewer columns than the header. Fix the file and import again.`) ||
     (questionMarks > 0 && questionMarkError(questionMarks));

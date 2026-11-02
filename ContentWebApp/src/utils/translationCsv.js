@@ -79,6 +79,7 @@ const buildTable = (data, headerIndex) => {
     routeIndex,
     sourceIndex: source.index,
     targets: coded.length ? coded : targets,
+    headerLength: header.length,
     rows: data
       .slice(headerIndex + 1)
       .map((cells, offset) => ({ cells, number: headerIndex + offset + 2 }))
@@ -128,6 +129,9 @@ export const findShortRows = (table, targetIndex) =>
   table.rows
     .filter(({ cells }) => cells.length <= lastRequiredIndex(table, targetIndex))
     .map(({ number }) => number);
+
+export const findLongRows = (table) =>
+  table.rows.filter(({ cells }) => cells.length > table.headerLength).map(({ number }) => number);
 
 export const buildImportRows = (table, targetIndex) => {
   const required = lastRequiredIndex(table, targetIndex);
