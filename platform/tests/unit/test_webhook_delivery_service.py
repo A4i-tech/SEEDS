@@ -13,7 +13,7 @@ from pydantic import ValidationError
 
 from app.models.content_aggregator import IntegrationClientStatus as WebhookStatus
 from app.models.requests.webhook_registration_requests import WebhookEventType
-from app.platform.auth.webhook_secret import decrypt_secret, encrypt_secret
+from app.platform.auth.webhook_secret import encrypt_secret
 from app.platform.error_handling import ConfigurationError
 from app.repositories.content_aggregator_webhook_delivery_repository import (
     ContentAggregatorWebhookDeliveryRepository,
