@@ -1,42 +1,6 @@
 from __future__ import annotations
 
-import pytest
-from httpx import ASGITransport, AsyncClient
-
-from app.main import app
-from app.platform.auth.dependencies import get_db
-from app.platform.auth.jwt import create_access_token
-from app.repositories.content_aggregator_webhook_repository import (
-    ContentAggregatorWebhookRepository,
-)
-from tests.support.mongomock_async import AsyncMongoMockClient
-
-
-@pytest.fixture
-async def mock_db():
-    client = AsyncMongoMockClient()
-    db = client["test_seeds"]
-    await ContentAggregatorWebhookRepository.ensure_indexes(db)
-    return db
-
-
-@pytest.fixture(autouse=True)
-def _override_db(mock_db):
-    app.dependency_overrides[get_db] = lambda: mock_db
-    yield
-    app.dependency_overrides.clear()
-
-
-@pytest.fixture
-async def client():
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as c:
-        yield c
-
-
-def _tenant_headers(tenant_id: str) -> dict[str, str]:
-    token = create_access_token({"sub": tenant_id, "role": "tenant", "tenant_id": tenant_id})
-    return {"Authorization": f"Bearer {token}"}
+from tests.integration.conftest import _tenant_headers
 
 
 async def _register_and_token(client, *, scopes=("content:write", "content:read"), tenant_ids=("tenant-1",)):
@@ -185,7 +149,7 @@ async def test_register_enforces_exact_five_webhook_limit(client):
     sixth = await client.post(
         "/v1/webhooks", json={"url": "https://example.com/hook5", "events": ["job.completed"]}, headers=_auth(token)
     )
-    assert sixth.status_code == 409
+    assert sixth.status_code == 403
     assert sixth.json()["code"] == "WEBHOOK_LIMIT_REACHED"
 
 

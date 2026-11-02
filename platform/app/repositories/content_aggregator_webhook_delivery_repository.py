@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any, ClassVar
 
+from bson import ObjectId
 from pymongo import ReturnDocument
 from pymongo.asynchronous.database import AsyncDatabase
 
@@ -35,20 +36,15 @@ class ContentAggregatorWebhookDeliveryRepository(BaseRepository):
         next_attempt_at: datetime,
     ) -> DeliveryAttempt:
         doc: dict[str, Any] = {
-            "webhook_id": self._to_id(webhook_id),
+            "webhook_id": ObjectId(webhook_id),
             "content_id": content_id,
-            "event": WebhookEventType(event).value,
+            "event": event.value,
             "tenant_id": tenant_id,
             "client_id": client_id,
             "payload_data": payload_data,
             "attempt_number": attempt_number,
             "status": DeliveryStatus.PENDING.value,
             "next_attempt_at": next_attempt_at,
-            "attempted_at": None,
-            "response_code": None,
-            "succeeded": None,
-            "error": None,
-            "claimed_at": None,
         }
         result = await self._col.insert_one(doc)
         doc["_id"] = result.inserted_id
@@ -68,23 +64,29 @@ class ContentAggregatorWebhookDeliveryRepository(BaseRepository):
         )
         return DeliveryAttempt.from_mongo(doc) if doc is not None else None
 
+    async def get_attempt_doc(self, attempt_id: str) -> dict[str, Any] | None:
+        return await self._col.find_one({"_id": ObjectId(attempt_id)})
+
+    async def find_pending_for_webhook(self, webhook_id: str) -> dict[str, Any] | None:
+        return await self._col.find_one(
+            {"webhook_id": ObjectId(webhook_id), "status": DeliveryStatus.PENDING.value}
+        )
+
     async def record_attempt_result(
         self,
         attempt_id: str,
         *,
         status: DeliveryStatus,
         response_code: int | None,
-        succeeded: bool | None,
         error: str | None,
     ) -> None:
         await self._col.update_one(
-            {"_id": self._to_id(attempt_id)},
+            {"_id": ObjectId(attempt_id)},
             {
                 "$set": {
-                    "status": DeliveryStatus(status).value,
+                    "status": status.value,
                     "attempted_at": datetime.now(UTC),
                     "response_code": response_code,
-                    "succeeded": succeeded,
                     "error": error,
                     "next_attempt_at": None,
                 }
@@ -93,7 +95,7 @@ class ContentAggregatorWebhookDeliveryRepository(BaseRepository):
 
     async def release_claim(self, attempt_id: str, *, next_attempt_at: datetime, error: str) -> None:
         await self._col.update_one(
-            {"_id": self._to_id(attempt_id)},
+            {"_id": ObjectId(attempt_id)},
             {
                 "$set": {
                     "status": DeliveryStatus.PENDING.value,

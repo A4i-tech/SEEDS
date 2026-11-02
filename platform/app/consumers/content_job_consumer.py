@@ -84,6 +84,19 @@ from app.services.webhook_delivery_service import get_webhook_delivery_service
 logger = logging.getLogger(__name__)
 
 
+# Maximum processing time per job
+JOB_TIMEOUT_SECONDS = 5 * 60  # 5 minutes
+POLL_INTERVAL_SECONDS = 10
+FFMPEG_TIMEOUT_SECONDS = 5 * 60  # 5 minutes
+
+# Retry configuration (transient errors only)
+MAX_RETRIES = 3
+RETRY_BASE_SECONDS = 1.0  # backoff: 1 s, 2 s, 4 s
+
+# Errors that indicate a transient condition and should be retried
+_TRANSIENT_ERRORS = (ConnectionError, TimeoutError, OSError)
+
+
 async def _dispatch_job_webhook(
     db: AsyncDatabase,
     job_id,
@@ -102,17 +115,24 @@ async def _dispatch_job_webhook(
     await get_webhook_delivery_service(db).dispatch_terminal_event(job, event)
 
 
-# Maximum processing time per job
-JOB_TIMEOUT_SECONDS = 5 * 60  # 5 minutes
-POLL_INTERVAL_SECONDS = 10
-FFMPEG_TIMEOUT_SECONDS = 5 * 60  # 5 minutes
-
-# Retry configuration (transient errors only)
-MAX_RETRIES = 3
-RETRY_BASE_SECONDS = 1.0  # backoff: 1 s, 2 s, 4 s
-
-# Errors that indicate a transient condition and should be retried
-_TRANSIENT_ERRORS = (ConnectionError, TimeoutError, OSError)
+async def _fail_job(
+    db: AsyncDatabase,
+    job_repo: ContentJobRepository,
+    job_id,
+    content_id,
+    reason: str,
+) -> None:
+    """Mark a job failed and dispatch the terminal webhook, logging (not raising) dispatch errors."""
+    failed_at = await job_repo.mark_failed(job_id, reason)
+    try:
+        await _dispatch_job_webhook(
+            db, job_id, content_id, WebhookEventType.JOB_FAILED, at=failed_at, error=reason
+        )
+    except Exception as exc:  # noqa: BLE001 — job already marked failed; dispatch failure is logged only
+        logger.exception(
+            "content_job: webhook dispatch failed job_id=%s content_id=%s — %s",
+            job_id, content_id, exc,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -435,9 +455,15 @@ async def _process_audio_content_job(
                 "content_job: completed job_id=%s content_id=%s (attempt %d)",
                 job_id, content_id, attempt,
             )
-            await _dispatch_job_webhook(
-                db, job_id, content_id, WebhookEventType.JOB_COMPLETED, at=completed_at
-            )
+            try:
+                await _dispatch_job_webhook(
+                    db, job_id, content_id, WebhookEventType.JOB_COMPLETED, at=completed_at
+                )
+            except Exception as exc:  # noqa: BLE001 — job already completed; dispatch failure must not dead-letter it
+                logger.exception(
+                    "content_job: webhook dispatch failed job_id=%s content_id=%s — %s",
+                    job_id, content_id, exc,
+                )
             return  # success — exit retry loop
 
         except _TRANSIENT_ERRORS as exc:
@@ -450,9 +476,9 @@ async def _process_audio_content_job(
                 )
                 await asyncio.sleep(backoff)
             else:
-                logger.error(
+                logger.exception(
                     "content_job: max retries exhausted job_id=%s content_id=%s — %s",
-                    job_id, content_id, exc, exc_info=True,
+                    job_id, content_id, exc,
                 )
                 break
 
@@ -470,10 +496,7 @@ async def _process_audio_content_job(
         "content_job: dead-lettering job_id=%s content_id=%s reason=%r",
         job_id, content_id, error_msg,
     )
-    failed_at = await job_repo.mark_failed(job_id, error_msg)
-    await _dispatch_job_webhook(
-        db, job_id, content_id, WebhookEventType.JOB_FAILED, at=failed_at, error=error_msg
-    )
+    await _fail_job(db, job_repo, job_id, content_id, error_msg)
 
 
 # ---------------------------------------------------------------------------
@@ -540,24 +563,17 @@ class ContentJobConsumer:
                             timeout=JOB_TIMEOUT_SECONDS,
                         )
                     except TimeoutError:
-                        job_id = job_doc.get("_id")
-                        content_id = job_doc.get("content_id")
+                        job_id = job_doc["_id"]
+                        content_id = job_doc["content_id"]
                         reason = "Job exceeded timeout of 5 minutes"
-                        logger.error("content_job: timeout job_id=%s", job_id)
-                        failed_at = await job_repo.mark_failed(job_id, reason)
-                        await _dispatch_job_webhook(
-                            self._db,
-                            job_id,
-                            content_id,
-                            WebhookEventType.JOB_FAILED,
-                            at=failed_at,
-                            error=reason,
-                        )
+                        logger.error("content_job: timeout job_id=%s content_id=%s", job_id, content_id)
+                        await _fail_job(self._db, job_repo, job_id, content_id, reason)
                     except Exception as exc:  # noqa: BLE001
-                        job_id = job_doc.get("_id")
-                        logger.error(
-                            "content_job: unexpected exception job_id=%s — %s",
-                            job_id, exc, exc_info=True,
+                        job_id = job_doc["_id"]
+                        content_id = job_doc["content_id"]
+                        logger.exception(
+                            "content_job: unexpected exception job_id=%s content_id=%s — %s",
+                            job_id, content_id, exc,
                         )
                 else:
                     # No pending jobs — wait before polling again

@@ -3,10 +3,14 @@ from __future__ import annotations
 from datetime import datetime
 from enum import StrEnum
 
-from bson import ObjectId
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.models.requests.webhook_registration_requests import WebhookEventType, WebhookStatus
+from app.models.user import PyObjectId
+
+
+class WebhookEventType(StrEnum):
+    JOB_COMPLETED = "job.completed"
+    JOB_FAILED = "job.failed"
 
 
 class IntegrationClientStatus(StrEnum):
@@ -20,47 +24,63 @@ class DeliveryStatus(StrEnum):
     SUCCEEDED = "succeeded"
     FAILED = "failed"
     SKIPPED = "skipped"
+    DEAD_LETTERED = "dead_lettered"
+
+
+class JobEventData(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    job_id: str = Field(alias="jobId")
+    content_id: str = Field(alias="contentId")
+    job_name: str = Field(alias="jobName")
+    completed_at: datetime | None = Field(None, alias="completedAt")
+    failed_at: datetime | None = Field(None, alias="failedAt")
+    error: str | None = None
+
+
+class WebhookEventEnvelope(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    event: WebhookEventType
+    webhook_id: str = Field(alias="webhookId")
+    tenant_id: str = Field(alias="tenantId")
+    timestamp: datetime
+    data: JobEventData
 
 
 class Webhook(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    id: str = Field(alias="_id")
+    id: PyObjectId = Field(alias="_id")
     client_id: str
     url: str
     secret_encrypted: str = Field(repr=False)
     events: list[WebhookEventType]
-    status: WebhookStatus
+    status: IntegrationClientStatus
     created_at: datetime
     updated_at: datetime
 
     @classmethod
     def from_mongo(cls, doc: dict) -> Webhook:
-        return cls.model_validate({k: str(v) if isinstance(v, ObjectId) else v for k, v in doc.items()})
+        return cls.model_validate(doc)
 
 
 class DeliveryAttempt(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    id: str = Field(alias="_id")
-    webhook_id: str
+    id: PyObjectId = Field(alias="_id")
+    webhook_id: PyObjectId
     content_id: str
     event: WebhookEventType
     tenant_id: str
     client_id: str
-    payload_data: dict
+    payload_data: JobEventData
     attempt_number: int
     status: DeliveryStatus
-    next_attempt_at: datetime | None = None
-    claimed_at: datetime | None = None
-    attempted_at: datetime | None = None
-    response_code: int | None = None
-    succeeded: bool | None = None
-    error: str | None = None
 
     @classmethod
     def from_mongo(cls, doc: dict) -> DeliveryAttempt:
-        return cls.model_validate({k: str(v) if isinstance(v, ObjectId) else v for k, v in doc.items()})
+        return cls.model_validate(doc)
 
 
 class IntegrationClient(BaseModel):

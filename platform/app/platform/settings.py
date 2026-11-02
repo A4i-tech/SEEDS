@@ -155,7 +155,16 @@ class Settings(BaseSettings):
 
     ws_control_secret: str = Field(default="", repr=False)
 
-    webhook_secret_encryption_key: str = Field(default="", repr=False)
+    webhook_secret_encryption_key: str = Field(default="", repr=False, validate_default=True)
+
+    @field_validator("webhook_secret_encryption_key")
+    @classmethod
+    def _webhook_secret_encryption_key_not_blank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("webhook_secret_encryption_key must not be empty")
+        return value
+
+    require_https_webhooks: bool = True
 
     feature_ph: str = ""
 

@@ -9,38 +9,22 @@ import pytest
 from bson import ObjectId
 from httpx import ASGITransport, AsyncClient
 
-import app.models.requests.webhook_registration_requests as webhook_registration_requests
 import app.services.webhook_delivery_service as webhook_delivery_service
+import app.services.website_extractor as website_extractor
 from app.main import app
 from app.models.requests.webhook_registration_requests import WebhookEventType
-from app.platform.auth.dependencies import get_db
-from app.platform.auth.jwt import create_access_token
-from app.repositories.content_aggregator_webhook_repository import (
-    ContentAggregatorWebhookRepository,
+from app.repositories.content_aggregator_webhook_delivery_repository import (
+    ContentAggregatorWebhookDeliveryRepository,
 )
 from app.services.webhook_delivery_service import get_webhook_delivery_service
-from tests.support.mongomock_async import AsyncMongoMockClient
+from tests.integration.conftest import _tenant_headers
 from tests.support.webhook_test_receiver import WebhookTestReceiver
-
-
-@pytest.fixture
-async def mock_db():
-    client = AsyncMongoMockClient()
-    db = client["test_seeds"]
-    await ContentAggregatorWebhookRepository.ensure_indexes(db)
-    return db
-
-
-@pytest.fixture(autouse=True)
-def _override_db(mock_db):
-    app.dependency_overrides[get_db] = lambda: mock_db
-    yield
-    app.dependency_overrides.clear()
 
 
 @pytest.fixture(autouse=True)
 def _allow_local_http_url(monkeypatch):
-    monkeypatch.setattr(webhook_registration_requests, "_require_https", lambda url: url)
+    monkeypatch.setenv("REQUIRE_HTTPS_WEBHOOKS", "false")
+    monkeypatch.setattr(website_extractor, "_is_blocked_ip", lambda ip: False)
 
 
 @pytest.fixture(autouse=True)
@@ -56,26 +40,15 @@ def receiver():
     r.stop()
 
 
-@pytest.fixture
-async def client():
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as c:
-        yield c
-
-
 async def _drain(mock_db) -> None:
     service = get_webhook_delivery_service(mock_db)
+    delivery_repo = ContentAggregatorWebhookDeliveryRepository(mock_db)
     while True:
         now = datetime.now(UTC)
-        attempt = await service.claim_due(now, now)
+        attempt = await delivery_repo.claim_due(now, now)
         if attempt is None:
             return
         await service.attempt_delivery(attempt)
-
-
-def _tenant_headers(tenant_id: str) -> dict[str, str]:
-    token = create_access_token({"sub": tenant_id, "role": "tenant", "tenant_id": tenant_id})
-    return {"Authorization": f"Bearer {token}"}
 
 
 async def _register_client_and_webhook(client, receiver, *, events=("job.completed", "job.failed")):
@@ -131,7 +104,7 @@ async def test_completed_job_delivers_webhook_with_valid_signature(client, recei
 
     payload = json.loads(req.body)
     assert payload["event"] == "job.completed"
-    assert payload["webhookId"] == webhook["webhookId"]
+    assert payload["webhookId"] == webhook["id"]
     assert payload["tenantId"] == tenant_id
     assert payload["data"]["jobId"] == "job-1"
     assert payload["data"]["contentId"] == content_id
@@ -139,7 +112,7 @@ async def test_completed_job_delivers_webhook_with_valid_signature(client, recei
 
     deliveries = await mock_db["contentAggregatorWebhookDeliveries"].find({}).to_list(length=None)
     assert len(deliveries) == 1
-    assert deliveries[0]["succeeded"] is True
+    assert deliveries[0]["status"] == "succeeded"
     assert deliveries[0]["response_code"] == 200
     assert deliveries[0]["attempt_number"] == 1
 
@@ -179,10 +152,10 @@ async def test_retry_then_success_records_all_attempts(client, receiver, mock_db
         length=None
     )
     assert [d["attempt_number"] for d in deliveries] == [1, 2, 3]
-    assert [d["succeeded"] for d in deliveries] == [False, False, True]
+    assert [d["status"] for d in deliveries] == ["failed", "failed", "succeeded"]
     assert deliveries[0]["response_code"] == 500
 
-    doc = await mock_db["contentAggregatorWebhooks"].find_one({"_id": ObjectId(webhook["webhookId"])})
+    doc = await mock_db["contentAggregatorWebhooks"].find_one({"_id": ObjectId(webhook["id"])})
     assert doc["status"] == "active"
 
 
@@ -202,9 +175,11 @@ async def test_exhausted_retries_dead_letters_and_disables_webhook(client, recei
     assert receiver.request_count == webhook_delivery_service.WEBHOOK_MAX_ATTEMPTS
     deliveries = await mock_db["contentAggregatorWebhookDeliveries"].find({}).to_list(length=None)
     assert len(deliveries) == webhook_delivery_service.WEBHOOK_MAX_ATTEMPTS
-    assert all(not d["succeeded"] for d in deliveries)
+    assert all(d["status"] != "succeeded" for d in deliveries)
+    last = max(deliveries, key=lambda d: d["attempt_number"])
+    assert last["status"] == "dead_lettered"
 
-    doc = await mock_db["contentAggregatorWebhooks"].find_one({"_id": ObjectId(webhook["webhookId"])})
+    doc = await mock_db["contentAggregatorWebhooks"].find_one({"_id": ObjectId(webhook["id"])})
     assert doc["status"] == "disabled"
 
 
@@ -212,7 +187,7 @@ async def test_deleted_webhook_receives_no_delivery(client, receiver, mock_db):
     tenant_id, webhook, token = await _register_client_and_webhook(client, receiver)
     content_id = await _seed_content(mock_db, tenant_id)
     del_resp = await client.delete(
-        f"/v1/webhooks/{webhook['webhookId']}", headers={"Authorization": f"Bearer {token}"}
+        f"/v1/webhooks/{webhook['id']}", headers={"Authorization": f"Bearer {token}"}
     )
     assert del_resp.status_code == 204
 
@@ -255,9 +230,9 @@ async def test_multiple_webhooks_fan_out_and_one_failure_does_not_block_other(cl
         assert bad_receiver.request_count == webhook_delivery_service.WEBHOOK_MAX_ATTEMPTS
 
         good_doc = await mock_db["contentAggregatorWebhooks"].find_one(
-            {"_id": ObjectId(good_webhook["webhookId"])}
+            {"_id": ObjectId(good_webhook["id"])}
         )
-        bad_doc = await mock_db["contentAggregatorWebhooks"].find_one({"_id": ObjectId(bad.json()["webhookId"])})
+        bad_doc = await mock_db["contentAggregatorWebhooks"].find_one({"_id": ObjectId(bad.json()["id"])})
         assert good_doc["status"] == "active"
         assert bad_doc["status"] == "disabled"
     finally:

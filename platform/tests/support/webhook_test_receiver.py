@@ -7,8 +7,6 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 @dataclass
 class CapturedRequest:
-    method: str
-    path: str
     headers: dict[str, str]
     body: bytes
 
@@ -27,8 +25,6 @@ class WebhookTestReceiver:
                 with receiver._lock:
                     receiver.requests.append(
                         CapturedRequest(
-                            method="POST",
-                            path=self.path,
                             headers=dict(self.headers.items()),
                             body=body,
                         )
@@ -38,7 +34,7 @@ class WebhookTestReceiver:
                 self.send_header("Content-Length", "0")
                 self.end_headers()
 
-            def log_message(self, format: str, *args: object) -> None:
+            def log_message(self, fmt: str, *args: object) -> None:
                 pass
 
         self._server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)

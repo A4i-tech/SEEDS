@@ -187,10 +187,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # ------------------------------------------------------------------
     # STARTUP
     # ------------------------------------------------------------------
-    from app.platform.auth.webhook_secret import validate_configured  # noqa: PLC0415
-
-    validate_configured()
-
     await init_database()
 
     from app.repositories.content_aggregator_sync_job_repository import (  # noqa: PLC0415

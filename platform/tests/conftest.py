@@ -5,6 +5,9 @@ from __future__ import annotations
 import os
 
 import pytest
+from cryptography.fernet import Fernet
+
+from tests.support.mongomock_async import AsyncMongoMockClient
 
 # Ensure PASSWORD_SALT_ROUNDS is always a valid bcrypt value (4 = minimum, fast for tests)
 os.environ.setdefault("PASSWORD_SALT_ROUNDS", "4")
@@ -14,11 +17,16 @@ os.environ.setdefault("ENV", "development")
 os.environ.setdefault("MONGO_DB_CONNECTION_STRING", "")
 os.environ.setdefault("DB_CONNECTION", "")
 os.environ.setdefault("AUTH_TYPE", "jwt")
-os.environ.setdefault("WEBHOOK_SECRET_ENCRYPTION_KEY", "Bx3v9fJf5vD8m3sV7bqL4kQe2wZzXr1yT6nC0pA8dEo=")
+os.environ.setdefault("WEBHOOK_SECRET_ENCRYPTION_KEY", Fernet.generate_key().decode("utf-8"))
 os.environ.setdefault(
     "APPLICATIONINSIGHTS_CONNECTION_STRING",
     "InstrumentationKey=00000000-0000-0000-0000-000000000000;IngestionEndpoint=https://fake.example.com/",
 )
+
+
+@pytest.fixture
+def db():
+    return AsyncMongoMockClient()["test_seeds"]
 
 
 @pytest.fixture(autouse=True)

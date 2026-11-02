@@ -1,59 +1,34 @@
 from __future__ import annotations
 
-from enum import StrEnum
 from typing import Annotated
 
-from pydantic import AnyUrl, BaseModel, Field, field_validator
+from pydantic import AfterValidator, AnyUrl, BaseModel, Field
 
-
-class WebhookEventType(StrEnum):
-    JOB_COMPLETED = "job.completed"
-    JOB_FAILED = "job.failed"
-    CONTENT_UPDATED = "content.updated"
-    CONTENT_DELETED = "content.deleted"
-
-
-class WebhookStatus(StrEnum):
-    ACTIVE = "active"
-    DISABLED = "disabled"
-
-
-EventList = Annotated[list[WebhookEventType], Field(min_length=1)]
+from app.models.content_aggregator import IntegrationClientStatus, WebhookEventType
+from app.platform.settings import get_settings
 
 
 def _require_https(url: AnyUrl) -> AnyUrl:
-    if url.scheme != "https":
+    if url.scheme != "https" and get_settings().require_https_webhooks:
         raise ValueError("webhook url must use HTTPS")
     return url
 
 
+def _dedupe(events: list[WebhookEventType]) -> list[WebhookEventType]:
+    return list(dict.fromkeys(events))
+
+
+HttpsUrl = Annotated[AnyUrl, AfterValidator(lambda url: _require_https(url))]
+EventList = Annotated[list[WebhookEventType], AfterValidator(_dedupe), Field(min_length=1)]
+
+
 class WebhookRegisterRequest(BaseModel):
-    url: AnyUrl
+    url: HttpsUrl
     events: EventList
-
-    @field_validator("url")
-    @classmethod
-    def _check_https(cls, url: AnyUrl) -> AnyUrl:
-        return _require_https(url)
-
-    @field_validator("events")
-    @classmethod
-    def _dedupe(cls, events: list[WebhookEventType]) -> list[WebhookEventType]:
-        return list(dict.fromkeys(events))
 
 
 class WebhookUpdateRequest(BaseModel):
-    url: AnyUrl | None = None
+    url: HttpsUrl | None = None
     events: EventList | None = None
-    status: WebhookStatus | None = None
+    status: IntegrationClientStatus | None = None
     rotate_secret: bool = False
-
-    @field_validator("url")
-    @classmethod
-    def _check_https(cls, url: AnyUrl | None) -> AnyUrl | None:
-        return _require_https(url) if url is not None else None
-
-    @field_validator("events")
-    @classmethod
-    def _dedupe(cls, events: list[WebhookEventType] | None) -> list[WebhookEventType] | None:
-        return list(dict.fromkeys(events)) if events is not None else None

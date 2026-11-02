@@ -679,7 +679,7 @@ class TestContentJobConsumerDeadLetter:
         job_doc = {"_id": job_id, "content_id": str(ObjectId()), "status": "claimed"}
         await db["content_jobs"].insert_one(job_doc)
 
-        # content_col returns None => RuntimeError (permanent) => dead-lettered, no re-raise
+        # content_col returns None => RuntimeError (permanent)
         blob_mock = MagicMock()
         await _process_audio_content_job(job_doc, ContentJobRepository(db), ContentRepository(db), blob_mock, db)
 

@@ -60,7 +60,7 @@ class ContentJobRepository(BaseRepository):
         )
 
     async def mark_completed(self, job_id: str) -> datetime:
-        """Transition job to completed state. Returns the persisted completed_at."""
+        """Transition job to completed state."""
         completed_at = datetime.now(UTC)
         await self._col.update_one(
             {"_id": job_id},
@@ -69,7 +69,7 @@ class ContentJobRepository(BaseRepository):
         return completed_at
 
     async def mark_failed(self, job_id: str, reason: str) -> datetime:
-        """Dead-letter job with failure reason. Returns the persisted failed_at."""
+        """Dead-letter job with failure reason."""
         failed_at = datetime.now(UTC)
         await self._col.update_one(
             {"_id": job_id},

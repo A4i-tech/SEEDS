@@ -2,38 +2,34 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
-from app.models.content_aggregator import Webhook
-from app.models.requests.webhook_registration_requests import WebhookEventType, WebhookStatus
+from app.models.content_aggregator import IntegrationClientStatus, Webhook, WebhookEventType
 
 
 class WebhookResponse(BaseModel):
-    webhookId: str
+    model_config = ConfigDict(from_attributes=True)
+
+    id: str
     url: str
     events: list[WebhookEventType]
-    status: WebhookStatus
+    status: IntegrationClientStatus
     created_at: datetime
     updated_at: datetime
 
     @classmethod
     def of(cls, webhook: Webhook) -> WebhookResponse:
-        return cls(
-            webhookId=webhook.id,
-            url=webhook.url,
-            events=webhook.events,
-            status=webhook.status,
-            created_at=webhook.created_at,
-            updated_at=webhook.updated_at,
-        )
+        return cls.model_validate(webhook)
 
 
 class WebhookWithSecretResponse(WebhookResponse):
-    secret: str
+    secret: str = ""
 
     @classmethod
     def of_new(cls, webhook: Webhook, secret: str) -> WebhookWithSecretResponse:
-        return cls(**WebhookResponse.of(webhook).model_dump(), secret=secret)
+        response = cls.model_validate(webhook)
+        response.secret = secret
+        return response
 
 
 class WebhookListResponse(BaseModel):

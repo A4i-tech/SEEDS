@@ -16,19 +16,17 @@ from app.platform.auth.dependencies import get_db
 from app.platform.auth.webhook_secret import encrypt_secret
 from app.platform.error_handling import AppError, NotFoundError
 from app.repositories.content_aggregator_webhook_repository import (
+    DEFAULT_WEBHOOK_LIMIT,
     ContentAggregatorWebhookRepository,
-    WebhookUpdateFields,
 )
 
 logger = logging.getLogger(__name__)
 
-MAX_WEBHOOKS_PER_CLIENT = 5
+MAX_WEBHOOKS_PER_CLIENT = DEFAULT_WEBHOOK_LIMIT
 
 _EVENT_REQUIRED_SCOPE = {
     WebhookEventType.JOB_COMPLETED: "content:write",
     WebhookEventType.JOB_FAILED: "content:write",
-    WebhookEventType.CONTENT_UPDATED: "content:read",
-    WebhookEventType.CONTENT_DELETED: "content:read",
 }
 
 
@@ -42,13 +40,13 @@ class WebhookRegistrationService:
         self._repo = webhook_repo
 
     @staticmethod
-    def _require_scope(events: list[WebhookEventType], granted_scope: str) -> None:
+    def _require_scope(events: list[WebhookEventType], granted_scope: set[str]) -> None:
         required = {_EVENT_REQUIRED_SCOPE[e] for e in events}
-        if not required.issubset(granted_scope.split()):
+        if not required.issubset(granted_scope):
             raise AppError("SCOPE_INSUFFICIENT", "requested events exceed granted scope", 403)
 
     async def register(
-        self, client_id: str, granted_scope: str, body: WebhookRegisterRequest
+        self, client_id: str, granted_scope: set[str], body: WebhookRegisterRequest
     ) -> tuple[Webhook, str]:
         self._require_scope(body.events, granted_scope)
         secret, encrypted = _new_secret()
@@ -56,18 +54,15 @@ class WebhookRegistrationService:
             client_id, str(body.url), encrypted, body.events, limit=MAX_WEBHOOKS_PER_CLIENT
         )
         if webhook is None:
-            raise AppError("WEBHOOK_LIMIT_REACHED", "maximum webhooks per client reached", 409)
+            raise AppError("WEBHOOK_LIMIT_REACHED", "maximum webhooks per client reached", 403)
         logger.info(
-            "register_webhook: webhook registered webhookId=%s clientId=%s",
+            "register_webhook: webhook registered webhook_id=%s client_id=%s",
             webhook.id, client_id,
         )
         return webhook, secret
 
-    async def list_for_client(self, client_id: str) -> list[Webhook]:
-        return await self._repo.list_for_client(client_id)
-
     async def update(
-        self, client_id: str, webhook_id: str, granted_scope: str, body: WebhookUpdateRequest
+        self, client_id: str, webhook_id: str, granted_scope: set[str], body: WebhookUpdateRequest
     ) -> tuple[Webhook, str | None]:
         if body.events is not None:
             self._require_scope(body.events, granted_scope)
@@ -76,16 +71,18 @@ class WebhookRegistrationService:
         if body.rotate_secret:
             secret, encrypted = _new_secret()
 
-        updates: WebhookUpdateFields = body.model_dump(
-            mode="json", exclude_none=True, exclude={"rotate_secret"}
-        )
         webhook = await self._repo.update_for_client(
-            client_id, webhook_id, updates=updates, secret_encrypted=encrypted
+            client_id,
+            webhook_id,
+            url=str(body.url) if body.url is not None else None,
+            events=body.events,
+            status=body.status,
+            secret_encrypted=encrypted,
         )
         if webhook is None:
             raise NotFoundError("Webhook", webhook_id)
         logger.info(
-            "update_webhook: webhook updated webhookId=%s clientId=%s rotated=%s",
+            "update_webhook: webhook updated webhook_id=%s client_id=%s rotated=%s",
             webhook_id, client_id, body.rotate_secret,
         )
         return webhook, secret
@@ -94,7 +91,7 @@ class WebhookRegistrationService:
         if not await self._repo.delete_for_client(client_id, webhook_id):
             raise NotFoundError("Webhook", webhook_id)
         logger.info(
-            "delete_webhook: webhook deleted webhookId=%s clientId=%s",
+            "delete_webhook: webhook deleted webhook_id=%s client_id=%s",
             webhook_id, client_id,
         )
 

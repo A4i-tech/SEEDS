@@ -4,7 +4,8 @@ import asyncio
 
 import pytest
 
-from app.models.requests.webhook_registration_requests import WebhookEventType, WebhookStatus
+from app.models.content_aggregator import IntegrationClientStatus as WebhookStatus
+from app.models.requests.webhook_registration_requests import WebhookEventType
 from app.repositories.content_aggregator_webhook_repository import (
     ContentAggregatorWebhookRepository,
 )
@@ -41,13 +42,13 @@ async def test_update_delete_for_client(repo):
     webhook_id = doc.id
 
     updated = await repo.update_for_client(
-        "client-a", webhook_id, updates={"status": WebhookStatus.DISABLED.value}
+        "client-a", webhook_id, status=WebhookStatus.DISABLED
     )
     assert updated.status == WebhookStatus.DISABLED
 
     assert (
         await repo.update_for_client(
-            "client-b", webhook_id, updates={"status": WebhookStatus.DISABLED.value}
+            "client-b", webhook_id, status=WebhookStatus.DISABLED
         )
         is None
     )
@@ -58,51 +59,34 @@ async def test_update_delete_for_client(repo):
 
 
 @pytest.mark.asyncio
-async def test_update_for_client_invalid_id_returns_none(repo):
-    assert (
+async def test_update_for_client_invalid_id_raises(repo):
+    from bson.errors import InvalidId
+
+    with pytest.raises(InvalidId):
         await repo.update_for_client(
-            "client-a", "not-an-object-id", updates={"status": WebhookStatus.DISABLED.value}
+            "client-a", "not-an-object-id", status=WebhookStatus.DISABLED
         )
-        is None
-    )
 
 
 @pytest.mark.asyncio
 async def test_delete_for_client_missing_returns_false(repo):
-    assert await repo.delete_for_client("client-a", "6641abc123456789abcdef0") is False
-
-
-@pytest.mark.asyncio
-async def test_find_active_for_client_and_event_excludes_disabled_and_wrong_event(repo):
-    disabled = await repo.create("client-a", "https://x.example.com/hook1", "hash", [WebhookEventType.JOB_COMPLETED])
-    await repo.update_for_client("client-a", disabled.id, updates={"status": WebhookStatus.DISABLED.value})
-    await repo.create("client-a", "https://x.example.com/hook2", "hash", [WebhookEventType.JOB_FAILED])
-    active = await repo.create("client-a", "https://x.example.com/hook3", "hash", [WebhookEventType.JOB_COMPLETED])
-
-    found = await repo.find_active_for_clients_and_event(["client-a"], WebhookEventType.JOB_COMPLETED)
-    assert [d.id for d in found] == [active.id]
-
-
-@pytest.mark.asyncio
-async def test_find_active_for_client_and_event_excludes_deleted(repo):
-    doc = await repo.create("client-a", "https://x.example.com/hook", "hash", [WebhookEventType.JOB_COMPLETED])
-    await repo.delete_for_client("client-a", doc.id)
-
-    assert await repo.find_active_for_clients_and_event(["client-a"], WebhookEventType.JOB_COMPLETED) == []
+    assert await repo.delete_for_client("client-a", "6641abc123456789abcdef00") is False
 
 
 @pytest.mark.asyncio
 async def test_find_active_for_clients_and_event(repo):
-    doc_a = await repo.create("client-a", "https://x.example.com/hook-a", "hash", [WebhookEventType.JOB_COMPLETED])
-    doc_b = await repo.create("client-b", "https://x.example.com/hook-b", "hash", [WebhookEventType.JOB_COMPLETED])
+    disabled = await repo.create("client-a", "https://x.example.com/hook1", "hash", [WebhookEventType.JOB_COMPLETED])
+    await repo.update_for_client("client-a", disabled.id, status=WebhookStatus.DISABLED)
+    await repo.create("client-a", "https://x.example.com/hook2", "hash", [WebhookEventType.JOB_FAILED])
+    active_a = await repo.create("client-a", "https://x.example.com/hook3", "hash", [WebhookEventType.JOB_COMPLETED])
+    active_b = await repo.create("client-b", "https://x.example.com/hook-b", "hash", [WebhookEventType.JOB_COMPLETED])
     await repo.create("client-c", "https://x.example.com/hook-c", "hash", [WebhookEventType.JOB_COMPLETED])
+    deleted = await repo.create("client-a", "https://x.example.com/hook-deleted", "hash", [WebhookEventType.JOB_COMPLETED])
+    await repo.delete_for_client("client-a", deleted.id)
 
     found = await repo.find_active_for_clients_and_event(["client-a", "client-b"], WebhookEventType.JOB_COMPLETED)
-    assert {d.id for d in found} == {doc_a.id, doc_b.id}
+    assert {d.id for d in found} == {active_a.id, active_b.id}
 
-
-@pytest.mark.asyncio
-async def test_find_active_for_clients_and_event_empty_list_returns_empty(repo):
     assert await repo.find_active_for_clients_and_event([], WebhookEventType.JOB_COMPLETED) == []
 
 
