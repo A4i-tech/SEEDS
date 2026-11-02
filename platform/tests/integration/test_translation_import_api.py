@@ -48,7 +48,7 @@ def _body(**overrides):
         "lang": "kn",
         "overwrite_blank": False,
         "state": "pending",
-        "rows": [{"route": "/", "key": sdk_rolling_hash("Hello World"), "source": "Hello World", "text": "ಹಲೋ"}],
+        "rows": [{"route": "/", "key": sdk_rolling_hash("Hello World"), "source": "Hello World", "text": "ಹಲೋ", "row": 1}],
     }
     return {**body, **overrides}
 
@@ -73,7 +73,7 @@ async def test_import_forbids_school_admin_and_teacher(client):
 async def test_import_writes_rows_and_returns_per_row_results(client, mock_db):
     repo = await _seed_site(mock_db)
     body = _body()
-    body["rows"].append({"route": "/", "key": "tbad", "source": "Nope", "text": "x"})
+    body["rows"].append({"route": "/", "key": "tbad", "source": "Nope", "text": "x", "row": 2})
 
     resp = await client.post(URL, json=body, headers=_headers())
 
@@ -84,7 +84,7 @@ async def test_import_writes_rows_and_returns_per_row_results(client, mock_db):
         "unchanged": 0,
         "skipped_blank": 0,
         "failed": 1,
-        "errors": [{"row": 2, "route": "/", "key": "tbad", "reason": "key_mismatch"}],
+        "errors": [{"row": 2, "route": "/", "key": "tbad", "reason": "key_mismatch", "detail": None}],
         "warnings": [],
     }
     doc = (await repo.find_by_route("site1", "/"))[0]
@@ -112,7 +112,7 @@ async def test_import_rejects_an_unknown_state_and_oversized_payload(client, moc
     await _seed_site(mock_db)
 
     assert (await client.post(URL, json=_body(state="rejected"), headers=_headers())).status_code == 422
-    too_many = _body(rows=[{"route": "/", "key": "k", "source": "s", "text": "t"}] * (MAX_IMPORT_ROWS + 1))
+    too_many = _body(rows=[{"route": "/", "key": "k", "source": "s", "text": "t", "row": 1}] * (MAX_IMPORT_ROWS + 1))
     assert (await client.post(URL, json=too_many, headers=_headers())).status_code == 422
 
 
@@ -127,7 +127,7 @@ async def test_import_route_does_not_shadow_translation_id_routes(client, mock_d
 
 async def test_import_accepts_exactly_the_maximum_number_of_rows(client, mock_db):
     await _seed_site(mock_db)
-    rows = [{"route": "/", "key": f"k{i}", "source": f"s{i}", "text": ""} for i in range(MAX_IMPORT_ROWS)]
+    rows = [{"route": "/", "key": f"k{i}", "source": f"s{i}", "text": "", "row": i + 1} for i in range(MAX_IMPORT_ROWS)]
 
     resp = await client.post(URL, json=_body(rows=rows), headers=_headers())
 
@@ -139,21 +139,21 @@ async def test_import_accepts_exactly_the_maximum_number_of_rows(client, mock_db
 async def test_import_reports_an_invalid_route_per_row_not_for_the_whole_request(client, mock_db):
     repo = await _seed_site(mock_db)
     body = _body()
-    body["rows"].append({"route": "/about?x=1", "key": sdk_rolling_hash("Other"), "source": "Other", "text": "x"})
+    body["rows"].append({"route": "/about?x=1", "key": sdk_rolling_hash("Other"), "source": "Other", "text": "x", "row": 2})
 
     resp = await client.post(URL, json=body, headers=_headers())
 
     assert resp.status_code == 200
     assert resp.json()["updated"] == 1
     assert resp.json()["errors"] == [
-        {"row": 2, "route": "/about?x=1", "key": sdk_rolling_hash("Other"), "reason": "invalid_route"}
+        {"row": 2, "route": "/about?x=1", "key": sdk_rolling_hash("Other"), "reason": "invalid_route", "detail": None}
     ]
     assert len(await repo.find_by_route("site1", "/about?x=1")) == 0
 
 
 async def test_import_rejects_rows_with_missing_or_misspelled_fields_instead_of_guessing(client, mock_db):
     await _seed_site(mock_db)
-    row = {"rout": "/", "key": "k", "source": "s", "text": "t"}
+    row = {"rout": "/", "key": "k", "source": "s", "text": "t", "row": 1}
 
     resp = await client.post(URL, json=_body(rows=[row]), headers=_headers())
 
@@ -177,4 +177,4 @@ async def test_import_reports_the_csv_row_number_sent_by_the_client(client, mock
     resp = await client.post(URL, json=_body(rows=[row]), headers=_headers())
 
     assert resp.status_code == 200
-    assert resp.json()["errors"] == [{"row": 41, "route": "/", "key": "tbad", "reason": "key_mismatch"}]
+    assert resp.json()["errors"] == [{"row": 41, "route": "/", "key": "tbad", "reason": "key_mismatch", "detail": None}]

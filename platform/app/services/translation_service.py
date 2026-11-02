@@ -1,17 +1,23 @@
 from __future__ import annotations
 
 import logging
+from collections import Counter
 from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any, Literal, NotRequired, TypedDict
 
+from bson import ObjectId
 from fastapi import Depends
 from pymongo import UpdateOne
 from pymongo.asynchronous.database import AsyncDatabase
 from pymongo.errors import BulkWriteError, PyMongoError
 
 from app.models.requests.translation_requests import ImportState, TranslationImportRow
-from app.models.responses.translation import ImportRowError
+from app.models.responses.translation import (
+    ImportRowError,
+    ImportRowReason,
+    TranslationImportResponse,
+)
 from app.platform.auth.dependencies import get_db
 from app.platform.error_handling import NotFoundError, ValidationError
 from app.platform.settings import get_settings
@@ -22,7 +28,11 @@ from app.providers.translation_provider import (
 )
 from app.repositories.glossary_repository import GlossaryRepository
 from app.repositories.translation_audit_repository import TranslationAuditRepository
-from app.repositories.translation_repository import IMPORT_PROVIDER, TranslationRepository
+from app.repositories.translation_repository import (
+    IMPORT_PROVIDER,
+    TM_PROVIDER,
+    TranslationRepository,
+)
 from app.repositories.translation_version_repository import TranslationVersionRepository
 from app.repositories.website_repository import WebsiteRepository
 from app.services.glossary_normalizer import GlossaryNormalizer
@@ -39,7 +49,7 @@ class _PlannedRow(TypedDict):
     key: str
     kind: Literal["created", "updated"]
     audits: list[dict[str, Any]]
-    version_doc: NotRequired[dict[str, Any]]
+    version_doc: NotRequired[dict[str, Any] | None]
     translation_id: NotRequired[str | None]
 
 
@@ -95,10 +105,46 @@ def _version_doc(version: int, translations: dict[str, Any], approved_by: str, a
     }
 
 
+def _entry_fields(text: str, approving: bool, actor: str, now: datetime, *, is_new: bool) -> dict[str, Any]:
+    fields: dict[str, Any] = {
+        "text": text,
+        "provider": IMPORT_PROVIDER,
+        "quality_score": IMPORT_QUALITY_SCORE,
+        "status": "approved" if approving else "pending",
+    }
+    if is_new:
+        fields["created_by"] = actor
+        fields["created_at"] = now
+    if approving:
+        fields["approved_by"] = actor
+        fields["approved_at"] = now
+    return fields
+
+
+async def _best_effort(
+    call: Callable[[], Any],
+    plans: list[_PlannedRow],
+    reason: ImportRowReason,
+    msg: str,
+    *,
+    warn: Callable[[_PlannedRow, ImportRowReason], None],
+    site_id: str,
+) -> None:
+    try:
+        await call()
+    except PyMongoError:
+        logger.error(msg, extra={"site_id": site_id, "rows": [p["row"] for p in plans]}, exc_info=True)
+        for p in plans:
+            warn(p, reason)
+
+
+_MICROS_PER_MILLI = 1000
+
+
 def _same_instant(stored: datetime | None, expected: datetime) -> bool:
     if stored is None:
         return False
-    millis = expected.microsecond // 1000 * 1000
+    millis = expected.microsecond // _MICROS_PER_MILLI * _MICROS_PER_MILLI
     return stored.replace(tzinfo=None) == expected.replace(tzinfo=None, microsecond=millis)
 
 
@@ -110,7 +156,7 @@ def _is_url_pathname(route: str) -> bool:
     return not any(segment in (".", "..") for segment in route.split("/"))
 
 
-def _import_row_error(route: str, key: str, source: str, text: str) -> str | None:
+def _import_row_error(route: str, key: str, source: str, text: str) -> ImportRowReason | None:
     if not key:
         return "missing_key"
     if len(key) > IMPORT_KEY_MAX_LENGTH:
@@ -313,7 +359,7 @@ class TranslationService:
             if tm_hit:
                 translated = tm_hit["translations"][lang]["text"]
                 await self._persist_translation(
-                    site_id, route, doc, lang, translated, "TranslationMemory", 1.0, auto_approved=True
+                    site_id, route, doc, lang, translated, TM_PROVIDER, 1.0, auto_approved=True
                 )
                 result[doc["key"]] = translated
                 continue
@@ -389,7 +435,7 @@ class TranslationService:
             auto_approved = False
             if tm_hit:
                 translated = tm_hit["translations"][lang]["text"]
-                provider_name = "TranslationMemory"
+                provider_name = TM_PROVIDER
                 quality_score = 1.0
                 auto_approved = True
             else:
@@ -543,7 +589,7 @@ class TranslationService:
             try:
                 await self._repo.bulk_write(ops)
             except BulkWriteError as exc:
-                for err in exc.details.get("writeErrors", []):
+                for err in exc.details["writeErrors"]:
                     idx = err["index"]
                     failed_translation_ids.add(op_translation_ids[idx])
                     failed += op_lang_counts[idx]
@@ -576,24 +622,51 @@ class TranslationService:
         rows: list[TranslationImportRow],
         overwrite_blank: bool = False,
         state: ImportState = "pending",
-    ) -> dict[str, Any]:
+    ) -> TranslationImportResponse:
         website = await self._ensure_site_owned_by_tenant(site_id, tenant_id)
         self._assert_website_active(website, site_id)
         await self._ensure_lang_enabled(site_id, lang, website)
 
-        counts = {"updated": 0, "created": 0, "unchanged": 0, "skipped_blank": 0}
-        errors: list[dict[str, Any]] = []
+        counts, errors, ops, planned, now = await self._plan_import_rows(
+            site_id, lang, rows, overwrite_blank, state, actor
+        )
 
-        def fail(row_no: int, route: str, key: str, reason: str) -> None:
-            errors.append({"row": row_no, "route": route, "key": key, "reason": reason})
+        def fail(row_no: int, route: str, key: str, reason: ImportRowReason, detail: str | None = None) -> None:
+            errors.append(ImportRowError(row=row_no, route=route, key=key, reason=reason, detail=detail))
+
+        failed_ops, failed_op_detail, bulk_write_unknown = await self._write_import_ops(ops, planned, site_id)
+        row_warnings = await self._record_import_outcomes(
+            site_id, now, planned, failed_ops, failed_op_detail, bulk_write_unknown, counts, fail
+        )
+
+        errors.sort(key=lambda e: e.row)
+        row_warnings.sort(key=lambda w: w.row)
+        return TranslationImportResponse(
+            **counts, failed=len(errors), errors=errors, warnings=row_warnings
+        )
+
+    async def _plan_import_rows(
+        self,
+        site_id: str,
+        lang: str,
+        rows: list[TranslationImportRow],
+        overwrite_blank: bool,
+        state: ImportState,
+        actor: str,
+    ) -> tuple[Counter[str], list[ImportRowError], list[UpdateOne], list[_PlannedRow], datetime]:
+        counts: Counter[str] = Counter(updated=0, created=0, unchanged=0, skipped_blank=0)
+        errors: list[ImportRowError] = []
+
+        def fail(row_no: int, route: str, key: str, reason: ImportRowReason, detail: str | None = None) -> None:
+            errors.append(ImportRowError(row=row_no, route=route, key=key, reason=reason, detail=detail))
 
         parsed: list[tuple[int, str, str, str, str]] = []
         seen: set[tuple[str, str]] = set()
-        for index, row in enumerate(rows, start=1):
-            row_no = row.row or index
+        for row in rows:
+            row_no = row.row
             route = row.route
-            key = row.key.strip()
-            source = _canonical_source(row.source)
+            key = row.key
+            source = _normalize_newlines(row.source)
             text = _normalize_newlines(row.text)
             reason = _import_row_error(route, key, source, text)
             if reason is None and (route, key) in seen:
@@ -619,7 +692,8 @@ class TranslationService:
 
         for row_no, route, key, source, text in parsed:
             doc = existing.get((route, key))
-            entry = ((doc or {}).get("translations") or {}).get(lang)
+            existing_translations = doc.get("translations") or {} if doc is not None else {}
+            entry = existing_translations.get(lang)
             current = _normalize_newlines((entry or {}).get("text") or "")
 
             if doc is not None and _canonical_source(doc.get("source_text") or "") != source:
@@ -633,7 +707,7 @@ class TranslationService:
                     counts["unchanged"] += 1
                 else:
                     ops.append(
-                        UpdateOne(
+                        self._repo.import_write_op(
                             {"_id": doc["_id"]},
                             {
                                 "$unset": {base: ""},
@@ -642,6 +716,7 @@ class TranslationService:
                                     "audit_log": {"action": "cleared", "actor": actor, "detail": f"lang={lang}", "at": now}
                                 },
                             },
+                            upsert=False,
                         )
                     )
                     cleared_audit = _import_audit_doc(site_id, route, key, lang, "cleared", actor, None, "", now)
@@ -657,66 +732,41 @@ class TranslationService:
                 counts["unchanged"] += 1
                 continue
 
-            version = (doc or {}).get("version", 0) + 1
-            if doc is None:
-                new_entry: dict[str, Any] = {
-                    "text": text,
-                    "provider": IMPORT_PROVIDER,
-                    "quality_score": IMPORT_QUALITY_SCORE,
-                    "created_by": actor,
+            version = (doc.get("version", 0) if doc is not None else 0) + 1
+            is_new = doc is None
+            new_id = ObjectId() if is_new else None
+            set_fields: dict[str, Any] = {f"{base}.text": text, "updated_at": now}
+            unset_fields: dict[str, str] = {}
+            if is_new or state != "keep" or entry is None:
+                entry_fields = _entry_fields(text, approving, actor, now, is_new=is_new or entry is None)
+                set_fields.update(
+                    {f"{base}.{field}": value for field, value in entry_fields.items() if field != "text"}
+                )
+                review_fields = _REJECTION_FIELDS if approving else _REVIEW_FIELDS
+                unset_fields = {f"{base}.{field}": "" for field in review_fields}
+            if approving:
+                set_fields.update(
+                    {"status": "approved", "approved_by": actor, "approved_at": now, "version": version}
+                )
+            update: dict[str, Any] = {"$set": set_fields}
+            if unset_fields:
+                update["$unset"] = unset_fields
+            if is_new:
+                update["$setOnInsert"] = {
+                    "_id": new_id,
+                    "site_id": site_id,
+                    "route": route,
+                    "key": key,
+                    "source_lang": IMPORT_SOURCE_LANG,
+                    "source_text": source,
                     "created_at": now,
-                    "status": "approved" if approving else "pending",
-                }
-                set_fields: dict[str, Any] = {base: new_entry, "updated_at": now}
-                if approving:
-                    new_entry.update({"approved_by": actor, "approved_at": now})
-                    set_fields.update(
-                        {"status": "approved", "approved_by": actor, "approved_at": now, "version": version}
-                    )
-                update: dict[str, Any] = {
-                    "$setOnInsert": {
-                        "site_id": site_id,
-                        "route": route,
-                        "key": key,
-                        "source_lang": IMPORT_SOURCE_LANG,
-                        "source_text": source,
-                        "created_at": now,
-                    },
-                    "$set": set_fields,
                 }
                 query: dict[str, Any] = {"site_id": site_id, "route": route, "key": key}
-                kind = "created"
             else:
-                set_fields = {f"{base}.text": text, "updated_at": now}
-                unset_fields: dict[str, str] = {}
-                if state != "keep" or entry is None:
-                    set_fields[f"{base}.provider"] = IMPORT_PROVIDER
-                    set_fields[f"{base}.quality_score"] = IMPORT_QUALITY_SCORE
-                    set_fields[f"{base}.status"] = "pending"
-                    review_fields = _REJECTION_FIELDS if approving else _REVIEW_FIELDS
-                    unset_fields = {f"{base}.{field}": "" for field in review_fields}
-                if entry is None:
-                    set_fields[f"{base}.created_by"] = actor
-                    set_fields[f"{base}.created_at"] = now
-                if approving:
-                    set_fields.update(
-                        {
-                            f"{base}.status": "approved",
-                            f"{base}.approved_by": actor,
-                            f"{base}.approved_at": now,
-                            "status": "approved",
-                            "approved_by": actor,
-                            "approved_at": now,
-                            "version": version,
-                        }
-                    )
-                update = {"$set": set_fields}
-                if unset_fields:
-                    update["$unset"] = unset_fields
                 query = {"_id": doc["_id"]}
                 if approving:
                     query["version"] = doc.get("version", {"$exists": False})
-                kind = "updated"
+            kind = "created" if is_new else "updated"
 
             log_entries = [{"action": "imported", "actor": actor, "detail": f"lang={lang};state={state}", "at": now}]
             audits = [
@@ -733,7 +783,7 @@ class TranslationService:
                 version_doc = _version_doc(
                     version,
                     {
-                        **((doc or {}).get("translations") or {}),
+                        **existing_translations,
                         lang: {
                             **(entry or {}),
                             "text": text,
@@ -746,7 +796,7 @@ class TranslationService:
                     now,
                 )
             update["$push"] = {"audit_log": {"$each": log_entries}}
-            ops.append(UpdateOne(query, update, upsert=doc is None))
+            ops.append(self._repo.import_write_op(query, update, upsert=is_new))
             planned.append(
                 {
                     "row": row_no,
@@ -755,11 +805,17 @@ class TranslationService:
                     "kind": kind,
                     "audits": audits,
                     "version_doc": version_doc,
-                    "translation_id": str(doc["_id"]) if doc else None,
+                    "translation_id": str(doc["_id"]) if doc else str(new_id),
                 }
             )
 
+        return counts, errors, ops, planned, now
+
+    async def _write_import_ops(
+        self, ops: list[UpdateOne], planned: list[_PlannedRow], site_id: str
+    ) -> tuple[set[int], dict[int, str], bool]:
         failed_ops: set[int] = set()
+        failed_op_detail: dict[int, str] = {}
         bulk_write_unknown = False
         if ops:
             try:
@@ -769,6 +825,7 @@ class TranslationService:
             except BulkWriteError as exc:
                 write_errors = exc.details["writeErrors"]
                 failed_ops = {err["index"] for err in write_errors}
+                failed_op_detail = {err["index"]: err.get("errmsg", "") for err in write_errors}
                 logger.warning(
                     "import_translations: %d row(s) failed to write",
                     len(failed_ops),
@@ -779,6 +836,14 @@ class TranslationService:
                     },
                     exc_info=True,
                 )
+                write_concern_errors = exc.details.get("writeConcernErrors")
+                if write_concern_errors:
+                    bulk_write_unknown = True
+                    logger.error(
+                        "import_translations: bulk_write reported write concern error(s); "
+                        "rows not already marked failed could not be confirmed as durably written",
+                        extra={"site_id": site_id, "errors": write_concern_errors},
+                    )
             except PyMongoError:
                 bulk_write_unknown = True
                 logger.error(
@@ -787,10 +852,22 @@ class TranslationService:
                     extra={"site_id": site_id, "row_count": len(planned)},
                     exc_info=True,
                 )
+        return failed_ops, failed_op_detail, bulk_write_unknown
 
+    async def _record_import_outcomes(
+        self,
+        site_id: str,
+        now: datetime,
+        planned: list[_PlannedRow],
+        failed_ops: set[int],
+        failed_op_detail: dict[int, str],
+        bulk_write_unknown: bool,
+        counts: Counter[str],
+        fail: Callable[[int, str, str, ImportRowReason, str | None], None],
+    ) -> list[ImportRowError]:
         row_warnings: list[ImportRowError] = []
 
-        def warn(plan: _PlannedRow, reason: str) -> None:
+        def warn(plan: _PlannedRow, reason: ImportRowReason) -> None:
             row_warnings.append(ImportRowError(row=plan["row"], route=plan["route"], key=plan["key"], reason=reason))
 
         guarded = [
@@ -832,7 +909,7 @@ class TranslationService:
         written: list[_PlannedRow] = []
         for index, plan in enumerate(planned):
             if index in failed_ops:
-                fail(plan["row"], plan["route"], plan["key"], "write_failed")
+                fail(plan["row"], plan["route"], plan["key"], "write_failed", failed_op_detail.get(index))
             else:
                 counts[plan["kind"]] += 1
                 written.append(plan)
@@ -840,70 +917,38 @@ class TranslationService:
                     warn(plan, "version_not_recorded")
 
         unverified_keys = {(planned[i]["route"], planned[i]["key"]) for i in unverified}
-        new_identities = [
-            (p["route"], p["key"]) for p in written if p.get("version_doc") and p["translation_id"] is None
-        ]
-        new_ids: dict[tuple[str, str], str] = {}
-        if new_identities:
-            try:
-                created_docs = await self._repo.find_by_route_keys(site_id, new_identities)
-                new_ids = {(doc["route"], doc["key"]): str(doc["_id"]) for doc in created_docs}
-            except PyMongoError:
-                logger.error(
-                    "import_translations: new rows were saved but their ids could not be looked up for history recording",
-                    extra={
-                        "site_id": site_id,
-                        "rows": [p["row"] for p in written if (p["route"], p["key"]) in new_identities],
-                    },
-                    exc_info=True,
-                )
 
         version_docs = []
         version_doc_rows: list[_PlannedRow] = []
         for p in written:
             if not p.get("version_doc"):
                 continue
-            key_tuple = (p["route"], p["key"])
-            if key_tuple in unverified_keys:
+            if (p["route"], p["key"]) in unverified_keys:
                 continue
-            translation_id = p["translation_id"] or new_ids.get(key_tuple)
-            if translation_id is None:
-                logger.warning(
-                    "import_translations: new row was saved but its id could not be found for history recording",
-                    extra={"site_id": site_id, "route": p["route"], "key": p["key"]},
-                )
-                warn(p, "version_not_recorded")
-                continue
-            version_docs.append({**p["version_doc"], "translation_id": translation_id})
+            version_docs.append({**p["version_doc"], "translation_id": p["translation_id"]})
             version_doc_rows.append(p)
 
         audit_docs = [audit for p in written for audit in p["audits"]]
         if version_docs:
-            try:
-                await self._version_repo.add_versions_bulk(version_docs)
-            except PyMongoError:
-                logger.error(
-                    "import_translations: rows were saved but their versions were not recorded",
-                    extra={"site_id": site_id, "rows": [p["row"] for p in version_doc_rows]},
-                    exc_info=True,
-                )
-                for p in version_doc_rows:
-                    warn(p, "version_not_recorded")
+            await _best_effort(
+                lambda: self._version_repo.add_versions_bulk(version_docs),
+                version_doc_rows,
+                "version_not_recorded",
+                "import_translations: rows were saved but their versions were not recorded",
+                warn=warn,
+                site_id=site_id,
+            )
         if audit_docs:
-            try:
-                await self._audit_repo.record_bulk(audit_docs)
-            except PyMongoError:
-                logger.error(
-                    "import_translations: rows were saved but their audit entries were not recorded",
-                    extra={"site_id": site_id, "rows": [p["row"] for p in written]},
-                    exc_info=True,
-                )
-                for p in written:
-                    warn(p, "audit_not_recorded")
+            await _best_effort(
+                lambda: self._audit_repo.record_bulk(audit_docs),
+                written,
+                "audit_not_recorded",
+                "import_translations: rows were saved but their audit entries were not recorded",
+                warn=warn,
+                site_id=site_id,
+            )
 
-        errors.sort(key=lambda e: e["row"])
-        row_warnings.sort(key=lambda w: w.row)
-        return {**counts, "failed": len(errors), "errors": errors, "warnings": row_warnings}
+        return row_warnings
 
     async def get_translation(self, translation_id: str, tenant_id: str) -> dict[str, Any]:
         return await self._get_translation_owned_by_tenant(translation_id, tenant_id)

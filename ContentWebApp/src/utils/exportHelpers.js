@@ -2,11 +2,6 @@
  * Export utility functions for downloading data as CSV or JSON files
  */
 
-/**
- * Trigger a browser download of a Blob
- * @param {Blob} blob - Blob content to download
- * @param {string} filename - Name for the downloaded file (with extension)
- */
 export const downloadBlob = (blob, filename) => {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");

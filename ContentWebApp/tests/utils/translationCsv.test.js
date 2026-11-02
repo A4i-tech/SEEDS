@@ -6,6 +6,7 @@ import {
   buildImportRows as buildRows,
   buildTranslationCsv,
   countQuestionMarkTranslations,
+  findShortRows,
   parseTranslationCsv,
   questionMarkError,
   selectTargetColumn,
@@ -153,14 +154,13 @@ describe("parseTranslationCsv", () => {
     ]);
   });
 
-  test("fills missing trailing cells with empty strings", () => {
+  test("excludes a row with fewer cells than the header instead of padding it", () => {
     const table = parseTranslationCsv(
       "\"Asset ID\",\"Route\",\"English, en\",\"Kannada, kn\"\n\"k1\",\"/\",\"Hello\"\n"
     );
 
-    expect(buildImportRows(table, 3)).toEqual([
-      { route: "/", key: "k1", source: "Hello", text: "" },
-    ]);
+    expect(buildImportRows(table, 3)).toEqual([]);
+    expect(findShortRows(table, 3)).toEqual([2]);
   });
 
   test("an empty file or one without an Asset ID header is an error", () => {
@@ -251,7 +251,7 @@ describe("parseTranslationCsv", () => {
     expect(selectTargetColumn(table, "kn")).toEqual({ index: 4, code: "kn" });
   });
 
-  test("exposes a row cap constant matching the backend", () => {
+  test("exposes a row cap constant (keep in sync with platform/app/models/requests/translation_requests.py MAX_IMPORT_ROWS)", () => {
     expect(MAX_IMPORT_ROWS).toBe(5000);
   });
 });
@@ -365,7 +365,7 @@ describe("formula injection protection", () => {
 
   test("an Excel re-saved file keeps the apostrophe as text and still imports the original value", () => {
     const table = parseTranslationCsv(
-      "Asset ID,Route,\"English, en\",\"Kannada, kn\"\r\n" + "k1,/,'=SUM(1+1),'+91 ಹಲೋ\r\n"
+      "Asset ID,Route,\"English, en\",\"Kannada, kn\"\r\nk1,/,'=SUM(1+1),'+91 ಹಲೋ\r\n"
     );
 
     expect(buildImportRows(table, 3)).toEqual([
@@ -427,6 +427,6 @@ describe("encoding corruption", () => {
   });
 });
 
-test("the export cap matches the backend MAX_TRANSLATION_ROWS", () => {
+test("exposes an export row cap (keep in sync with platform/app/repositories/translation_repository.py MAX_TRANSLATION_ROWS)", () => {
   expect(MAX_EXPORT_ROWS).toBe(20000);
 });

@@ -11,6 +11,7 @@ import {
   MAX_IMPORT_ROWS,
   buildImportRows,
   countQuestionMarkTranslations,
+  findShortRows,
   parseTranslationCsv,
   questionMarkError,
   readFileText,
@@ -67,18 +68,25 @@ function TranslationImportDialog({ siteId, languages, defaultLang, onClose, onIm
     [table, lang]
   );
   const tooManyRows = table && !table.error && table.rows.length > MAX_IMPORT_ROWS;
+  const shortRows = useMemo(
+    () =>
+      target && target.index !== undefined && !tooManyRows ? findShortRows(table, target.index) : [],
+    [table, target, tooManyRows]
+  );
   const importRows = useMemo(
     () =>
-      target && target.index !== undefined && !tooManyRows
+      target && target.index !== undefined && !tooManyRows && !shortRows.length
         ? buildImportRows(table, target.index)
         : null,
-    [table, target, tooManyRows]
+    [table, target, tooManyRows, shortRows]
   );
   const questionMarks = importRows ? countQuestionMarkTranslations(importRows) : 0;
   const problem =
     table?.error ||
     target?.error ||
     (tooManyRows && `The CSV has more than ${MAX_IMPORT_ROWS} rows.`) ||
+    (shortRows.length > 0 &&
+      `Row${shortRows.length === 1 ? "" : "s"} ${shortRows.join(", ")} ${shortRows.length === 1 ? "has" : "have"} fewer columns than the header. Fix the file and import again.`) ||
     (questionMarks > 0 && questionMarkError(questionMarks));
   const canImport = Boolean(importRows && importRows.length && !problem && !busy);
   const targetCodes =
@@ -89,7 +97,10 @@ function TranslationImportDialog({ siteId, languages, defaultLang, onClose, onIm
     setResult(null);
     setFailure(null);
     setFileName(file ? file.name : "");
-    if (!file) return setTable(null);
+    if (!file) {
+      setTable(null);
+      return;
+    }
     try {
       setTable(parseTranslationCsv(await readFileText(file)));
     } catch (e) {
@@ -159,10 +170,11 @@ function TranslationImportDialog({ siteId, languages, defaultLang, onClose, onIm
             checked={overwriteBlank}
             onChange={(e) => setOverwriteBlank(e.target.checked)}
             disabled={Boolean(result)}
+            aria-describedby="overwrite-blank-hint"
           />
           Overwrite blank values
         </label>
-        <p className="placeholder-text">
+        <p className="placeholder-text" id="overwrite-blank-hint">
           {overwriteBlank
             ? "Blank cells will clear the existing translation for this language."
             : "Blank cells are skipped and existing translations are kept."}
@@ -187,9 +199,17 @@ function TranslationImportDialog({ siteId, languages, defaultLang, onClose, onIm
           </div>
         </fieldset>
 
-        {problem && <p className="error-message">{problem}</p>}
+        {problem && (
+          <p className="error-message" role="alert">
+            {problem}
+          </p>
+        )}
         {target?.warning && <p className="status-message">{target.warning}</p>}
-        {failure && <p className="error-message">{failure}</p>}
+        {failure && (
+          <p className="error-message" role="alert">
+            {failure}
+          </p>
+        )}
 
         {result && (
           <div role="status" ref={resultRef} tabIndex={-1}>
@@ -205,6 +225,9 @@ function TranslationImportDialog({ siteId, languages, defaultLang, onClose, onIm
               <div
                 className="table-wrapper import-dialog-errors"
                 data-testid="import-dialog-errors"
+                tabIndex={0}
+                role="region"
+                aria-label="Import errors"
               >
                 <table className="content-table">
                   <thead>
@@ -225,8 +248,8 @@ function TranslationImportDialog({ siteId, languages, defaultLang, onClose, onIm
                         <td className="table-cell" title={err.key}>
                           {err.key}
                         </td>
-                        <td className="table-cell" title={REASONS[err.reason] || err.reason}>
-                          {REASONS[err.reason] || err.reason}
+                        <td className="table-cell" title={err.detail || REASONS[err.reason]}>
+                          {err.detail || REASONS[err.reason]}
                         </td>
                       </tr>
                     ))}

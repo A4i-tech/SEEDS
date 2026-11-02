@@ -738,7 +738,7 @@ describe("Import review fixes", () => {
     expect(problem).toHaveAttribute("title", "Asset ID is too long");
     const route = within(dialog).getByText("/faq?page=2");
     expect(route).toHaveAttribute("title", "/faq?page=2");
-    const errorRow = route.closest("tr");
+    const errorRow = within(dialog).getByRole("row", { name: /\/faq\?page=2/ });
     expect(within(errorRow).getByText("9")).toBeInTheDocument();
   });
 

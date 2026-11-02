@@ -16,7 +16,8 @@ import { translationService } from "../../../services/translationService";
 import { toSegment } from "../../../utils/segments";
 import { useToast } from "./Toast";
 import TranslationImportDialog from "./TranslationImportDialog";
-import { MAX_EXPORT_ROWS, buildTranslationCsv, downloadCsv } from "../../../utils/translationCsv";
+import { MAX_EXPORT_ROWS, buildTranslationCsv } from "../../../utils/translationCsv";
+import { downloadBlob } from "../../../utils/exportHelpers";
 
 function EmptyState({ title, message, action }) {
   return (
@@ -347,8 +348,10 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
       const site = sites.find((s) => s.siteId === siteId);
       const slug = (site?.name || site?.domain || siteId).replace(/[^a-z0-9]+/gi, "-");
       const languageName = languages.find((l) => l.code === lang)?.name;
-      downloadCsv(
-        buildTranslationCsv({ docs: exported, lang, languageName }),
+      downloadBlob(
+        new Blob([buildTranslationCsv({ docs: exported, lang, languageName })], {
+          type: "text/csv;charset=utf-8;",
+        }),
         `${slug}-${lang}.csv`
       );
       if (exported.length >= MAX_EXPORT_ROWS) {

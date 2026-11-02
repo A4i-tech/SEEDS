@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 
 MAX_TRANSLATION_ROWS = 20_000
 IMPORT_PROVIDER = "Import"
+TM_PROVIDER = "TranslationMemory"
 ROUTE_KEY_QUERY_BATCH = 500
 
 
@@ -104,7 +105,7 @@ class TranslationRepository(BaseRepository):
         }
         if auto_approved:
             set_fields["status"] = "approved"
-            set_fields["approved_by"] = "system:TranslationMemory"
+            set_fields["approved_by"] = f"system:{TM_PROVIDER}"
             set_fields["approved_at"] = now
         await self._col.update_one(
             {"site_id": site_id, "route": route, "key": key},
@@ -139,9 +140,9 @@ class TranslationRepository(BaseRepository):
             logger.warning("get_analytics hit MAX_TRANSLATION_ROWS cap", extra={"site_id": site_id})
         for doc in docs:
             providers = {t.get("provider") for t in (doc.get("translations") or {}).values()}
-            if providers - {"TranslationMemory", IMPORT_PROVIDER}:
+            if providers - {TM_PROVIDER, IMPORT_PROVIDER}:
                 ai_generated += 1
-            if "TranslationMemory" in providers:
+            if TM_PROVIDER in providers:
                 tm_reused += 1
 
         return {
@@ -213,6 +214,9 @@ class TranslationRepository(BaseRepository):
         }
 
         await self._col.update_one({"_id": self._to_id(translation_id)}, {"$set": set_fields})
+
+    def import_write_op(self, query: dict[str, Any], update: dict[str, Any], *, upsert: bool) -> UpdateOne:
+        return UpdateOne(query, update, upsert=upsert)
 
     async def bulk_write(self, ops: list[UpdateOne]) -> BulkWriteResult:
         return await self._col.bulk_write(ops, ordered=False)

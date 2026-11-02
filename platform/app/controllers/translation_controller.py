@@ -136,7 +136,7 @@ async def import_translations(
     service: TranslationService = Depends(get_translation_service),
     user: dict[str, Any] = Depends(require_translation_reviewer),
 ) -> TranslationImportResponse:
-    result = await service.import_translations(
+    return await service.import_translations(
         site_id,
         _tenant_id(user),
         _reviewer_id(user),
@@ -145,7 +145,6 @@ async def import_translations(
         overwrite_blank=body.overwrite_blank,
         state=body.state,
     )
-    return TranslationImportResponse(**result)
 
 
 @router.post(

@@ -1,11 +1,27 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.platform.settings import get_settings
 from app.services.quality_scorer import is_low_confidence
+
+ImportRowReason = Literal[
+    "missing_key",
+    "key_too_long",
+    "missing_route",
+    "invalid_route",
+    "missing_source",
+    "source_too_long",
+    "text_too_long",
+    "duplicate_row",
+    "source_mismatch",
+    "key_mismatch",
+    "write_failed",
+    "version_not_recorded",
+    "audit_not_recorded",
+]
 
 
 class TranslationResponse(BaseModel):
@@ -86,7 +102,8 @@ class ImportRowError(BaseModel):
     row: int
     route: str
     key: str
-    reason: str
+    reason: ImportRowReason
+    detail: str | None = None
 
 
 class TranslationImportResponse(BaseModel):

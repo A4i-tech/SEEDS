@@ -1,5 +1,4 @@
 import Papa from "papaparse";
-import { downloadBlob } from "./exportHelpers";
 
 export const MAX_IMPORT_ROWS = 5000;
 export const MAX_EXPORT_ROWS = 20000;
@@ -45,9 +44,6 @@ export const buildTranslationCsv = ({ docs, lang, languageName }) => {
   );
   return `\uFEFF${csv}`;
 };
-
-export const downloadCsv = (content, filename) =>
-  downloadBlob(new Blob([content], { type: "text/csv;charset=utf-8;" }), filename);
 
 export const readFileText = (file) =>
   new Promise((resolve, reject) => {
@@ -125,14 +121,26 @@ export const selectTargetColumn = (table, lang) => {
   return { error: `The CSV has no target column for "${lang}".` };
 };
 
-export const buildImportRows = (table, targetIndex) =>
-  table.rows.map(({ cells: row, number }) => ({
-    row: number,
-    route: unescapeFormula(cell(row, table.routeIndex).trim()),
-    key: unescapeFormula(cell(row, table.assetIndex).trim()),
-    source: unescapeFormula(cell(row, table.sourceIndex)),
-    text: unescapeFormula(cell(row, targetIndex)),
-  }));
+const lastRequiredIndex = (table, targetIndex) =>
+  Math.max(table.routeIndex, table.assetIndex, table.sourceIndex, targetIndex);
+
+export const findShortRows = (table, targetIndex) =>
+  table.rows
+    .filter(({ cells }) => cells.length <= lastRequiredIndex(table, targetIndex))
+    .map(({ number }) => number);
+
+export const buildImportRows = (table, targetIndex) => {
+  const required = lastRequiredIndex(table, targetIndex);
+  return table.rows
+    .filter(({ cells }) => cells.length > required)
+    .map(({ cells: row, number }) => ({
+      row: number,
+      route: unescapeFormula(cell(row, table.routeIndex).trim()),
+      key: unescapeFormula(cell(row, table.assetIndex).trim()),
+      source: unescapeFormula(cell(row, table.sourceIndex)),
+      text: unescapeFormula(cell(row, targetIndex)),
+    }));
+};
 
 export const countQuestionMarkTranslations = (rows) =>
   rows.filter(
