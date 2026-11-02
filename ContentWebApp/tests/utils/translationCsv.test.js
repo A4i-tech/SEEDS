@@ -251,7 +251,7 @@ describe("parseTranslationCsv", () => {
     expect(selectTargetColumn(table, "kn")).toEqual({ index: 4, code: "kn" });
   });
 
-  test("exposes a row cap constant (keep in sync with platform/app/models/requests/translation_requests.py MAX_IMPORT_ROWS)", () => {
+  test("MAX_IMPORT_ROWS is 5000 (must be changed in lockstep with platform/app/models/requests/translation_requests.py MAX_IMPORT_ROWS)", () => {
     expect(MAX_IMPORT_ROWS).toBe(5000);
   });
 });
@@ -427,6 +427,6 @@ describe("encoding corruption", () => {
   });
 });
 
-test("exposes an export row cap (keep in sync with platform/app/repositories/translation_repository.py MAX_TRANSLATION_ROWS)", () => {
+test("MAX_EXPORT_ROWS is 20000 (must be changed in lockstep with platform/app/repositories/translation_repository.py MAX_TRANSLATION_ROWS)", () => {
   expect(MAX_EXPORT_ROWS).toBe(20000);
 });

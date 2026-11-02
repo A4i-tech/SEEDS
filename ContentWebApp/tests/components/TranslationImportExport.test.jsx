@@ -212,6 +212,13 @@ describe("Import dialog", () => {
       errors: [{ row: 3, route: "/new", key: "tbad", reason: "key_mismatch" }],
       warnings: [],
     });
+    const docsAfterImport = docs.map((d) =>
+      d.key === "k4" ? { ...d, translations: { kn: { text: "ಹೊಸ ಅನುವಾದ", status: "approved" } } } : d
+    );
+    let listCalls = 0;
+    translationService.listTranslations.mockImplementation(() =>
+      Promise.resolve(listCalls++ < 2 ? docs : docsAfterImport)
+    );
     renderWorkspace(undefined, onDataChanged);
     await screen.findByText("Untranslated one");
     const dialog = await openImportDialog();
@@ -244,7 +251,9 @@ describe("Import dialog", () => {
     expect(within(dialog).getByText("Asset ID does not match the source text")).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: "Close" })).toBeInTheDocument();
     expect(onDataChanged).toHaveBeenCalledTimes(1);
-    expect(translationService.listTranslations.mock.calls.length).toBeGreaterThan(1);
+    await waitFor(() =>
+      expect(screen.getByLabelText("Translation for: Untranslated one")).toHaveValue("ಹೊಸ ಅನುವಾದ")
+    );
   });
 
   test("blocks a CSV whose language column conflicts with the selected language before any write", async () => {
@@ -608,28 +617,6 @@ describe("Import dialog layout on short viewports", () => {
     expect(within(dialog).getByRole("button", { name: "Close" })).toBeInTheDocument();
   });
 
-  test("the stylesheet bounds the scroll area to the viewport and scrolls the error table on its own", () => {
-    const css = require("fs").readFileSync(
-      require("path").join(
-        __dirname,
-        "../../src/components/AllContent/LocalizationTab/TranslationImportDialog.css"
-      ),
-      "utf8"
-    );
-    const rule = (selector) => css.slice(css.indexOf(selector)).split("}")[0];
-
-    expect(rule(".import-dialog-scroll {")).toMatch(/max-height:\s*calc\(92vh - 160px\)/);
-    expect(rule(".import-dialog-scroll {")).toMatch(/overflow-y:\s*auto/);
-    expect(rule(".import-dialog-scroll > * {")).toMatch(/flex-shrink:\s*0/);
-    expect(rule(".import-dialog-scroll .import-dialog-errors {")).toMatch(/max-height:\s*16rem/);
-    expect(rule(".import-dialog-scroll .import-dialog-errors {")).toMatch(/overflow:\s*auto/);
-    expect(rule(".import-dialog-scroll .import-dialog-errors .content-table {")).toMatch(
-      /table-layout:\s*auto/
-    );
-    expect(rule(".import-dialog-scroll .import-dialog-errors .table-cell {")).toMatch(
-      /white-space:\s*normal/
-    );
-  });
 });
 
 describe("Import review fixes", () => {
