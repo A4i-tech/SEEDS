@@ -59,7 +59,7 @@ async def test_patch_updates_webhook(client):
         )
     ).json()
     resp = await client.patch(
-        f"/v1/webhooks/{created['webhookId']}",
+        f"/v1/webhooks/{created['id']}",
         json={"url": "https://example.com/hook2"},
         headers=_auth(token),
     )
@@ -77,14 +77,14 @@ async def test_patch_updates_events(client):
         )
     ).json()
     resp = await client.patch(
-        f"/v1/webhooks/{created['webhookId']}",
+        f"/v1/webhooks/{created['id']}",
         json={"events": ["job.failed"]},
         headers=_auth(token),
     )
     assert resp.status_code == 200, resp.text
     assert resp.json()["events"] == ["job.failed"]
     listed = await client.get("/v1/webhooks", headers=_auth(token))
-    updated = next(wh for wh in listed.json()["webhooks"] if wh["webhookId"] == created["webhookId"])
+    updated = next(wh for wh in listed.json()["webhooks"] if wh["id"] == created["id"])
     assert updated["events"] == ["job.failed"]
 
 
@@ -98,7 +98,7 @@ async def test_patch_secret_rotation_returns_new_secret(client):
         )
     ).json()
     resp = await client.patch(
-        f"/v1/webhooks/{created['webhookId']}", json={"rotate_secret": True}, headers=_auth(token)
+        f"/v1/webhooks/{created['id']}", json={"rotate_secret": True}, headers=_auth(token)
     )
     assert resp.status_code == 200, resp.text
     assert resp.json()["secret"] != created["secret"]
@@ -113,10 +113,10 @@ async def test_delete_webhook(client):
             headers=_auth(token),
         )
     ).json()
-    resp = await client.delete(f"/v1/webhooks/{created['webhookId']}", headers=_auth(token))
+    resp = await client.delete(f"/v1/webhooks/{created['id']}", headers=_auth(token))
     assert resp.status_code == 204
     listed = await client.get("/v1/webhooks", headers=_auth(token))
-    assert all(wh["webhookId"] != created["webhookId"] for wh in listed.json()["webhooks"])
+    assert all(wh["id"] != created["id"] for wh in listed.json()["webhooks"])
 
 
 async def test_register_rejects_non_https_url(client):
@@ -173,9 +173,9 @@ async def test_client_isolation_between_partners(client):
         )
     ).json()
     resp = await client.get("/v1/webhooks", headers=_auth(token_b))
-    assert all(wh["webhookId"] != created["webhookId"] for wh in resp.json()["webhooks"])
+    assert all(wh["id"] != created["id"] for wh in resp.json()["webhooks"])
     patch_resp = await client.patch(
-        f"/v1/webhooks/{created['webhookId']}", json={"url": "https://example.com/other"}, headers=_auth(token_b)
+        f"/v1/webhooks/{created['id']}", json={"url": "https://example.com/other"}, headers=_auth(token_b)
     )
     assert patch_resp.status_code == 404
 
