@@ -10,7 +10,6 @@ import "../shared/buttons.css";
 import "../shared/cards.css";
 import "../ContentTab/css/ContentTab.css";
 import "../RegistrationTab/css/TeachersList.css";
-import "../AnalyticsTab/css/AnalyticsTab.css";
 import { Pagination } from "../../ContentAggregatorDetails/Pagination";
 import { translationService } from "../../../services/translationService";
 import { toSegment } from "../../../utils/segments";

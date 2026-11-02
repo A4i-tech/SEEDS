@@ -2,7 +2,6 @@ import React, { useState } from "react";
 import "../shared/cards.css";
 import "../shared/buttons.css";
 import "../shared/utilities.css";
-import "../AnalyticsTab/css/AnalyticsTab.css";
 import { useToast } from "./Toast";
 import { SnippetBlock } from "./SnippetBlock";
 import { DevToolsSection } from "./DevToolsSection";

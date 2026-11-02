@@ -59,7 +59,7 @@ const quotesError = (rowIndex) =>
   }. Every opening quote needs a closing quote. Fix that row and import again.`;
 
 const buildTable = (data, headerIndex) => {
-  const header = data[headerIndex].map((value) => (value ?? "").trim());
+  const header = data[headerIndex].map((value) => value.trim());
   const lower = header.map((value) => value.toLowerCase());
   const routeIndex = lower.indexOf("route");
   if (routeIndex < 0) return { error: "The CSV has no \"Route\" column." };
@@ -82,7 +82,7 @@ const buildTable = (data, headerIndex) => {
     rows: data
       .slice(headerIndex + 1)
       .map((cells, offset) => ({ cells, number: headerIndex + offset + 2 }))
-      .filter(({ cells }) => cells.some((value) => (value ?? "").trim() !== "")),
+      .filter(({ cells }) => cells.some((value) => value.trim() !== "")),
   };
 };
 
@@ -91,7 +91,7 @@ export const parseTranslationCsv = (text) => {
   const content = text.replace(/^\uFEFF/, "");
   for (const delimiter of DELIMITERS) {
     const { data, errors } = Papa.parse(content, { delimiter });
-    const headerIndex = data.findIndex((row) => (row[0] ?? "").trim().toLowerCase() === "asset id");
+    const headerIndex = data.findIndex((row) => row[0].trim().toLowerCase() === "asset id");
     if (headerIndex >= 0) {
       const quoteError = errors.find((error) => error.type === "Quotes");
       return quoteError ? { error: quotesError(quoteError.row) } : buildTable(data, headerIndex);

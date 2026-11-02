@@ -4,7 +4,6 @@ import Select from "../shared/Select";
 import "../shared/buttons.css";
 import "../shared/utilities.css";
 import "../shared/modal.css";
-import "../AnalyticsTab/css/AnalyticsTab.css";
 import "./TranslationImportDialog.css";
 import { translationService } from "../../../services/translationService";
 import {
