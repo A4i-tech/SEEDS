@@ -16,7 +16,7 @@ const NON_LOCALE_HEADERS = new Set(["asset id", "route", "context", "notes"]);
 const LOCALE_CODE = /^[a-z]{2,3}(-[a-z0-9]+)*$/i;
 const SOURCE_HEADER = "English, en";
 
-const cell = (row, index) => row[index] ?? "";
+const cell = (row, index) => row[index];
 
 const escapeFormula = (value) => (FORMULA_START.test(value) ? `'${value}` : value);
 

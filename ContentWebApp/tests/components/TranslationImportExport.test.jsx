@@ -357,7 +357,7 @@ describe("Import dialog", () => {
 
     await userEvent.click(within(dialog).getByRole("button", { name: "Import" }));
 
-    await within(dialog).findByText("Website not found");
+    await within(dialog).findByText(/Website not found/);
     expect(within(dialog).queryByText(/Updated/)).not.toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: "Import" })).toBeEnabled();
   });
@@ -685,7 +685,7 @@ describe("Import review fixes", () => {
 
     await userEvent.click(within(dialog).getByRole("button", { name: "Import" }));
 
-    await within(dialog).findByText("Gateway timeout");
+    await within(dialog).findByText(/Gateway timeout/);
     await waitFor(() => expect(translationService.listTranslations).toHaveBeenCalled());
   });
 
@@ -705,7 +705,7 @@ describe("Import review fixes", () => {
     expect(translationService.listTranslations).toHaveBeenCalled();
   });
 
-  test("history warnings tell the user which rows were saved without their history", async () => {
+  test("history warnings tell the user which rows may not be fully saved", async () => {
     translationService.importTranslations.mockResolvedValue({
       ...importOk,
       warnings: [
@@ -719,7 +719,7 @@ describe("Import review fixes", () => {
     await userEvent.click(within(dialog).getByRole("button", { name: "Import" }));
 
     await within(dialog).findByText(
-      /saved, but their version history and audit entry could not be recorded: row 4\./
+      /may not be fully saved — their version history and audit entry could not be recorded: row 4\./
     );
   });
 

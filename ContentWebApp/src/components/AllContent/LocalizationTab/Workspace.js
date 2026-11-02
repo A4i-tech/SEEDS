@@ -36,6 +36,7 @@ const BADGE_STYLE = {
 };
 
 const ACTIONS_COLUMN_STYLE = { width: 380 };
+const EXPORT_TRUNCATED_TOAST_MS = 20000;
 
 let sourceCanvasCtx = null;
 
@@ -346,7 +347,7 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
       const exported = await translationService.listTranslations({ siteId });
       if (!exported.length) return toast({ message: "Nothing to export", tone: "info" });
       const site = sites.find((s) => s.siteId === siteId);
-      const slug = (site?.name || site?.domain || siteId).replace(/[^a-z0-9]+/gi, "-");
+      const slug = (site.name || site.domain).replace(/[^a-z0-9]+/gi, "-");
       const languageName = languages.find((l) => l.code === lang)?.name;
       downloadBlob(
         new Blob([buildTranslationCsv({ docs: exported, lang, languageName })], {
@@ -358,7 +359,7 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
         toast({
           message: `Exported ${exported.length} rows, but ${MAX_EXPORT_ROWS.toLocaleString("en-US")} is the most one export can hold, so this file may be incomplete.`,
           tone: "crit",
-          duration: 20000,
+          duration: EXPORT_TRUNCATED_TOAST_MS,
         });
       } else {
         toast({ message: `Exported ${exported.length} rows`, tone: "good" });

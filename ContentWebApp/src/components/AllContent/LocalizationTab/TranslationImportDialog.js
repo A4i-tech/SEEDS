@@ -51,7 +51,7 @@ function TranslationImportDialog({ siteId, languages, defaultLang, onClose, onIm
   const [table, setTable] = useState(null);
   const [lang, setLang] = useState(defaultLang || "");
   const [overwriteBlank, setOverwriteBlank] = useState(false);
-  const [state, setState] = useState("pending");
+  const [importState, setImportState] = useState("pending");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
   const [failure, setFailure] = useState(null);
@@ -116,13 +116,15 @@ function TranslationImportDialog({ siteId, languages, defaultLang, onClose, onIm
         siteId,
         lang,
         overwriteBlank,
-        state,
+        state: importState,
         rows: importRows,
       });
       setResult(res);
       onImported(res);
     } catch (e) {
-      setFailure(e.message);
+      setFailure(
+        `${e.message} If this was a network or timeout error, some rows may already have been imported — check the list before retrying.`
+      );
       onImported();
     } finally {
       setBusy(false);
@@ -189,8 +191,8 @@ function TranslationImportDialog({ siteId, languages, defaultLang, onClose, onIm
                   type="radio"
                   name="import-state"
                   value={option.value}
-                  checked={state === option.value}
-                  onChange={() => setState(option.value)}
+                  checked={importState === option.value}
+                  onChange={() => setImportState(option.value)}
                   disabled={Boolean(result)}
                 />
                 {option.label}
@@ -218,7 +220,7 @@ function TranslationImportDialog({ siteId, languages, defaultLang, onClose, onIm
             </p>
             {result.warnings.length > 0 && (
               <p className="status-message">
-                {`These rows were saved, but their ${[...new Set(result.warnings.map((w) => WARNINGS[w.reason]))].join(" and ")} could not be recorded: row ${[...new Set(result.warnings.map((w) => w.row))].join(", ")}.`}
+                {`These rows may not be fully saved — their ${[...new Set(result.warnings.map((w) => WARNINGS[w.reason]))].join(" and ")} could not be recorded: row ${[...new Set(result.warnings.map((w) => w.row))].join(", ")}.`}
               </p>
             )}
             {result.errors.length > 0 && (
