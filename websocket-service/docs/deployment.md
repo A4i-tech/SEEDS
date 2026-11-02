@@ -1,48 +1,26 @@
 # websocket-service Staging Deployment Guide
 
-## 1. Platform Choice
-- Recommended: [Render](https://render.com) or [Fly.io](https://fly.io) (both have a permanent free tier)
-- [Deta](https://deta.space) is another option for some Node.js apps
-- Note: [Railway](https://railway.app) only offers a 30-day trial and is not always free
-- All recommended platforms support Docker and Node.js apps
+## 1. How staging deploys
 
-## 2. Preparing for Deployment
-- Connect your GitHub repository to the chosen platform
-- Select the appropriate branch for deployment (e.g., `main` or `a4i/main`)
+Staging runs on kube-dev, not Render/Fly.io. A push to `a4i/staging` runs `.github/workflows/deploy-websocket-service-staging.yml`, which builds and pushes `ghcr.io/a4i-tech/seeds/websocket-service:staging`. ArgoCD Image Updater on kube-dev watches that tag and rolls the new digest out automatically, no manual deploy step.
 
-## 3. Environment Variables
-Set these in the platform dashboard (do NOT commit secrets):
-```
-PORT=<your-port>
-AZURE_STORAGE_ACCOUNT_NAME=<your-azure-storage-account-name>
-```
+## 2. Environment Variables
 
-> **Note:** Only include variables relevant to your service. Do not commit secrets to version control.
+Runtime config comes from `infra-ops`' `partners/seeds/` manifests and the shared `seeds-platform-secret`, not a platform dashboard. To change a value, update it there and let ArgoCD sync.
 
-## 4. Deploying on Render/Fly.io
-1. Create a new Web Service and connect your GitHub repo
-2. Select Docker as the build method
-3. Set environment variables as above
-4. Deploy and monitor logs for successful startup
+## 3. Testing Endpoints
 
-## 5. Testing Endpoints
-Open your deployed app in the browser and visit to verify it loads
-```
-http://<endpoint-url>/docs
-```
+Staging is served at `wss://websocket-dev.a4i-lab.in`.
 
-## 6. Staging Isolation
-- Use separate DB, secrets, and endpoints for staging
-- Never share production secrets with staging
+## 4. Staging Isolation
 
-## 7. Sample Data Seeding
-- Use MongoDB Atlas UI or a script to seed sample data if/when the service uses MongoDB
+Kube-dev's `seeds` namespace runs its own DB, secrets, and endpoints, separate from production.
 
-## 8. Troubleshooting
-- Check platform logs for errors
-- Ensure all environment variables are set
-- Validate external service connections (e.g., MongoDB, Azure)
+## 5. Troubleshooting
+
+- Check the GitHub Actions run for `deploy-websocket-service-staging.yml` for build/push failures.
+- Check ArgoCD for the `websocket-service` Application's sync status on kube-dev.
+- `kubectl -n seeds logs` on the `seeds-websocket` pod for runtime errors.
 
 ---
-For further help, see platform documentation or contact your admin.
-
+For further help, see the `infra-ops` repo or contact your admin.
