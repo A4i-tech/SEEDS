@@ -5,7 +5,7 @@ import asyncio
 import base64
 import logging
 import os
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import vonage
@@ -26,6 +26,7 @@ from app.providers.vonage_actions.connect_action import VonageConnectAction
 from app.providers.vonage_actions.input_action import InputAction
 from app.providers.vonage_actions.talk_action import TalkAction
 from app.providers.websocket_client import WebsocketClientProvider, get_websocket_service
+from app.repositories.call_repository import CallsLogRepository
 from app.repositories.ivr_repository import IVRRepository
 from app.services.fsm.instantiation.insti import (
     instantiate_from_latest_content,
@@ -44,6 +45,10 @@ from app.services.fsm.utils import (
 
 logger = logging.getLogger(__name__)
 
+
+
+def _stale_cutoff() -> datetime:
+    return datetime.utcnow() - timedelta(minutes=get_settings().stale_wait_in_minutes)
 
 
 def _get_factory_and_accumulator():
@@ -154,18 +159,16 @@ class IVRService:
         settings = get_settings()
 
         ongoing_col = self._db["ongoingIVRState"]
-        existing = await ongoing_col.find_one({"phone_number": phone_number})
-        if existing:
-            existing_state = IVRCallStateMongoDoc.from_mongo(existing)
-            stale_minutes = int(os.environ.get("STALE_WAIT_IN_MINUTES", "60"))
-            age_minutes = (datetime.now() - existing_state.created_at).total_seconds() / 60
-            if age_minutes > stale_minutes:
-                await ongoing_col.delete_one({"_id": existing_state.id})
-            else:
-                return {
-                    "status_code": 400,
-                    "message": f"IVR already in progress for {phone_number}",
-                }
+        cutoff = _stale_cutoff()
+        await ongoing_col.delete_many({
+            "phone_number": phone_number,
+            "$or": [{"updated_at": {"$lt": cutoff}}, {"updated_at": None}],
+        })
+        if await ongoing_col.find_one({"phone_number": phone_number, "updated_at": {"$gte": cutoff}}):
+            return {
+                "status_code": 400,
+                "message": f"IVR already in progress for {phone_number}",
+            }
 
         if settings.ivr_daily_listening_limit_seconds > 0:
             today = get_ist_date_string()
@@ -223,7 +226,8 @@ class IVRService:
             fsm_id=latest_fsm.fsm_id,
             current_state_id=latest_fsm.init_state_id,
             current_conversation_uuid=conv_uuid,
-            created_at=datetime.now(),
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow(),
             tenant_id=tenant_id,
         )
         await ongoing_col.replace_one(
@@ -358,7 +362,7 @@ class IVRService:
                 *_keep_listening_ncco,
             ], False
 
-        input_time = datetime.now()
+        input_time = datetime.utcnow()
 
         next_actions: list[Any] | None = None
         next_state_id: str | None = None
@@ -402,6 +406,66 @@ class IVRService:
         return ncco, is_terminal
 
 
+    async def resolve_call_leg_id(
+        self, conversation_uuid: str, attempts: int = 5, delay_seconds: float = 1.0
+    ) -> str | None:
+        for attempt in range(attempts):
+            ivr_state = await IVRRepository(self._db).find_by_conversation_uuid(
+                conversation_uuid
+            )
+            if ivr_state:
+                return ivr_state.id
+            if attempt < attempts - 1:
+                await asyncio.sleep(delay_seconds)
+        return None
+
+    async def try_claim_dtmf_result(
+        self,
+        call_leg_id: str,
+        message_id: str,
+        ncco: list[dict[str, Any]],
+        should_hangup: bool,
+    ) -> bool:
+        return await IVRRepository(self._db).try_claim_dtmf_result(
+            call_leg_id, message_id, ncco, should_hangup
+        )
+
+    async def set_dtmf_waiting(
+        self, call_leg_id: str, message_id: str, attempts: int = 5, delay_seconds: float = 1.0
+    ) -> bool:
+        for attempt in range(attempts):
+            if await IVRRepository(self._db).set_dtmf_waiting(call_leg_id, message_id):
+                return True
+            if attempt < attempts - 1:
+                await asyncio.sleep(delay_seconds)
+        return False
+
+    async def is_dtmf_duplicate(self, call_leg_id: str, message_id: str) -> bool:
+        return await IVRRepository(self._db).is_dtmf_duplicate(call_leg_id, message_id)
+
+    async def record_dtmf_processed(self, call_leg_id: str, message_id: str) -> None:
+        await IVRRepository(self._db).record_dtmf_processed(call_leg_id, message_id)
+
+    async def wait_for_dtmf_result(
+        self,
+        call_leg_id: str,
+        message_id: str,
+        *,
+        wait_seconds: float,
+        poll_interval_seconds: float,
+    ) -> dict[str, Any] | None:
+        repo = IVRRepository(self._db)
+        deadline = asyncio.get_event_loop().time() + wait_seconds
+        while asyncio.get_event_loop().time() < deadline:
+            marker = await repo.peek_dtmf_result(call_leg_id, message_id)
+            if marker and not marker["waiting"] and marker.get("ncco") is not None:
+                break
+            await asyncio.sleep(poll_interval_seconds)
+        return await repo.pop_dtmf_result(call_leg_id, message_id)
+
+    async def create_pending_call_log(self, phone_number: str) -> str:
+        return await CallsLogRepository(self._db).create_pending(phone_number)
+
     async def process_call_event(
         self,
         call_leg_id: str,
@@ -434,7 +498,10 @@ class IVRService:
 
         ivr_state = IVRCallStateMongoDoc.from_mongo(doc)
 
-        update_ops: dict[str, Any] = {"current_conversation_uuid": conversation_uuid}
+        update_ops: dict[str, Any] = {
+            "current_conversation_uuid": conversation_uuid,
+            "updated_at": datetime.utcnow(),
+        }
         if timestamp_str:
             try:
                 if isinstance(timestamp_str, str):
@@ -448,7 +515,7 @@ class IVRService:
         try:
             status_enum = IVRCallStatus(status)
             if status_enum in IVRCallStatus.end_statuses():
-                update_ops["stopped_at"] = datetime.now()
+                update_ops["stopped_at"] = datetime.utcnow()
                 update_ops["duration"] = duration
 
                 await ongoing_col.update_one({"_id": call_leg_id}, {"$set": update_ops})
@@ -514,7 +581,7 @@ class IVRService:
         global _latest_fsm_id
 
         ongoing_col = self._db["ongoingIVRState"]
-        active_count = await ongoing_col.count_documents({})
+        active_count = await ongoing_col.count_documents({"updated_at": {"$gte": _stale_cutoff()}})
         if active_count > 0:
             return {
                 "status_code": 409,
