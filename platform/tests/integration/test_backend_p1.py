@@ -95,9 +95,7 @@ async def _seed_teacher(mock_db, phone: str = "+911234567890", password: str = "
     return doc
 
 
-async def _seed_tenant(
-    mock_db, email: str = "tenant@test.com", password: str = "TenantPass@1"
-) -> dict:
+async def _seed_tenant(mock_db, email: str = "tenant@test.com", password: str = "TenantPass@1") -> dict:
     """Insert a tenant user and return its dict."""
     doc = {
         "role": UserRole.TENANT.value,
@@ -113,35 +111,29 @@ async def _seed_tenant(
 
 
 def _teacher_token(user_id: str, school_id: str = "school001", tenant_id: str = "tenant001") -> str:
-    return create_access_token(
-        {
-            "sub": user_id,
-            "role": "teacher",
-            "school_id": school_id,
-            "tenant_id": tenant_id,
-        }
-    )
+    return create_access_token({
+        "sub": user_id,
+        "role": "teacher",
+        "school_id": school_id,
+        "tenant_id": tenant_id,
+    })
 
 
 def _school_admin_token(school_id: str, tenant_id: str = "tenant001") -> str:
-    return create_access_token(
-        {
-            "sub": school_id,
-            "role": "school_admin",
-            "school_id": school_id,
-            "tenant_id": tenant_id,
-        }
-    )
+    return create_access_token({
+        "sub": school_id,
+        "role": "school_admin",
+        "school_id": school_id,
+        "tenant_id": tenant_id,
+    })
 
 
 def _tenant_token(user_id: str) -> str:
-    return create_access_token(
-        {
-            "sub": user_id,
-            "role": "tenant",
-            "tenant_id": user_id,
-        }
-    )
+    return create_access_token({
+        "sub": user_id,
+        "role": "tenant",
+        "tenant_id": user_id,
+    })
 
 
 async def _seed_volunteer(mock_db, email: str = "volunteer@test.com") -> dict[str, Any]:
@@ -174,6 +166,7 @@ def _volunteer_token(user_id: str, tenant_id: str = "tenant001") -> str:
 
 @pytest.mark.asyncio
 async def test_teacher_login_returns_token(client, mock_db):
+    """POST /teacher/login with valid credentials returns token."""
     await _seed_teacher(mock_db, "+911234567890", "Test@1234")
 
     resp = await client.post(
