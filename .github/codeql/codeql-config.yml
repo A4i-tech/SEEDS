@@ -1,0 +1,11 @@
+name: SEEDS CodeQL config
+
+paths-ignore:
+  - "**/tests/**"
+  - "**/test/**"
+  - "**/__tests__/**"
+  - "**/*.test.*"
+  - "**/*.spec.*"
+  - "**/migrations/**"
+  - "**/node_modules/**"
+  - "**/.venv/**"

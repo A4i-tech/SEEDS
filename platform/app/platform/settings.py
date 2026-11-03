@@ -71,7 +71,7 @@ class Settings(BaseSettings):
     audio_capture_channels: int = 1
     audio_capture_sample_width_bytes: int = 2
 
-    azure_service_bus_connection_string: str = Field(default="", repr=False)
+    azure_service_bus_connection_string: str = Field(min_length=1, repr=False)
     azure_service_bus_queue_name: str = ""
     azure_service_bus_max_retries: int = 3
 
@@ -106,6 +106,7 @@ class Settings(BaseSettings):
     my_number: str = ""
     call_duration_limit: int = 0
     ivr_daily_listening_limit_seconds: int = 7200
+    stale_wait_in_minutes: int = Field(default=60, gt=0)
     default_welcome_language: str = "kn"
 
     auto_end_timeout_minutes: int = 15
