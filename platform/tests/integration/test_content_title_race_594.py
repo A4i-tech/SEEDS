@@ -1,14 +1,3 @@
-"""
-Reproduction test for issue #594 - content title edits do not reliably propagate.
-
-Root cause: `_process_audio_content_job` snapshots the content document via
-`find_raw_by_id` at job start, then unconditionally writes that snapshot's
-`title`/`theme` back to the DB in `save_processed()` at job completion. If the
-job is running (audio upload + title edit), or a title-only edit shortly after
-it, the job's completion overwrites the newer title with the stale value
-captured at job start.
-"""
-
 from __future__ import annotations
 
 import uuid
@@ -69,8 +58,6 @@ async def _seed(mock_db, *, is_pull_model, title, theme, audio_content):
 
 @pytest.mark.asyncio
 async def test_job_completion_does_not_overwrite_concurrent_title_edit(mock_db):
-    """A title edit made WHILE an audio job is running must not be clobbered
-    when the job's completion saves its stale job-start snapshot."""
     from app.consumers.content_job_consumer import _process_audio_content_job
 
     content_id, job_id, content_repo, job_repo = await _seed(
@@ -89,7 +76,6 @@ async def test_job_completion_does_not_overwrite_concurrent_title_edit(mock_db):
     mock_blob.get_container_client = MagicMock()
 
     async def _transcode_and_concurrently_edit_title(inp, out, **kwargs):
-        # Simulate a user PATCHing the title WHILE this job is still running.
         await mock_db["contentsV3"].update_one(
             {"_id": ObjectId(content_id)},
             {"$set": {"title": {"english": "New Title From Concurrent Edit"}}},
@@ -113,9 +99,6 @@ async def test_job_completion_does_not_overwrite_concurrent_title_edit(mock_db):
 
 @pytest.mark.asyncio
 async def test_pull_model_tts_updates_audio_url_without_clobbering_concurrent_edit(mock_db):
-    """Pull-model jobs must still persist the freshly-generated title/theme
-    audio_url, but must not clobber a concurrent title/theme text edit with
-    the stale job-start snapshot text."""
     from app.consumers.content_job_consumer import _process_audio_content_job
 
     content_id, job_id, content_repo, job_repo = await _seed(

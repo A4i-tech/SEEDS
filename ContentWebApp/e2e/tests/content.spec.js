@@ -91,13 +91,6 @@ test.describe('tenant content lifecycle: create, cross-school visibility, update
     await contentListPage.waitForRow(id);
   });
 
-  // NOTE (see also A4i-tech/.github#594): a title-only edit (PATCH, 200 OK)
-  // was previously observed never becoming visible — even in the editing
-  // tenant's OWN list — due to a frontend hydrate-effect race that overwrote
-  // the just-saved title with a stale server snapshot. That race is fixed
-  // (see AddStory.js fetchTitlesUnderTheme hydrate effect); these two tests
-  // now assert the updated title actually propagates, both to the editing
-  // tenant's own list and to a school account.
   test('TC-CONT-005 tenant content update — PATCH accepted (200) and updated title propagates', async ({
     page,
     browser,
@@ -146,10 +139,6 @@ test.describe('tenant content lifecycle: create, cross-school visibility, update
     await expect(contentListPage.row(updatedId)).toBeVisible();
     await expect(contentListPage.row(id)).toHaveCount(0);
 
-    // Only a read happened before this (no mutating action), so the
-    // logout-after-mutation race from TC-CONT-005 isn't in play here — plain
-    // HeaderPage.logout() (already hardened to retry until the token
-    // actually clears) is fine.
     await new HeaderPage(page).logout();
     await loginPage.login(PERSONAS.tenant.identifier, PERSONAS.tenant.password);
     await contentPage.waitForLoad();
@@ -257,9 +246,6 @@ test.describe('school content lifecycle + isolation (unique per run, self-cleani
     await contentListPage.deleteContent(a4iId);
   });
 
-  // See the note above TC-CONT-005: the title-only edit hydrate-effect race
-  // (A4i-tech/.github#594) is fixed, so the updated title is asserted to
-  // propagate into the editing account's own list.
   test('TC-CONT-012 school content update — PATCH accepted (200) and updated title propagates', async ({
     page,
   }) => {
@@ -343,7 +329,6 @@ test.describe('content creator content CRUD (unique per run, self-cleaning)', ()
     await contentListPage.waitForRow(id);
   });
 
-  // See the note above TC-CONT-005 — same fix applies here too.
   test('TC-CONT-016 content creator content update — PATCH accepted (200) and updated title propagates', async ({
     page,
   }) => {
