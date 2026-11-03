@@ -23,25 +23,46 @@ jobs:
           repositories: ${{ github.event.repository.name }}
           permission-contents: read
           permission-pull-requests: write
+          permission-issues: read
       - uses: actions/checkout@v4
         with:
+          fetch-depth: 0
           persist-credentials: false
       - name: Open or refresh the staging -> main promotion PR
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           WEBHOOK_URL: ${{ secrets.RELEASE_WEBHOOK_URL }}
         run: |
+          git fetch origin a4i/main
           number=$(gh pr list --base a4i/main --head a4i/staging --state open --json number,isCrossRepository --jq '[.[] | select(.isCrossRepository | not)][0].number')
-          notes=$(gh api "repos/${{ github.repository }}/releases/generate-notes" -f tag_name=next-release -f target_commitish=a4i/staging --jq .body)
+          pr_numbers=$(git log --format=%s origin/a4i/main..origin/a4i/staging | sed -nE 's/.*\(#([0-9]+)\)$/\1/p')
+          issues=$(
+            for pr in $pr_numbers; do
+              gh api graphql -F number="$pr" -f query='
+                query($number: Int!) {
+                  repository(owner: "${{ github.repository_owner }}", name: "${{ github.event.repository.name }}") {
+                    pullRequest(number: $number) {
+                      closingIssuesReferences(first: 10) { nodes { url } }
+                    }
+                  }
+                }' --jq '.data.repository.pullRequest.closingIssuesReferences.nodes[].url'
+            done | sort -u
+          )
+          version="$(date +%Y.%m.%d)"
+          if [ -z "$issues" ]; then
+            body="## Release $version"$'\n\n'"No linked issues in this release."
+          else
+            body="## Release $version"$'\n\n'"$(printf '%s\n' "$issues" | sed 's/^/- /')"
+          fi
           created=false
           if [ -z "$number" ]; then
             created=true
             url=$(gh pr create --base a4i/main --head a4i/staging \
               --title "Release: a4i/staging -> a4i/main" \
-              --body "$notes" --label release)
+              --body "$body" --label release)
             number=$(gh pr view "$url" --json number --jq .number)
           else
-            gh pr edit "$number" --body "$notes"
+            gh pr edit "$number" --body "$body"
           fi
           if [ -z "$number" ]; then
             echo "Could not determine promotion PR number." >&2

@@ -23,6 +23,7 @@ jobs:
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.event.repository.name }}
           permission-contents: write
+          permission-issues: read
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -49,7 +50,29 @@ jobs:
           if gh release view "$tag" >/dev/null 2>&1; then
             exit 0
           fi
-          gh release create "$tag" --target "${{ github.sha }}" --generate-notes
+          if git rev-parse -q --verify HEAD^2 >/dev/null; then
+            pr_numbers=$(git log --format=%s HEAD^1..HEAD^2 | sed -nE 's/.*\(#([0-9]+)\)$/\1/p')
+          else
+            pr_numbers=""
+          fi
+          issues=$(
+            for pr in $pr_numbers; do
+              gh api graphql -F number="$pr" -f query='
+                query($number: Int!) {
+                  repository(owner: "${{ github.repository_owner }}", name: "${{ github.event.repository.name }}") {
+                    pullRequest(number: $number) {
+                      closingIssuesReferences(first: 10) { nodes { url } }
+                    }
+                  }
+                }' --jq '.data.repository.pullRequest.closingIssuesReferences.nodes[].url'
+            done | sort -u
+          )
+          if [ -z "$issues" ]; then
+            notes="## $tag"$'\n\n'"No linked issues in this release."
+          else
+            notes="## $tag"$'\n\n'"$(printf '%s\n' "$issues" | sed 's/^/- /')"
+          fi
+          gh release create "$tag" --target "${{ github.sha }}" --notes "$notes"
 
   back-sync:
     needs: tag-and-release
