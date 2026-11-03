@@ -29,10 +29,13 @@ jobs:
       - name: Open or refresh the staging -> main promotion PR
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          WEBHOOK_URL: ${{ secrets.RELEASE_WEBHOOK_URL }}
         run: |
           number=$(gh pr list --base a4i/main --head a4i/staging --state open --json number,isCrossRepository --jq '[.[] | select(.isCrossRepository | not)][0].number')
           notes=$(gh api "repos/${{ github.repository }}/releases/generate-notes" -f tag_name=next-release -f target_commitish=a4i/staging --jq .body)
+          created=false
           if [ -z "$number" ]; then
+            created=true
             url=$(gh pr create --base a4i/main --head a4i/staging \
               --title "Release: a4i/staging -> a4i/main" \
               --body "$notes" --label release)
@@ -45,3 +48,19 @@ jobs:
             exit 1
           fi
           gh pr merge "$number" --auto --merge
+          if [ "$created" = true ]; then
+            pr_url=$(gh pr view "$number" --json url --jq .url)
+            jq -nc --arg text "Release PR ready for review: $pr_url" '{
+              type: "message",
+              attachments: [{
+                contentType: "application/vnd.microsoft.card.adaptive",
+                content: {
+                  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+                  type: "AdaptiveCard",
+                  version: "1.5",
+                  msteams: {width: "Full"},
+                  body: [{type: "TextBlock", text: $text, wrap: true}]
+                }
+              }]
+            }' | curl --fail-with-body -sS -X POST -H 'Content-Type: application/json' -d @- "$WEBHOOK_URL" || echo "Webhook notification failed, not failing the run for it." >&2
+          fi
