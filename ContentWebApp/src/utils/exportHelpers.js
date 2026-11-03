@@ -15,6 +15,15 @@ export const downloadBlob = (blob, filename) => {
 };
 
 /**
+ * Wrap CSV text in a blob with the correct MIME type and trigger download
+ * @param {string} csvContent - CSV text to download
+ * @param {string} filename - Name for the downloaded file (without extension)
+ */
+export const downloadCsv = (csvContent, filename) => {
+  downloadBlob(new Blob([csvContent], { type: "text/csv;charset=utf-8;" }), `${filename}.csv`);
+};
+
+/**
  * Convert array of objects to CSV and trigger download
  * @param {Array} data - Array of objects to export
  * @param {Array} headers - Array of keys to use as column headers
@@ -47,9 +56,7 @@ export const exportToCSV = (data, headers, filename) => {
   // Combine header and data
   const csvContent = [headerRow, ...dataRows].join("\n");
 
-  // Create blob and trigger download
-  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-  downloadBlob(blob, `${filename}.csv`);
+  downloadCsv(csvContent, filename);
 };
 
 /**

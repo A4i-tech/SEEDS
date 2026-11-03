@@ -16,7 +16,7 @@ import { toSegment } from "../../../utils/segments";
 import { useToast } from "./Toast";
 import TranslationImportDialog from "./TranslationImportDialog";
 import { MAX_EXPORT_ROWS, buildTranslationCsv } from "../../../utils/translationCsv";
-import { downloadBlob } from "../../../utils/exportHelpers";
+import { downloadCsv } from "../../../utils/exportHelpers";
 
 function EmptyState({ title, message, action }) {
   return (
@@ -211,9 +211,8 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
   }, [load]);
 
   useEffect(() => {
-    const cancel = load();
+    extraLoadCancelRef.current = load();
     return () => {
-      cancel();
       if (extraLoadCancelRef.current) {
         extraLoadCancelRef.current();
         extraLoadCancelRef.current = null;
@@ -349,12 +348,7 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
       if (!site) throw new Error("Site not found");
       const slug = (site.name || site.domain).replace(/[^a-z0-9]+/gi, "-");
       const languageName = languages.find((l) => l.code === lang)?.name;
-      downloadBlob(
-        new Blob([buildTranslationCsv({ docs: exported, lang, languageName })], {
-          type: "text/csv;charset=utf-8;",
-        }),
-        `${slug}-${lang}.csv`
-      );
+      downloadCsv(buildTranslationCsv({ docs: exported, lang, languageName }), `${slug}-${lang}`);
       if (exported.length >= MAX_EXPORT_ROWS) {
         toast({
           message: `Exported ${exported.length} rows, but ${MAX_EXPORT_ROWS.toLocaleString("en-US")} is the most one export can hold, so this file may be incomplete.`,

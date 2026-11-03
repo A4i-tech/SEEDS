@@ -325,6 +325,18 @@ async def test_import_identical_text_is_unchanged_and_keeps_approval(service, re
     assert (await _doc(repo, key))["translations"]["kn"]["status"] == "approved"
 
 
+async def test_import_identical_text_on_pending_entry_approves_it(service, repo):
+    key = await _seed(repo, lang="kn", text="same", status=None)
+    version_before = (await _doc(repo, key)).get("version", 0)
+
+    res = await _import(service, [_row("Hello World", "same")], state="approved")
+
+    assert res["updated"] == 1
+    doc = await _doc(repo, key)
+    assert doc["translations"]["kn"]["status"] == "approved"
+    assert doc["version"] == version_before + 1
+
+
 async def test_import_only_touches_the_selected_language(service, repo):
     key = await _seed(repo, lang="kn", text="kn old")
     await repo.save_translation(SITE, "/", key, "te", "te old", "P")
@@ -422,7 +434,7 @@ async def test_import_partial_write_failure_reports_the_failed_rows(service, rep
 
     assert res["updated"] == 1 and res["failed"] == 1
     assert res["errors"] == [
-        {"row": 2, "route": "/", "key": sdk_rolling_hash("Second"), "reason": "write_failed", "detail": "boom"}
+        {"row": 2, "route": "/", "key": sdk_rolling_hash("Second"), "reason": "write_failed", "detail": None}
     ]
     assert (await _doc(repo, sdk_rolling_hash("First")))["translations"]["kn"]["text"] == "one"
     assert (await _doc(repo, sdk_rolling_hash("Second")))["translations"] == {}
@@ -445,8 +457,8 @@ async def test_import_unknown_bulk_write_outcome_is_not_reported_as_failed_or_co
 
     assert res["failed"] == 0 and res["updated"] == 2
     assert [(w.row, w.route, w.key, w.reason) for w in res["warnings"]] == [
-        (1, "/", sdk_rolling_hash("First"), "version_not_recorded"),
-        (2, "/", sdk_rolling_hash("Second"), "version_not_recorded"),
+        (1, "/", sdk_rolling_hash("First"), "save_not_confirmed"),
+        (2, "/", sdk_rolling_hash("Second"), "save_not_confirmed"),
     ]
     assert (await _doc(repo, sdk_rolling_hash("First")))["translations"]["kn"]["text"] == "one"
     assert (await _doc(repo, sdk_rolling_hash("Second")))["translations"]["kn"]["text"] == "two"
@@ -467,8 +479,8 @@ async def test_import_silent_zero_match_write_is_not_reported_as_confirmed(servi
 
     assert res["failed"] == 0 and res["updated"] == 2
     assert [(w.row, w.route, w.key, w.reason) for w in res["warnings"]] == [
-        (1, "/", sdk_rolling_hash("First"), "version_not_recorded"),
-        (2, "/", second_key, "version_not_recorded"),
+        (1, "/", sdk_rolling_hash("First"), "save_not_confirmed"),
+        (2, "/", second_key, "save_not_confirmed"),
     ]
     assert (await _doc(repo, sdk_rolling_hash("First")))["translations"]["kn"]["text"] == "one"
 

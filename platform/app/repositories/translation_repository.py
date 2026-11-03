@@ -215,8 +215,5 @@ class TranslationRepository(BaseRepository):
 
         await self._col.update_one({"_id": self._to_id(translation_id)}, {"$set": set_fields})
 
-    def import_write_op(self, query: dict[str, Any], update: dict[str, Any], *, upsert: bool) -> UpdateOne:
-        return UpdateOne(query, update, upsert=upsert)
-
     async def bulk_write(self, ops: list[UpdateOne]) -> BulkWriteResult:
         return await self._col.bulk_write(ops, ordered=False)

@@ -41,6 +41,7 @@ const REASONS = {
 
 const WARNINGS = {
   version_not_recorded: "version history",
+  save_not_confirmed: "save",
   audit_not_recorded: "audit entry",
 };
 

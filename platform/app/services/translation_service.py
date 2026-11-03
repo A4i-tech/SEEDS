@@ -4,7 +4,7 @@ import logging
 from collections import Counter
 from collections.abc import Callable
 from datetime import UTC, datetime
-from typing import Any, Literal, NotRequired, TypedDict
+from typing import Any, Literal, NamedTuple, NotRequired, TypedDict
 
 from bson import ObjectId
 from fastapi import Depends
@@ -51,6 +51,24 @@ class _PlannedRow(TypedDict):
     audits: list[dict[str, Any]]
     version_doc: NotRequired[dict[str, Any] | None]
     translation_id: NotRequired[str | None]
+
+
+class _PlanResult(NamedTuple):
+    counts: Counter[str]
+    errors: list[ImportRowError]
+    ops: list[UpdateOne]
+    planned: list[_PlannedRow]
+    now: datetime
+
+
+class _WriteResult(NamedTuple):
+    failed_ops: set[int]
+    bulk_write_unknown: bool
+
+
+class _OutcomeResult(NamedTuple):
+    counts: Counter[str]
+    warnings: list[ImportRowError]
 
 
 IMPORT_TEXT_MAX_LENGTH = 5000
@@ -121,30 +139,10 @@ def _entry_fields(text: str, approving: bool, actor: str, now: datetime, *, is_n
     return fields
 
 
-async def _best_effort(
-    call: Callable[[], Any],
-    plans: list[_PlannedRow],
-    reason: ImportRowReason,
-    msg: str,
-    *,
-    warn: Callable[[_PlannedRow, ImportRowReason], None],
-    site_id: str,
-) -> None:
-    try:
-        await call()
-    except PyMongoError:
-        logger.error(msg, extra={"site_id": site_id, "rows": [p["row"] for p in plans]}, exc_info=True)
-        for p in plans:
-            warn(p, reason)
-
-
-_MICROS_PER_MILLI = 1000
-
-
 def _same_instant(stored: datetime | None, expected: datetime) -> bool:
     if stored is None:
         return False
-    millis = expected.microsecond // _MICROS_PER_MILLI * _MICROS_PER_MILLI
+    millis = expected.microsecond // 1000 * 1000
     return stored.replace(tzinfo=None) == expected.replace(tzinfo=None, microsecond=millis)
 
 
@@ -627,22 +625,16 @@ class TranslationService:
         self._assert_website_active(website, site_id)
         await self._ensure_lang_enabled(site_id, lang, website)
 
-        counts, errors, ops, planned, now = await self._plan_import_rows(
-            site_id, lang, rows, overwrite_blank, state, actor
+        plan = await self._plan_import_rows(site_id, lang, rows, overwrite_blank, state, actor)
+        write = await self._write_import_ops(plan.ops, plan.planned, site_id)
+        outcome = await self._record_import_outcomes(
+            site_id, plan.now, plan.planned, write.failed_ops, write.bulk_write_unknown, plan.counts, plan.errors
         )
 
-        def fail(row_no: int, route: str, key: str, reason: ImportRowReason, detail: str | None = None) -> None:
-            errors.append(ImportRowError(row=row_no, route=route, key=key, reason=reason, detail=detail))
-
-        failed_ops, failed_op_detail, bulk_write_unknown = await self._write_import_ops(ops, planned, site_id)
-        row_warnings = await self._record_import_outcomes(
-            site_id, now, planned, failed_ops, failed_op_detail, bulk_write_unknown, counts, fail
-        )
-
-        errors.sort(key=lambda e: e.row)
-        row_warnings.sort(key=lambda w: w.row)
+        plan.errors.sort(key=lambda e: e.row)
+        outcome.warnings.sort(key=lambda w: w.row)
         return TranslationImportResponse(
-            **counts, failed=len(errors), errors=errors, warnings=row_warnings
+            **outcome.counts, failed=len(plan.errors), errors=plan.errors, warnings=outcome.warnings
         )
 
     async def _plan_import_rows(
@@ -653,7 +645,7 @@ class TranslationService:
         overwrite_blank: bool,
         state: ImportState,
         actor: str,
-    ) -> tuple[Counter[str], list[ImportRowError], list[UpdateOne], list[_PlannedRow], datetime]:
+    ) -> _PlanResult:
         counts: Counter[str] = Counter(updated=0, created=0, unchanged=0, skipped_blank=0)
         errors: list[ImportRowError] = []
 
@@ -666,7 +658,7 @@ class TranslationService:
             row_no = row.row
             route = row.route
             key = row.key
-            source = _normalize_newlines(row.source)
+            source = _canonical_source(row.source)
             text = _normalize_newlines(row.text)
             reason = _import_row_error(route, key, source, text)
             if reason is None and (route, key) in seen:
@@ -707,7 +699,7 @@ class TranslationService:
                     counts["unchanged"] += 1
                 else:
                     ops.append(
-                        self._repo.import_write_op(
+                        UpdateOne(
                             {"_id": doc["_id"]},
                             {
                                 "$unset": {base: ""},
@@ -716,7 +708,6 @@ class TranslationService:
                                     "audit_log": {"action": "cleared", "actor": actor, "detail": f"lang={lang}", "at": now}
                                 },
                             },
-                            upsert=False,
                         )
                     )
                     cleared_audit = _import_audit_doc(site_id, route, key, lang, "cleared", actor, None, "", now)
@@ -796,7 +787,7 @@ class TranslationService:
                     now,
                 )
             update["$push"] = {"audit_log": {"$each": log_entries}}
-            ops.append(self._repo.import_write_op(query, update, upsert=is_new))
+            ops.append(UpdateOne(query, update, upsert=is_new))
             planned.append(
                 {
                     "row": row_no,
@@ -809,23 +800,22 @@ class TranslationService:
                 }
             )
 
-        return counts, errors, ops, planned, now
+        return _PlanResult(counts, errors, ops, planned, now)
 
     async def _write_import_ops(
         self, ops: list[UpdateOne], planned: list[_PlannedRow], site_id: str
-    ) -> tuple[set[int], dict[int, str], bool]:
+    ) -> _WriteResult:
         failed_ops: set[int] = set()
-        failed_op_detail: dict[int, str] = {}
         bulk_write_unknown = False
         if ops:
             try:
                 result = await self._repo.bulk_write(ops)
-                if result.matched_count < len(ops) - result.upserted_count:
+                guarded_count = sum(1 for p in planned if p.get("version_doc"))
+                if result.matched_count < len(ops) - result.upserted_count - guarded_count:
                     bulk_write_unknown = True
             except BulkWriteError as exc:
                 write_errors = exc.details["writeErrors"]
                 failed_ops = {err["index"] for err in write_errors}
-                failed_op_detail = {err["index"]: err.get("errmsg", "") for err in write_errors}
                 logger.warning(
                     "import_translations: %d row(s) failed to write",
                     len(failed_ops),
@@ -852,7 +842,7 @@ class TranslationService:
                     extra={"site_id": site_id, "row_count": len(planned)},
                     exc_info=True,
                 )
-        return failed_ops, failed_op_detail, bulk_write_unknown
+        return _WriteResult(failed_ops, bulk_write_unknown)
 
     async def _record_import_outcomes(
         self,
@@ -860,19 +850,16 @@ class TranslationService:
         now: datetime,
         planned: list[_PlannedRow],
         failed_ops: set[int],
-        failed_op_detail: dict[int, str],
         bulk_write_unknown: bool,
         counts: Counter[str],
-        fail: Callable[[int, str, str, ImportRowReason, str | None], None],
-    ) -> list[ImportRowError]:
+        errors: list[ImportRowError],
+    ) -> _OutcomeResult:
         row_warnings: list[ImportRowError] = []
 
         def warn(plan: _PlannedRow, reason: ImportRowReason) -> None:
             row_warnings.append(ImportRowError(row=plan["row"], route=plan["route"], key=plan["key"], reason=reason))
 
-        guarded = [
-            i for i, p in enumerate(planned) if p.get("version_doc") and p["translation_id"] and i not in failed_ops
-        ]
+        guarded = [i for i, p in enumerate(planned) if p.get("version_doc") and i not in failed_ops]
         unverified: set[int] = set()
         if guarded:
             try:
@@ -897,24 +884,21 @@ class TranslationService:
                     )
                 failed_ops |= guard_mismatched
 
+        # Rows outside the version guard have no other way to confirm a bulk_write_unknown outcome.
         if bulk_write_unknown:
-            # Either bulk_write raised a non-BulkWriteError PyMongoError (timeout/network/server
-            # selection, etc), or it succeeded but matched fewer docs than expected (e.g. a
-            # non-upsert row's doc was deleted between read and write). Rows covered by the version
-            # guard-read above were already resolved (confirmed, failed, or unverified) from a fresh
-            # read of the database. Every other row has no independent way to confirm its outcome,
-            # so treat it as unverified rather than claiming success or failure.
             unverified |= {i for i in range(len(planned)) if i not in failed_ops and i not in guarded}
 
         written: list[_PlannedRow] = []
         for index, plan in enumerate(planned):
             if index in failed_ops:
-                fail(plan["row"], plan["route"], plan["key"], "write_failed", failed_op_detail.get(index))
+                errors.append(
+                    ImportRowError(row=plan["row"], route=plan["route"], key=plan["key"], reason="write_failed")
+                )
             else:
                 counts[plan["kind"]] += 1
                 written.append(plan)
                 if index in unverified:
-                    warn(plan, "version_not_recorded")
+                    warn(plan, "version_not_recorded" if plan.get("version_doc") else "save_not_confirmed")
 
         unverified_keys = {(planned[i]["route"], planned[i]["key"]) for i in unverified}
 
@@ -930,25 +914,29 @@ class TranslationService:
 
         audit_docs = [audit for p in written for audit in p["audits"]]
         if version_docs:
-            await _best_effort(
-                lambda: self._version_repo.add_versions_bulk(version_docs),
-                version_doc_rows,
-                "version_not_recorded",
-                "import_translations: rows were saved but their versions were not recorded",
-                warn=warn,
-                site_id=site_id,
-            )
+            try:
+                await self._version_repo.add_versions_bulk(version_docs)
+            except PyMongoError:
+                logger.error(
+                    "import_translations: rows were saved but their versions were not recorded",
+                    extra={"site_id": site_id, "rows": [p["row"] for p in version_doc_rows]},
+                    exc_info=True,
+                )
+                for p in version_doc_rows:
+                    warn(p, "version_not_recorded")
         if audit_docs:
-            await _best_effort(
-                lambda: self._audit_repo.record_bulk(audit_docs),
-                written,
-                "audit_not_recorded",
-                "import_translations: rows were saved but their audit entries were not recorded",
-                warn=warn,
-                site_id=site_id,
-            )
+            try:
+                await self._audit_repo.record_bulk(audit_docs)
+            except PyMongoError:
+                logger.error(
+                    "import_translations: rows were saved but their audit entries were not recorded",
+                    extra={"site_id": site_id, "rows": [p["row"] for p in written]},
+                    exc_info=True,
+                )
+                for p in written:
+                    warn(p, "audit_not_recorded")
 
-        return row_warnings
+        return _OutcomeResult(counts, row_warnings)
 
     async def get_translation(self, translation_id: str, tenant_id: str) -> dict[str, Any]:
         return await self._get_translation_owned_by_tenant(translation_id, tenant_id)

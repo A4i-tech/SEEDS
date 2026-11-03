@@ -9,7 +9,7 @@ from app.services.sdk_rolling_hash import js_trim
 MAX_IMPORT_ROWS = 5000
 LANG_PATTERN = r"^[a-z]{2}(-[A-Z]{2})?$"
 
-type ImportState = Literal["pending", "approved", "keep"]
+ImportState = Literal["pending", "approved", "keep"]
 
 
 class TranslationUpdateRequest(BaseModel):
@@ -38,7 +38,7 @@ class TranslationImportRow(BaseModel):
     text: str
     row: int = Field(ge=1)
 
-    @field_validator("key", "source")
+    @field_validator("key")
     @classmethod
     def _trim(cls, value: str) -> str:
         return js_trim(value)

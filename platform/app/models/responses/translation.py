@@ -20,6 +20,7 @@ ImportRowReason = Literal[
     "key_mismatch",
     "write_failed",
     "version_not_recorded",
+    "save_not_confirmed",
     "audit_not_recorded",
 ]
 
