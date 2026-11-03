@@ -42,12 +42,17 @@ pypdf = ">=4.0"
 langdetect = "^1.0.9"
 pycountry = ">=24.6"
 omni-ingest = "1.0.0"
+openai = ">=3.8.0"
+azure-ai-translation-text = {version = ">=2.0.0", optional = true}
 fastmcp = "<4.0"
 lancedb = "0.38.0"
 liblouis = [
     { url = "https://github.com/daiverd/liblouis/releases/download/python-wheel-poc-v0.2/liblouis-3.38.0-py3-none-manylinux_2_34_x86_64.whl", markers = "sys_platform == 'linux'" },
     { url = "https://github.com/daiverd/liblouis/releases/download/python-wheel-poc-v0.2/liblouis-3.38.0-py3-none-win_amd64.whl", markers = "sys_platform == 'win32'" },
 ]
+
+[tool.poetry.extras]
+azure = ["azure-ai-translation-text"]
 
 [tool.poetry.group.test.dependencies]
 pytest = ">=8.0"
