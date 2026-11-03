@@ -23,7 +23,6 @@ jobs:
                       build_arg_storage: CONTENT_WEBAPP_STORAGE_ACCOUNT_NAME
                       build_arg_api_url: CONTENT_WEBAPP_REACT_APP_API_BASE_URL_STAGING
                       build_arg_google_site_verification: CONTENT_WEBAPP_REACT_APP_GOOGLE_SITE_VERIFICATION
-                      bake_build_sha: true
 
                     - name: teacher-webapp-service
                       context: teacher-webapp
@@ -48,4 +47,3 @@ jobs:
                       ${{ matrix.service.build_arg_storage && format('REACT_APP_STORAGE_ACCOUNT_NAME={0}', vars[matrix.service.build_arg_storage]) }}
                       ${{ matrix.service.build_arg_api_url && format('REACT_APP_API_BASE_URL={0}', secrets[matrix.service.build_arg_api_url]) }}
                       ${{ matrix.service.build_arg_google_site_verification && format('REACT_APP_GOOGLE_SITE_VERIFICATION={0}', vars[matrix.service.build_arg_google_site_verification]) }}
-                      ${{ matrix.service.bake_build_sha && format('BUILD_SHA={0}', github.sha) }}

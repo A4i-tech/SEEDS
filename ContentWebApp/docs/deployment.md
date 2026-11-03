@@ -15,7 +15,7 @@ To change one, update the repo variable/secret and re-run the workflow, there's 
 
 ## 3. Testing Endpoints
 
-Staging is served at `https://content-webapp-dev.a4i-lab.in`.
+Staging URL comes from the `content-webapp` Ingress on kube-dev — check ArgoCD or `kubectl -n seeds get ingress`.
 
 ## 4. Staging Isolation
 

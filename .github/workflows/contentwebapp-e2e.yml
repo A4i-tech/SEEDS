@@ -32,18 +32,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Wait for kube-dev rollout
-        if: inputs.e2e_instance == 'dev'
-        run: |
-          for i in $(seq 1 20); do
-            echo "--- Attempt $i/20 ---"
-            build=$(curl -sf --max-time 10 https://content-webapp-dev.a4i-lab.in/build.json | jq -r '.build // empty') || true
-            [ "$build" = "${{ github.sha }}" ] && exit 0
-            sleep 15
-          done
-          echo "Timed out waiting for ${{ github.sha }} on content-webapp-dev.a4i-lab.in"
-          exit 1
-
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:

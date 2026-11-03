@@ -10,7 +10,7 @@ Runtime config comes from `infra-ops`' `partners/seeds/` manifests and the share
 
 ## 3. Testing Endpoints
 
-Staging is served at `wss://websocket-dev.a4i-lab.in`.
+Staging URL comes from the `websocket-service` Ingress on kube-dev — check ArgoCD or `kubectl -n seeds get ingress`.
 
 ## 4. Staging Isolation
 
