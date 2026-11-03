@@ -14,9 +14,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Open or refresh the staging -> main promotion PR
         env:
-          GH_TOKEN: ${{ secrets.RELEASE_BOT_PAT }}
+          GH_TOKEN: ${{ secrets.RELEASE_BOT_TOKEN }}
         run: |
           number=$(gh pr list --base a4i/main --head a4i/staging --state open --json number,isCrossRepository --jq '[.[] | select(.isCrossRepository | not)][0].number')
           notes=$(gh api "repos/${{ github.repository }}/releases/generate-notes" -f tag_name=next-release -f target_commitish=a4i/staging --jq .body)

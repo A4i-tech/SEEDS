@@ -16,15 +16,16 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          persist-credentials: false
       - name: Confirm a4i/main's own merge rule hasn't been loosened
         env:
-          GH_TOKEN: ${{ secrets.RELEASE_BOT_PAT }}
+          GH_TOKEN: ${{ secrets.RELEASE_BOT_TOKEN }}
           RULESET_ID: ${{ vars.MAIN_RULESET_ID }}
         run: |
           bypass=$(gh api "repos/${{ github.repository }}/rulesets/$RULESET_ID" --jq 'if .bypass_actors == null then "missing" else (.bypass_actors | length | tostring) end')
           methods=$(gh api "repos/${{ github.repository }}/rulesets/$RULESET_ID" --jq '[.rules[] | select(.type=="pull_request") | .parameters.allowed_merge_methods[]] | sort | join(",")')
           if [ "$bypass" = "missing" ]; then
-            echo "Could not read bypass_actors, RELEASE_BOT_PAT likely lacks Administration:read on the ruleset." >&2
+            echo "Could not read bypass_actors, RELEASE_BOT_TOKEN likely lacks Administration:read on the ruleset." >&2
             exit 1
           fi
           if [ "$bypass" != "0" ]; then
@@ -53,7 +54,7 @@ jobs:
       - name: File or update an issue on failure
         if: failure()
         env:
-          GH_TOKEN: ${{ secrets.RELEASE_BOT_PAT }}
+          GH_TOKEN: ${{ secrets.RELEASE_BOT_TOKEN }}
         run: |
           title="Ancestry watch is failing"
           run_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
