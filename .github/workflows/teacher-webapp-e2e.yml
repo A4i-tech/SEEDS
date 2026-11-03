@@ -6,7 +6,7 @@ on:
       e2e_instance:
         description: "E2E_INSTANCE to run against"
         type: string
-        default: dev
+        default: onrender
   workflow_dispatch:
     inputs:
       e2e_instance:

@@ -1,8 +1,9 @@
 // @ts-check
-const { expect } = require('@playwright/test');
+const { test, expect } = require('@playwright/test');
 const { uniqueClassroomName } = require('./instances');
 const { ClassroomListPage } = require('../pages/ClassroomListPage');
 const { ClassroomFormPage } = require('../pages/ClassroomFormPage');
+const { ContentDrawerPage } = require('../pages/ContentDrawerPage');
 
 let classroomsToCleanup = [];
 
@@ -21,10 +22,13 @@ async function createClassroomWithStudents(page, count) {
     if (!label) break;
     studentNames.push(label.split(' - ')[0]);
   }
+  if (studentNames.length === 0) {
+    throw new Error('No students registered for the E2E teacher account; seed at least one student fixture to run this test');
+  }
 
+  registerClassroomForCleanup(name);
   await classroomFormPage.submit();
   await classroomListPage.heading.waitFor();
-  classroomsToCleanup.push(name);
   return { name, studentNames };
 }
 
@@ -44,17 +48,16 @@ function registerClassroomForCleanup(name) {
   classroomsToCleanup.push(name);
 }
 
-// Opens the Content Library and skips the test if no content is available for
-// the authenticated tenant (content-dependent cases cannot be exercised
-// deterministically without seeded audio content).
-async function openLibraryOrSkip(test, page, classroomListPage, contentDrawerPage) {
+async function openLibraryOrSkip(page) {
+  const classroomListPage = new ClassroomListPage(page);
+  const contentDrawerPage = new ContentDrawerPage(page);
   await classroomListPage.goto();
-  const contentResponse = page.waitForResponse(
-    (res) => /\/content(\?|$)/.test(res.url()) && res.request().method() === 'GET'
-  );
-  await classroomListPage.playContentButton.click();
+  const [response] = await Promise.all([
+    page.waitForResponse((res) => /\/content(\?|$)/.test(res.url()) && res.request().method() === 'GET'),
+    classroomListPage.playContentButton.click(),
+  ]);
   await contentDrawerPage.searchInput.waitFor();
-  const body = await (await contentResponse).json();
+  const body = await response.json();
   test.skip(body.data.length === 0, 'No content available in the library for this tenant');
   await expect(contentDrawerPage.firstContentItem()).toBeVisible({ timeout: 10000 });
 }

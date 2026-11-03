@@ -1,25 +1,15 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
 const { uniqueClassroomName } = require('../../fixtures/instances');
-const { createClassroomWithStudents } = require('../../fixtures/classroomHelpers');
+const { createClassroomWithStudents, cleanupClassrooms, registerClassroomForCleanup } = require('../../fixtures/classroomHelpers');
 const { ClassroomListPage } = require('../../pages/ClassroomListPage');
 const { ClassroomFormPage } = require('../../pages/ClassroomFormPage');
 const { ClassroomDetailPage } = require('../../pages/ClassroomDetailPage');
 
 test.describe.configure({ mode: 'serial' });
 
-let classroomsToCleanup = [];
-
 test.afterEach(async ({ page }) => {
-  const classroomListPage = new ClassroomListPage(page);
-  const namesToDelete = classroomsToCleanup;
-  classroomsToCleanup = [];
-  for (const name of namesToDelete) {
-    await classroomListPage.goto();
-    if (await classroomListPage.classroomCard(name).count()) {
-      await classroomListPage.deleteClassroom(name);
-    }
-  }
+  await cleanupClassrooms(page);
 });
 
 test('TC-TCLS-001 My Classrooms list loads and shows the classroom list', async ({ page }) => {
@@ -37,7 +27,7 @@ test('TC-TCLS-002 create classroom with a valid name persists with correct stude
   await classroomListPage.openCreate();
   await classroomFormPage.fillName(name);
   await classroomFormPage.submit();
-  classroomsToCleanup.push(name);
+  registerClassroomForCleanup(name);
 
   await classroomListPage.heading.waitFor();
   const card = classroomListPage.classroomCard(name);
@@ -73,15 +63,12 @@ test('TC-TCLS-004 create classroom without any students is rejected', async ({ p
   await expect(classroomFormPage.nameInput).toBeVisible();
 });
 
-test('TC-TCLS-005 classroom detail view shows the student list for conference selection', async ({ page }) => {
+test('TC-TCLS-005 removing and re-adding a student updates the detail view and conference eligibility', async ({ page }) => {
   const classroomListPage = new ClassroomListPage(page);
   const classroomFormPage = new ClassroomFormPage(page);
   const classroomDetailPage = new ClassroomDetailPage(page);
   const { name, studentNames } = await createClassroomWithStudents(page, 1);
-  if (!studentNames.length) {
-    throw new Error('No students registered for the E2E teacher account; seed at least one student fixture to run TC-TCLS-005');
-  }
-  classroomsToCleanup.push(name);
+  registerClassroomForCleanup(name);
 
   await classroomListPage.editClassroom(name);
   await classroomFormPage.nameInput.waitFor();
@@ -127,7 +114,7 @@ test('TC-TCLS-006 edit classroom name updates it in the dashboard', async ({ pag
   await classroomListPage.openCreate();
   await classroomFormPage.fillName(originalName);
   await classroomFormPage.submit();
-  classroomsToCleanup.push(originalName);
+  registerClassroomForCleanup(originalName);
   await classroomListPage.heading.waitFor();
 
   await classroomListPage.editClassroom(originalName);
@@ -136,8 +123,7 @@ test('TC-TCLS-006 edit classroom name updates it in the dashboard', async ({ pag
   await classroomFormPage.submit();
 
   await classroomListPage.heading.waitFor();
-  classroomsToCleanup = classroomsToCleanup.filter((n) => n !== originalName);
-  classroomsToCleanup.push(renamedName);
+  registerClassroomForCleanup(renamedName);
   await expect(classroomListPage.classroomCard(renamedName)).toBeVisible();
   await expect(classroomListPage.classroomCard(originalName)).toHaveCount(0);
 });
@@ -151,7 +137,7 @@ test('TC-TCLS-007 add student to existing classroom updates the student count', 
   await classroomListPage.openCreate();
   await classroomFormPage.fillName(name);
   await classroomFormPage.submit();
-  classroomsToCleanup.push(name);
+  registerClassroomForCleanup(name);
   await classroomListPage.heading.waitFor();
 
   await classroomListPage.editClassroom(name);
@@ -177,7 +163,7 @@ test('TC-TCLS-008 remove student from classroom via edit updates the student cou
   await classroomListPage.openCreate();
   await classroomFormPage.fillName(name);
   await classroomFormPage.submit();
-  classroomsToCleanup.push(name);
+  registerClassroomForCleanup(name);
   await classroomListPage.heading.waitFor();
 
   await classroomListPage.editClassroom(name);
@@ -210,7 +196,7 @@ test('TC-TCLS-009 edit changes can be cancelled without persisting', async ({ pa
   await classroomListPage.openCreate();
   await classroomFormPage.fillName(originalName);
   await classroomFormPage.submit();
-  classroomsToCleanup.push(originalName);
+  registerClassroomForCleanup(originalName);
   await classroomListPage.heading.waitFor();
 
   await classroomListPage.editClassroom(originalName);
@@ -232,7 +218,7 @@ test('TC-TCLS-010 delete classroom confirmation dialog names the classroom', asy
   await classroomListPage.openCreate();
   await classroomFormPage.fillName(name);
   await classroomFormPage.submit();
-  classroomsToCleanup.push(name);
+  registerClassroomForCleanup(name);
   await classroomListPage.heading.waitFor();
 
   await classroomListPage.classroomCard(name).getByRole('button', { name: 'Delete' }).click();
@@ -257,7 +243,7 @@ test('TC-TCLS-011 cancel classroom deletion leaves the classroom in the list', a
   await classroomListPage.openCreate();
   await classroomFormPage.fillName(name);
   await classroomFormPage.submit();
-  classroomsToCleanup.push(name);
+  registerClassroomForCleanup(name);
   await classroomListPage.heading.waitFor();
 
   await classroomListPage.classroomCard(name).getByRole('button', { name: 'Delete' }).click();

@@ -58,9 +58,8 @@ test('TC-TNEG-003 starting a conference shows an error when the create request f
 test('TC-TNEG-004 selecting content shows an error when the audio URL fetch fails', async ({ page }) => {
   await page.route('**/content/sasUrl*', (route) => route.fulfill({ status: 500, body: 'error' }));
 
-  const classroomListPage = new ClassroomListPage(page);
   const contentDrawerPage = new ContentDrawerPage(page);
-  await openLibraryOrSkip(test, page, classroomListPage, contentDrawerPage);
+  await openLibraryOrSkip(page);
 
   const title = (await contentDrawerPage.firstContentItem().innerText()).trim();
   await contentDrawerPage.playContent(title);
@@ -96,7 +95,6 @@ test('TC-TNEG-005 a student already assigned to a classroom cannot be re-added a
 });
 
 test('TC-TNEG-006 content library pagination does not issue an extra fetch past the last page', async ({ page }) => {
-  const classroomListPage = new ClassroomListPage(page);
   const contentDrawerPage = new ContentDrawerPage(page);
 
   const listRequests = [];
@@ -104,7 +102,7 @@ test('TC-TNEG-006 content library pagination does not issue an extra fetch past 
     if (req.method() === 'GET' && new URL(req.url()).pathname.endsWith('/content')) listRequests.push(req.url());
   });
 
-  await openLibraryOrSkip(test, page, classroomListPage, contentDrawerPage);
+  await openLibraryOrSkip(page);
 
   let clicks = 0;
   while ((await contentDrawerPage.loadMoreButton.isVisible().catch(() => false)) && clicks < 20) {

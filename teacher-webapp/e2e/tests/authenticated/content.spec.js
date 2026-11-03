@@ -17,10 +17,9 @@ test('TC-TCONT-001 Content Library opens from classrooms page and lists content'
 });
 
 test('TC-TCONT-002 filtering the Content Library by type shows only matching content', async ({ page }) => {
-  const classroomListPage = new ClassroomListPage(page);
   const contentDrawerPage = new ContentDrawerPage(page);
 
-  await openLibraryOrSkip(test, page, classroomListPage, contentDrawerPage);
+  await openLibraryOrSkip(page);
 
   // Filter tabs are rendered as Chips in the labelled filter group: "All"
   // plus one chip per distinct content type present in the fetched content.
@@ -41,10 +40,9 @@ test('TC-TCONT-002 filtering the Content Library by type shows only matching con
 });
 
 test('TC-TCONT-003 selecting the "All" filter resets the content list', async ({ page }) => {
-  const classroomListPage = new ClassroomListPage(page);
   const contentDrawerPage = new ContentDrawerPage(page);
 
-  await openLibraryOrSkip(test, page, classroomListPage, contentDrawerPage);
+  await openLibraryOrSkip(page);
 
   const items = page.locator('[role="presentation"] .MuiTypography-body2');
   const initialCount = await items.count();
@@ -60,10 +58,9 @@ test('TC-TCONT-003 selecting the "All" filter resets the content list', async ({
 });
 
 test('TC-TCONT-004 searching the Content Library narrows the list to matching items', async ({ page }) => {
-  const classroomListPage = new ClassroomListPage(page);
   const contentDrawerPage = new ContentDrawerPage(page);
 
-  await openLibraryOrSkip(test, page, classroomListPage, contentDrawerPage);
+  await openLibraryOrSkip(page);
 
   const title = (await contentDrawerPage.firstContentItem().innerText()).trim();
   const searchTerm = title.slice(0, Math.max(3, Math.floor(title.length / 2)));
@@ -92,10 +89,9 @@ test('TC-TCONT-005 searching the Content Library with no matches shows an empty 
 });
 
 test('TC-TCONT-006 Load more appends additional content items', async ({ page }) => {
-  const classroomListPage = new ClassroomListPage(page);
   const contentDrawerPage = new ContentDrawerPage(page);
 
-  await openLibraryOrSkip(test, page, classroomListPage, contentDrawerPage);
+  await openLibraryOrSkip(page);
 
   const hasLoadMore = await contentDrawerPage.loadMoreButton.isVisible().catch(() => false);
   test.skip(!hasLoadMore, 'Content list fits on a single page for this tenant; Load more is not available');
@@ -115,10 +111,9 @@ test('TC-TCONT-006 Load more appends additional content items', async ({ page })
 });
 
 test('TC-TCONT-007 opening a content item plays it with the correct title and duration', async ({ page }) => {
-  const classroomListPage = new ClassroomListPage(page);
   const contentDrawerPage = new ContentDrawerPage(page);
 
-  await openLibraryOrSkip(test, page, classroomListPage, contentDrawerPage);
+  await openLibraryOrSkip(page);
 
   const title = (await contentDrawerPage.firstContentItem().innerText()).trim();
 
@@ -140,10 +135,9 @@ test('TC-TCONT-007 opening a content item plays it with the correct title and du
 });
 
 test('TC-TCONT-008 pausing and resuming playback keeps position', async ({ page }) => {
-  const classroomListPage = new ClassroomListPage(page);
   const contentDrawerPage = new ContentDrawerPage(page);
 
-  await openLibraryOrSkip(test, page, classroomListPage, contentDrawerPage);
+  await openLibraryOrSkip(page);
 
   const title = (await contentDrawerPage.firstContentItem().innerText()).trim();
   await contentDrawerPage.playContent(title);
@@ -177,10 +171,9 @@ test('TC-TCONT-008 pausing and resuming playback keeps position', async ({ page 
 });
 
 test('TC-TCONT-009 rewind control moves playback position back', async ({ page }) => {
-  const classroomListPage = new ClassroomListPage(page);
   const contentDrawerPage = new ContentDrawerPage(page);
 
-  await openLibraryOrSkip(test, page, classroomListPage, contentDrawerPage);
+  await openLibraryOrSkip(page);
 
   const title = (await contentDrawerPage.firstContentItem().innerText()).trim();
   await contentDrawerPage.playContent(title);
@@ -202,10 +195,9 @@ test('TC-TCONT-009 rewind control moves playback position back', async ({ page }
 });
 
 test('TC-TCONT-010 selecting a playback speed changes the audio playback rate', async ({ page }) => {
-  const classroomListPage = new ClassroomListPage(page);
   const contentDrawerPage = new ContentDrawerPage(page);
 
-  await openLibraryOrSkip(test, page, classroomListPage, contentDrawerPage);
+  await openLibraryOrSkip(page);
 
   const title = (await contentDrawerPage.firstContentItem().innerText()).trim();
   await contentDrawerPage.playContent(title);
@@ -244,10 +236,9 @@ test('TC-TCONT-011 closing the Content Library closes the dialog', async ({ page
 });
 
 test('REG-594-TITLE [#594 regression] content details page title matches the API response', async ({ page }) => {
-  const classroomListPage = new ClassroomListPage(page);
   const contentDrawerPage = new ContentDrawerPage(page);
 
-  await openLibraryOrSkip(test, page, classroomListPage, contentDrawerPage);
+  await openLibraryOrSkip(page);
 
   const title = (await contentDrawerPage.firstContentItem().innerText()).trim();
 
