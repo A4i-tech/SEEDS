@@ -22,7 +22,10 @@ class SinkConferenceEvent(ConferenceEvent):
 
     async def execute_event(self) -> None:
         if not self.conf_call.state.teacher_phone_number:
-            logger.warning("SinkConferenceEvent: teacher_phone_number missing")
+            logger.warning(
+                "SinkConferenceEvent: teacher_phone_number missing conf_id=%s",
+                self.conf_call.conf_id,
+            )
         self.conf_call.state.is_running = False
         self.conf_call.state.action_history.append(ActionHistory(timestamp=datetime.now().isoformat(), action_type=ActionType.CONFERENCE_SINK, metadata={}, owner=self.conf_call.state.teacher_phone_number or ""))
         await self.conf_call.update_state()

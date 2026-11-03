@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -30,18 +31,26 @@ class TestEnsureInitialized:
             mod._ensure_initialized()
         mock_get_settings.assert_not_called()
 
-    def test_raises_when_auth_type_not_firebase(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_raises_when_auth_type_not_firebase(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture,
+    ) -> None:
         set_auth_type(monkeypatch, "jwt")
 
-        with pytest.raises(RuntimeError, match="AUTH_TYPE is not 'firebase'"):
-            mod._ensure_initialized()
+        with caplog.at_level(logging.ERROR, logger="app.platform.auth.providers.firebase_provider"):
+            with pytest.raises(RuntimeError, match="AUTH_TYPE is not 'firebase'"):
+                mod._ensure_initialized()
+        assert "AUTH_TYPE is not 'firebase'" in caplog.text
 
-    def test_raises_when_service_account_not_configured(self, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_raises_when_service_account_not_configured(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture,
+    ) -> None:
         set_auth_type(monkeypatch, "firebase")
         monkeypatch.setenv("FIREBASE_SERVICE_ACCOUNT", "")
 
-        with pytest.raises(RuntimeError, match="FIREBASE_SERVICE_ACCOUNT is not configured"):
-            mod._ensure_initialized()
+        with caplog.at_level(logging.ERROR, logger="app.platform.auth.providers.firebase_provider"):
+            with pytest.raises(RuntimeError, match="FIREBASE_SERVICE_ACCOUNT is not configured"):
+                mod._ensure_initialized()
+        assert "FIREBASE_SERVICE_ACCOUNT is not configured" in caplog.text
 
     @pytest.mark.parametrize(
         ("service_account_raw", "expected_cert_arg"),
@@ -51,6 +60,11 @@ class TestEnsureInitialized:
             ),
             pytest.param(
                 "/path/to/service-account.json", "/path/to/service-account.json", id="file_path",
+            ),
+            pytest.param(
+                "  " + json.dumps({"type": "service_account"}),
+                {"type": "service_account"},
+                id="json_string_leading_whitespace",
             ),
         ],
     )
@@ -78,6 +92,15 @@ class TestEnsureInitialized:
         fake_firebase_admin.get_app.assert_not_called()
         assert mod._initialized is True
         assert mod._firebase_app == "fake-app"
+
+    def test_raises_when_inline_json_malformed_with_leading_whitespace(
+        self, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        set_auth_type(monkeypatch, "firebase")
+        monkeypatch.setenv("FIREBASE_SERVICE_ACCOUNT", "  {not valid json")
+
+        with pytest.raises(RuntimeError, match="failed to parse"):
+            mod._ensure_initialized()
 
     @pytest.mark.parametrize(
         "bad_json",
@@ -226,7 +249,7 @@ class TestVerifyFirebaseToken:
         fake_auth.verify_id_token.return_value = {"email": "a@example.com"}
 
         with patch.dict("sys.modules", {"firebase_admin.auth": fake_auth}):
-            with pytest.raises(KeyError):
+            with pytest.raises(ValueError, match="token has no uid"):
                 await mod.verify_firebase_token("fake-token")
 
     @pytest.mark.asyncio

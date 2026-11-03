@@ -22,8 +22,9 @@ class MuteParticipantEvent(ConferenceEvent):
 
     async def execute_event(self) -> None:
         if self.phone_number not in self.conf_call.state.participants:
-            logger.warning(
-                "MuteParticipantEvent: unknown participant phone_number=<redacted>, no-op"
+            logger.info(
+                "MuteParticipantEvent: unknown participant phone_number=<redacted>, no-op conf_id=%s",
+                self.conf_call.conf_id,
             )
             return
         await self.conf_call.communication_api.mute_participant(self.phone_number)

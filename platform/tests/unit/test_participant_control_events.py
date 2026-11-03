@@ -22,6 +22,7 @@ from app.services.confevents.unmute_participant_event import UnmuteParticipantEv
 def _make_conf(teacher_phone="+111", student_phones=None, student_muted=False):
     student_phones = student_phones if student_phones is not None else ["+222"]
     conf = create_autospec(ConferenceCall, instance=True)
+    conf.conf_id = "conf-1"
     conf.communication_api = create_autospec(VonageAPIProvider, instance=True)
 
     state = ConferenceCallState()
@@ -42,7 +43,7 @@ class TestMuteParticipantEvent:
         conf = _make_conf(student_phones=[])
         event = MuteParticipantEvent(phone_number="+999", conf_call=conf)
 
-        with caplog.at_level(logging.WARNING):
+        with caplog.at_level(logging.INFO):
             await event.execute_event()
 
         conf.communication_api.mute_participant.assert_not_called()
@@ -80,7 +81,7 @@ class TestUnmuteParticipantEvent:
         conf = _make_conf(student_phones=[])
         event = UnmuteParticipantEvent(phone_number="+999", conf_call=conf)
 
-        with caplog.at_level(logging.WARNING):
+        with caplog.at_level(logging.INFO):
             await event.execute_event()
 
         conf.communication_api.unmute_participant.assert_not_called()
@@ -121,7 +122,7 @@ class TestRemoveParticipantEvent:
         conf = _make_conf(student_phones=[])
         event = RemoveParticipantEvent(phone_number="+999", conf_call=conf)
 
-        with caplog.at_level(logging.WARNING):
+        with caplog.at_level(logging.INFO):
             await event.execute_event()
 
         conf.communication_api.remove_participant.assert_not_called()

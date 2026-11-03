@@ -40,8 +40,7 @@ class TestDispatchConferenceEvent:
     async def test_status_change_event_dispatches_and_updates_caller_state(self) -> None:
         conf = _make_conf()
         manager = _make_manager(conf)
-        caller_state_manager = MagicMock()
-        caller_state_manager.update_state = AsyncMock()
+        caller_state_manager = AsyncMock()
 
         await dispatch_conference_event({"status": "answered", "to": "+123"}, "conf-1", manager, caller_state_manager)
         await asyncio.sleep(0)
@@ -58,8 +57,7 @@ class TestDispatchConferenceEvent:
         conf = _make_conf()
         conf.queue_event = AsyncMock(side_effect=RuntimeError("boom"))
         manager = _make_manager(conf)
-        caller_state_manager = MagicMock()
-        caller_state_manager.update_state = AsyncMock()
+        caller_state_manager = AsyncMock()
 
         with caplog.at_level(logging.ERROR, logger="app.services.conference_event_dispatcher"):
             await dispatch_conference_event({"status": "answered", "to": "+123"}, "conf-1", manager, caller_state_manager)
@@ -96,8 +94,8 @@ class TestDispatchConferenceEvent:
         manager = _make_manager(conf)
         caller_state_manager = AsyncMock()
 
-        with caplog.at_level(logging.ERROR, logger="app.services.conference_event_dispatcher"):
+        with caplog.at_level(logging.INFO, logger="app.services.conference_event_dispatcher"):
             await dispatch_conference_event({"unrelated": "field"}, "conf-1", manager, caller_state_manager)
 
         conf.queue_event.assert_not_called()
-        assert "transfer event error conf_id=conf-1" in caplog.text
+        assert "does not match any known type conf_id=conf-1" in caplog.text

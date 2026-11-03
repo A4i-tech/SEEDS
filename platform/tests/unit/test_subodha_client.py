@@ -71,7 +71,10 @@ def _make_client(settings=None, transport=None):
     if settings is None:
         settings = _make_settings()
     with patch("app.providers.subodha_client.get_settings", return_value=settings):
-        return SubodhaClient(transport=transport)
+        client = SubodhaClient()
+    if transport is not None:
+        client._http = httpx.AsyncClient(timeout=30.0, transport=transport)
+    return client
 
 
 @pytest.fixture
@@ -388,8 +391,7 @@ class TestEnrichBlocksWithContent:
         assert block["student_view_data"]["sources"] == ["v.mp4"]
 
     async def test_enriches_html_block(self) -> None:
-        # Staff-debug stripping itself is covered in test_subodha_client_html_cleanup.py;
-        # this just exercises the html-type dispatch wiring in enrich_blocks_with_content.
+        # Exercises html-type dispatch wiring; stripping itself is covered elsewhere.
         raw = '<div class="xblock"><p>Lesson</p></div>'
 
         def handler(request: httpx.Request) -> httpx.Response:

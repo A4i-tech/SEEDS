@@ -210,7 +210,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     try:
         conf_mgr = _init_conference_manager()
     except Exception as exc:  # noqa: BLE001
-        logger.warning("Conference manager init failed (non-fatal in test mode): %s", exc)
+        logger.error("Conference manager initialization failed: %s", exc)
         conf_mgr = None  # type: ignore[assignment]
 
     from app.providers.service_bus import service_bus_provider  # noqa: PLC0415

@@ -36,16 +36,18 @@ def _ensure_initialized() -> None:
     settings = get_settings()
 
     if settings.auth_type != "firebase":
-        raise RuntimeError(
-            "Firebase auth provider called but AUTH_TYPE is not 'firebase'."
-        )
+        msg = "Firebase auth provider called but AUTH_TYPE is not 'firebase'."
+        logger.error(msg)
+        raise RuntimeError(msg)
 
     service_account_raw: str = settings.firebase_service_account
     if not service_account_raw:
-        raise RuntimeError(
+        msg = (
             "FIREBASE_SERVICE_ACCOUNT is not configured. "
             "Set it to a JSON string or a path to the service account file."
         )
+        logger.error(msg)
+        raise RuntimeError(msg)
 
     import firebase_admin  # noqa: PLC0415
     from firebase_admin import credentials  # noqa: PLC0415
@@ -56,10 +58,9 @@ def _ensure_initialized() -> None:
         try:
             service_account_dict = json.loads(service_account_raw)
         except json.JSONDecodeError as exc:
-            raise RuntimeError(
-                "FIREBASE_SERVICE_ACCOUNT looks like inline JSON but failed to parse: "
-                f"{exc}"
-            ) from exc
+            msg = f"FIREBASE_SERVICE_ACCOUNT looks like inline JSON but failed to parse: {exc}"
+            logger.error(msg)
+            raise RuntimeError(msg) from exc
         cred = credentials.Certificate(service_account_dict)
     else:
         cred = credentials.Certificate(service_account_raw)
@@ -88,7 +89,10 @@ async def verify_firebase_token(id_token: str) -> dict[str, Any]:
 
     decoded: dict[str, Any] = firebase_auth.verify_id_token(id_token)  # type: ignore[arg-type]
 
-    uid: str = decoded["uid"]
+    try:
+        uid: str = decoded["uid"]
+    except KeyError as exc:
+        raise ValueError("token has no uid") from exc
     email: str = decoded.get("email", "")
 
     # Custom claims are nested under the token payload.

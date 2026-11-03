@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import numpy as np
 import pytest
+from pydantic import ValidationError
 
 import app.services.audio.transcriber as transcriber_module
 from app.platform.settings import Settings
@@ -208,9 +209,12 @@ class TestIsVoicedFrame:
             await t.process_chunk(_frame(t.frame_bytes, amplitude=100))
         assert t.metrics["frames_voiced"] == 1
         assert "webrtcvad.is_speech failed" in caplog.text
+        assert t.vad is None
 
-        await t.process_chunk(_frame(t.frame_bytes, amplitude=10))
+        with caplog.at_level(logging.WARNING, logger="app.services.audio.transcriber"):
+            await t.process_chunk(_frame(t.frame_bytes, amplitude=10))
         assert t.metrics["frames_voiced"] == 1
+        assert caplog.text.count("webrtcvad.is_speech failed") == 1
 
     async def test_rms_below_threshold_is_unvoiced_before_window_full(self, monkeypatch: pytest.MonkeyPatch) -> None:
         settings = _make_settings(audio_silence_threshold=1000)
@@ -408,4 +412,40 @@ class TestWebrtcvadModuleImport:
             assert transcriber_module.webrtcvad is None
             assert "webrtcvad not available" in caplog.text
         finally:
+            monkeypatch.undo()
             importlib.reload(transcriber_module)
+
+    @pytest.mark.parametrize("error_cls", [RuntimeError, OSError])
+    def test_non_import_error_propagates(
+        self, monkeypatch: pytest.MonkeyPatch, error_cls: type[Exception],
+    ) -> None:
+        real_import = builtins.__import__
+
+        def fake_import(name, *args, **kwargs):
+            if name == "webrtcvad":
+                raise error_cls("webrtcvad load failed")
+            return real_import(name, *args, **kwargs)
+
+        monkeypatch.setattr(builtins, "__import__", fake_import)
+        try:
+            with pytest.raises(error_cls):
+                importlib.reload(transcriber_module)
+        finally:
+            monkeypatch.undo()
+            importlib.reload(transcriber_module)
+
+
+class TestSettingsVadValidation:
+    @pytest.mark.parametrize(
+        "overrides",
+        [
+            {"audio_vad_frame_ms": 25},
+            {"audio_webrtc_vad_aggressiveness": 4},
+            {"audio_webrtc_vad_aggressiveness": -1},
+            {"audio_vad_start_speech_frames": 0},
+            {"audio_vad_metrics_log_every_segments": 0},
+        ],
+    )
+    def test_invalid_vad_settings_raise(self, overrides: dict[str, object]) -> None:
+        with pytest.raises(ValidationError):
+            Settings(**overrides)

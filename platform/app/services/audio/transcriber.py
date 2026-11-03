@@ -114,6 +114,7 @@ class AudioTranscriber:
                 return bool(self.vad.is_speech(frame, self.INPUT_RATE))
             except Exception as exc:  # noqa: BLE001
                 logger.warning("webrtcvad.is_speech failed, falling back to RMS detection: %s", exc)
+                self.vad = None
         audio_np = np.frombuffer(frame, dtype=np.int16)
         rms = float(np.sqrt(np.mean(audio_np.astype(np.float64) ** 2)))
         self._rms_window.append(rms)

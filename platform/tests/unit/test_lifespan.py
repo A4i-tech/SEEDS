@@ -94,10 +94,10 @@ class TestInitConferenceManager:
     def test_invalid_base64_raises(self) -> None:
         import binascii
 
-        settings = _fake_settings(vonage_conference_application_private_key64="not-valid-base64!!!")
+        settings = _fake_settings(vonage_conference_application_private_key64="YWJj!ZGVm")
         with (
             patch("app.platform.lifespan.get_settings", return_value=settings),
-            pytest.raises(binascii.Error),
+            pytest.raises(binascii.Error, match="Only base64"),
         ):
             lifespan_module._init_conference_manager()
 
@@ -308,13 +308,16 @@ class TestLifespan:
             MagicMock(initialize=AsyncMock(), close=AsyncMock()),
         )
 
-    async def test_api_mode_startup_and_shutdown(self, monkeypatch: pytest.MonkeyPatch, fake_app: FastAPI) -> None:
+    async def test_api_mode_startup_and_shutdown(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, fake_app: FastAPI
+    ) -> None:
         conf_mgr = MagicMock(close=AsyncMock())
         self._patch_common(monkeypatch, app_mode="api", init_conf_mgr=conf_mgr)
 
-        async with lifespan_module.lifespan(fake_app):
-            assert fake_app.state.consumer_tasks == []
-            assert fake_app.state.conference_manager is conf_mgr
+        with caplog.at_level(logging.WARNING, logger="app.platform.lifespan"):
+            async with lifespan_module.lifespan(fake_app):
+                assert fake_app.state.consumer_tasks == []
+                assert fake_app.state.conference_manager is conf_mgr
 
         lifespan_module.close_database.assert_awaited_once()
         lifespan_module.close_subodha_client.assert_awaited_once()
@@ -323,18 +326,23 @@ class TestLifespan:
             repo_mock.ensure_indexes.assert_awaited_once()
         self._repo_mocks["TextbookRemediationRepository"].return_value.reconcile_interrupted_jobs.assert_not_awaited()
         lifespan_module._make_consumer_tasks.assert_not_called()
+        assert "No consumers started" not in caplog.text
 
-    async def test_consumer_mode_starts_tasks_and_reconciles(self, monkeypatch: pytest.MonkeyPatch, fake_app: FastAPI) -> None:
+    async def test_consumer_mode_starts_tasks_and_reconciles(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, fake_app: FastAPI
+    ) -> None:
         task = asyncio.get_running_loop().create_task(asyncio.sleep(10))
         self._patch_common(monkeypatch, app_mode="consumer", make_tasks=[task])
 
-        async with lifespan_module.lifespan(fake_app):
-            assert fake_app.state.consumer_tasks == [task]
-            lifespan_module.get_sync_job_service.return_value.reconcile_interrupted_jobs.assert_awaited_once()
+        with caplog.at_level(logging.WARNING, logger="app.platform.lifespan"):
+            async with lifespan_module.lifespan(fake_app):
+                assert fake_app.state.consumer_tasks == [task]
+                lifespan_module.get_sync_job_service.return_value.reconcile_interrupted_jobs.assert_awaited_once()
 
         assert task.cancelled() is True
         assert task.done() is True
         lifespan_module._make_consumer_tasks.assert_called_once_with(fake_app.state.conference_manager)
+        assert "No consumers started" not in caplog.text
 
     async def test_consumer_mode_zero_tasks_logs_degraded_warning(
         self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture, fake_app: FastAPI
@@ -376,11 +384,11 @@ class TestLifespan:
         self._patch_common(monkeypatch, app_mode="api")
         lifespan_module._init_conference_manager.side_effect = RuntimeError("vonage down")
 
-        with caplog.at_level(logging.WARNING, logger="app.platform.lifespan"):
+        with caplog.at_level(logging.ERROR, logger="app.platform.lifespan"):
             async with lifespan_module.lifespan(fake_app):
                 assert fake_app.state.conference_manager is None
 
-        assert "Conference manager init failed (non-fatal in test mode): vonage down" in caplog.text
+        assert "Conference manager initialization failed: vonage down" in caplog.text
 
     async def test_websocket_client_initialized_when_conference_manager_present(
         self, monkeypatch: pytest.MonkeyPatch, fake_app: FastAPI
