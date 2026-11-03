@@ -195,5 +195,6 @@ async def test_existing_theme_audio_is_reused_without_resynthesizing():
         await _process_tts_for_content(content_doc, mock_blob_provider)
 
     assert content_doc["theme"]["audio_url"] == existing_blob_url
+    container_client.get_blob_client.assert_called_once_with("Animals/english/1.0.mp3")
     mock_synthesize.assert_not_called()
     mock_blob_provider.upload_file.assert_not_called()
