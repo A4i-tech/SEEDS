@@ -145,7 +145,7 @@ async def test_subscribe_yields_each_change_then_done(repo):
 
 
 @pytest.mark.asyncio
-async def test_subscribe_stops_on_an_unknown_job(repo):
+async def test_subscribe_revokes_an_unknown_job(repo):
     events = [e async for e in subscribe(repo, _TENANT_ID, "000000000000000000000000", interval=0)]
     assert events == [{"event": "revoked", "reason": "not_found"}]
 
@@ -186,8 +186,9 @@ from app.controllers.textbook_remediation_controller import (  # noqa: E402
     translate_remediation_job,
     verify_remediation_job,
 )
-from app.models.user import UserRole  # noqa: E402
+from app.models.user import UserCreate, UserRole  # noqa: E402
 from app.platform.error_handling import ForbiddenError, NotFoundError, ValidationError  # noqa: E402
+from app.repositories.user_repository import UserRepository  # noqa: E402
 
 
 class _StubUpload:
@@ -374,11 +375,19 @@ async def test_all_single_job_endpoints_404_for_an_unassigned_volunteer(repo):
             await check()
 
 
+@pytest.mark.asyncio
+async def test_get_job_fails_closed_when_the_volunteer_token_has_no_sub(repo):
+    created = await _create(repo)
+    user = {"role": "textbook_remediation_volunteer", "tenant_id": "tenant-a"}
+    with pytest.raises(KeyError):
+        await _get_job(repo, user, created.job_id)
+
+
 class _FakeUserRepo:
     def __init__(self, *, user=None):
         self._user = user
 
-    async def find_active_volunteer(self, _tenant_id, _volunteer_id):
+    async def find_active_by_tenant_and_role(self, _tenant_id, _user_id, _role):
         return self._user
 
 
@@ -404,31 +413,34 @@ async def test_assign_sets_assigned_to_for_a_valid_volunteer(repo):
 
 
 @pytest.mark.asyncio
-async def test_assign_rejects_a_volunteer_from_another_tenant(repo):
-    created = await _create(repo)
-    user = {"role": "tenant", "tenant_id": "tenant-a", "sub": "admin-1"}
-    with pytest.raises(ValidationError):
-        await assign_remediation_job(
-            created.job_id,
-            AssignJobRequest(volunteer_id=str(ObjectId())),
-            user=user,
-            repo=repo,
-            user_repo=_FakeUserRepo(user=None),
+async def test_find_active_by_tenant_and_role_scopes_tenant_and_role_and_active(repo):
+    db = AsyncMongoMockClient()["test_seeds"]
+    user_repo = UserRepository(db)
+    role = UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER.value
+    volunteer = await user_repo.create(
+        UserCreate(role=UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER, name="Vol", tenant_id="tenant-a")
+    )
+    other_tenant = await user_repo.create(
+        UserCreate(role=UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER, name="Vol", tenant_id="tenant-b")
+    )
+    teacher = await user_repo.create(
+        UserCreate(role=UserRole.TEACHER, name="Teacher", tenant_id="tenant-a")
+    )
+    inactive = await user_repo.create(
+        UserCreate(
+            role=UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER,
+            name="Vol",
+            tenant_id="tenant-a",
+            is_active=False,
         )
+    )
 
+    found = await user_repo.find_active_by_tenant_and_role("tenant-a", volunteer.id, role)
+    assert found is not None and found.id == volunteer.id
 
-@pytest.mark.asyncio
-async def test_assign_rejects_a_non_volunteer_target(repo):
-    created = await _create(repo)
-    user = {"role": "tenant", "tenant_id": "tenant-a", "sub": "admin-1"}
-    with pytest.raises(ValidationError):
-        await assign_remediation_job(
-            created.job_id,
-            AssignJobRequest(volunteer_id=str(ObjectId())),
-            user=user,
-            repo=repo,
-            user_repo=_FakeUserRepo(user=None),
-        )
+    assert await user_repo.find_active_by_tenant_and_role("tenant-a", other_tenant.id, role) is None
+    assert await user_repo.find_active_by_tenant_and_role("tenant-a", teacher.id, role) is None
+    assert await user_repo.find_active_by_tenant_and_role("tenant-a", inactive.id, role) is None
 
 
 @pytest.mark.asyncio

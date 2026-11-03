@@ -67,7 +67,7 @@ export const useContent = (enabled = true) => {
    * Load initial content
    */
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled) return undefined;
     const loadInitialContent = async () => {
       setIsLoading(true);
       try {
@@ -86,7 +86,6 @@ export const useContent = (enabled = true) => {
     };
 
     loadInitialContent();
-    return;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled]);
 

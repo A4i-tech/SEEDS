@@ -56,7 +56,6 @@ require_remediation_access = require_role(
     UserRole.CONTENT_CREATOR.value,
     UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER.value,
 )
-require_remediation_manager = require_tenant
 MAX_PDF_BYTES = 200 * 1024 * 1024
 
 _LANGUAGE_CODES = frozenset(lang["code"] for lang in SUPPORTED_LANGUAGES)
@@ -92,12 +91,9 @@ class AssignJobRequest(BaseModel):
         return value
 
 
-def _is_volunteer(user: dict[str, object]) -> bool:
-    return user.get("role") == UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER.value
-
-
 def _assigned_to_scope(user: dict[str, object]) -> str | None:
-    return str(user["sub"]) if _is_volunteer(user) else None
+    is_volunteer = user.get("role") == UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER.value
+    return str(user["sub"]) if is_volunteer else None
 
 
 async def _get_job(
@@ -139,7 +135,7 @@ async def create_remediation_job(
         "",
         description="When set, also translate the result into this language once remediation finishes",
     ),
-    user: dict[str, object] = Depends(require_remediation_manager),
+    user: dict[str, object] = Depends(require_tenant),
     repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
     blob_provider: BlobStorageProvider = Depends(get_blob_storage_provider),
 ) -> dict[str, str]:
@@ -186,7 +182,7 @@ async def list_remediation_jobs(
 @router.delete("/jobs/{job_id}", status_code=204, summary="Soft-delete a remediation job")
 async def delete_remediation_job(
     job_id: str,
-    user: dict[str, object] = Depends(require_remediation_manager),
+    user: dict[str, object] = Depends(require_tenant),
     repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
 ) -> None:
     deleted = await repo.soft_delete(str(user["tenant_id"]), job_id)
@@ -373,7 +369,7 @@ async def get_review_summary(
 async def assign_remediation_job(
     job_id: str,
     payload: AssignJobRequest,
-    user: dict[str, object] = Depends(require_remediation_manager),
+    user: dict[str, object] = Depends(require_tenant),
     repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
     user_repo: UserRepository = Depends(get_user_repository),
 ) -> dict[str, object]:

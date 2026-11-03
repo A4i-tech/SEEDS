@@ -25,6 +25,7 @@ from app.models.responses.remediation import (
     RemediationJobResponse,
     ReviewSummaryResponse,
 )
+from app.models.user import UserRole
 from app.platform.error_handling import NotFoundError, ValidationError
 from app.platform.settings import get_settings
 from app.providers.blob_storage import BlobStorageProvider
@@ -138,7 +139,9 @@ async def assign_job(
     volunteer_id: str | None,
 ) -> RemediationJob:
     if volunteer_id is not None:
-        volunteer = await user_repo.find_active_volunteer(tenant_id, volunteer_id)
+        volunteer = await user_repo.find_active_by_tenant_and_role(
+            tenant_id, volunteer_id, UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER.value
+        )
         if volunteer is None:
             raise ValidationError(
                 "volunteer_id must be an active textbook remediation volunteer in this tenant"

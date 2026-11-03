@@ -23,14 +23,13 @@ const job = (overrides = {}) => ({
 
 const mockAssign = jest.fn();
 let mockJobs = [job()];
-let mockAssignError = null;
+let mockError = null;
 jest.mock("../../src/hooks/useRemediationJobs", () => ({
   useRemediationJobs: () => ({
     jobs: mockJobs,
     isLoading: false,
     isUploading: false,
-    error: null,
-    assignError: mockAssignError,
+    error: mockError,
     upload: jest.fn(),
     remove: jest.fn(),
     assign: mockAssign,
@@ -50,7 +49,7 @@ beforeAll(() => {
 beforeEach(() => {
   jest.clearAllMocks();
   mockJobs = [job()];
-  mockAssignError = null;
+  mockError = null;
   textbookRemediationService.getLanguages.mockResolvedValue({ languages: [] });
 });
 
@@ -86,10 +85,10 @@ test("non-manager sees neither the upload card nor assignee controls", async () 
 });
 
 test("assignment error is shown to a manager", async () => {
-  mockAssignError = "volunteer_id must be an existing textbook remediation volunteer in this tenant";
+  mockError = "volunteer_id must be an active textbook remediation volunteer in this tenant";
   render(<RemediationTab volunteers={volunteers} canManage={true} />);
 
   expect(
-    screen.getByText(/volunteer_id must be an existing textbook remediation volunteer in this tenant/)
+    screen.getByText(/volunteer_id must be an active textbook remediation volunteer in this tenant/)
   ).toBeInTheDocument();
 });

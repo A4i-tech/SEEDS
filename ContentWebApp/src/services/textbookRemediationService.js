@@ -117,7 +117,7 @@ export const textbookRemediationService = {
     return apiFetch(`${BASE}/jobs/${encodeURIComponent(jobId)}/assignment`, {
       method: "PUT",
       headers: getAuthHeaders(),
-      body: JSON.stringify({ volunteer_id: volunteerId }),
+      body: JSON.stringify({ volunteer_id: volunteerId || null }),
     });
   },
 };

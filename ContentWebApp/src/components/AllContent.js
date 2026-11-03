@@ -226,12 +226,7 @@ const AllContent = () => {
         {canViewContent && activeTab === "ivr" && <IVRTab />}
 
         {canViewRemediation && activeTab === "remediation" && (
-          <RemediationTab
-            volunteers={volunteers}
-            canManage={canManage}
-            volunteerMessage={volunteerMessage}
-            volunteerMessageType={volunteerMessageType}
-          />
+          <RemediationTab volunteers={volunteers} canManage={canManage} />
         )}
 
         {canViewAnalytics && activeTab === "analytics" && <AnalyticsTab />}

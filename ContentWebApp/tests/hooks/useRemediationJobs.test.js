@@ -71,6 +71,22 @@ test("a stream event replaces the row instead of appending a duplicate", async (
   expect(result.current.jobs[0].stage).toBe("review");
 });
 
+test("a revoked event removes the job instead of crashing", async () => {
+  textbookRemediationService.getJobs.mockResolvedValue({ jobs: [job()] });
+  let emit;
+  textbookRemediationService.streamJob.mockImplementation((jobId, onEvent) => {
+    emit = onEvent;
+    return new Promise(() => {});
+  });
+
+  const { result } = renderHook(() => useRemediationJobs());
+  await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+  act(() => emit({ event: "revoked", reason: "unassigned" }));
+
+  expect(result.current.jobs).toHaveLength(0);
+});
+
 test("uploading adds the new job to the top of the list and follows it", async () => {
   textbookRemediationService.getJobs.mockResolvedValue({ jobs: [job({ job_id: "old", status: "ready_to_review" })] });
   textbookRemediationService.createJob.mockResolvedValue({ job_id: "job-new" });
@@ -158,7 +174,7 @@ test("a slower first assignment response cannot overwrite a faster second one", 
 
 test("surfaces a failed assignment", async () => {
   textbookRemediationService.getJobs.mockResolvedValue({ jobs: [job()] });
-  textbookRemediationService.assignJob.mockRejectedValue(new Error("volunteer_id must be an existing textbook remediation volunteer in this tenant"));
+  textbookRemediationService.assignJob.mockRejectedValue(new Error("volunteer_id must be an active textbook remediation volunteer in this tenant"));
 
   const { result } = renderHook(() => useRemediationJobs());
   await waitFor(() => expect(result.current.isLoading).toBe(false));
@@ -167,7 +183,7 @@ test("surfaces a failed assignment", async () => {
     await result.current.assign("job-1", "someone-else");
   });
 
-  expect(result.current.assignError).toBe("volunteer_id must be an existing textbook remediation volunteer in this tenant");
+  expect(result.current.error).toBe("volunteer_id must be an active textbook remediation volunteer in this tenant");
 });
 
 test("aborts every stream on unmount", async () => {

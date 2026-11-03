@@ -16,58 +16,9 @@ import "../shared/tables.css";
 
 const ARTIFACT_LABELS = { docx: "Word", pdf: "PDF", tex: "LaTeX" };
 
-const TextbookUploadCard = ({
-  fileRef,
-  selectedFile,
-  handleFile,
-  targetLanguage,
-  setTargetLanguage,
-  targetLanguageOptions,
-  languagesError,
-  isUploading,
-  handleUpload,
-}) => (
-  <div className="registration-card" style={{ alignItems: "center", marginBottom: "16px" }}>
-    <div className="registration-title" style={{ textAlign: "center", textTransform: "uppercase" }}>
-      Upload Textbook
-    </div>
-    <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap", justifyContent: "center" }}>
-      <span style={{ fontWeight: 600 }}>
-        Textbook PDF <span style={{ color: "var(--color-danger-dot)" }}>*</span>
-      </span>
-      <input ref={fileRef} type="file" accept="application/pdf" onChange={handleFile} style={{ display: "none" }} />
-      <button type="button" className="action-ghost-button" onClick={() => fileRef.current && fileRef.current.click()}>
-        Choose PDF File
-      </button>
-      {selectedFile && <span className="table-cell-secondary">{selectedFile.name}</span>}
-      <Select
-        id="remediation-target-language"
-        value={targetLanguage}
-        onChange={setTargetLanguage}
-        options={targetLanguageOptions}
-        placeholder="No translation"
-      />
-      {languagesError && <span className="content-details-error">Could not load languages: {languagesError}</span>}
-      <button
-        type="button"
-        className="primary-button"
-        disabled={!selectedFile || isUploading}
-        onClick={handleUpload}
-      >
-        {isUploading ? "Uploading…" : "Upload textbook"}
-      </button>
-      <SyncAllProgress
-        syncingAll={isUploading}
-        syncAllProgress={isUploading ? {} : null}
-        indeterminateLabel="Uploading textbook…"
-      />
-    </div>
-  </div>
-);
-
-const RemediationTab = ({ volunteers, canManage, volunteerMessage, volunteerMessageType }) => {
+const RemediationTab = ({ volunteers, canManage }) => {
   const navigate = useNavigate();
-  const { jobs, isLoading, isUploading, error, assignError, upload, remove, assign } = useRemediationJobs();
+  const { jobs, isLoading, isUploading, error, upload, remove, assign } = useRemediationJobs();
   const assigneeOptions = [
     { value: "", label: "Unassigned" },
     ...volunteers.map((volunteer) => ({ value: volunteer.id, label: volunteer.name })),
@@ -118,27 +69,53 @@ const RemediationTab = ({ volunteers, canManage, volunteerMessage, volunteerMess
       </div>
 
       {canManage && (
-        <TextbookUploadCard
-          fileRef={fileRef}
-          selectedFile={selectedFile}
-          handleFile={handleFile}
-          targetLanguage={targetLanguage}
-          setTargetLanguage={setTargetLanguage}
-          targetLanguageOptions={targetLanguageOptions}
-          languagesError={languagesError}
-          isUploading={isUploading}
-          handleUpload={handleUpload}
-        />
-      )}
-
-      {canManage && volunteerMessage && (
-        <p className={volunteerMessageType === "error" ? "error-message" : "success-message"}>
-          {volunteerMessage}
-        </p>
+        <div className="registration-card" style={{ alignItems: "center", marginBottom: "16px" }}>
+          <div className="registration-title" style={{ textAlign: "center", textTransform: "uppercase" }}>
+            Upload Textbook
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", flexWrap: "wrap", justifyContent: "center" }}>
+            <span style={{ fontWeight: 600 }}>
+              Textbook PDF <span style={{ color: "var(--color-danger-dot)" }}>*</span>
+            </span>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="application/pdf"
+              onChange={handleFile}
+              style={{ display: "none" }}
+            />
+            <button type="button" className="action-ghost-button" onClick={() => fileRef.current && fileRef.current.click()}>
+              Choose PDF File
+            </button>
+            {selectedFile && <span className="table-cell-secondary">{selectedFile.name}</span>}
+            <Select
+              id="remediation-target-language"
+              value={targetLanguage}
+              onChange={setTargetLanguage}
+              options={targetLanguageOptions}
+              placeholder="No translation"
+            />
+            {languagesError && (
+              <span className="content-details-error">Could not load languages: {languagesError}</span>
+            )}
+            <button
+              type="button"
+              className="primary-button"
+              disabled={!selectedFile || isUploading}
+              onClick={handleUpload}
+            >
+              {isUploading ? "Uploading…" : "Upload textbook"}
+            </button>
+            <SyncAllProgress
+              syncingAll={isUploading}
+              syncAllProgress={isUploading ? {} : null}
+              indeterminateLabel="Uploading textbook…"
+            />
+          </div>
+        </div>
       )}
 
       {error && <p className="content-details-error">Error: {error}</p>}
-      {assignError && <p className="content-details-error">Assignment error: {assignError}</p>}
       {isLoading && jobs.length === 0 && <p className="table-cell-secondary">Loading…</p>}
       {!isLoading && jobs.length === 0 && <p className="table-cell-secondary">No textbooks queued yet.</p>}
 

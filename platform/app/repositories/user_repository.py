@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from fastapi import Depends
 from pymongo.asynchronous.database import AsyncDatabase
 
-from app.models.user import User, UserCreate, UserRole
+from app.models.user import User, UserCreate
 from app.platform.auth.dependencies import get_db
 from app.repositories.base_repository import BaseRepository
 
@@ -73,13 +73,15 @@ class UserRepository(BaseRepository):
         docs = await cursor.to_list(length=None)
         return [User.from_mongo(d) for d in docs]
 
-    async def find_active_volunteer(self, tenant_id: str, volunteer_id: str) -> User | None:
-        """Find an active textbook remediation volunteer scoped to a tenant."""
+    async def find_active_by_tenant_and_role(
+        self, tenant_id: str, user_id: str, role: str
+    ) -> User | None:
+        """Find an active user scoped to a tenant and role."""
         doc = await self._col.find_one(
             {
-                "_id": self._to_id(volunteer_id),
+                "_id": self._to_id(user_id),
                 "tenant_id": self._to_id(tenant_id),
-                "role": UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER.value,
+                "role": role,
                 "is_active": True,
             }
         )

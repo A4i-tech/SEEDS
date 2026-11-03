@@ -29,12 +29,13 @@ jest.mock("../../src/services/contentAggregatorService", () => ({
 
 jest.mock("../../src/services/ivrService", () => ({ ivrService: { updateIVR: jest.fn() } }));
 
+const mockGetCurrentUser = jest.fn();
+
 jest.mock("../../src/hooks/useAuth", () => ({
   useAuth: () => ({
     getAuthHeaders: () => ({}),
     logout: jest.fn(),
-    getCurrentUser: () =>
-      Promise.resolve({ name: "Vera Volunteer", role: "textbook_remediation_volunteer" }),
+    getCurrentUser: mockGetCurrentUser,
   }),
 }));
 
@@ -97,6 +98,7 @@ jest.mock("../../src/components/AllContent/IVRTab/IVRTab", () => () => <div>IVR 
 beforeEach(() => {
   jest.clearAllMocks();
   getRole.mockReturnValue("textbook_remediation_volunteer");
+  mockGetCurrentUser.mockResolvedValue({ name: "Vera Volunteer", role: "textbook_remediation_volunteer" });
 });
 
 test("a volunteer never calls content or content-aggregator APIs, and only sees Textbooks", async () => {
@@ -112,4 +114,27 @@ test("a volunteer never calls content or content-aggregator APIs, and only sees 
 
   expect(contentService.getContent).not.toHaveBeenCalled();
   expect(contentAggregatorService.getCourses).not.toHaveBeenCalled();
+});
+
+test("a role with no tabs shows the no-sections message", async () => {
+  getRole.mockReturnValue("student");
+  mockGetCurrentUser.mockResolvedValue({ name: "Sam Student", role: "student" });
+
+  render(<AllContent />);
+
+  expect(await screen.findByText("No sections are available for your role.")).toBeInTheDocument();
+  expect(screen.queryByText("Remediation Tab Content")).not.toBeInTheDocument();
+});
+
+test("a removed active tab resets to the first available tab", async () => {
+  mockGetCurrentUser.mockResolvedValueOnce({ name: "Terry Teacher", role: "teacher" });
+  contentService.getContent.mockResolvedValue({ items: [], next_cursor: null, has_more: false });
+  contentAggregatorService.getCourses.mockResolvedValue({ courses: [], next_cursor: null, has_more: false });
+  contentAggregatorService.getActiveJobs.mockResolvedValue([]);
+  contentAggregatorService.getSyncStatus.mockResolvedValue({});
+
+  render(<AllContent />);
+
+  expect(await screen.findByText("Content Tab")).toBeInTheDocument();
+  expect(screen.queryByText("Remediation Tab Content")).not.toBeInTheDocument();
 });
