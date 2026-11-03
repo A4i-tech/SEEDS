@@ -84,6 +84,7 @@ const AllContent = () => {
   const {
     volunteers,
     isLoading: isVolunteersLoading,
+    loadError: volunteersLoadError,
     message: volunteerMessage,
     messageType: volunteerMessageType,
     createVolunteer,
@@ -256,6 +257,7 @@ const AllContent = () => {
             schoolMessageType={schoolMessageType}
             volunteers={volunteers}
             isVolunteersLoading={isVolunteersLoading}
+            volunteersLoadError={volunteersLoadError}
             onCreateVolunteer={createVolunteer}
             volunteerMessage={volunteerMessage}
             volunteerMessageType={volunteerMessageType}

@@ -126,11 +126,6 @@ async def login_unified(
         user = await repo.find_by_phone(identifier)
         allowed_roles = (UserRole.CONTENT_CREATOR,)
 
-    if user is not None and user.role == UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER and not is_email:
-        logger.warning("auth: login failed — volunteer used phone login path")
-        auth_failures.add(1, {"reason": "wrong_login_path"})
-        raise UnauthorizedError("Volunteers must sign in with their email, not a phone number.")
-
     if user is None or user.role not in allowed_roles or not user.hashed_password:
         logger.warning("auth: login failed — user not found or wrong role")
         auth_failures.add(1, {"reason": "user_not_found"})
@@ -242,21 +237,6 @@ async def register_teacher(
         )
     )
     return user
-
-
-async def register_volunteer(
-    tenant_id: str,
-    body: VolunteerCreateRequest,
-    db: AsyncDatabase,  # type: ignore[type-arg]
-) -> User:
-    data = TeacherCreate(
-        name=body.name,
-        email=body.email,
-        password=body.password,
-        role=UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER,
-        tenant_id=tenant_id,
-    )
-    return await register_teacher(data, db)
 
 
 # ---------------------------------------------------------------------------
@@ -372,12 +352,8 @@ async def get_tenant_dashboard(
         school_rows.append(
             SchoolDashboardRow(
                 **SchoolResponse.from_domain(school).to_response(),
-                teacher_count=sum(
-                    1 for u in all_users if str(u.school_id) == sid and u.role == UserRole.TEACHER
-                ),
-                student_count=sum(
-                    1 for u in all_users if str(u.school_id) == sid and u.role == UserRole.STUDENT
-                ),
+                teacher_count=sum(1 for u in all_users if str(u.school_id) == sid and u.role == UserRole.TEACHER),
+                student_count=sum(1 for u in all_users if str(u.school_id) == sid and u.role == UserRole.STUDENT),
                 class_count=len(classes),
             )
         )
@@ -418,7 +394,14 @@ class AuthService:
         return await register_teacher(data, self._db)
 
     async def register_volunteer(self, tenant_id: str, body: VolunteerCreateRequest) -> User:
-        return await register_volunteer(tenant_id, body, self._db)
+        data = TeacherCreate(
+            name=body.name,
+            email=body.email,
+            password=body.password,
+            role=UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER,
+            tenant_id=tenant_id,
+        )
+        return await register_teacher(data, self._db)
 
     async def register_tenant(self, data: TenantCreate) -> User:
         return await register_tenant(data, self._db)

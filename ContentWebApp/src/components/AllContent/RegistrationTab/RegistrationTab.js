@@ -34,6 +34,7 @@ const RegistrationTab = ({
   schoolMessageType,
   volunteers,
   isVolunteersLoading,
+  volunteersLoadError,
   onCreateVolunteer,
   volunteerMessage,
   volunteerMessageType,
@@ -75,6 +76,7 @@ const RegistrationTab = ({
           <VolunteersPanel
             volunteers={volunteers}
             isLoading={isVolunteersLoading}
+            loadError={volunteersLoadError}
             onCreateVolunteer={onCreateVolunteer}
             message={volunteerMessage}
             messageType={volunteerMessageType}

@@ -172,6 +172,37 @@ test("a slower first assignment response cannot overwrite a faster second one", 
   expect(result.current.jobs[0].assigned_to).toBe("vol-2");
 });
 
+test("a superseded assignment's rejection does not surface an error", async () => {
+  textbookRemediationService.getJobs.mockResolvedValue({ jobs: [job({ assigned_to: null })] });
+  let rejectFirst;
+  textbookRemediationService.assignJob
+    .mockImplementationOnce(
+      () =>
+        new Promise((_resolve, reject) => {
+          rejectFirst = () => reject(new Error("first request failed"));
+        })
+    )
+    .mockResolvedValueOnce(job({ assigned_to: "vol-2" }));
+
+  const { result } = renderHook(() => useRemediationJobs());
+  await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+  let firstCall;
+  act(() => {
+    firstCall = result.current.assign("job-1", "vol-1");
+  });
+  await act(async () => {
+    await result.current.assign("job-1", "vol-2");
+  });
+  rejectFirst();
+  await act(async () => {
+    await firstCall;
+  });
+
+  expect(result.current.error).toBeNull();
+  expect(result.current.jobs[0].assigned_to).toBe("vol-2");
+});
+
 test("surfaces a failed assignment", async () => {
   textbookRemediationService.getJobs.mockResolvedValue({ jobs: [job()] });
   textbookRemediationService.assignJob.mockRejectedValue(new Error("volunteer_id must be an active textbook remediation volunteer in this tenant"));

@@ -192,9 +192,7 @@ from app.repositories.user_repository import UserRepository  # noqa: E402
 
 
 class _StubUpload:
-    def __init__(
-        self, data: bytes, content_type: str = "application/pdf", filename: str = "book.pdf"
-    ):
+    def __init__(self, data: bytes, content_type: str = "application/pdf", filename: str = "book.pdf"):
         import io
 
         self.file = io.BytesIO(data)
@@ -726,12 +724,10 @@ async def test_review_summary(repo):
 async def test_review_summary_skips_a_null_rule_without_dropping_later_rows(repo):
     created = await _create(repo)
     job = await repo.record_artifacts(created.job_id, {"remediation": "https://blob/r.jsonl"}, {})
-    lines = "\n".join(
-        [
-            json.dumps({"rule": None}),
-            json.dumps({"rule": "table_summary", "id": "t1"}),
-        ]
-    )
+    lines = "\n".join([
+        json.dumps({"rule": None}),
+        json.dumps({"rule": "table_summary", "id": "t1"}),
+    ])
     summary = await get_review_summary(
         job.job_id,
         user={"tenant_id": "tenant-a"},

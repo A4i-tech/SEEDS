@@ -81,18 +81,10 @@ jest.mock("../../src/hooks/useVolunteers", () => ({
 jest.mock("../../src/components/AllContent/RemediationTab/RemediationTab", () => () => (
   <div>Remediation Tab Content</div>
 ));
-jest.mock("../../src/components/AllContent/ContentTab/ContentTab", () => () => (
-  <div>Content Tab</div>
-));
-jest.mock("../../src/components/AllContent/RegistrationTab/RegistrationTab", () => () => (
-  <div>Registration Tab</div>
-));
-jest.mock("../../src/components/AllContent/AnalyticsTab/AnalyticsTab", () => () => (
-  <div>Analytics Tab</div>
-));
-jest.mock("../../src/components/AllContent/LocalizationTab/LocalizationTab", () => () => (
-  <div>Localization Tab</div>
-));
+jest.mock("../../src/components/AllContent/ContentTab/ContentTab", () => () => <div>Content Tab</div>);
+jest.mock("../../src/components/AllContent/RegistrationTab/RegistrationTab", () => () => <div>Registration Tab</div>);
+jest.mock("../../src/components/AllContent/AnalyticsTab/AnalyticsTab", () => () => <div>Analytics Tab</div>);
+jest.mock("../../src/components/AllContent/LocalizationTab/LocalizationTab", () => () => <div>Localization Tab</div>);
 jest.mock("../../src/components/AllContent/IVRTab/IVRTab", () => () => <div>IVR Tab</div>);
 
 beforeEach(() => {

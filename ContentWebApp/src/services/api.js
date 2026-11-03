@@ -3,20 +3,21 @@ import { fetchEventSource } from "@microsoft/fetch-event-source";
 import { clearAuth } from "../utils/authHelpers";
 
 export class ApiError extends Error {
-  constructor(message, status, response) {
+  constructor(message, status, response, details) {
     super(message);
     this.name = "ApiError";
     this.status = status;
     this.response = response;
+    this.details = details;
   }
 }
 
-const messageFromBody = (text) => {
+const parseBody = (text) => {
   try {
     const parsed = JSON.parse(text);
-    return parsed.message || parsed.error || text;
+    return { message: parsed.message || parsed.error || text, details: parsed.details };
   } catch {
-    return text;
+    return { message: text, details: undefined };
   }
 };
 
@@ -40,10 +41,12 @@ export const apiFetch = async (url, { timeoutMs, ...options } = {}) => {
         }
       }
       const text = await response.text();
+      const { message, details } = parseBody(text);
       throw new ApiError(
-        messageFromBody(text) || `Request failed with status ${response.status}`,
+        message || `Request failed with status ${response.status}`,
         response.status,
-        response
+        response,
+        details
       );
     }
 

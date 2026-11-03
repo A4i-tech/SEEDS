@@ -172,7 +172,7 @@ async def findings_page(
 ) -> dict[str, object]:
     data, _ = await artifact_bytes(job, name, blob_provider)
     lines = [line for line in data.decode("utf-8").splitlines() if line.strip()]
-    page = [json.loads(line) for line in lines[offset : offset + limit]]
+    page = [json.loads(line) for line in lines[offset:offset + limit]]
     return FindingsPageResponse(
         findings=page, total=len(lines), offset=offset, has_more=offset + limit < len(lines)
     ).model_dump(mode="json")
@@ -216,9 +216,7 @@ async def verify_job(
         with tempfile.TemporaryDirectory() as tmpdir:
             out_dir = Path(tmpdir)
             try:
-                out_docx, out_tex, out_pdf = await asyncio.to_thread(
-                    _compile_verified, job.draft_remediated_md, out_dir
-                )
+                out_docx, out_tex, out_pdf = await asyncio.to_thread(_compile_verified, job.draft_remediated_md, out_dir)
             except Exception as exc:
                 logger.error("Could not compile verified artifacts for job %s: %s", job.job_id, exc)
                 raise ValidationError(f"Could not build the verified document: {exc}") from exc
@@ -262,9 +260,7 @@ async def translate_job(
             job.job_id, remediated_bytes, target_language, job.language, blob_provider
         )
         if not translated_urls:
-            raise ValidationError(
-                "Translation produced no downloadable file. Try again, or pick a different target language."
-            )
+            raise ValidationError("Translation produced no downloadable file. Try again, or pick a different target language.")
     except Exception as exc:
         await repo.set_translation_error(job.job_id, str(exc))
         raise
@@ -279,9 +275,7 @@ def _parse_jsonl(data: bytes) -> list[dict[str, object]]:
     return [json.loads(line) for line in data.decode("utf-8").splitlines() if line.strip()]
 
 
-async def review_summary(
-    job: RemediationJob, blob_provider: BlobStorageProvider
-) -> dict[str, object]:
+async def review_summary(job: RemediationJob, blob_provider: BlobStorageProvider) -> dict[str, object]:
     incomplete = False
     diagrams: list[DiagramResponse] = []
     if ArtifactName.ALT in job.artifacts:
@@ -290,9 +284,7 @@ async def review_summary(
             for item in _parse_jsonl(data):
                 diagrams.append(
                     DiagramResponse(
-                        id=str(
-                            item.get("id") or item.get("image_name") or f"diag_{len(diagrams) + 1}"
-                        ),
+                        id=str(item.get("id") or item.get("image_name") or f"diag_{len(diagrams) + 1}"),
                         page=item.get("page", 1),
                         image_name=str(item.get("image_name") or item.get("src") or ""),
                         alt_text=str(item.get("alt_text") or item.get("replacement") or ""),

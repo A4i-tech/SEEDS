@@ -8,7 +8,14 @@ import "../shared/cards.css";
 import "../shared/tables.css";
 import "../shared/utilities.css";
 
-const VolunteersPanel = ({ volunteers, isLoading, onCreateVolunteer, message, messageType }) => {
+const VolunteersPanel = ({
+  volunteers,
+  isLoading,
+  loadError,
+  onCreateVolunteer,
+  message,
+  messageType,
+}) => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -24,7 +31,7 @@ const VolunteersPanel = ({ volunteers, isLoading, onCreateVolunteer, message, me
 
   const showSkeleton = isLoading && volunteers.length === 0;
   const showTable = !showSkeleton && volunteers.length > 0;
-  const hasError = messageType === "error";
+  const hasError = Boolean(loadError);
 
   return (
     <div className="card registration-flex-card">
@@ -80,7 +87,7 @@ const VolunteersPanel = ({ volunteers, isLoading, onCreateVolunteer, message, me
         )}
         {!showSkeleton && !showTable && (
           <div className={hasError ? "content-details-error" : "no-teachers"}>
-            {hasError ? message : "No volunteers yet."}
+            {hasError ? loadError : "No volunteers yet."}
           </div>
         )}
         {showTable && (

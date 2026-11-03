@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, StringConstraints
 
 
 class TeacherLoginRequest(BaseModel):
@@ -31,15 +31,7 @@ class VolunteerCreateRequest(BaseModel):
 
     email: EmailStr
     password: str = Field(min_length=8)
-    name: str = Field(min_length=1)
-
-    @field_validator("name")
-    @classmethod
-    def _strip_name(cls, value: str) -> str:
-        stripped = value.strip()
-        if not stripped:
-            raise ValueError("name must not be blank")
-        return stripped
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
 
 class TenantChangePasswordRequest(BaseModel):

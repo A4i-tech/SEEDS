@@ -63,9 +63,7 @@ _LANGUAGE_CODES = frozenset(lang["code"] for lang in SUPPORTED_LANGUAGES)
 
 def _validate_language(value: str) -> None:
     if value not in _LANGUAGE_CODES:
-        raise ValidationError(
-            f"{value!r} is not a supported language. Pick a language from GET /v1/languages."
-        )
+        raise ValidationError(f"{value!r} is not a supported language. Pick a language from GET /v1/languages.")
 
 
 class DraftUpdateRequest(BaseModel):
