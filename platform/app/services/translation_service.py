@@ -72,7 +72,7 @@ class _OutcomeResult(NamedTuple):
 
 
 IMPORT_TEXT_MAX_LENGTH = 5000
-IMPORT_ROUTE_MAX_LENGTH = 2048
+ROUTE_MAX_LENGTH = 2048
 IMPORT_KEY_MAX_LENGTH = 256
 IMPORT_QUALITY_SCORE = 1.0
 IMPORT_SOURCE_LANG = "en"
@@ -147,7 +147,7 @@ def _same_instant(stored: datetime | None, expected: datetime) -> bool:
 
 
 def _is_url_pathname(route: str) -> bool:
-    if len(route) > IMPORT_ROUTE_MAX_LENGTH or not route.startswith("/"):
+    if len(route) > ROUTE_MAX_LENGTH or not route.startswith("/"):
         return False
     if not all("!" <= char <= "~" and char not in _ROUTE_FORBIDDEN_CHARS for char in route):
         return False

@@ -440,7 +440,7 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
         </div>
       </div>
       {pagesError && (
-        <p className="error-message">
+        <p className="import-error-message">
           {pagesError === "forbidden" ? "Permission denied loading pages" : pagesError}
         </p>
       )}

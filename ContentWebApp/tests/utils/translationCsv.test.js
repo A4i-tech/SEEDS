@@ -155,12 +155,12 @@ describe("parseTranslationCsv", () => {
     ]);
   });
 
-  test("excludes a row with fewer cells than the header instead of padding it", () => {
+  test("throws on a row missing one of the required columns", () => {
     const table = parseTranslationCsv(
       "\"Asset ID\",\"Route\",\"English, en\",\"Kannada, kn\"\n\"k1\",\"/\",\"Hello\"\n"
     );
 
-    expect(buildImportRows(table, 3)).toEqual([]);
+    expect(() => buildImportRows(table, 3)).toThrow();
     expect(findShortRows(table, 3)).toEqual([2]);
   });
 
@@ -260,7 +260,7 @@ describe("parseTranslationCsv", () => {
     expect(selectTargetColumn(table, "kn")).toEqual({ index: 4, code: "kn" });
   });
 
-  test("MAX_IMPORT_ROWS is 5000 (must be changed in lockstep with platform/app/models/requests/translation_requests.py MAX_IMPORT_ROWS)", () => {
+  test("MAX_IMPORT_ROWS is 5000", () => {
     expect(MAX_IMPORT_ROWS).toBe(5000);
   });
 });
@@ -436,6 +436,6 @@ describe("encoding corruption", () => {
   });
 });
 
-test("MAX_EXPORT_ROWS is 20000 (must be changed in lockstep with platform/app/repositories/translation_repository.py MAX_TRANSLATION_ROWS)", () => {
+test("MAX_EXPORT_ROWS is 20000", () => {
   expect(MAX_EXPORT_ROWS).toBe(20000);
 });

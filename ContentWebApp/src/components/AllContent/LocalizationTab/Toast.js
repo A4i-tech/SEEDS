@@ -9,7 +9,7 @@ export const useToast = () => {
   return ctx;
 };
 
-const TONE_CLASS = { good: "success-message", crit: "error-message", info: "status-message" };
+const TONE_CLASS = { good: "success-message", crit: "import-error-message", info: "status-message" };
 
 export function ToastProvider({ children }) {
   const [queue, setQueue] = useState([]);

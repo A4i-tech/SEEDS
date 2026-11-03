@@ -107,7 +107,7 @@ export function OnboardingCard({ loc }) {
           onChange={(e) => setDomain(e.target.value)}
           placeholder="https://example.com"
         />
-        {error && <p className="error-message">{error}</p>}
+        {error && <p className="import-error-message">{error}</p>}
         <button className="primary-button" type="submit" disabled={!domain.trim() || busy}>
           {busy ? "Registering…" : "Register Website"}
         </button>

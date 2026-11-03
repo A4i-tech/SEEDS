@@ -14,7 +14,6 @@ import {
 } from "../dto/LocalizationDto";
 
 const GENERATE_TIMEOUT_MS = 5 * 60 * 1000;
-const IMPORT_TIMEOUT_MS = 5 * 60 * 1000;
 
 export const translationService = {
   async extractItems(siteId, items) {
@@ -109,7 +108,7 @@ export const translationService = {
 
   async importTranslations({ siteId, lang, overwriteBlank, state, rows }) {
     const response = await request(`${SEEDS_URL}/translations/import?${buildQueryString({ site_id: siteId })}`, {
-      timeoutMs: IMPORT_TIMEOUT_MS,
+      timeoutMs: GENERATE_TIMEOUT_MS,
       method: "POST",
       headers: getAuthHeaders(),
       body: JSON.stringify(toTranslationImportRequest({ lang, overwriteBlank, state, rows })),
