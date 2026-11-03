@@ -18,8 +18,8 @@ jobs:
         id: app-token
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
-          app-id: ${{ secrets.APP_ID }}
-          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          app-id: ${{ vars.PROMOTIONS_BOT_APP_ID }}
+          private-key: ${{ secrets.PROMOTIONS_BOT_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.event.repository.name }}
           permission-contents: write
@@ -51,7 +51,7 @@ jobs:
             exit 0
           fi
           if git rev-parse -q --verify HEAD^2 >/dev/null; then
-            pr_numbers=$(git log --format=%s HEAD^1..HEAD^2 | sed -nE 's/.*\(#([0-9]+)\)$/\1/p')
+            pr_numbers=$(git log --format=%s HEAD^1..HEAD^2 | sed -nE 's/^Merge pull request #([0-9]+) from .*|.*\(#([0-9]+)\)$/\1\2/p')
           else
             pr_numbers=""
           fi
@@ -83,8 +83,8 @@ jobs:
         id: app-token
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
-          app-id: ${{ secrets.APP_ID }}
-          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          app-id: ${{ vars.PROMOTIONS_BOT_APP_ID }}
+          private-key: ${{ secrets.PROMOTIONS_BOT_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.event.repository.name }}
           permission-contents: write

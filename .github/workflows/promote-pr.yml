@@ -17,8 +17,8 @@ jobs:
         id: app-token
         uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
         with:
-          app-id: ${{ secrets.APP_ID }}
-          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          app-id: ${{ vars.PROMOTIONS_BOT_APP_ID }}
+          private-key: ${{ secrets.PROMOTIONS_BOT_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.event.repository.name }}
           permission-contents: read
@@ -35,7 +35,7 @@ jobs:
         run: |
           git fetch origin a4i/main
           number=$(gh pr list --base a4i/main --head a4i/staging --state open --json number,isCrossRepository --jq '[.[] | select(.isCrossRepository | not)][0].number')
-          pr_numbers=$(git log --format=%s origin/a4i/main..origin/a4i/staging | sed -nE 's/.*\(#([0-9]+)\)$/\1/p')
+          pr_numbers=$(git log --format=%s origin/a4i/main..origin/a4i/staging | sed -nE 's/^Merge pull request #([0-9]+) from .*|.*\(#([0-9]+)\)$/\1\2/p')
           issues=$(
             for pr in $pr_numbers; do
               gh api graphql -F number="$pr" -f query='
