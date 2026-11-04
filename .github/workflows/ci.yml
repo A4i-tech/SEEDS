@@ -108,7 +108,7 @@ jobs:
           set -euo pipefail
           run_app() {
             CID=$(docker run -d -p 8080:8080 "$@" app)
-            curl -fsS --retry 10 --retry-delay 1 --retry-connrefused -o /dev/null localhost:8080/ || { docker logs "$CID"; exit 1; }
+            curl -fsS --retry 10 --retry-delay 1 --retry-all-errors -o /dev/null localhost:8080/ || { docker logs "$CID"; exit 1; }
           }
           run_app
           test "$(curl -s -o /dev/null -w '%{http_code}' localhost:8080/env.js)" = 404
