@@ -12,6 +12,7 @@ on:
 
 jobs:
   test:
+    name: test (${{ matrix.service.name }}, ${{ matrix.service.context }}, ${{ matrix.service.lang }})
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -23,14 +24,17 @@ jobs:
           - name: content-webapp
             context: ContentWebApp
             lang: node
+            node_version: "22"
 
           - name: teacher-webapp
             context: teacher-webapp
             lang: node
+            node_version: "20"
 
           - name: websocket-service
             context: websocket-service
             lang: node
+            node_version: "20"
 
     steps:
       - name: Checkout repository
@@ -47,7 +51,7 @@ jobs:
         if: matrix.service.lang == 'node'
         uses: ./.github/actions/setup-node
         with:
-          node-version: "20"
+          node-version: ${{ matrix.service.node_version }}
           directory: ${{ matrix.service.context }}
 
       - name: Lint (Python)

@@ -1,0 +1,3 @@
+This file is not valid audio on purpose: it exercises the upload screen's
+.mp3-only guard (expects the 'Only .mp3 files are allowed.' inline error and
+no upload request).

@@ -1,0 +1,157 @@
+import i18n from '@shared/i18n';
+import { z } from 'zod';
+import { text } from '@shared/utils/schema';
+
+export const remediationStatusSchema = z.enum([
+  'pending',
+  'running',
+  'ready_to_review',
+  'in_review',
+  'verified',
+  'failed',
+]);
+
+export const remediationJobSchema = z.object({
+  job_id: z.string(),
+  source_name: z.string(),
+  status: remediationStatusSchema,
+  draft_remediated_md: text,
+  error: text,
+  created_at: z.string(),
+  finished_at: text,
+});
+
+export type RemediationJob = z.infer<typeof remediationJobSchema>;
+
+const syncStatusSchema = z.enum(['pending', 'running', 'completed', 'failed']);
+
+export const syncJobSchema = z.object({
+  job_id: z.string(),
+  scope: z.string(),
+  course_id: text,
+  status: syncStatusSchema,
+  started_at: text,
+  finished_at: text,
+  total_courses: z.number(),
+  processed: z.number(),
+  stats: z.object({
+    saved: z.number(),
+    skipped: z.number(),
+    empty: z.number(),
+    failed: z.number(),
+  }),
+  error: text,
+});
+
+export type SyncJob = z.infer<typeof syncJobSchema>;
+
+const jobTypeSchema = z.enum(['make-accessible', 'course-sync', 'localize', 'create']);
+export type JobType = z.infer<typeof jobTypeSchema>;
+
+const jobStatusSchema = z.enum(['running', 'needs-review', 'needs-attention', 'done', 'failed']);
+export type JobStatus = z.infer<typeof jobStatusSchema>;
+
+export interface JobRow {
+  id: string;
+  title: string;
+  subtitle: string;
+  type: JobType;
+  status: JobStatus;
+  updated: string;
+}
+
+export const flowRoute: Record<JobType, string> = {
+  'make-accessible': '/make-accessible',
+  'course-sync': '/library',
+  localize: '/localize',
+  create: '/create',
+};
+
+const remediationStatusMap: Record<z.infer<typeof remediationStatusSchema>, JobStatus> = {
+  pending: 'running',
+  running: 'running',
+  ready_to_review: 'needs-review',
+  in_review: 'needs-review',
+  verified: 'done',
+  failed: 'failed',
+};
+
+export function syncJobStatus(job: SyncJob): JobStatus {
+  if (job.status === 'failed') return 'failed';
+  if (job.status === 'completed') return job.stats.failed > 0 ? 'needs-attention' : 'done';
+  return 'running';
+}
+
+export function percentOf(job: SyncJob): number {
+  if (job.total_courses === 0) return 0;
+  return Math.min(100, Math.round((job.processed / job.total_courses) * 100));
+}
+
+export function failureSubtitle(job: RemediationJob): string {
+  if (job.status === 'failed') return job.error;
+  return '';
+}
+
+export function syncTitle(job: SyncJob): string {
+  if (job.scope === 'course' && job.course_id) return job.course_id;
+  return i18n.t('jobs.detail.allCourses');
+}
+
+function syncSubtitle(job: SyncJob): string {
+  const parts: string[] = [];
+  if (job.stats.failed) parts.push(i18n.t('jobs.sync.failed', { count: job.stats.failed }));
+  if (job.stats.saved) parts.push(i18n.t('jobs.sync.saved', { count: job.stats.saved }));
+  if (job.stats.empty) parts.push(i18n.t('jobs.sync.emptySkipped', { count: job.stats.empty }));
+  if (job.stats.skipped) parts.push(i18n.t('jobs.sync.skipped', { count: job.stats.skipped }));
+  return parts.join(' · ');
+}
+
+export function toJobRows(remediation: RemediationJob[], sync: SyncJob[]): JobRow[] {
+  const fromRemediation: JobRow[] = remediation.map((job) => ({
+    id: job.job_id,
+    title: job.source_name,
+    subtitle: failureSubtitle(job),
+    type: 'make-accessible',
+    status: remediationStatusMap[job.status],
+    updated: job.finished_at || job.created_at,
+  }));
+  const fromSync: JobRow[] = sync.map((job) => ({
+    id: job.job_id,
+    title: syncTitle(job),
+    subtitle: syncSubtitle(job),
+    type: 'course-sync',
+    status: syncJobStatus(job),
+    updated: job.finished_at || job.started_at,
+  }));
+  return [...fromRemediation, ...fromSync].sort((a, b) => b.updated.localeCompare(a.updated));
+}
+
+export const jobKeys = {
+  all: ['jobs'] as const,
+  remediation: ['jobs', 'remediation'] as const,
+  remediationDetail: (jobId: string) => ['jobs', 'remediation', 'detail', jobId] as const,
+  sync: ['jobs', 'sync'] as const,
+  syncActive: ['jobs', 'sync', 'active'] as const,
+  syncDetail: (jobId: string) => ['jobs', 'sync', 'detail', jobId] as const,
+  syncItems: (jobId: string) => ['jobs', 'sync', 'items', jobId] as const,
+};
+
+export const JOB_ACTION: Record<JobStatus, { labelKey: string }> = {
+  failed: { labelKey: 'jobs.fix' },
+  'needs-review': { labelKey: 'jobs.continue' },
+  'needs-attention': { labelKey: 'jobs.view' },
+  running: { labelKey: 'jobs.view' },
+  done: { labelKey: 'jobs.view' },
+};
+
+export const REMEDIATION_UI: Record<
+  z.infer<typeof remediationStatusSchema>,
+  { step: 1 | 2; view: 'running' | 'done'; terminal: boolean }
+> = {
+  pending: { step: 1, view: 'running', terminal: false },
+  running: { step: 1, view: 'running', terminal: false },
+  ready_to_review: { step: 2, view: 'done', terminal: true },
+  in_review: { step: 2, view: 'done', terminal: true },
+  verified: { step: 2, view: 'done', terminal: true },
+  failed: { step: 1, view: 'running', terminal: true },
+};
