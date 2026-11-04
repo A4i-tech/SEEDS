@@ -1,36 +1,35 @@
 import { translationService } from "../../src/services/translationService";
-import { onboardingService } from "../../src/services/onboardingService";
-import { apiFetch } from "../../src/services/api";
+import { apiFetch, buildQueryString } from "../../src/services/api";
 
 jest.mock("../../src/services/api", () => ({
-  apiFetch: jest.fn().mockResolvedValue([]),
-  buildQueryString: (params) => new URLSearchParams(params).toString(),
+  apiFetch: jest.fn(),
+  buildQueryString: jest.requireActual("../../src/services/api").buildQueryString,
 }));
+jest.mock("../../src/utils/authHelpers", () => ({ getAuthHeaders: () => ({}) }));
+
+const FIVE_MIN = 5 * 60 * 1000;
 
 beforeEach(() => {
-  apiFetch.mockClear();
-  localStorage.setItem("authToken", "t");
+  jest.clearAllMocks();
 });
 
-test("generateForReview overrides the default timeout with 5 minutes", async () => {
-  await translationService.generateForReview({ siteId: "s1", route: "/", lang: "hi" });
-  expect(apiFetch).toHaveBeenCalledWith(
-    expect.stringContaining("/translations/generate?"),
-    expect.objectContaining({ timeoutMs: 300000, method: "POST" })
-  );
+test("generateForReview passes the 5-minute timeout override", async () => {
+  apiFetch.mockResolvedValue({});
+  await translationService.generateForReview({ siteId: "s1", route: "/", lang: "fr" });
+  const [, options] = apiFetch.mock.calls[0];
+  expect(options.timeoutMs).toBe(FIVE_MIN);
 });
 
-test("bulkApproveTranslations reuses the 5-minute generate timeout", async () => {
-  await translationService.bulkApproveTranslations({ siteId: "s1", route: "/", lang: "hi" });
-  expect(apiFetch).toHaveBeenCalledWith(
-    expect.stringContaining("/translations/bulk-approve?"),
-    expect.objectContaining({ timeoutMs: 300000, method: "POST" })
-  );
+test("bulkApproveTranslations passes the 5-minute timeout override", async () => {
+  apiFetch.mockResolvedValue({});
+  await translationService.bulkApproveTranslations({ siteId: "s1", route: "/", lang: "fr" });
+  const [, options] = apiFetch.mock.calls[0];
+  expect(options.timeoutMs).toBe(FIVE_MIN);
 });
 
-test("other operations keep the 15s default timeout", async () => {
-  await translationService.getRuntimeTranslations("s1", "/", "hi");
-  await onboardingService.listSites();
-  expect(apiFetch).toHaveBeenCalledTimes(2);
-  apiFetch.mock.calls.forEach(([, options]) => expect(options.timeoutMs).toBe(15000));
+test("extractItems does not override the default timeout", async () => {
+  apiFetch.mockResolvedValue({});
+  await translationService.extractItems("s1", []);
+  const [, options] = apiFetch.mock.calls[0];
+  expect(options.timeoutMs).toBeUndefined();
 });

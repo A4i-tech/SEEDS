@@ -98,10 +98,43 @@ describe("apiFetch", () => {
     jest.useRealTimers();
   });
 
-  it("passes no abort signal when timeoutMs is not set", async () => {
+  it("aborts after 15000ms when no timeoutMs is passed", async () => {
+    jest.useFakeTimers();
+    global.fetch.mockImplementation(
+      (_url, { signal }) =>
+        new Promise((_, reject) =>
+          signal.addEventListener("abort", () => reject(Object.assign(new Error("aborted"), { name: "AbortError" })))
+        )
+    );
+    const promise = apiFetch("https://example.com/x");
+    const assertion = expect(promise).rejects.toThrow("Request timed out");
+    jest.advanceTimersByTime(15000);
+    await assertion;
+    jest.useRealTimers();
+  });
+
+  it("respects an explicit timeoutMs override", async () => {
+    jest.useFakeTimers();
+    global.fetch.mockImplementation(
+      (_url, { signal }) =>
+        new Promise((_, reject) =>
+          signal.addEventListener("abort", () => reject(Object.assign(new Error("aborted"), { name: "AbortError" })))
+        )
+    );
+    const promise = apiFetch("https://example.com/x", { timeoutMs: 100 });
+    const assertion = expect(promise).rejects.toThrow("Request timed out");
+    jest.advanceTimersByTime(100);
+    await assertion;
+    jest.useRealTimers();
+  });
+
+  it("passes abort signal with default timeout when timeoutMs is not set", async () => {
     global.fetch.mockResolvedValue(fakeResponse({ ok: true, contentType: "text/plain", text: "hi" }));
     await apiFetch("/x", { method: "GET" });
-    expect(global.fetch).toHaveBeenCalledWith("/x", { method: "GET" });
+    const call = global.fetch.mock.calls[0];
+    expect(call[0]).toBe("/x");
+    expect(call[1].method).toBe("GET");
+    expect(call[1].signal).toBeDefined();
   });
 
   it("does not clear auth on other error statuses", async () => {

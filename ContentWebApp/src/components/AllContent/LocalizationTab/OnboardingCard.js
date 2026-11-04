@@ -7,25 +7,39 @@ import { useToast } from "./Toast";
 import { SnippetBlock } from "./SnippetBlock";
 import { DevToolsSection } from "./DevToolsSection";
 import { extractDomain } from "../../../utils/url";
+import { deriveNameFromDomain } from "../../../utils/deriveNameFromDomain";
 import { buildSdkSnippet } from "../../../dto/LocalizationDto";
 
 export function OnboardingCard({ loc }) {
   const { toast } = useToast();
   const [domain, setDomain] = useState("");
+  const [name, setName] = useState("");
+  const [selectedLanguages, setSelectedLanguages] = useState([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [result, setResult] = useState(null);
 
+  const toggleLanguage = (code) => {
+    const exists = selectedLanguages.includes(code);
+    const next = exists
+      ? selectedLanguages.filter((c) => c !== code)
+      : [...selectedLanguages, code];
+    setSelectedLanguages(next);
+  };
+
   const register = async (e) => {
     e.preventDefault();
-    if (!domain.trim() || busy) return;
+    if (!domain.trim() || selectedLanguages.length === 0 || busy) return;
     setBusy(true);
     setError("");
     try {
+      const cleanDomain = extractDomain(domain.trim());
+      const resolvedName = name.trim() || deriveNameFromDomain(cleanDomain);
       const site = await loc.handleCreateSite({
-        domain: extractDomain(domain.trim()),
-        name: "",
+        domain: cleanDomain,
+        name: resolvedName,
         status: "Active",
+        languages: selectedLanguages.map((code) => ({ code, enabled: true })),
       });
       setResult(site);
     } catch (err) {
@@ -40,6 +54,8 @@ export function OnboardingCard({ loc }) {
   const reset = () => {
     setResult(null);
     setDomain("");
+    setName("");
+    setSelectedLanguages([]);
     setError("");
   };
 
@@ -108,8 +124,29 @@ export function OnboardingCard({ loc }) {
           onChange={(e) => setDomain(e.target.value)}
           placeholder="https://example.com"
         />
+        <label className="label" htmlFor="onb-name">Name</label>
+        <input
+          id="onb-name"
+          className="input-field"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="Leave blank to auto-generate from the domain"
+        />
+        <label className="label">Languages</label>
+        <div className="checkbox-list">
+          {loc.languages.map((lang) => (
+            <label key={lang.code} className="checkbox-item">
+              <input
+                type="checkbox"
+                checked={selectedLanguages.includes(lang.code)}
+                onChange={() => toggleLanguage(lang.code)}
+              />
+              {lang.code}
+            </label>
+          ))}
+        </div>
         {error && <p className="error-message">{error}</p>}
-        <button className="primary-button" type="submit" disabled={!domain.trim() || busy}>
+        <button className="primary-button" type="submit" disabled={!domain.trim() || selectedLanguages.length === 0 || busy}>
           {busy ? "Registering…" : "Register Website"}
         </button>
       </form>
