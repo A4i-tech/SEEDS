@@ -9,12 +9,6 @@ jest.mock("../../src/utils/phoneUtils", () => ({
   normalizePhoneNumber: jest.fn((phone) => `91${phone}`),
 }));
 
-// Mock environment variables
-window.__ENV__ = {
-  REACT_APP_API_BASE_URL: "http://localhost:3001",
-  REACT_APP_STORAGE_ACCOUNT_NAME: "testaccount",
-};
-
 describe("apiService", () => {
   const confId = "conf-123";
   const phoneNumber = "1234567890";

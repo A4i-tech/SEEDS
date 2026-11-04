@@ -11,16 +11,13 @@ RUN npm ci
 COPY . .
 
 # Build React app
-RUN npm run build
+RUN npm run build && rm build/env.js
 
 # ---- Production stage ----
 FROM nginxinc/nginx-unprivileged:1.27-alpine
 
 # Copy React build output to Nginx
-COPY --from=builder --chown=nginx:nginx /app/build /usr/share/nginx/html
-COPY --from=builder /app/build/index.html /opt/index.html.tpl
-
-COPY --chmod=755 runtime-env.sh /docker-entrypoint.d/40-runtime-env.sh
+COPY --from=builder /app/build /usr/share/nginx/html
 
 # Copy custom nginx configuration
 COPY nginx.conf /etc/nginx/conf.d/default.conf

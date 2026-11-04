@@ -10,16 +10,29 @@
 - Connect your GitHub repository to the chosen platform
 - Select the appropriate branch for deployment (e.g., `main` or `a4i/main`)
 
-## 3. Environment Variables
-Set these as container environment variables.
+## 3. Runtime Configuration
+The image holds no environment values. Mount a file at `/etc/app-config/env.js` when the container starts.
 
-The container reads them at start, not at build time.
+The file has this content:
+```js
+window.__ENV__ = {
+  REACT_APP_API_BASE_URL: "<your-backend-api-url>",
+  REACT_APP_STORAGE_ACCOUNT_NAME: "<azure-storage-account-name>",
+};
+```
 
-The container exits with an error if one is missing.
-```
-REACT_APP_API_BASE_URL = <your-backend-api-url>
-REACT_APP_STORAGE_ACCOUNT_NAME = <azure-storage-account-name>
-```
+If the file is missing, `/env.js` returns 404. The page shows "Could not load /env.js. Check the mount at /etc/app-config/env.js, then restart." Fix the mount and restart.
+
+If a key is missing from the file, the app throws an error that names the key.
+
+Every browser can read `env.js`. Never put a secret in it. Make sure the nginx user (UID 101) can read the file.
+
+Set each value in every environment before the first deploy of this image. Take the value from the old GitHub variable or secret in this table.
+
+| Key in `env.js` | Old GitHub variable or secret (value source) |
+|---|---|
+| `REACT_APP_API_BASE_URL` | TEACHER_WEBAPP_API_BASE_URL (prod), TEACHER_WEBAPP_API_BASE_URL_STAGING (staging) |
+| `REACT_APP_STORAGE_ACCOUNT_NAME` | TEACHER_WEBAPP_STORAGE_ACCOUNT_NAME |
 
 > **Note:** Only include variables relevant to your service. Do not commit secrets to version control.
 

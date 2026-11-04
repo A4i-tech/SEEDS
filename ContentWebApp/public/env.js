@@ -1,1 +1,4 @@
-window.__ENV__ = {};
+window.__ENV__ = {
+  REACT_APP_API_BASE_URL: "http://localhost:4000",
+  REACT_APP_STORAGE_ACCOUNT_NAME: "",
+};
