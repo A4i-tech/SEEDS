@@ -73,7 +73,7 @@ async def register_website(
 ) -> WebsiteResponse:
     languages = [lc.model_dump() for lc in body.languages] if body.languages is not None else None
     return await service.register_website(
-        _tenant_id(user), body.project_id, body.domain, body.name, body.status, languages
+        _tenant_id(user), body.project_id, body.domain, body.name, body.status, languages, body.additional_domains
     )
 
 

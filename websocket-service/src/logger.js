@@ -8,8 +8,6 @@ if (fs.existsSync(envPath)) dotenv.config({ path: envPath });
 
 const connectionString = process.env.APPLICATIONINSIGHTS_CONNECTION_STRING;
 
-let client = null;
-
 if (connectionString) {
   const appInsights = require('applicationinsights');
   appInsights
@@ -17,38 +15,39 @@ if (connectionString) {
     .setAutoCollectRequests(true)
     .setAutoCollectDependencies(true)
     .setAutoCollectExceptions(true)
-    .setAutoCollectConsole(false)
     .setDistributedTracingMode(appInsights.DistributedTracingModes.AI_AND_W3C)
     .start();
-
-  appInsights.defaultClient.context.tags[
-    appInsights.defaultClient.context.keys.cloudRole
-  ] = 'websocket-service';
-
-  client = appInsights.defaultClient;
 }
 
-const logger = {
-  info(message, properties = {}) {
-    console.log(`[INFO] ${message}`, Object.keys(properties).length ? properties : '');
-    if (client) client.trackTrace({ message, severity: 1, properties });
-  },
+const winston = require('winston');
 
-  warn(message, properties = {}) {
-    console.warn(`[WARN] ${message}`, Object.keys(properties).length ? properties : '');
-    if (client) client.trackTrace({ message, severity: 2, properties });
-  },
+const SENSITIVE_KEYS = /token|password|secret|authorization|apikey|connectionstring/i;
 
-  error(message, error, properties = {}) {
-    console.error(`[ERROR] ${message}`, error ?? '', Object.keys(properties).length ? properties : '');
-    if (client) {
-      if (error instanceof Error) {
-        client.trackException({ exception: error, properties: { ...properties, message } });
-      } else {
-        client.trackTrace({ message, severity: 3, properties });
-      }
-    }
-  },
-};
+const maskSensitive = winston.format((info) => {
+  for (const key of Object.keys(info)) {
+    if (SENSITIVE_KEYS.test(key)) info[key] = '***';
+  }
+  return info;
+});
 
-module.exports = logger;
+const otelException = winston.format((info) => {
+  if (info.stack) {
+    info['exception.type'] = info.name || 'Error';
+    info['exception.message'] = info.message;
+    info['exception.stacktrace'] = info.stack;
+  }
+  return info;
+});
+
+module.exports = winston.createLogger({
+  level: (process.env.LOG_LEVEL || 'info').toLowerCase(),
+  format: winston.format.combine(
+    winston.format.timestamp(),
+    winston.format.errors({ stack: true }),
+    maskSensitive(),
+    otelException(),
+    winston.format.json()
+  ),
+  defaultMeta: { service: 'websocket-service' },
+  transports: [new winston.transports.Console({ forceConsole: true, stderrLevels: ['error'], consoleWarnLevels: ['warn'] })],
+});

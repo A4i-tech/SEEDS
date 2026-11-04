@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import re
 import uuid
+from collections.abc import Sequence
 from typing import Any
 
 from fastapi import Depends
@@ -14,22 +14,16 @@ from app.platform.error_handling import (
     ConfigurationError,
     ConflictError,
     NotFoundError,
-    ValidationError,
+    ServiceUnavailableError,
 )
 from app.platform.settings import get_settings
 from app.repositories.project_repository import ProjectRepository
 from app.repositories.website_repository import WebsiteRepository
 
-# Matches a plain hostname (e.g. "example.com"): dot-separated labels, each
-# 1-63 chars of letters/digits/hyphens, no leading/trailing hyphen per label.
-_DOMAIN_RE = re.compile(
-    r"^(?!-)[A-Za-z0-9-]{1,63}(?<!-)(\.[A-Za-z0-9-]{1,63}(?<!-))+$"
-)
 
-
-def _validate_domain(domain: str) -> None:
-    if not domain or not _DOMAIN_RE.match(domain):
-        raise ValidationError(f"Invalid domain: {domain!r}")
+def _duplicate_domain_error(exc: DuplicateKeyError, domains: Sequence[str]) -> ConflictError:
+    key_value = (exc.details or {}).get("keyValue") or {}
+    return ConflictError(f"Website with domain {next(iter(key_value.values()), ', '.join(domains))}")
 
 
 class OnboardingService:
@@ -73,20 +67,26 @@ class OnboardingService:
         name: str = "",
         status: str = "Active",
         languages: list[dict[str, Any]] | None = None,
+        additional_domains: Sequence[str] = (),
     ) -> WebsiteResponse:
-        _validate_domain(domain)
         self._base_url()
+        await self._ensure_claims_migrated()
 
         if project_id is not None:
             project = await self._projects.find_by_id_and_tenant(project_id, tenant_id)
             if project is None:
                 raise NotFoundError("Project", project_id)
 
+        domains = [domain, *additional_domains]
+        await self._ensure_domains_unclaimed(domains)
+
         site_id = str(uuid.uuid4())
         try:
-            website = await self._websites.create(tenant_id, project_id, domain, site_id, name, status, languages)
+            website = await self._websites.create(
+                tenant_id, project_id, domain, site_id, name, status, languages, additional_domains
+            )
         except DuplicateKeyError as exc:
-            raise ConflictError(f"Website with domain {domain!r}") from exc
+            raise _duplicate_domain_error(exc, domains) from exc
         return WebsiteResponse.from_doc(website, api_base=self._base_url())
 
     async def get_website(self, website_id: str, tenant_id: str) -> WebsiteResponse:
@@ -109,16 +109,34 @@ class OnboardingService:
         if website is None:
             raise NotFoundError("Website", website_id)
 
-        if "domain" in fields and fields["domain"]:
-            _validate_domain(fields["domain"])
+        if "domain" in fields or "additional_domains" in fields:
+            await self._ensure_claims_migrated()
+        claimed = [fields["domain"]] if "domain" in fields else []
+        claimed += fields.get("additional_domains", ())
+        await self._ensure_domains_unclaimed(claimed, str(website["_id"]))
 
-        updated = await self._websites.update(website_id, tenant_id, fields)
+        try:
+            updated = await self._websites.update(website_id, tenant_id, fields)
+        except DuplicateKeyError as exc:
+            raise _duplicate_domain_error(exc, claimed) from exc
         return WebsiteResponse.from_doc(updated, api_base=self._base_url())
 
     async def delete_website(self, website_id: str, tenant_id: str) -> None:
         deleted = await self._websites.delete(website_id, tenant_id)
         if not deleted:
             raise NotFoundError("Website", website_id)
+
+    async def _ensure_claims_migrated(self) -> None:
+        if await self._websites.has_unclaimed_websites():
+            raise ServiceUnavailableError(
+                "Website domain changes are paused until the claimed_domains migration (021) completes"
+            )
+
+    async def _ensure_domains_unclaimed(self, domains: list[str], own_website_id: str = "") -> None:
+        for domain in domains:
+            existing = await self._websites.find_claiming(domain)
+            if existing and str(existing["_id"]) != own_website_id:
+                raise ConflictError(f"Website with domain {domain!r}")
 
     def _base_url(self) -> str:
         base_url = get_settings().base_url.rstrip("/")
