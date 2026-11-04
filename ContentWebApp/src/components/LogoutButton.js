@@ -4,7 +4,7 @@ import axios from "axios";
 import { getAuthHeaders } from "../utils/authHelpers";
 
 // Define your API's base URL
-const baseURL = process.env.REACT_APP_API_BASE_URL;
+const baseURL = window.__ENV__.REACT_APP_API_BASE_URL;
 
 const LogoutButton = () => {
   const navigate = useNavigate();

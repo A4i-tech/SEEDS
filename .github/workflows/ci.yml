@@ -89,3 +89,32 @@ jobs:
           coverage_gist_token: ${{ secrets.COVERAGE_GIST_TOKEN }}
           coverage_gist_id: ${{ vars.COVERAGE_GIST_ID }}
           directory: ${{ matrix.service.context }}
+
+  image-config:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        context: [ContentWebApp, teacher-webapp]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t app ${{ matrix.context }}
+
+      - name: Image serves /env.js only when mounted
+        run: |
+          set -euo pipefail
+          run_app() {
+            CID=$(docker run -d -p 8080:8080 "$@" app)
+            curl -fsS --retry 10 --retry-delay 1 --retry-all-errors -o /dev/null localhost:8080/ || { docker logs "$CID"; exit 1; }
+          }
+          run_app
+          test "$(curl -s -o /dev/null -w '%{http_code}' localhost:8080/env.js)" = 404
+          docker exec "$CID" sh -c '! test -e /usr/share/nginx/html/env.js'
+          docker rm -f "$CID"
+          echo 'window.__ENV__ = { REACT_APP_API_BASE_URL: "http://ci-marker.invalid" };' > "$RUNNER_TEMP/env.js"
+          run_app -v "$RUNNER_TEMP/env.js:/etc/app-config/env.js:ro"
+          curl -fsS localhost:8080/env.js | grep -q 'ci-marker.invalid'
+          curl -fsSI localhost:8080/env.js | grep -qi 'cache-control: no-store'
