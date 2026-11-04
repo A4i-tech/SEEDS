@@ -55,6 +55,9 @@ class FakeBlobStorageProvider:
     def blob_url(self, container, blob_name):
         return f"https://blob.test/{container}/{blob_name}"
 
+    def container_url(self, container):
+        return f"https://blob.test/{container}/"
+
     async def download_from_url(self, blob_url: str) -> bytes:
         prefix = "https://blob.test/subodha/"
         blob_name = blob_url[len(prefix):]

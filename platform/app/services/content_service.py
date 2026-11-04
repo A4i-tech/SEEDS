@@ -266,6 +266,11 @@ class ContentService:
             logger.error("get_sas_url failed", extra={"err": str(exc)})
             raise AppError("SAS_URL_FAILED", "Could not generate the download link. Try again.", 500) from exc
 
+    async def primary_audio_sas_url(self, content: AudioContent) -> str | None:
+        track = content.audio_content[0].audio_url if content.audio_content else None
+        raw = track or content.title.audio_url or content.theme.audio_url
+        return await self.get_sas_url(raw) if raw else None
+
     async def get_audio_sas_url(self, content_id: str, variant: str, tenant_id: str, school_id: str | None) -> str:
         if not await self.get_content_by_id(content_id, tenant_id, school_id):
             raise NotFoundError("Content", content_id)
@@ -273,7 +278,7 @@ class ContentService:
         return await self.get_sas_url(get_blob_storage_provider().blob_url(container, name.format(id=content_id)))
 
     async def upload_audio(self, blob_name: str, file: BinaryIO) -> str:
-        if not re.fullmatch(r"[\w.-]+\.mp3", blob_name) or ".." in blob_name:
+        if not (blob_name.endswith(".mp3") and re.fullmatch(r"[\w.-]+", blob_name)) or ".." in blob_name:
             raise AppError("INVALID_AUDIO_NAME", "Only .mp3 files are allowed.", 400)
         size = file.seek(0, 2)
         file.seek(0)

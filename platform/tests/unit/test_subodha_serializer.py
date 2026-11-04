@@ -24,6 +24,9 @@ class FakeBlob:
     def blob_url(self, container: str, blob_name: str) -> str:
         return f"https://storage.test/{container}/{blob_name}"
 
+    def container_url(self, container: str) -> str:
+        return f"https://storage.test/{container}/"
+
     async def get_sas_url_from_blob_url(self, blob_url: str, expiry_hours: int = 1) -> str:
         if blob_url in self._sign_failures:
             raise RuntimeError("signing failed")

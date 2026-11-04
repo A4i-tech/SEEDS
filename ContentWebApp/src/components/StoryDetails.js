@@ -1,8 +1,6 @@
 import React from "react";
 import { useState, useEffect } from "react";
-import { SEEDS_URL } from "../Constants";
 import { contentService } from "../services/contentService";
-import { getAuthHeaders } from "../utils/authHelpers";
 
 const StoryDetails = ({ type, story }) => {
   const [audioSrc, setAudioSrc] = useState("");
@@ -17,20 +15,6 @@ const StoryDetails = ({ type, story }) => {
   const primaryAudio = story.primary_audio_url;
 
   useEffect(() => {
-    const fetchSASUrl = async (url) => {
-      try {
-        const response = await fetch(`${SEEDS_URL}/content/sasUrl?url=${encodeURIComponent(url)}`, {
-          method: "GET",
-          headers: getAuthHeaders(),
-        });
-        const data = await response.json();
-        return data.url;
-      } catch (error) {
-        console.error("Error fetching SAS URL:", error);
-        return ""; // Return empty string on error
-      }
-    };
-
     const fetchDefaultUrl = async (variant) => {
       try {
         return await contentService.getAudioUrl(storyId, variant);
@@ -44,7 +28,7 @@ const StoryDetails = ({ type, story }) => {
       fetchDefaultUrl("question").then(setAudioSrc);
       fetchDefaultUrl("answer").then(setAnswerAudioSrc);
     } else if (primaryAudio) {
-      fetchSASUrl(primaryAudio).then(setAudioSrc);
+      setAudioSrc(primaryAudio);
     } else {
       fetchDefaultUrl("final").then(setAudioSrc);
     }

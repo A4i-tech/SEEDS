@@ -32,7 +32,7 @@ class FSM:
 
     def __init__(self, fsm_id: str) -> None:
 
-        self.STORAGE_ACCOUNT_BASE_URL = get_blob_storage_provider().blob_url("pull-model-menus", "")
+        self.STORAGE_ACCOUNT_BASE_URL = get_blob_storage_provider().container_url("pull-model-menus")
 
         NO_OPTION_URL = (
             f"{self.STORAGE_ACCOUNT_BASE_URL}"

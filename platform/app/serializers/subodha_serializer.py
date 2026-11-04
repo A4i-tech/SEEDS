@@ -23,7 +23,7 @@ _AZURE_BLOB_URL = r"https://[^\s)\"'<>]+\.blob\.core\.windows\.net/"
 
 
 def _blob_url_re(blob: BlobStorageProvider) -> re.Pattern[str]:
-    asset_base = blob.blob_url(get_settings().subodha_asset_container, "")
+    asset_base = blob.container_url(get_settings().subodha_asset_container)
     return re.compile(rf"(?:{_AZURE_BLOB_URL}|{re.escape(asset_base)})[^\s)\"'<>]+")
 
 

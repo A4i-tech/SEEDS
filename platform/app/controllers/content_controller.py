@@ -306,6 +306,8 @@ async def get_content(
     result = await service.get_content_by_id(content_id, tenant_id, school_id)
     if result is None:
         raise NotFoundError("Content", content_id)
+    if isinstance(result, AudioContent):
+        result.primary_audio_url = await service.primary_audio_sas_url(result)
     return result
 
 

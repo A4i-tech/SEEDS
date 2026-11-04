@@ -18,6 +18,7 @@ from bson import ObjectId
 from httpx import ASGITransport, AsyncClient
 
 from app.main import app
+from app.models.responses.content import AudioContent
 from app.models.user import UserRole
 from app.platform.auth.dependencies import get_db
 from app.platform.auth.hashing import hash_password
@@ -322,6 +323,41 @@ class TestAudioUrlEndpoint:
             "/content/audioUrl?content_id=c1&variant=nope", headers={"Authorization": f"Bearer {token}"}
         )
         assert resp.status_code == 422
+
+
+class TestGetContentPrimaryAudio:
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("doc", "signed_from"),
+        [
+            ({"audio_content": [{"audio_url": "http://s/track.mp3"}], "title": {"audio_url": "http://s/t.mp3"}}, "track.mp3"),
+            ({"title": {"audio_url": "http://s/t.mp3"}, "theme": {"audio_url": "http://s/th.mp3"}}, "t.mp3"),
+            ({"theme": {"audio_url": "http://s/th.mp3"}}, "th.mp3"),
+        ],
+    )
+    async def test_returns_signed_primary_audio_by_priority(self, client, mock_db, doc, signed_from):
+        tenant = await _seed_tenant(mock_db)
+        token = _tenant_token(tenant["_id"])
+        content = AudioContent.from_doc({"_id": "c1", "language": "english", "type": "story", **doc})
+        provider = MagicMock()
+        provider.get_sas_url_from_blob_url = AsyncMock(side_effect=lambda u, expiry_hours: f"{u}?sig=x")
+        with (
+            patch("app.services.content_service.get_blob_storage_provider", return_value=provider),
+            patch("app.services.content_service.ContentService.get_content_by_id", AsyncMock(return_value=content)),
+        ):
+            resp = await client.get("/content/c1", headers={"Authorization": f"Bearer {token}"})
+        assert resp.status_code == 200
+        assert resp.json()["primary_audio_url"] == f"http://s/{signed_from}?sig=x"
+
+    @pytest.mark.asyncio
+    async def test_omits_primary_audio_when_content_has_none(self, client, mock_db):
+        tenant = await _seed_tenant(mock_db)
+        token = _tenant_token(tenant["_id"])
+        content = AudioContent.from_doc({"_id": "c1", "language": "english", "type": "story"})
+        with patch("app.services.content_service.ContentService.get_content_by_id", AsyncMock(return_value=content)):
+            resp = await client.get("/content/c1", headers={"Authorization": f"Bearer {token}"})
+        assert resp.status_code == 200
+        assert "primary_audio_url" not in resp.json()
 
 
 # ---------------------------------------------------------------------------

@@ -56,7 +56,10 @@ class ObjectStoreBlobStorageProvider(BlobStorageProvider):
         )
 
     def blob_url(self, container: str, blob_name: str) -> str:
-        return f"{self._client.meta.endpoint_url.rstrip('/')}/{container}/{quote(blob_name)}"
+        return f"{self.container_url(container)}{quote(blob_name)}"
+
+    def container_url(self, container: str) -> str:
+        return f"{self._client.meta.endpoint_url.rstrip('/')}/{container}/"
 
     async def upload_file(
         self,

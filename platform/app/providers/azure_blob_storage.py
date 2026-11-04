@@ -58,10 +58,10 @@ class AzureBlobStorageProvider(BlobStorageProvider):
         return self._client.get_container_client(container)
 
     def blob_url(self, container: str, blob_name: str) -> str:
-        container_client = self._client.get_container_client(container)
-        if not blob_name:
-            return f"{container_client.url}/"
-        return container_client.get_blob_client(blob_name).url
+        return self._client.get_container_client(container).get_blob_client(blob_name).url
+
+    def container_url(self, container: str) -> str:
+        return f"{self._client.get_container_client(container).url}/"
 
     # ------------------------------------------------------------------
     # Core operations

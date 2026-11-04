@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 def _base_url() -> str:
     from app.providers.blob_storage import get_blob_storage_provider  # noqa: PLC0415
 
-    return get_blob_storage_provider().blob_url("conference", "") + "conferenceMessagesWav/english/"
+    return get_blob_storage_provider().container_url("conference") + "conferenceMessagesWav/english/"
 
 
 class SystemAudioMessages(StrEnum):

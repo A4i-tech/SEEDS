@@ -10,11 +10,11 @@ from app.providers.blob_storage import get_blob_storage_provider
 
 
 def get_pull_menu_main_url() -> str:
-    return get_blob_storage_provider().blob_url("pull-model-menus", "")
+    return get_blob_storage_provider().container_url("pull-model-menus")
 
 
 def get_content_url() -> str:
-    return get_blob_storage_provider().blob_url("output-container", "")
+    return get_blob_storage_provider().container_url("output-container")
 
 
 # ---------------------------------------------------------------------------

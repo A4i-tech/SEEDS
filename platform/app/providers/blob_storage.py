@@ -59,6 +59,9 @@ class BlobStorageProvider(ABC):
     @abstractmethod
     def blob_url(self, container: str, blob_name: str) -> str: ...
 
+    @abstractmethod
+    def container_url(self, container: str) -> str: ...
+
     async def download_from_url(self, blob_url: str) -> bytes:
         container, blob_path = _parse_blob_url(blob_url)
         return await self.download_file(container, blob_path)

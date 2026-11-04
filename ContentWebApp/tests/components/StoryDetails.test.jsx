@@ -5,7 +5,6 @@ import { contentService } from "../../src/services/contentService";
 jest.mock("../../src/services/contentService", () => ({
   contentService: { getAudioUrl: jest.fn() },
 }));
-jest.mock("../../src/utils/authHelpers", () => ({ getAuthHeaders: jest.fn(() => ({})) }));
 
 const story = (extra) => ({
   id: "c1",
@@ -19,19 +18,17 @@ const story = (extra) => ({
 
 beforeEach(() => {
   contentService.getAudioUrl.mockImplementation((_id, variant) => Promise.resolve(`signed-${variant}`));
-  global.fetch = jest.fn(() => Promise.resolve({ json: () => Promise.resolve({ url: "signed-primary" }) }));
 });
 
-test("primary audio url is signed through sasUrl, not the default variant", async () => {
-  const { container } = render(<StoryDetails type="story" story={story({ primary_audio_url: "http://b/x.wav" })} />);
-  await waitFor(() => expect(container.querySelector("audio")).toHaveAttribute("src", "signed-primary"));
+test("primary audio url from the backend plays as is, not the default variant", async () => {
+  const { container } = render(<StoryDetails type="story" story={story({ primary_audio_url: "http://b/x.wav?sig=1" })} />);
+  await waitFor(() => expect(container.querySelector("audio")).toHaveAttribute("src", "http://b/x.wav?sig=1"));
   expect(contentService.getAudioUrl).not.toHaveBeenCalled();
 });
 
 test("story without primary audio falls back to the final variant", async () => {
   const { container } = render(<StoryDetails type="story" story={story()} />);
   await waitFor(() => expect(container.querySelector("audio")).toHaveAttribute("src", "signed-final"));
-  expect(global.fetch).not.toHaveBeenCalled();
 });
 
 test("riddle loads question and answer variants", async () => {
