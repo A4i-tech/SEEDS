@@ -34,8 +34,8 @@ class SasUrlResponse(BaseModel):
     url: str
 
 
-class SasTokenResponse(BaseModel):
-    sas_token: str
+class UploadedAudioResponse(BaseModel):
+    audio_url: str
 
 
 class QuizOptionItem(BaseModel):

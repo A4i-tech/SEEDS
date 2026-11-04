@@ -15,9 +15,9 @@ SECURITY:
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 
 from app.models.requests.content_requests import (
     ContentCreateRequest,
@@ -31,8 +31,8 @@ from app.models.responses.content import (
     ContentItem,
     ContentPageResponse,
     PaginationInfo,
-    SasTokenResponse,
     SasUrlResponse,
+    UploadedAudioResponse,
     WebsiteExtractResponse,
     WebsiteTranslationResponse,
 )
@@ -41,7 +41,6 @@ from app.models.user import UserRole
 from app.platform.auth.dependencies import get_current_user
 from app.platform.error_handling import ForbiddenError, NotFoundError
 from app.platform.settings import get_settings
-from app.providers.blob_storage import get_blob_storage_provider
 from app.providers.translation_provider import get_translation_provider
 from app.services.content_service import ContentService, get_content_service
 from app.services.sdk_hash import sdk_hash_text
@@ -116,20 +115,6 @@ def _write_school_filter(user: dict[str, Any]) -> dict[str, str | None]:
 
 
 # ---------------------------------------------------------------------------
-# Blob SAS helpers
-# ---------------------------------------------------------------------------
-
-
-async def _get_sas_url(url: str) -> str:
-    try:
-        provider = get_blob_storage_provider()
-        return await provider.get_sas_url_from_blob_url(url, expiry_hours=1)
-    except Exception as exc:
-        logger.error("_get_sas_url failed", extra={"err": str(exc)})
-        raise HTTPException(status_code=500, detail=f"Failed to generate SAS URL: {exc}") from exc
-
-
-# ---------------------------------------------------------------------------
 # GET /content/job/{jobId}
 # ---------------------------------------------------------------------------
 
@@ -181,31 +166,42 @@ async def list_jobs(
 async def get_sas_url(
     url: str = Query(..., description="Blob URL to generate SAS token for"),
     user: dict[str, Any] = Depends(_require_content_read),
+    service: ContentService = Depends(get_content_service),
 ) -> SasUrlResponse:
     if not url:
         raise HTTPException(status_code=400, detail="URL parameter is required.")
-    return SasUrlResponse(url=await _get_sas_url(url))
+    return SasUrlResponse(url=await service.get_sas_url(url))
 
 
 # ---------------------------------------------------------------------------
-# GET /content/sasToken
+# GET /content/audioUrl
+# ---------------------------------------------------------------------------
+
+@router.get("/audioUrl", summary="Get SAS URL for a content audio file")
+async def get_audio_url(
+    content_id: str = Query(...),
+    variant: Literal["final", "question", "answer", "original", "original_question", "original_answer"] = Query(...),
+    user: dict[str, Any] = Depends(_require_content_read),
+    service: ContentService = Depends(get_content_service),
+) -> SasUrlResponse:
+    return SasUrlResponse(
+        url=await service.get_audio_sas_url(content_id, variant, user.get("tenant_id", ""), _read_school_id(user))
+    )
+
+
+# ---------------------------------------------------------------------------
+# POST /content/audio
 # ---------------------------------------------------------------------------
 
 
-@router.get("/sasToken", summary="Get upload SAS token for MP3 blob")
-async def get_sas_token(
-    blob_name: str = Query(...),
+@router.post("/audio", summary="Upload an MP3 for content processing")
+async def upload_audio(
+    blob_name: str = Form(...),
+    file: UploadFile = File(...),
     user: dict[str, Any] = Depends(_require_content_write),
-) -> SasTokenResponse:
-    if not blob_name or not blob_name.lower().endswith(".mp3"):
-        raise HTTPException(status_code=400, detail="Only .mp3 files are allowed.")
-    try:
-        provider = get_blob_storage_provider()
-        sas_url = await provider.get_upload_sas_url("input-container", blob_name, expiry_hours=1)
-    except Exception as exc:
-        logger.error("get_sas_token failed", extra={"blob_name": blob_name, "err": str(exc)})
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-    return SasTokenResponse(sas_token=sas_url)
+    service: ContentService = Depends(get_content_service),
+) -> UploadedAudioResponse:
+    return UploadedAudioResponse(audio_url=await service.upload_audio(blob_name, file.file))
 
 
 # ---------------------------------------------------------------------------

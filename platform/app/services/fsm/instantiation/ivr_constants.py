@@ -1,34 +1,20 @@
 """IVR FSM constants — audio URL templates and navigation keys.
 
 Ported from IVRv2/app/fsm/ivr_constants.py.
-Storage account URLs are computed lazily from settings.
+Base URLs are computed lazily from the configured storage provider.
 """
 
 from __future__ import annotations
 
-from functools import lru_cache
-
-from app.platform.settings import get_settings
-
-
-@lru_cache(maxsize=1)
-def _get_base_urls() -> tuple[str, str]:
-    """Return (storage_account_base_url, pullMenuMainUrl) from settings."""
-
-    settings = get_settings()
-    storage_account_name = settings.azure_storage_account_name
-    base = f"https://{storage_account_name}.blob.core.windows.net/"
-    pull_menu = f"{base}pull-model-menus/"
-    return base, pull_menu
+from app.providers.blob_storage import get_blob_storage_provider
 
 
 def get_pull_menu_main_url() -> str:
-    return _get_base_urls()[1]
+    return get_blob_storage_provider().blob_url("pull-model-menus", "")
 
 
 def get_content_url() -> str:
-    base, _ = _get_base_urls()
-    return f"{base}output-container/"
+    return get_blob_storage_provider().blob_url("output-container", "")
 
 
 # ---------------------------------------------------------------------------

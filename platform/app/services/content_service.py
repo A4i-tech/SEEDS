@@ -2,9 +2,10 @@
 from __future__ import annotations
 
 import logging
+import re
 import time
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, BinaryIO
 
 from fastapi import Depends
 from pymongo.asynchronous.database import AsyncDatabase
@@ -18,12 +19,25 @@ from app.models.requests.content_requests import (
 )
 from app.models.responses.content import AudioContent, QuizContent, WebsiteExtractResponse
 from app.platform.auth.dependencies import get_db
+from app.platform.error_handling import AppError, NotFoundError
+from app.providers.blob_storage import get_blob_storage_provider
 from app.repositories.content_job_repository import ContentJobRepository
 from app.repositories.content_repository import ContentRepository
 from app.repositories.quiz_repository import QuizRepository
 from app.services.website_extractor import WebsiteExtractor
 
 logger = logging.getLogger(__name__)
+
+_MAX_AUDIO_UPLOAD_BYTES = 50 * 1024 * 1024
+
+_AUDIO_VARIANTS = {
+    "final": ("output-container", "{id}/1.0.wav"),
+    "question": ("output-container", "{id}/question/1.0.wav"),
+    "answer": ("output-container", "{id}/answer/1.0.wav"),
+    "original": ("output-original", "{id}.mp3"),
+    "original_question": ("output-original", "{id}/question.mp3"),
+    "original_answer": ("output-original", "{id}/answer.mp3"),
+}
 
 
 def _sort_key(item: AudioContent | QuizContent) -> tuple:
@@ -244,6 +258,32 @@ class ContentService:
 
     async def extract_website(self, url: str) -> WebsiteExtractResponse:
         return await self._website_extractor.extract(url)
+
+    async def get_sas_url(self, url: str) -> str:
+        try:
+            return await get_blob_storage_provider().get_sas_url_from_blob_url(url, expiry_hours=1)
+        except Exception as exc:
+            logger.error("get_sas_url failed", extra={"err": str(exc)})
+            raise AppError("SAS_URL_FAILED", "Could not generate the download link. Try again.", 500) from exc
+
+    async def get_audio_sas_url(self, content_id: str, variant: str, tenant_id: str, school_id: str | None) -> str:
+        if not await self.get_content_by_id(content_id, tenant_id, school_id):
+            raise NotFoundError("Content", content_id)
+        container, name = _AUDIO_VARIANTS[variant]
+        return await self.get_sas_url(get_blob_storage_provider().blob_url(container, name.format(id=content_id)))
+
+    async def upload_audio(self, blob_name: str, file: BinaryIO) -> str:
+        if not re.fullmatch(r"[\w.-]+\.mp3", blob_name) or ".." in blob_name:
+            raise AppError("INVALID_AUDIO_NAME", "Only .mp3 files are allowed.", 400)
+        size = file.seek(0, 2)
+        file.seek(0)
+        if size > _MAX_AUDIO_UPLOAD_BYTES:
+            raise AppError("AUDIO_TOO_LARGE", "Audio file is larger than 50 MB. Upload a smaller file.", 413)
+        try:
+            return await get_blob_storage_provider().upload_file("input-container", blob_name, file, "audio/mpeg")
+        except Exception as exc:
+            logger.error("upload_audio failed", extra={"blob_name": blob_name, "err": str(exc)})
+            raise AppError("AUDIO_UPLOAD_FAILED", "Could not upload the audio file. Try again.", 500) from exc
 
 
 def _parse_cursor(cursor: str | None) -> int | None:

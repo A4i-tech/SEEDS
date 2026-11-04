@@ -1,7 +1,7 @@
 """System audio message URLs (from ConferenceV2 models/system_audio_messages.py).
 
-The blob account name is resolved lazily from settings so that this module can
-be imported without AZURE_STORAGE_ACCOUNT_NAME set (e.g. in unit tests).
+The base URL is resolved lazily from the storage provider so that this module can
+be imported without storage settings (e.g. in unit tests).
 """
 from __future__ import annotations
 
@@ -12,19 +12,9 @@ logger = logging.getLogger(__name__)
 
 
 def _base_url() -> str:
-    """Return the Azure Blob base URL for conference audio messages."""
-    try:
-        from app.platform.settings import get_settings  # noqa: PLC0415
+    from app.providers.blob_storage import get_blob_storage_provider  # noqa: PLC0415
 
-        name = get_settings().azure_storage_account_name
-        if name:
-            return (
-                f"https://{name}.blob.core.windows.net"
-                "/conference/conferenceMessagesWav/english/"
-            )
-    except Exception:
-        pass
-    return "https://placeholder.blob.core.windows.net/conference/conferenceMessagesWav/english/"
+    return get_blob_storage_provider().blob_url("conference", "") + "conferenceMessagesWav/english/"
 
 
 class SystemAudioMessages(StrEnum):
