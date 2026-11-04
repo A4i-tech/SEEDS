@@ -197,7 +197,7 @@ def _cleanup_temp_files(*paths: str) -> None:
 # ---------------------------------------------------------------------------
 
 def _parse_blob_url_simple(blob_url: str) -> tuple[str, str]:
-    """Parse an Azure Blob URL into (container, blob_path) without importing blob_storage."""
+    """Parse a blob URL into (container, blob_path) without importing blob_storage."""
     from urllib.parse import urlparse as _up  # noqa: PLC0415
 
     parsed = _up(blob_url)
@@ -321,21 +321,21 @@ async def _process_tts_for_content(content_doc: dict, blob_provider) -> None:
         theme_blob_name = f"{theme_english}/1.0.mp3"
         # Check if theme audio already exists
         try:
-            container_client = blob_provider.get_container_client("theme-titles")
-            blob_client = container_client.get_blob_client(theme_blob_name)
-            await blob_client.get_blob_properties()
-            # Exists — reuse
-            content_doc["theme"] = {**theme, "audio_url": blob_client.url}
-            logger.info("content_job: reusing existing theme audio theme=%s", theme_english)
+            theme_exists = await blob_provider.exists("theme-titles", theme_blob_name)
         except Exception:  # noqa: BLE001
+            theme_exists = False
+        if theme_exists:
+            # Exists — reuse
+            content_doc["theme"] = {**theme, "audio_url": blob_provider.blob_url("theme-titles", theme_blob_name)}
+            logger.info("content_job: reusing existing theme audio theme=%s", theme_english)
+        elif theme_local:
             # Does not exist — generate
-            if theme_local:
-                tts_text = tts_service.add_for_in_option_audio(language, theme_local)
-                audio_bytes = await tts_service.synthesize(tts_text, language)
-                url = await blob_provider.upload_file(
-                    "theme-titles", theme_blob_name, audio_bytes, "audio/mpeg"
-                )
-                content_doc["theme"] = {**theme, "audio_url": url}
+            tts_text = tts_service.add_for_in_option_audio(language, theme_local)
+            audio_bytes = await tts_service.synthesize(tts_text, language)
+            url = await blob_provider.upload_file(
+                "theme-titles", theme_blob_name, audio_bytes, "audio/mpeg"
+            )
+            content_doc["theme"] = {**theme, "audio_url": url}
 
 
 # ---------------------------------------------------------------------------
@@ -492,8 +492,8 @@ class ContentJobConsumer:
             # Re-attempt init each cycle so we recover when blob storage comes back
             if blob_provider is None:
                 try:
-                    from app.providers.blob_storage import BlobStorageProvider  # noqa: PLC0415
-                    blob_provider = BlobStorageProvider()
+                    from app.providers import blob_storage  # noqa: PLC0415
+                    blob_provider = blob_storage.get_blob_storage_provider()
                 except Exception as exc:  # noqa: BLE001
                     logger.warning(
                         "ContentJobConsumer: BlobStorageProvider unavailable — %s. "

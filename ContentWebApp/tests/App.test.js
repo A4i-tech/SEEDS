@@ -1,13 +1,6 @@
 import { render } from '@testing-library/react';
 
 // Mock all the problematic dependencies before importing App
-jest.mock('@azure/storage-blob', () => ({
-  BlockBlobClient: jest.fn().mockImplementation(() => ({
-    upload: jest.fn(),
-    download: jest.fn(),
-  })),
-}));
-
 jest.mock('axios', () => ({
   __esModule: true,
   default: {
