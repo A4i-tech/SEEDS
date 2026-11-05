@@ -12,6 +12,7 @@ on:
 
 jobs:
   test:
+    name: test (${{ matrix.service.name }}, ${{ matrix.service.context }}, ${{ matrix.service.lang }})
     runs-on: ubuntu-latest
     strategy:
       matrix:
