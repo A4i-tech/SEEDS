@@ -7,14 +7,15 @@ from typing import TYPE_CHECKING
 from app.models.action_history import ActionHistory, ActionType
 from app.models.ws_service_message import MessageType, WebsocketServiceMessage
 from app.services.confevents.base_event import ConferenceEvent
+from app.services.fsm.instantiation.speed_control import SUPPORTED_SPEEDS
 
 if TYPE_CHECKING:
     from app.services.conference_service import ConferenceCall
 
 class SetPlaybackSpeedEvent(ConferenceEvent):
     def __init__(self, conf_call: ConferenceCall, speed: float, initiator_phone: str | None = None) -> None:
-        if not (0.5 <= speed <= 2.0):
-            raise ValueError(f"speed must be 0.5-2.0, got {speed}")
+        if speed not in SUPPORTED_SPEEDS:
+            raise ValueError(f"speed must be one of {SUPPORTED_SPEEDS}, got {speed}")
         self.conf_call = conf_call
         self.speed = speed
         self.initiator_phone = initiator_phone

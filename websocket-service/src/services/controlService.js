@@ -83,11 +83,9 @@ function handleControlMessage(controlMessage, log = logger) {
       break;
     case MessageType.SET_SPEED:
       log.info(`Handling set speed command for ID ${websocketId}`, { eventType: "control_command_set_speed", websocketId });
-      try {
-        websocketService.setPlaybackSpeed(websocketId, parseFloat(content));
-      } catch (error) {
-        log.error(`Error setting speed for ID ${websocketId}`, Object.assign(error, { eventType: "control_command_set_speed", websocketId }));
-      }
+      websocketService
+        .setPlaybackSpeed(websocketId, parseFloat(content))
+        .catch((error) => log.error(`Error setting speed for ID ${websocketId}`, Object.assign(error, { eventType: "control_command_set_speed", websocketId })));
       break;
     case MessageType.DISCONNECT:
       log.info(`Handling disconnect command for ID ${websocketId}`, { eventType: "control_command_disconnect", websocketId });
