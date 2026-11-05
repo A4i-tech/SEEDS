@@ -20,19 +20,11 @@ test('TC-TCLS-001 My Classrooms list loads and shows the classroom list', async 
 
 test('TC-TCLS-002 create classroom with a valid name persists with correct student count', async ({ page }) => {
   const classroomListPage = new ClassroomListPage(page);
-  const classroomFormPage = new ClassroomFormPage(page);
-  const name = uniqueClassroomName();
+  const { name } = await createClassroomWithStudents(page, 1);
 
-  await classroomListPage.goto();
-  await classroomListPage.openCreate();
-  await classroomFormPage.fillName(name);
-  await classroomFormPage.submit();
-  registerClassroomForCleanup(name);
-
-  await classroomListPage.heading.waitFor();
   const card = classroomListPage.classroomCard(name);
   await expect(card).toBeVisible();
-  await expect(card.getByText('0 Students')).toBeVisible();
+  await expect(card.getByText('1 Students')).toBeVisible();
 });
 
 test('TC-TCLS-003 create classroom fails without a name', async ({ page }) => {
@@ -68,7 +60,6 @@ test('TC-TCLS-005 removing and re-adding a student updates the detail view and c
   const classroomFormPage = new ClassroomFormPage(page);
   const classroomDetailPage = new ClassroomDetailPage(page);
   const { name, studentNames } = await createClassroomWithStudents(page, 1);
-  registerClassroomForCleanup(name);
 
   await classroomListPage.editClassroom(name);
   await classroomFormPage.nameInput.waitFor();

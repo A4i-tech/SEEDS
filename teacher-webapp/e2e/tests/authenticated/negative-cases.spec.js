@@ -1,11 +1,15 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
 const { uniqueClassroomName } = require('../../fixtures/instances');
-const { createClassroomWithStudents, openLibraryOrSkip } = require('../../fixtures/classroomHelpers');
+const { createClassroomWithStudents, openLibraryOrSkip, cleanupClassrooms, registerClassroomForCleanup } = require('../../fixtures/classroomHelpers');
 const { ClassroomListPage } = require('../../pages/ClassroomListPage');
 const { ClassroomFormPage } = require('../../pages/ClassroomFormPage');
 const { ClassroomDetailPage } = require('../../pages/ClassroomDetailPage');
 const { ContentDrawerPage } = require('../../pages/ContentDrawerPage');
+
+test.afterEach(async ({ page }) => {
+  await cleanupClassrooms(page);
+});
 
 test('TC-TNEG-001 classroom dashboard shows an error when the list fails to load', async ({ page }) => {
   await page.route('**/class', (route) =>
@@ -14,7 +18,7 @@ test('TC-TNEG-001 classroom dashboard shows an error when the list fails to load
 
   await page.goto('/classrooms');
 
-  await expect(page.getByRole('alert').getByText(/failed to load classrooms/i)).toBeVisible({ timeout: 10000 });
+  await expect(page.locator('.MuiAlert-root').getByText(/failed to load classrooms/i)).toBeVisible({ timeout: 10000 });
 });
 
 test('TC-TNEG-002 create classroom shows an error when the save request fails', async ({ page }) => {
@@ -38,10 +42,6 @@ test('TC-TNEG-003 starting a conference shows an error when the create request f
   const classroomListPage = new ClassroomListPage(page);
   const classroomDetailPage = new ClassroomDetailPage(page);
   const { name: classroomName, studentNames } = await createClassroomWithStudents(page, 1);
-  expect(
-    studentNames.length,
-    'No students registered for this teacher account; seed at least 1 student to verify conference create failure'
-  ).toBeGreaterThanOrEqual(1);
 
   await page.route('**/conference/create', (route) => route.fulfill({ status: 500, body: 'error' }));
 
@@ -81,6 +81,7 @@ test('TC-TNEG-005 a student already assigned to a classroom cannot be re-added a
   }
   const studentName = addedLabel.split(' - ')[0];
   await classroomFormPage.submit();
+  registerClassroomForCleanup(name);
   await classroomListPage.heading.waitFor();
 
   await classroomListPage.editClassroom(name);
