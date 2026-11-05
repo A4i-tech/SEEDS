@@ -41,11 +41,11 @@ export const useVolunteers = (enabled) => {
       try {
         await volunteerService.createVolunteer(name, email, password);
       } catch (error) {
-        const message =
+        const errorMessage =
           fieldMessageFromValidationErrors(error.details) ||
           error.message ||
           "Failed to create volunteer.";
-        flashMessage(message, "error");
+        flashMessage(errorMessage, "error");
         return false;
       }
       const refreshed = await fetchVolunteers();

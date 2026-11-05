@@ -120,12 +120,7 @@ async def remediation_me(
     return UserPublicResponse.from_domain(user)
 
 
-@router.post(
-    "/jobs",
-    status_code=202,
-    response_model=CreateRemediationJobResponse,
-    summary="Upload a textbook PDF and queue it for remediation",
-)
+@router.post("/jobs", status_code=202, response_model=CreateRemediationJobResponse, summary="Upload a textbook PDF and queue it for remediation")
 async def create_remediation_job(
     file: UploadFile = File(..., description="The textbook PDF"),
     language: str = Form("en", description="Language the figure alt text is translated into"),
@@ -188,11 +183,7 @@ async def delete_remediation_job(
         raise NotFoundError("Remediation job", job_id)
 
 
-@router.get(
-    "/jobs/{job_id}",
-    response_model=RemediationJobResponse,
-    summary="Get a remediation job's status and artifacts",
-)
+@router.get("/jobs/{job_id}", response_model=RemediationJobResponse, summary="Get a remediation job's status and artifacts")
 async def get_remediation_job(
     job_id: str,
     user: dict[str, object] = Depends(require_remediation_access),
@@ -230,16 +221,11 @@ async def get_remediation_artifact(
     return Response(
         content=data,
         media_type=content_type,
-        headers={
-            "Content-Disposition": f'attachment; filename="{ARTIFACTS[ArtifactName(name)][0]}"'
-        },
+        headers={"Content-Disposition": f'attachment; filename="{ARTIFACTS[ArtifactName(name)][0]}"'},
     )
 
 
-@router.get(
-    "/jobs/{job_id}/images/{image_name}",
-    summary="Serve an extracted figure image for a remediation job",
-)
+@router.get("/jobs/{job_id}/images/{image_name}", summary="Serve an extracted figure image for a remediation job")
 async def get_remediation_image(
     job_id: str,
     image_name: str,
@@ -267,16 +253,10 @@ async def get_remediation_image(
     )
 
 
-@router.get(
-    "/jobs/{job_id}/findings",
-    response_model=FindingsPageResponse,
-    summary="Paginated findings trail for a remediation job",
-)
+@router.get("/jobs/{job_id}/findings", response_model=FindingsPageResponse, summary="Paginated findings trail for a remediation job")
 async def get_remediation_findings(
     job_id: str,
-    name: str = Query(
-        "findings", description="Which trail to read: findings, alt, remediation or unresolved"
-    ),
+    name: str = Query("findings", description="Which trail to read: findings, alt, remediation or unresolved"),
     limit: int = Query(50, ge=1, le=500),
     offset: int = Query(0, ge=0),
     user: dict[str, object] = Depends(require_remediation_access),
@@ -287,11 +267,7 @@ async def get_remediation_findings(
     return await findings_page(job, name, blob_provider, limit=limit, offset=offset)
 
 
-@router.put(
-    "/jobs/{job_id}/draft",
-    response_model=RemediationJobResponse,
-    summary="Save user draft edits to the remediated document",
-)
+@router.put("/jobs/{job_id}/draft", response_model=RemediationJobResponse, summary="Save user draft edits to the remediated document")
 async def save_remediation_draft(
     job_id: str,
     payload: DraftUpdateRequest,
@@ -306,11 +282,7 @@ async def save_remediation_draft(
     )
 
 
-@router.post(
-    "/jobs/{job_id}/verify",
-    response_model=RemediationJobResponse,
-    summary="Mark a remediated document verified and save to library",
-)
+@router.post("/jobs/{job_id}/verify", response_model=RemediationJobResponse, summary="Mark a remediated document verified and save to library")
 async def verify_remediation_job(
     job_id: str,
     payload: VerifyJobRequest,
@@ -326,11 +298,7 @@ async def verify_remediation_job(
     return serialize_job(updated)
 
 
-@router.post(
-    "/jobs/{job_id}/translate",
-    response_model=RemediationJobResponse,
-    summary="Translate a remediated document into another language",
-)
+@router.post("/jobs/{job_id}/translate", response_model=RemediationJobResponse, summary="Translate a remediated document into another language")
 async def translate_remediation_job(
     job_id: str,
     payload: TranslateJobRequest,
@@ -344,11 +312,7 @@ async def translate_remediation_job(
     return serialize_job(updated)
 
 
-@router.get(
-    "/jobs/{job_id}/review-summary",
-    response_model=ReviewSummaryResponse,
-    summary="Aggregated review summary of figures, tables, and flags",
-)
+@router.get("/jobs/{job_id}/review-summary", response_model=ReviewSummaryResponse, summary="Aggregated review summary of figures, tables, and flags")
 async def get_review_summary(
     job_id: str,
     user: dict[str, object] = Depends(require_remediation_access),

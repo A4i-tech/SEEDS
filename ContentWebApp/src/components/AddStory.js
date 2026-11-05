@@ -274,7 +274,7 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
       await saveStory();
     } catch (error) {
       setIsSaveButtonDisabled(false);
-      setUploadError("Session role not recognized. Sign in again.");
+      setUploadError(error.message);
     }
   };
 

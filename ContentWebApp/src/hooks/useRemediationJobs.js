@@ -22,18 +22,6 @@ export const useRemediationJobs = () => {
     });
   }, []);
 
-  const remove = useCallback(async (jobId) => {
-    setError(null);
-    try {
-      await textbookRemediationService.deleteJob(jobId);
-      controllersRef.current[jobId]?.abort();
-      delete controllersRef.current[jobId];
-      setJobs((previous) => previous.filter((job) => job.job_id !== jobId));
-    } catch (deleteError) {
-      setError(deleteError.message);
-    }
-  }, []);
-
   const follow = useCallback(
     (jobId) => {
       if (controllersRef.current[jobId]) return;
@@ -102,6 +90,18 @@ export const useRemediationJobs = () => {
     },
     [follow, upsert]
   );
+
+  const remove = useCallback(async (jobId) => {
+    setError(null);
+    try {
+      await textbookRemediationService.deleteJob(jobId);
+      controllersRef.current[jobId]?.abort();
+      delete controllersRef.current[jobId];
+      setJobs((previous) => previous.filter((job) => job.job_id !== jobId));
+    } catch (deleteError) {
+      setError(deleteError.message);
+    }
+  }, []);
 
   const assign = useCallback(
     async (jobId, volunteerId) => {

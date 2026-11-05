@@ -115,10 +115,7 @@ async def create_job(
 ) -> RemediationJob:
     job_id = ObjectId()
     url = await blob_provider.upload_file(
-        get_settings().azure_storage_container,
-        f"textbook-remediation/{job_id}/source.pdf",
-        data,
-        "application/pdf",
+        get_settings().azure_storage_container, f"textbook-remediation/{job_id}/source.pdf", data, "application/pdf"
     )
     return await repo.create(
         job_id=job_id,
