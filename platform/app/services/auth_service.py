@@ -367,9 +367,8 @@ async def get_tenant_names(
     db: AsyncDatabase,  # type: ignore[type-arg]
 ) -> list[TenantNameResponse]:
     """Return the id and name of every tenant (public endpoint)."""
-    cursor = db["users"].find({"role": UserRole.TENANT.value}, {"name": 1})
-    docs = await cursor.to_list(length=None)
-    return [TenantNameResponse(id=str(d["_id"]), name=d["name"]) for d in docs]
+    tenants = await UserRepository(db).find_all_by_role(UserRole.TENANT.value)
+    return [TenantNameResponse(id=tenant.id, name=tenant.name) for tenant in tenants]
 
 
 async def get_tenant_dashboard(

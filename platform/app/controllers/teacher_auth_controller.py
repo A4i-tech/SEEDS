@@ -7,12 +7,12 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, Response, status
 
-from app.controllers.token_controller import logout_with_refresh_cookie
 from app.models.requests.auth_requests import TeacherLoginRequest, TeacherRegisterRequest
 from app.models.responses.login import LoginResponse, MessageResponse
 from app.models.responses.user import UserPublicResponse
 from app.platform.auth.dependencies import (
     RefreshCookie,
+    clear_refresh_cookie,
     get_current_user,
     require_role,
     set_refresh_cookie,
@@ -77,7 +77,12 @@ async def teacher_logout(
     refresh_token: RefreshCookie = "",
     service: AuthService = Depends(get_auth_service),
 ) -> MessageResponse:
-    return await logout_with_refresh_cookie(service, refresh_token, response)
+    if refresh_token:
+        await service.logout_by_refresh_token(refresh_token)
+    else:
+        logger.info("logout: no refresh cookie present")
+    clear_refresh_cookie(response)
+    return MessageResponse(message="Logout successful")
 
 
 @router.get(
