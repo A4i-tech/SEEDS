@@ -27,9 +27,17 @@ class Settings(BaseSettings):
     mongo_max_pool_size: int = 50
 
     secret_key: str = Field(default="", repr=False)
+
     auth_type: Literal["jwt", "firebase"] = "jwt"
-    jwt_expires_in: str = "1d"
+    jwt_expires_in: str = "1h"
     password_salt_rounds: int = 10
+
+    refresh_token_expires_in: str = "30d"
+    refresh_cookie_samesite: Literal["lax", "strict", "none"] = "lax"
+    refresh_cookie_secure: bool = True
+
+    content_aggregator_access_token_expires_in: str = "15m"
+    content_aggregator_refresh_token_expires_in: str = "30d"
 
     # Firebase (only used when auth_type == "firebase")
     firebase_api_key: str = Field(default="", repr=False)

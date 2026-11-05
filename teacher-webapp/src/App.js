@@ -9,6 +9,7 @@ import { ROUTES } from "./constants/routes";
 import ProtectedRoute from "./components/ProtectedRoute";
 import PublicRoute from "./components/PublicRoute";
 import theme from "./theme/theme";
+import { AuthProvider, useAuthContext } from "./contexts/AuthContext";
 
 import Login from "./pages/Login";
 import ClassroomList from "./pages/ClassroomList";
@@ -16,7 +17,13 @@ import ClassroomForm from "./pages/ClassroomForm";
 import ClassroomDetail from "./pages/ClassroomDetail";
 import ContentDetails from "./pages/ContentDetails";
 
-function App() {
+function AppRoutes() {
+  const { initializing } = useAuthContext();
+
+  if (initializing) {
+    return null;
+  }
+
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline />
@@ -57,6 +64,14 @@ function App() {
         pauseOnHover
       />
     </ThemeProvider>
+  );
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <AppRoutes />
+    </AuthProvider>
   );
 }
 
