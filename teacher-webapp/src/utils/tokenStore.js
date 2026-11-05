@@ -1,4 +1,4 @@
-let accessToken = null;
+let accessToken = "";
 
 export const getAccessToken = () => accessToken;
 
@@ -7,6 +7,5 @@ export const setAccessToken = (token) => {
 };
 
 export const clearAccessToken = () => {
-  accessToken = null;
-  localStorage.removeItem("authToken");
+  accessToken = "";
 };

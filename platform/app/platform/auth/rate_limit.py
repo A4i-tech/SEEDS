@@ -1,20 +1,20 @@
 from __future__ import annotations
 
 import time
-from collections import defaultdict
+from collections import defaultdict, deque
 
 _WINDOW_SECONDS = 60
 _MAX_REQUESTS = 10
-_hits: dict[str, list[float]] = defaultdict(list)
+_hits: dict[str, deque[float]] = defaultdict(deque)
 
 
-def check_rate_limit(key: str, max_requests: int = _MAX_REQUESTS, window_seconds: float = _WINDOW_SECONDS) -> bool:
+def check_rate_limit(key: str) -> bool:
     now = time.monotonic()
     hits = _hits[key]
-    cutoff = now - window_seconds
+    cutoff = now - _WINDOW_SECONDS
     while hits and hits[0] < cutoff:
-        hits.pop(0)
-    if len(hits) >= max_requests:
+        hits.popleft()
+    if len(hits) >= _MAX_REQUESTS:
         return False
     hits.append(now)
     return True

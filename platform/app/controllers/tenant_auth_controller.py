@@ -6,21 +6,16 @@ import logging
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 
+from app.controllers.token_controller import logout_with_refresh_cookie
 from app.models.requests.auth_requests import TenantChangePasswordRequest, TenantRegisterRequest
 from app.models.requests.tenant_requests import TenantAnalyticsRequest
 from app.models.responses.analytics_response import AnalyticsResponse
 from app.models.responses.dashboard import TenantDashboardResponse
 from app.models.responses.login import MessageResponse
 from app.models.responses.user import UserPublicResponse
-from app.platform.auth.dependencies import (
-    REFRESH_COOKIE_NAME,
-    clear_refresh_cookie,
-    require_tenant,
-)
-from app.platform.error_handling import AppError, build_error_response
+from app.platform.auth.dependencies import RefreshCookie, require_tenant
 from app.repositories.ivr_repository import IVRRepository
 from app.services.auth_service import AuthService, TenantCreate, get_auth_service
 
@@ -60,23 +55,13 @@ async def tenant_register(
     "/logout",
     summary="Tenant logout",
     status_code=status.HTTP_200_OK,
-    response_model=None,
 )
 async def tenant_logout(
-    request: Request,
     response: Response,
+    refresh_token: RefreshCookie = "",
     service: AuthService = Depends(get_auth_service),
-) -> MessageResponse | JSONResponse:
-    refresh_token = request.cookies.get(REFRESH_COOKIE_NAME)
-    if refresh_token:
-        try:
-            await service.logout_by_refresh_token(refresh_token)
-        except AppError as exc:
-            error_response = build_error_response(exc)
-            clear_refresh_cookie(error_response)
-            return error_response
-    clear_refresh_cookie(response)
-    return MessageResponse(message="Logout successful")
+) -> MessageResponse:
+    return await logout_with_refresh_cookie(service, refresh_token, response)
 
 
 @router.get(

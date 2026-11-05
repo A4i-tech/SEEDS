@@ -3,27 +3,32 @@ import axiosInstance, { initSession } from "../services/axiosInstance";
 import { API_ENDPOINTS } from "../constants/apiEndpoints";
 import { setAccessToken, clearAccessToken } from "../utils/tokenStore";
 
-const AuthContext = createContext(null);
+const IDLE_LOGIN = { status: "idle", data: {}, error: "" };
+
+const AuthContext = createContext({
+  isAuthenticated: false,
+  initializing: true,
+  login: async () => false,
+  loginState: IDLE_LOGIN,
+  clearLoginError: () => {},
+  logout: async () => {},
+});
 
 export const AuthProvider = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [initState, setInitState] = useState({ data: null, error: null, isLoading: true });
+  const [initializing, setInitializing] = useState(true);
 
   useEffect(() => {
     const init = async () => {
-      const { data, error } = await initSession();
-      if (error) {
-        console.error("AuthContext: session init failed", error);
-      }
-      setIsAuthenticated(!!data);
-      setInitState({ data, error, isLoading: false });
+      setIsAuthenticated(await initSession());
+      setInitializing(false);
     };
     init();
   }, []);
 
-  const [loginState, setLoginState] = useState({ data: null, error: null, isLoading: false });
+  const [loginState, setLoginState] = useState(IDLE_LOGIN);
   const login = useCallback(async (phoneNumber, password) => {
-    setLoginState({ data: null, error: null, isLoading: true });
+    setLoginState({ ...IDLE_LOGIN, status: "loading" });
     try {
       const response = await axiosInstance.post(
         API_ENDPOINTS.LOGIN,
@@ -32,25 +37,30 @@ export const AuthProvider = ({ children }) => {
       );
       setAccessToken(response.data.token);
       setIsAuthenticated(true);
-      setLoginState({ data: response.data, error: null, isLoading: false });
-      return response.data;
+      setLoginState({ status: "ok", data: response.data, error: "" });
+      return true;
     } catch (error) {
-      setLoginState({ data: null, error, isLoading: false });
+      setLoginState({ ...IDLE_LOGIN, status: "error", error });
+      return false;
     }
   }, []);
 
   const clearLoginError = useCallback(() => {
-    setLoginState((prev) => (prev.error ? { ...prev, error: null } : prev));
+    setLoginState((prev) => (prev.error ? IDLE_LOGIN : prev));
   }, []);
 
   const logout = useCallback(async () => {
     try {
       await axiosInstance.post(API_ENDPOINTS.LOGOUT, {}, { withCredentials: true });
     } catch (error) {
-      const status = error.status ?? error.response?.status;
-      if (status !== 401 && status !== 403) {
+      if (error.status !== 401 && error.status !== 403) {
         throw error;
       }
+      console.warn(
+        "AuthProvider: logout request failed with",
+        error.status,
+        "- treating as already logged out"
+      );
     }
 
     clearAccessToken();
@@ -59,24 +69,11 @@ export const AuthProvider = ({ children }) => {
 
   return (
     <AuthContext.Provider
-      value={{
-        isAuthenticated,
-        initializing: initState.isLoading,
-        login,
-        loginState,
-        clearLoginError,
-        logout,
-      }}
+      value={{ isAuthenticated, initializing, login, loginState, clearLoginError, logout }}
     >
       {children}
     </AuthContext.Provider>
   );
 };
 
-export const useAuthContext = () => {
-  const ctx = useContext(AuthContext);
-  if (!ctx) {
-    throw new Error("useAuthContext must be used within AuthProvider");
-  }
-  return ctx;
-};
+export const useAuthContext = () => useContext(AuthContext);

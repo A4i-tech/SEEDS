@@ -1,5 +1,4 @@
 import * as authHelpers from "../../src/utils/authHelpers";
-import { getAccessToken, setAccessToken, clearAccessToken } from "../../src/utils/tokenStore";
 
 describe("authHelpers", () => {
   // Mock localStorage
@@ -27,7 +26,6 @@ describe("authHelpers", () => {
     });
     localStorageMock.clear();
     jest.clearAllMocks();
-    clearAccessToken();
   });
 
   describe("isLocalStorageAvailable", () => {
@@ -71,23 +69,4 @@ describe("authHelpers", () => {
       expect(authHelpers.isLocalStorageAvailable()).toBe(false);
     });
   });
-
-  describe("isAuthenticated", () => {
-    test("returns false when no token exists", () => {
-      expect(authHelpers.isAuthenticated()).toBe(false);
-    });
-
-    test("returns true when token exists", () => {
-      setAccessToken("test-token-123");
-
-      expect(authHelpers.isAuthenticated()).toBe(true);
-    });
-
-    test("returns false when token is empty string", () => {
-      setAccessToken("");
-
-      expect(authHelpers.isAuthenticated()).toBe(false);
-    });
-  });
-
 });

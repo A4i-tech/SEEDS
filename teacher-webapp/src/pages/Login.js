@@ -18,28 +18,28 @@ import { isValidPhoneNumber } from "../utils/phoneUtils";
 import { useAuthContext } from "../contexts/AuthContext";
 
 const getLoginErrorMessage = (error) => {
-  const status = error.response?.status;
-  if (status === 401) {
+  if (error.status === 401) {
     return "Username or password incorrect";
   }
-  if (status >= 500) {
-    return error.response?.data?.message || "Server error. Please try again later.";
-  }
-  if (!error.response) {
+  if (error.status === 0) {
     return "Unable to reach the server. Please check your connection and try again.";
   }
-  return error.response?.data?.message || "Login failed. Please try again.";
+  if (error.status >= 500) {
+    return error.response.data.message || "Server error. Please try again later.";
+  }
+  return error.response.data.message || "Login failed. Please try again.";
 };
 
 function Login() {
   const navigate = useNavigation();
   const { login, loginState, clearLoginError } = useAuthContext();
-  const [formError, setFormError] = useState(null);
+  const [formError, setFormError] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [password, setPassword] = useState("");
 
   useEffect(() => clearLoginError, [clearLoginError]);
 
+  const isLoading = loginState.status === "loading";
   const showError = formError || (loginState.error && getLoginErrorMessage(loginState.error));
 
   const handleLogin = async () => {
@@ -62,9 +62,8 @@ function Login() {
       return;
     }
 
-    setFormError(null);
-    const data = await login(phoneNumber, password);
-    if (!data) {
+    setFormError("");
+    if (!(await login(phoneNumber, password))) {
       showToast.error("Login failed");
       return;
     }
@@ -154,9 +153,9 @@ function Login() {
               variant="contained"
               sx={{ mt: 3, mb: 2 }}
               onClick={handleLogin}
-              disabled={loginState.isLoading}
+              disabled={isLoading}
             >
-              {loginState.isLoading ? <CircularProgress size={24} color="inherit" /> : "Login"}
+              {isLoading ? <CircularProgress size={24} color="inherit" /> : "Login"}
             </Button>
 
           </Box>

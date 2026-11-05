@@ -10,36 +10,33 @@ const axiosInstance = axios.create({
   },
 });
 
-axiosInstance.interceptors.request.use(
-  (config) => {
-    const token = getAccessToken();
-    if (token && config.headers) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => {
-    return Promise.reject(error);
+axiosInstance.interceptors.request.use((config) => {
+  const token = getAccessToken();
+  if (token && config.headers) {
+    config.headers.Authorization = `Bearer ${token}`;
   }
-);
+  return config;
+});
 
-let refreshPromise = null;
+const getStatus = (error) => (error.response ? error.response.status : 0);
+
+let refreshing = false;
+let refreshPromise = Promise.resolve("");
 
 const requestTokenRefresh = async () => {
-  const response = await axios.post(API_ENDPOINTS.REFRESH, {}, { withCredentials: true });
-  setAccessToken(response.data.access_token);
-  return response.data.access_token;
+  try {
+    const response = await axios.post(API_ENDPOINTS.REFRESH, {}, { withCredentials: true });
+    setAccessToken(response.data.access_token);
+    return response.data.access_token;
+  } finally {
+    refreshing = false;
+  }
 };
 
-export const refreshAccessToken = async () => {
-  if (!refreshPromise) {
-    refreshPromise = (async () => {
-      try {
-        return await requestTokenRefresh();
-      } finally {
-        refreshPromise = null;
-      }
-    })();
+export const refreshAccessToken = () => {
+  if (!refreshing) {
+    refreshing = true;
+    refreshPromise = requestTokenRefresh();
   }
   return refreshPromise;
 };
@@ -47,21 +44,22 @@ export const refreshAccessToken = async () => {
 export const initSession = async () => {
   try {
     await refreshAccessToken();
-    return { data: true, error: null };
+    return true;
   } catch (error) {
+    console.error("axiosInstance: session init failed", error);
     clearAccessToken();
-    return { data: null, error };
+    return false;
   }
 };
 
 axiosInstance.interceptors.response.use(
-  (response) => {
-    return response;
-  },
+  undefined,
   async (error) => {
+    error.status = getStatus(error);
     const originalRequest = error.config;
 
-    if (error.response?.status === 401 && getAccessToken() && !originalRequest._retry) {
+    // Backend-driven auth invalidation. Skip when no token is stored (login attempt) so caller sees real error.
+    if (error.status === 401 && getAccessToken() && !originalRequest._retry) {
       originalRequest._retry = true;
       try {
         const newToken = await refreshAccessToken();
@@ -69,7 +67,7 @@ axiosInstance.interceptors.response.use(
         return axiosInstance(originalRequest);
       } catch (refreshError) {
         console.error("axiosInstance: token refresh failed", refreshError);
-        if (refreshError.response?.status !== 401) {
+        if (getStatus(refreshError) !== 401) {
           return Promise.reject(refreshError);
         }
         clearAccessToken();

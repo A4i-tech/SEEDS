@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import StrEnum
+from typing import TypedDict
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -29,25 +30,7 @@ class IntegrationClient(BaseModel):
         return cls.model_validate(dict(doc))
 
 
-class IntegrationTokenType(StrEnum):
-    REFRESH = "refresh"
-
-
-class IntegrationToken(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-
-    token_id: str
-    client_id: str
-    type: IntegrationTokenType
+class IntegrationClaims(TypedDict):
     tenant_ids: list[str]
     scope: str
-    expires_at: datetime
-    family_expires_at: datetime
-    revoked: bool = False
-    revoked_reason: str | None = None
-    consumed_at: datetime | None = None
-    created_at: datetime
-
-    @classmethod
-    def from_mongo(cls, doc: dict) -> IntegrationToken:
-        return cls.model_validate(dict(doc))
+    client_name: str

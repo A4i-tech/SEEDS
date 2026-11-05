@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import logging
 import secrets
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
@@ -11,20 +10,10 @@ from pydantic import PositiveInt
 
 from app.platform.auth.jwt import parse_expires_delta
 from app.platform.error_handling import AppError, UnauthorizedError
-from app.platform.telemetry import get_counter
-
-logger = logging.getLogger(__name__)
-
-def _as_utc(value: datetime) -> datetime:
-    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
 
 
 def generate_refresh_token() -> str:
     return secrets.token_urlsafe(32)
-
-
-def refresh_token_expiry(expires_in: str) -> datetime:
-    return datetime.now(tz=UTC) + parse_expires_delta(expires_in)
 
 
 class TokenPair(TypedDict):
@@ -41,24 +30,14 @@ class ConsumedToken[ClaimsT]:
     family_expires_at: datetime
 
 
-class RefreshTokenNotFoundError(Exception):
-    pass
+class RefreshTokenInvalidError(UnauthorizedError):
+    def __init__(self) -> None:
+        super().__init__("Invalid refresh token")
 
 
-class RefreshTokenExpiredError(Exception):
-    pass
-
-
-class RefreshTokenReusedError(Exception):
-    def __init__(self, owner_id: str) -> None:
-        super().__init__(f"Refresh token already consumed — owner_id={owner_id}")
-        self.owner_id = owner_id
-
-
-class RefreshTokenRevokedError(Exception):
-    def __init__(self, owner_id: str) -> None:
-        super().__init__(f"Refresh token already revoked — owner_id={owner_id}")
-        self.owner_id = owner_id
+class RefreshTokenExpiredError(AppError):
+    def __init__(self) -> None:
+        super().__init__("REFRESH_TOKEN_EXPIRED", "Refresh token has expired", 401)
 
 
 class RefreshTokenStore[ClaimsT](Protocol):
@@ -79,7 +58,7 @@ class RefreshTokenStore[ClaimsT](Protocol):
 
 
 type VerifyOwnerActive[ClaimsT] = Callable[[str, ClaimsT], Awaitable[ClaimsT]]
-type BuildAccessToken[ClaimsT] = Callable[[str, ClaimsT], Awaitable[tuple[str, int]]]
+type BuildAccessToken[ClaimsT] = Callable[[str, ClaimsT], tuple[str, int]]
 
 
 async def issue_pair[ClaimsT](
@@ -93,7 +72,7 @@ async def issue_pair[ClaimsT](
 ) -> TokenPair:
     refresh_token = generate_refresh_token()
     now = datetime.now(tz=UTC)
-    expires_at = refresh_token_expiry(refresh_ttl)
+    expires_at = now + parse_expires_delta(refresh_ttl)
     await store.insert(
         token_id=refresh_token,
         owner_id=owner_id,
@@ -110,23 +89,6 @@ async def issue_pair[ClaimsT](
     }
 
 
-async def handle_reuse_detected[ClaimsT](
-    store: RefreshTokenStore[ClaimsT],
-    exc: RefreshTokenReusedError,
-    reuse_counter_name: str,
-) -> None:
-    logger.warning(
-        "refresh_tokens: revoked refresh token replayed — owner_id=%s",
-        exc.owner_id,
-        extra={
-            "event": "refresh_token_reuse_detected",
-            "owner_id": exc.owner_id,
-        },
-    )
-    get_counter(reuse_counter_name).add(1, {"owner_id": exc.owner_id})
-    await store.revoke_all_for_owner(exc.owner_id, reason="consumed")
-
-
 async def rotate[ClaimsT](
     store: RefreshTokenStore[ClaimsT],
     refresh_token: str,
@@ -134,27 +96,16 @@ async def rotate[ClaimsT](
     verify_owner_active: VerifyOwnerActive[ClaimsT],
     build_access_token: BuildAccessToken[ClaimsT],
     refresh_ttl: str,
-    reuse_counter_name: str,
-) -> TokenPair:
-    try:
-        consumed = await store.try_consume(refresh_token)
-    except RefreshTokenNotFoundError:
-        raise UnauthorizedError("Invalid refresh token") from None
-    except RefreshTokenExpiredError:
-        raise AppError("REFRESH_TOKEN_EXPIRED", "Refresh token has expired", 401) from None
-    except RefreshTokenRevokedError:
-        raise UnauthorizedError("Invalid refresh token") from None
-    except RefreshTokenReusedError as exc:
-        await handle_reuse_detected(store, exc, reuse_counter_name)
-        raise UnauthorizedError("Invalid refresh token") from None
+) -> tuple[TokenPair, ClaimsT]:
+    consumed = await store.try_consume(refresh_token)
 
     now = datetime.now(tz=UTC)
     claims = await verify_owner_active(consumed.owner_id, consumed.claims)
 
-    access_token, access_expires_in = await build_access_token(consumed.owner_id, claims)
+    access_token, access_expires_in = build_access_token(consumed.owner_id, claims)
 
     new_refresh_token = generate_refresh_token()
-    new_expires_at = min(refresh_token_expiry(refresh_ttl), consumed.family_expires_at)
+    new_expires_at = min(now + parse_expires_delta(refresh_ttl), consumed.family_expires_at)
     await store.insert(
         token_id=new_refresh_token,
         owner_id=consumed.owner_id,
@@ -164,9 +115,10 @@ async def rotate[ClaimsT](
         created_at=now,
     )
 
-    return {
+    pair: TokenPair = {
         "access_token": access_token,
         "refresh_token": new_refresh_token,
         "expires_in": access_expires_in,
         "token_type": "Bearer",
     }
+    return pair, claims

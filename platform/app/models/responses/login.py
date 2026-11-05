@@ -25,4 +25,4 @@ class TokenResponse(BaseModel):
 
 class AggregatorTokenResponse(TokenResponse):
     refresh_token: str
-    scope: str | None = None
+    scope: str = ""

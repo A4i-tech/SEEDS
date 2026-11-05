@@ -29,7 +29,7 @@ describe("AppHeader logout", () => {
   });
 
   it("renders no error when the session is terminated", async () => {
-    const onLogout = jest.fn().mockResolvedValue(undefined);
+    const onLogout = jest.fn().mockResolvedValue({});
     renderHeader(onLogout);
 
     await clickLogout();

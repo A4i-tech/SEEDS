@@ -21,11 +21,6 @@ def _stored_token_id(raw_token: str) -> str:
     return hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
 
 
-class _FakeRequest:
-    def __init__(self) -> None:
-        self.cookies: dict[str, str] = {}
-
-
 @pytest.fixture
 def mock_db():
     client = AsyncMongoMockClient()
@@ -55,16 +50,13 @@ async def test_tenant_logout_revokes_other_active_sessions(mock_db):
         await repo.insert(
             token_id=raw_token,
             owner_id=owner_id,
-            claims={"role": "tenant", "tenant_id": None, "school_id": None},
+            claims={"role": "tenant", "tenant_id": owner_id, "school_id": ""},
             expires_at=now + timedelta(days=30),
             family_expires_at=now + timedelta(days=30),
             created_at=now,
         )
 
-    request = _FakeRequest()
-    request.cookies["refresh_token"] = "this-session-raw-token"
-
-    await tenant_logout(request, Response(), service=AuthService(mock_db))
+    await tenant_logout(Response(), "this-session-raw-token", service=AuthService(mock_db))
 
     other_doc = await mock_db["userRefreshTokens"].find_one(
         {"token_id": _stored_token_id("other-session-raw-token")}

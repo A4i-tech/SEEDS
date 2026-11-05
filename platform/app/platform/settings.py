@@ -27,7 +27,6 @@ class Settings(BaseSettings):
     mongo_max_pool_size: int = 50
 
     secret_key: str = Field(default="", repr=False)
-
     auth_type: Literal["jwt", "firebase"] = "jwt"
     jwt_expires_in: str = "1h"
     password_salt_rounds: int = 10

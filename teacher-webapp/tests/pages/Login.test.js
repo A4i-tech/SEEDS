@@ -51,7 +51,7 @@ describe("Login", () => {
     authHelpers.isLocalStorageAvailable.mockReturnValue(true);
     useAuthContext.mockReturnValue({
       login: jest.fn(),
-      loginState: { data: null, error: null, isLoading: false },
+      loginState: { status: "idle", data: {}, error: "" },
     });
   });
 
@@ -131,7 +131,11 @@ describe("Login", () => {
     test("401 shows invalid-credentials message", async () => {
       useAuthContext.mockReturnValue({
         login: jest.fn(),
-        loginState: { data: null, error: { response: { status: 401, data: { message: "Invalid phone or password" } } }, isLoading: false },
+        loginState: {
+          status: "error",
+          data: {},
+          error: { status: 401, response: { status: 401, data: { message: "Invalid phone or password" } } },
+        },
       });
 
       render(<Login />);
@@ -143,7 +147,11 @@ describe("Login", () => {
     test("500 shows a server-error message, not invalid credentials", async () => {
       useAuthContext.mockReturnValue({
         login: jest.fn(),
-        loginState: { data: null, error: { response: { status: 500, data: { message: "Internal server error" } } }, isLoading: false },
+        loginState: {
+          status: "error",
+          data: {},
+          error: { status: 500, response: { status: 500, data: { message: "Internal server error" } } },
+        },
       });
 
       render(<Login />);
@@ -156,7 +164,7 @@ describe("Login", () => {
     test("network/unknown error shows a connectivity message, not invalid credentials", async () => {
       useAuthContext.mockReturnValue({
         login: jest.fn(),
-        loginState: { data: null, error: { message: "Network Error" }, isLoading: false },
+        loginState: { status: "error", data: {}, error: { status: 0, message: "Network Error" } },
       });
 
       render(<Login />);
@@ -169,7 +177,7 @@ describe("Login", () => {
     test("successful login shows no error alert", async () => {
       useAuthContext.mockReturnValue({
         login: jest.fn(),
-        loginState: { data: { token: "tok" }, error: null, isLoading: false },
+        loginState: { status: "ok", data: { token: "tok" }, error: "" },
       });
 
       render(<Login />);

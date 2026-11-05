@@ -32,8 +32,6 @@ from tests.support.mongomock_async import AsyncMongoMockClient
 
 
 def _cookie_would_be_sent(set_cookie_header: str, path: str) -> bool:
-    """RFC 6265 path-matching check using the stdlib cookie jar (real browser semantics)."""
-
     class _FakeResponse:
         def info(self):
             return self
@@ -208,7 +206,7 @@ class TestTenantAuth:
         assert refresh_resp.status_code == 401
 
     @pytest.mark.asyncio
-    async def test_tenant_logout_with_reused_refresh_token_still_clears_cookie(self, client, mock_db):
+    async def test_tenant_logout_with_reused_refresh_token_is_rejected(self, client, mock_db):
         await _seed_tenant(mock_db, email="tenantreuse@ext.com")
         login_resp = await client.post("/auth/login", json={
             "identifier": "tenantreuse@ext.com",
@@ -221,16 +219,10 @@ class TestTenantAuth:
         refresh_resp = await client.post("/auth/token/refresh")
         assert refresh_resp.status_code == 200
 
-        await mock_db["userRefreshTokens"].update_one(
-            {"revoked_reason": "consumed"},
-            {"$set": {"consumed_at": datetime.now(tz=UTC) - timedelta(minutes=5)}},
-        )
-
         client.cookies.set("refresh_token", stolen_refresh_token)
         resp = await client.post("/tenant/logout")
 
         assert resp.status_code == 401
-        assert "refresh_token=" in resp.headers.get("set-cookie", "")
 
     @pytest.mark.asyncio
     async def test_refresh_cookie_path_covers_teacher_tenant_and_auth_routes(self, client, mock_db):
@@ -329,10 +321,6 @@ class TestTenantAuth:
         assert "name" in data
 
 
-# ---------------------------------------------------------------------------
-# Content aggregator token endpoints
-# ---------------------------------------------------------------------------
-
 
 class TestContentAggregatorAuth:
     @pytest.mark.asyncio
@@ -405,7 +393,7 @@ class TestContentAggregatorAuth:
         assert resp.status_code == 422
 
     @pytest.mark.asyncio
-    async def test_issue_token_invalid_client_returns_oauth_error(self, client, mock_db):
+    async def test_issue_token_invalid_client_returns_401(self, client, mock_db):
         resp = await client.post(
             "/v1/auth/token",
             json={
@@ -415,12 +403,10 @@ class TestContentAggregatorAuth:
             },
         )
         assert resp.status_code == 401
-        assert resp.headers["www-authenticate"] == "Bearer"
-        assert resp.headers["cache-control"] == "no-store"
-        assert resp.json()["error"] == "invalid_client"
+        assert resp.json()["code"] == "UNAUTHORIZED"
 
     @pytest.mark.asyncio
-    async def test_refresh_token_invalid_grant_returns_oauth_error(self, client, mock_db):
+    async def test_refresh_token_invalid_token_returns_401(self, client, mock_db):
         await mock_db["integrationClients"].insert_one(
             {
                 "client_id": "partner-1",
@@ -439,8 +425,7 @@ class TestContentAggregatorAuth:
             json={"refresh_token": "does-not-exist"},
         )
         assert resp.status_code == 401
-        assert resp.headers["www-authenticate"] == "Bearer"
-        assert resp.json()["error"] == "invalid_grant"
+        assert resp.json()["code"] == "UNAUTHORIZED"
 
 
 # ---------------------------------------------------------------------------

@@ -38,6 +38,5 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 
 def hash_refresh_token(token: str) -> str:
-    """Hash *token* with SHA-256 for at-rest storage/lookup."""
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
 

@@ -11,9 +11,9 @@ from __future__ import annotations
 
 import logging
 from collections.abc import AsyncGenerator
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import Depends, Request, Response
+from fastapi import Cookie, Depends, Request, Response
 from fastapi.security import OAuth2PasswordBearer
 from pymongo.asynchronous.database import AsyncDatabase
 
@@ -30,6 +30,7 @@ logger = logging.getLogger(__name__)
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token", auto_error=False)
 
 REFRESH_COOKIE_NAME = "refresh_token"
+RefreshCookie = Annotated[str, Cookie(alias=REFRESH_COOKIE_NAME)]
 
 
 def set_refresh_cookie(response: Response, refresh_token: str) -> None:

@@ -5,9 +5,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from pymongo.errors import DuplicateKeyError
 
-from app.platform.auth.refresh_tokens import (
-    RefreshTokenReusedError,
-)
+from app.platform.auth.refresh_tokens import RefreshTokenInvalidError
 from app.repositories.user_refresh_token_repository import UserRefreshTokenRepository
 from tests.support.mongomock_async import AsyncMongoMockClient
 
@@ -35,7 +33,7 @@ async def test_token_id_index_is_unique(mock_db):
     await repo.insert(
         token_id="raw-token",
         owner_id="user-1",
-        claims={"role": "teacher", "tenant_id": "t1", "school_id": None},
+        claims={"role": "teacher", "tenant_id": "t1", "school_id": ""},
         expires_at=now + timedelta(days=30),
         family_expires_at=now + timedelta(days=30),
         created_at=now,
@@ -45,7 +43,7 @@ async def test_token_id_index_is_unique(mock_db):
         await repo.insert(
             token_id="raw-token",
             owner_id="user-2",
-            claims={"role": "teacher", "tenant_id": "t1", "school_id": None},
+            claims={"role": "teacher", "tenant_id": "t1", "school_id": ""},
             expires_at=now + timedelta(days=30),
             family_expires_at=now + timedelta(days=30),
             created_at=now,
@@ -66,13 +64,13 @@ async def test_try_consume_reuse_is_genuine_theft(mock_db):
     await repo.insert(
         token_id="raw-token",
         owner_id="user-1",
-        claims={"role": "teacher", "tenant_id": "t1", "school_id": None},
+        claims={"role": "teacher", "tenant_id": "t1", "school_id": ""},
         expires_at=now + timedelta(days=30),
         family_expires_at=now + timedelta(days=30),
         created_at=now,
     )
     await repo.try_consume("raw-token")
 
-    with pytest.raises(RefreshTokenReusedError):
+    with pytest.raises(RefreshTokenInvalidError):
         await repo.try_consume("raw-token")
 

@@ -142,7 +142,7 @@ const Login = () => {
     }
 
     const data = await login({ identifier, password });
-    if (!data) return;
+    if (!data.token) return;
     resetUserCache();
     const { role, school_id: schoolId, name } = getTokenPayload();
     setAuth(data.token, role, schoolId);
@@ -199,8 +199,8 @@ const Login = () => {
             />
           </div>
 
-          <button type="submit" style={buttonStyle} disabled={loginState.isLoading}>
-            {loginState.isLoading ? "Logging in..." : "Login"}
+          <button type="submit" style={buttonStyle} disabled={loginState.status === "loading"}>
+            {loginState.status === "loading" ? "Logging in..." : "Login"}
           </button>
         </form>
 

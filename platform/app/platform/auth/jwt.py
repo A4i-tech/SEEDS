@@ -148,4 +148,3 @@ def verify_token(token: str) -> dict[str, Any]:
         raise UnauthorizedError("Invalid token issuer")
 
     return payload
-

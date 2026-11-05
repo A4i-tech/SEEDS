@@ -19,7 +19,7 @@ const Register = lazy(() => import("./components/Register"));
 
 function AppRoutes() {
   const { initializing } = useAuthContext();
-  if (initializing) return null;
+  if (initializing) return <div>Loading...</div>;
 
   return (
     <BrowserRouter>
@@ -27,7 +27,10 @@ function AppRoutes() {
         <Routes>
           <Route path="/" element={<PublicRoute element={<Login />} />}></Route>
           <Route path="/content" element={<ProtectedRoute element={<AllContent />} />} />
-          <Route path="/content/create" element={<ProtectedRoute element={<AddContent />} />} />
+          <Route
+            path="/content/create"
+            element={<ProtectedRoute element={<AddContent />} />}
+          />
           <Route
             path="/content/sync-history"
             element={<ProtectedRoute element={<SyncHistoryPage />} />}

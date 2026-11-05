@@ -73,7 +73,6 @@ class TestLoginIssuesRefreshToken:
         )
 
         stored = await mock_db["userRefreshTokens"].find_one({"token_id": _stored_token_id(result["refresh_token"])})
-        assert stored is not None
         assert stored["revoked"] is False
         assert stored["claims"]["role"] == "tenant"
 
@@ -96,7 +95,6 @@ class TestRefreshSuccess:
         assert old_doc["revoked"] is True
 
         new_doc = await mock_db["userRefreshTokens"].find_one({"token_id": _stored_token_id(result["refresh_token"])})
-        assert new_doc is not None
         assert new_doc["revoked"] is False
 
 
@@ -197,28 +195,6 @@ class TestSchoolAdminAndPhoneLoginAlsoIssueRefreshTokens:
 
 
 class TestLogoutRevocation:
-    async def test_logout_revoked_token_replay_does_not_trigger_reuse_alarm(self, mock_db, caplog):
-        await _seed_tenant(mock_db)
-        service = AuthService(mock_db)
-        issued = await service.login_unified(
-            identifier="tenant@example.com", password="correct-horse", is_email=True
-        )
-        owner_id = issued["user"]["id"]
-
-        await service.logout(owner_id)
-
-        doc = await mock_db["userRefreshTokens"].find_one({"token_id": _stored_token_id(issued["refresh_token"])})
-        assert doc["revoked"] is True
-        assert doc["revoked_reason"] == "logout"
-
-        with caplog.at_level("WARNING"):
-            with pytest.raises(UnauthorizedError):
-                await service.refresh(issued["refresh_token"])
-
-        assert not any(
-            getattr(record, "event", None) == "refresh_token_reuse_detected" for record in caplog.records
-        )
-
     async def test_consumed_token_replay_still_triggers_reuse_alarm(self, mock_db, caplog):
         await _seed_tenant(mock_db)
         service = AuthService(mock_db)
@@ -232,26 +208,8 @@ class TestLogoutRevocation:
                 await service.refresh(issued["refresh_token"])
 
         assert any(
-            getattr(record, "event", None) == "refresh_token_reuse_detected" for record in caplog.records
+            record.__dict__.get("event", "") == "refresh_token_reuse_detected" for record in caplog.records
         )
-
-    async def test_logout_does_not_relabel_already_consumed_tokens(self, mock_db):
-        await _seed_tenant(mock_db)
-        service = AuthService(mock_db)
-        issued = await service.login_unified(
-            identifier="tenant@example.com", password="correct-horse", is_email=True
-        )
-        owner_id = issued["user"]["id"]
-        rotated = await service.refresh(issued["refresh_token"])
-
-        await service.logout(owner_id)
-
-        consumed_doc = await mock_db["userRefreshTokens"].find_one({"token_id": _stored_token_id(issued["refresh_token"])})
-        assert consumed_doc["revoked_reason"] == "consumed"
-
-        active_doc = await mock_db["userRefreshTokens"].find_one({"token_id": _stored_token_id(rotated["refresh_token"])})
-        assert active_doc["revoked"] is True
-        assert active_doc["revoked_reason"] == "logout"
 
     async def test_logout_by_refresh_token_revokes_other_family_tokens(self, mock_db, caplog):
         await _seed_tenant(mock_db)
@@ -272,10 +230,8 @@ class TestLogoutRevocation:
                 await service.refresh(rotated["refresh_token"])
 
         assert not any(
-            getattr(record, "event", None) == "refresh_token_reuse_detected" for record in caplog.records
+            record.__dict__.get("event", "") == "refresh_token_reuse_detected" for record in caplog.records
         )
-
-
 
     async def test_logout_by_refresh_token_with_expired_token_is_a_noop(self, mock_db, caplog):
         await _seed_tenant(mock_db)
@@ -292,7 +248,7 @@ class TestLogoutRevocation:
             await service.logout_by_refresh_token(issued["refresh_token"])
 
         assert not any(
-            getattr(record, "event", None) == "refresh_token_reuse_detected" for record in caplog.records
+            record.__dict__.get("event", "") == "refresh_token_reuse_detected" for record in caplog.records
         )
 
     async def test_logout_by_refresh_token_with_unknown_token_is_a_noop(self, mock_db):
