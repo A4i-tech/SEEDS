@@ -14,7 +14,7 @@ from app.models.requests.tenant_requests import TenantAnalyticsRequest
 from app.models.responses.analytics_response import AnalyticsResponse
 from app.models.responses.dashboard import TenantDashboardResponse
 from app.models.responses.login import MessageResponse
-from app.models.responses.user import UserPublicResponse
+from app.models.responses.user import TenantNameResponse, UserPublicResponse
 from app.platform.auth.dependencies import RefreshCookie, require_tenant
 from app.repositories.ivr_repository import IVRRepository
 from app.services.auth_service import AuthService, TenantCreate, get_auth_service
@@ -24,10 +24,10 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/tenant", tags=["Auth"])
 
 
-@router.get("/names", summary="Get all tenant names (public)", status_code=status.HTTP_200_OK)
+@router.get("/names", summary="Get all tenant ids and names (public)", status_code=status.HTTP_200_OK)
 async def tenant_names(
     service: AuthService = Depends(get_auth_service),
-) -> list[str]:
+) -> list[TenantNameResponse]:
     return await service.get_tenant_names()
 
 
