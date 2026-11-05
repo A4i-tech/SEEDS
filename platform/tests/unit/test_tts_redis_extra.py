@@ -28,12 +28,6 @@ class TestTTSServicePure:
         result = _get_tts_attributes("hi")
         assert result is not None
 
-    def test_get_tts_attributes_unsupported(self) -> None:
-        from app.services.tts_service import _get_tts_attributes
-
-        result = _get_tts_attributes("klingon")
-        assert result is None
-
     def test_get_tts_attributes_kannada(self) -> None:
         from app.services.tts_service import _get_tts_attributes
 

@@ -143,15 +143,12 @@ async def _transcode_to_wav(input_path: str, output_path: str) -> None:
     logger.info("ffmpeg: transcoding %s -> %s", input_path, output_path)
 
     # Run in executor to avoid blocking the event loop
-    loop = asyncio.get_event_loop()
-    await loop.run_in_executor(
-        None,
-        lambda: subprocess.run(  # nosec B603 — list form, no shell=True
-            cmd,
-            check=True,
-            capture_output=True,
-            timeout=FFMPEG_TIMEOUT_SECONDS,
-        ),
+    await asyncio.to_thread(
+        subprocess.run,  # nosec B603 — list form, no shell=True
+        cmd,
+        check=True,
+        capture_output=True,
+        timeout=FFMPEG_TIMEOUT_SECONDS,
     )
     logger.info("ffmpeg: completed %s", output_path)
 
@@ -211,7 +208,7 @@ async def _process_audio_item(
     audio_url: str,
     content_id: str,
     blob_provider,
-) -> tuple[str, float | None]:
+) -> tuple[str, float]:
     """Download *audio_url*, transcode to WAV, upload, return (new_url, duration).
 
     Raises on any failure; caller handles dead-lettering.
@@ -238,7 +235,7 @@ async def _process_audio_item(
             transcoded = fh.read()
 
         # Extract duration (best-effort)
-        duration: float | None = None
+        duration = 0.0
         try:
             duration = await _extract_duration(output_path)
         except Exception as exc:  # noqa: BLE001
@@ -255,7 +252,7 @@ async def _process_audio_item(
         _cleanup_temp_files(input_path, output_path)
 
 
-async def _extract_duration(wav_path: str) -> float | None:
+async def _extract_duration(wav_path: str) -> float:
     """Extract duration in seconds from a WAV file using ffprobe."""
     _validate_temp_path(wav_path)
 
@@ -267,8 +264,6 @@ async def _extract_duration(wav_path: str) -> float | None:
         wav_path,
     ]
 
-    loop = asyncio.get_event_loop()
-
     def _run() -> str:
         result = subprocess.run(  # nosec B603 — list form, no shell=True
             cmd,
@@ -279,11 +274,7 @@ async def _extract_duration(wav_path: str) -> float | None:
         )
         return result.stdout.strip()
 
-    output = await loop.run_in_executor(None, _run)
-    try:
-        return float(output)
-    except (ValueError, TypeError):
-        return None
+    return float(await asyncio.to_thread(_run))
 
 
 # ---------------------------------------------------------------------------
@@ -363,7 +354,7 @@ async def _process_audio_content_job(
 
     await job_repo.mark_running(job_id)
 
-    last_exc: Exception | None = None
+    last_exc: Exception = RuntimeError("Unknown error")
     for attempt in range(1, MAX_RETRIES + 1):
         try:
             content_doc = await content_repo.find_raw_by_id(content_id)
@@ -386,7 +377,7 @@ async def _process_audio_content_job(
 
                 new_url, duration = await _process_audio_item(audio_url, str(content_id), blob_provider)
                 updated_item = {**item, "audio_url": new_url}
-                if duration is not None:
+                if duration:
                     updated_item["duration_seconds"] = duration
                 updated_audio.append(updated_item)
 
@@ -439,14 +430,13 @@ async def _process_audio_content_job(
             break  # skip retries for permanent errors
 
     # Dead-letter: mark as failed with reason
-    error_msg = str(last_exc) if last_exc else "Unknown error"
+    error_msg = str(last_exc)
     logger.error(
         "content_job: dead-lettering job_id=%s content_id=%s reason=%r",
         job_id, content_id, error_msg,
     )
     await job_repo.mark_failed(job_id, error_msg)
-    if last_exc is not None:
-        raise last_exc
+    raise last_exc
 
 
 # ---------------------------------------------------------------------------
@@ -484,24 +474,22 @@ class ContentJobConsumer:
 
     async def _run_loop(self) -> None:
         """Poll for pending jobs and process them."""
-        blob_provider = None
         job_repo = ContentJobRepository(self._db)
         content_repo = ContentRepository(self._db)
 
         while self._running:
             # Re-attempt init each cycle so we recover when blob storage comes back
-            if blob_provider is None:
-                try:
-                    from app.providers.blob_storage import BlobStorageProvider  # noqa: PLC0415
-                    blob_provider = BlobStorageProvider()
-                except Exception as exc:  # noqa: BLE001
-                    logger.warning(
-                        "ContentJobConsumer: BlobStorageProvider unavailable — %s. "
-                        "No jobs will be claimed until storage recovers. Retrying in %ds.",
-                        exc, POLL_INTERVAL_SECONDS,
-                    )
-                    await asyncio.sleep(POLL_INTERVAL_SECONDS)
-                    continue
+            try:
+                from app.providers.blob_storage import get_blob_storage_provider  # noqa: PLC0415
+                blob_provider = get_blob_storage_provider()
+            except Exception as exc:  # noqa: BLE001
+                logger.warning(
+                    "ContentJobConsumer: BlobStorageProvider unavailable — %s. "
+                    "No jobs will be claimed until storage recovers. Retrying in %ds.",
+                    exc, POLL_INTERVAL_SECONDS,
+                )
+                await asyncio.sleep(POLL_INTERVAL_SECONDS)
+                continue
 
             try:
                 job_doc = await job_repo.claim_next_pending()

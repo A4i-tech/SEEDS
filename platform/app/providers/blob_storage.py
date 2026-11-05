@@ -18,13 +18,19 @@ NCCO-building code path (``VonageStreamAction.get()`` / ``ActionAccumulator``).
 from __future__ import annotations
 
 import logging
+import threading
 from datetime import UTC, datetime, timedelta
 from typing import IO
 from urllib.parse import unquote, urlparse
 
 from azure.identity import DefaultAzureCredential
 from azure.identity.aio import DefaultAzureCredential as AsyncDefaultAzureCredential
-from azure.storage.blob import BlobSasPermissions, ContentSettings, generate_blob_sas
+from azure.storage.blob import (
+    BlobSasPermissions,
+    ContentSettings,
+    UserDelegationKey,
+    generate_blob_sas,
+)
 from azure.storage.blob import BlobServiceClient as SyncBlobServiceClient
 from azure.storage.blob.aio import BlobServiceClient, ContainerClient
 
@@ -45,7 +51,7 @@ class BlobStorageProvider:
     def __init__(self) -> None:
         settings = get_settings()
         self._account_name: str = settings.azure_storage_account_name
-        self._account_key: str | None = settings.azure_storage_account_key or None
+        self._account_key: str = settings.azure_storage_account_key
         self._use_shared_key: bool = bool(self._account_key)
 
         conn_str = settings.azure_storage_connection_string
@@ -225,6 +231,12 @@ class BlobStorageProvider:
 # ---------------------------------------------------------------------------
 
 
+_DELEGATION_KEY_LIFETIME = timedelta(hours=24)
+_DELEGATION_REFRESH_MARGIN = timedelta(hours=2)
+_delegation_lock = threading.Lock()
+_delegation_key: tuple[UserDelegationKey, datetime] | None = None
+
+
 class SASGenerator:
     """Synchronous SAS URL generator for use in Vonage action get() calls.
 
@@ -235,60 +247,70 @@ class SASGenerator:
     def __init__(self) -> None:
         settings = get_settings()
         self._account_name: str = settings.azure_storage_account_name
-        self._account_key: str | None = (
-            settings.accountkey or settings.azure_storage_account_key or None
-        )
+        self._account_key: str = settings.accountkey or settings.azure_storage_account_key
         self._azure_enabled: bool = settings.azure_blob_sas_enabled
         self._sas_expiry_hours: int = 1
         self._use_account_key: bool = bool(self._account_name and self._account_key)
+
+    def _get_delegation_key(self) -> UserDelegationKey:
+        global _delegation_key
+        now = datetime.now(UTC)
+        cached = _delegation_key
+        if cached and cached[1] - now > _DELEGATION_REFRESH_MARGIN:
+            return cached[0]
+        with _delegation_lock:
+            cached = _delegation_key
+            if cached and cached[1] - now > _DELEGATION_REFRESH_MARGIN:
+                return cached[0]
+            expiry = now + _DELEGATION_KEY_LIFETIME
+            client = SyncBlobServiceClient(
+                account_url=f"https://{self._account_name}.blob.core.windows.net",
+                credential=DefaultAzureCredential(),
+            )
+            udk = client.get_user_delegation_key(now - timedelta(minutes=5), expiry)
+            _delegation_key = (udk, expiry)
+            return udk
 
     def get_url_with_sas(self, url: str) -> str:  # noqa: C901
         """Return *url* with a read SAS token appended, or the original URL on error."""
         if not self._azure_enabled:
             return url
-        try:
-            decoded_url = unquote(url)
-            parsed = urlparse(decoded_url)
-            parts = [p for p in parsed.path.split("/") if p]
-            if len(parts) < 2:
-                return url
-            container_name = parts[0]
-            blob_path = "/".join(parts[1:])
-
-            expiry = datetime.now(UTC) + timedelta(hours=self._sas_expiry_hours)
-            start = datetime.now(UTC) - timedelta(minutes=5)
-
-            if self._use_account_key:
-                sas_token = generate_blob_sas(
-                    account_name=self._account_name,
-                    container_name=container_name,
-                    blob_name=blob_path,
-                    account_key=self._account_key,
-                    permission=BlobSasPermissions(read=True),
-                    expiry=expiry,
-                    start=start,
-                )
-            else:
-                client = SyncBlobServiceClient(
-                    account_url=f"https://{self._account_name}.blob.core.windows.net",
-                    credential=DefaultAzureCredential(),
-                )
-                udk = client.get_user_delegation_key(start, expiry)
-                sas_token = generate_blob_sas(
-                    account_name=self._account_name,
-                    container_name=container_name,
-                    blob_name=blob_path,
-                    user_delegation_key=udk,
-                    permission=BlobSasPermissions(read=True),
-                    expiry=expiry,
-                    start=start,
-                )
-
-            blob_base = f"https://{self._account_name}.blob.core.windows.net/{container_name}/{blob_path}"
-            return f"{blob_base}?{sas_token}"
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("SASGenerator: failed to generate SAS URL — %s", exc)
+        decoded_url = unquote(url)
+        parsed = urlparse(decoded_url)
+        parts = [p for p in parsed.path.split("/") if p]
+        if len(parts) < 2:
+            logger.warning("SASGenerator: no container/blob in URL, returning unsigned: %s", url)
             return url
+        container_name = parts[0]
+        blob_path = "/".join(parts[1:])
+
+        expiry = datetime.now(UTC) + timedelta(hours=self._sas_expiry_hours)
+        start = datetime.now(UTC) - timedelta(minutes=5)
+
+        if self._use_account_key:
+            sas_token = generate_blob_sas(
+                account_name=self._account_name,
+                container_name=container_name,
+                blob_name=blob_path,
+                account_key=self._account_key,
+                permission=BlobSasPermissions(read=True),
+                expiry=expiry,
+                start=start,
+            )
+        else:
+            udk = self._get_delegation_key()
+            sas_token = generate_blob_sas(
+                account_name=self._account_name,
+                container_name=container_name,
+                blob_name=blob_path,
+                user_delegation_key=udk,
+                permission=BlobSasPermissions(read=True),
+                expiry=expiry,
+                start=start,
+            )
+
+        blob_base = f"https://{self._account_name}.blob.core.windows.net/{container_name}/{blob_path}"
+        return f"{blob_base}?{sas_token}"
 
 
 # ---------------------------------------------------------------------------
