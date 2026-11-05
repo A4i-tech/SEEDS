@@ -89,13 +89,13 @@ class TestDispatchConferenceEvent:
         assert queued_event.conversation_uuid_to == "conv-to"
         assert queued_event.timestamp == "2026-01-01T00:00:00Z"
 
-    async def test_unmatched_payload_is_logged_and_does_not_raise(self, caplog: pytest.LogCaptureFixture) -> None:
+    async def test_unmatched_payload_logs_transfer_construction_error(self, caplog: pytest.LogCaptureFixture) -> None:
         conf = _make_conf()
         manager = _make_manager(conf)
         caller_state_manager = AsyncMock()
 
-        with caplog.at_level(logging.INFO, logger="app.services.conference_event_dispatcher"):
+        with caplog.at_level(logging.ERROR, logger="app.services.conference_event_dispatcher"):
             await dispatch_conference_event({"unrelated": "field"}, "conf-1", manager, caller_state_manager)
 
         conf.queue_event.assert_not_called()
-        assert "does not match any known type conf_id=conf-1" in caplog.text
+        assert "transfer event error conf_id=conf-1" in caplog.text

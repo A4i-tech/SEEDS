@@ -59,13 +59,11 @@ async def dispatch_conference_event(
     except ValidationError:
         try:
             transfer_event = VonageCallTransferEvent(conf_call=conf, **event_data)
-        except (ValidationError, TypeError):
+            await conf.queue_event(transfer_event)
+        except ValidationError:
             logger.info("dispatcher: event does not match any known type conf_id=%s", conference_id)
-        else:
-            try:
-                await conf.queue_event(transfer_event)
-            except Exception as exc:
-                logger.error("dispatcher: transfer event error conf_id=%s — %s", conference_id, exc)
+        except Exception as exc:
+            logger.error("dispatcher: transfer event error conf_id=%s — %s", conference_id, exc)
     except Exception as exc:
         logger.error("dispatcher: event processing error conf_id=%s — %s", conference_id, exc)
 

@@ -71,10 +71,14 @@ def _make_client(settings=None, transport=None):
     if settings is None:
         settings = _make_settings()
     with patch("app.providers.subodha_client.get_settings", return_value=settings):
-        client = SubodhaClient()
-    if transport is not None:
-        client._http = httpx.AsyncClient(timeout=30.0, transport=transport)
-    return client
+        if transport is None:
+            return SubodhaClient()
+        real_async_client = httpx.AsyncClient
+        with patch(
+            "app.providers.subodha_client.httpx.AsyncClient",
+            lambda **kwargs: real_async_client(**{**kwargs, "transport": transport}),
+        ):
+            return SubodhaClient()
 
 
 @pytest.fixture
