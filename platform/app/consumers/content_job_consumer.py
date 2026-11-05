@@ -318,7 +318,7 @@ async def _process_tts_for_content(content_doc: dict, blob_provider) -> None:
     theme_local = (theme.get("local") or "").strip()
 
     if theme_english:
-        theme_blob_name = f"{theme_english}/1.0.mp3"
+        theme_blob_name = f"{theme_english}/{language}/1.0.mp3"
         # Check if theme audio already exists
         try:
             container_client = blob_provider.get_container_client("theme-titles")
@@ -392,19 +392,17 @@ async def _process_audio_content_job(
 
             content_doc["audio_content"] = updated_audio
 
-            # TTS for pull-model content
-            if content_doc.get("is_pull_model"):
-                await _process_tts_for_content(content_doc, blob_provider)
-
             # Save updated content
             update_fields: dict = {
                 "audio_content": content_doc["audio_content"],
                 "is_processed": True,
             }
-            if "title" in content_doc:
-                update_fields["title"] = content_doc["title"]
-            if "theme" in content_doc:
-                update_fields["theme"] = content_doc["theme"]
+            # TTS for pull-model content
+            if content_doc.get("is_pull_model"):
+                await _process_tts_for_content(content_doc, blob_provider)
+                for field in ("title", "theme"):
+                    if audio_url := content_doc.get(field, {}).get("audio_url"):
+                        update_fields[f"{field}.audio_url"] = audio_url
 
             await content_repo.save_processed(content_id, update_fields)
             await job_repo.mark_completed(job_id)
