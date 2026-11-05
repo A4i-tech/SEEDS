@@ -898,7 +898,7 @@ class TranslationService:
                 counts[plan["kind"]] += 1
                 written.append(plan)
                 if index in unverified:
-                    warn(plan, "version_not_recorded" if plan.get("version_doc") else "save_not_confirmed")
+                    warn(plan, "save_not_confirmed")
 
         unverified_keys = {(planned[i]["route"], planned[i]["key"]) for i in unverified}
 

@@ -921,7 +921,7 @@ async def test_failed_version_guard_lookup_does_not_turn_saved_rows_into_a_serve
     res = await _import(service, [{**_row("Hello World", "new text"), "row": 4}], state="approved")
 
     assert res["updated"] == 1 and res["failed"] == 0 and res["errors"] == []
-    assert [(w.row, w.route, w.key, w.reason) for w in res["warnings"]] == [(4, "/", key, "version_not_recorded")]
+    assert [(w.row, w.route, w.key, w.reason) for w in res["warnings"]] == [(4, "/", key, "save_not_confirmed")]
     entry = (await _doc(repo, key))["translations"]["kn"]
     assert (entry["text"], entry["status"]) == ("new text", "approved")
     assert version_calls == []
@@ -960,7 +960,7 @@ async def test_failed_new_row_id_lookup_does_not_turn_saved_rows_into_a_server_e
     res = await _import(service, [{**_row("Hello World", "new text"), "row": 4}], state="approved")
 
     assert res["created"] == 1 and res["failed"] == 0
-    assert [(w.row, w.reason) for w in res["warnings"]] == [(4, "version_not_recorded")]
+    assert [(w.row, w.reason) for w in res["warnings"]] == [(4, "save_not_confirmed")]
     key = sdk_rolling_hash("Hello World")
     entry = (await _doc(repo, key))["translations"]["kn"]
     assert (entry["text"], entry["status"]) == ("new text", "approved")

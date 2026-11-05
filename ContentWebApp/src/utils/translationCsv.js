@@ -138,12 +138,12 @@ export const buildImportRows = (table, targetIndex) => {
   const short = table.rows.find(({ cells }) => cells.length <= required);
   if (short) throw new Error(`Row ${short.number} has fewer columns than the header.`);
   return table.rows.map(({ cells: row, number }) => ({
-      row: number,
-      route: unescapeFormula(cell(row, table.routeIndex).trim()),
-      key: unescapeFormula(cell(row, table.assetIndex).trim()),
-      source: unescapeFormula(cell(row, table.sourceIndex)),
-      text: unescapeFormula(cell(row, targetIndex)),
-    }));
+    row: number,
+    route: unescapeFormula(cell(row, table.routeIndex).trim()),
+    key: unescapeFormula(cell(row, table.assetIndex).trim()),
+    source: unescapeFormula(cell(row, table.sourceIndex)),
+    text: unescapeFormula(cell(row, targetIndex)),
+  }));
 };
 
 export const countQuestionMarkTranslations = (rows) =>
