@@ -221,7 +221,7 @@ const ContentDrawer = ({
             {conferenceActive && " \u00B7 Conference mode"}
           </Typography>
         </Box>
-        <IconButton onClick={onClose} size="small" sx={{ color: "#fff" }}>
+        <IconButton onClick={onClose} size="small" aria-label="Close" sx={{ color: "#fff" }}>
           <CloseIcon />
         </IconButton>
       </Box>

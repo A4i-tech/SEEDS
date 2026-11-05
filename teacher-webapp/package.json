@@ -9,7 +9,9 @@
     "eject": "react-scripts eject",
     "lint": "npx eslint src/",
     "lint:fix": "npx eslint src/ --fix && npx prettier src/ --write",
-    "fix:file": "npx eslint --fix && npx prettier --write"
+    "fix:file": "npx eslint --fix && npx prettier --write",
+    "test:e2e": "playwright test",
+    "test:e2e:report": "playwright show-report"
   },
   "dependencies": {
     "@azure/identity": "^4.4.1",
@@ -29,6 +31,7 @@
   },
   "devDependencies": {
     "@babel/preset-react": "^7.27.1",
+    "@playwright/test": "^1.64.0",
     "@testing-library/jest-dom": "^5.17.0",
     "@testing-library/react": "^13.4.0",
     "@testing-library/user-event": "^13.5.0",
