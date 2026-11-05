@@ -18,7 +18,7 @@ class AccessTokenClaims(TypedDict):
     iat: datetime
     exp: datetime
     jti: str
-    scope: str
+    scopes: list[str]
     tenant_ids: list[str]
     client_name: str
 
@@ -42,7 +42,7 @@ def encode_access_token(
         "iat": now,
         "exp": expire,
         "jti": secrets.token_urlsafe(16),
-        "scope": " ".join(scopes),
+        "scopes": scopes,
         "tenant_ids": tenant_ids,
         "client_name": client_name,
     }

@@ -343,7 +343,6 @@ class TestContentAggregatorAuth:
             json={
                 "client_id": "partner-1",
                 "client_secret": "super-secret",
-                "scope": "content:read",
             },
         )
         assert resp.status_code == 200
@@ -370,7 +369,6 @@ class TestContentAggregatorAuth:
             json={
                 "client_id": "partner-1",
                 "client_secret": "super-secret",
-                "scope": "content:read",
             },
         )
         resp = await client.post(
@@ -387,7 +385,6 @@ class TestContentAggregatorAuth:
             "/v1/auth/token",
             json={
                 "client_id": "partner-1",
-                "scope": "content:read",
             },
         )
         assert resp.status_code == 422
@@ -399,7 +396,6 @@ class TestContentAggregatorAuth:
             json={
                 "client_id": "does-not-exist",
                 "client_secret": "whatever",
-                "scope": "content:read",
             },
         )
         assert resp.status_code == 401

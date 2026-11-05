@@ -38,7 +38,7 @@ class ContentAggregatorAuth:
         return _jwt.encode_access_token(
             client_id=client_id,
             tenant_ids=claims["tenant_ids"],
-            scopes=claims["scope"].split(),
+            scopes=claims["scopes"],
             client_name=claims["client_name"],
             secret_key=self._settings.secret_key,
             expires_in=self._settings.content_aggregator_access_token_expires_in,
@@ -48,7 +48,6 @@ class ContentAggregatorAuth:
         self,
         client_id: str,
         client_secret: str,
-        scopes: list[str],
     ) -> AggregatorTokenResponse:
         client = await self._clients.find_by_client_id(client_id)
         if not verify_password(client_secret, client.client_secret_hash):
@@ -60,14 +59,9 @@ class ContentAggregatorAuth:
         if client.status != IntegrationClientStatus.ACTIVE:
             raise AppError("TENANT_NOT_ALLOWED", "Client is not active", 403)
 
-        if not set(scopes).issubset(client.allowed_scopes):
-            raise AppError("SCOPE_INSUFFICIENT", "Requested scopes exceed allowed scopes", 403)
-        if not scopes:
-            raise AppError("SCOPE_INSUFFICIENT", "Request must include at least one scope.", 403)
-
         claims: IntegrationClaims = {
             "tenant_ids": client.tenant_ids,
-            "scope": " ".join(scopes),
+            "scopes": client.allowed_scopes,
             "client_name": client.name,
         }
         access_token, expires_in = self._encode_access_token(client.client_id, claims)
@@ -79,7 +73,7 @@ class ContentAggregatorAuth:
             access_expires_in=expires_in,
             refresh_ttl=self._settings.content_aggregator_refresh_token_expires_in,
         )
-        return AggregatorTokenResponse(**pair, scope=claims["scope"])
+        return AggregatorTokenResponse(**pair)
 
     async def register_client(
         self,
@@ -121,4 +115,4 @@ class ContentAggregatorAuth:
             build_access_token=self._encode_access_token,
             refresh_ttl=self._settings.content_aggregator_refresh_token_expires_in,
         )
-        return AggregatorTokenResponse(**pair, scope=claims["scope"])
+        return AggregatorTokenResponse(**pair)

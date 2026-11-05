@@ -80,11 +80,10 @@ class TestIssueTokenSuccess:
     async def test_valid_credentials_return_full_token_envelope(self, mock_db, auth):
         await _seed_client(mock_db)
 
-        result = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
+        result = await auth.issue_token("partner-1", "super-secret")
 
-        assert set(result.model_dump()) == {"access_token", "refresh_token", "expires_in", "token_type", "scope"}
+        assert set(result.model_dump()) == {"access_token", "refresh_token", "expires_in", "token_type"}
         assert result.token_type == "Bearer"
-        assert result.scope == "content:read"
         assert isinstance(result.expires_in, int) and result.expires_in > 0
         assert result.access_token
         assert result.refresh_token
@@ -92,7 +91,7 @@ class TestIssueTokenSuccess:
     async def test_refresh_token_is_opaque_and_persisted_by_hash(self, mock_db, auth):
         await _seed_client(mock_db)
 
-        result = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
+        result = await auth.issue_token("partner-1", "super-secret")
 
         with pytest.raises(JWTError):
             jose_jwt.decode(
@@ -110,7 +109,7 @@ class TestIssueTokenSuccess:
     async def test_raw_refresh_token_is_never_persisted(self, mock_db, auth):
         await _seed_client(mock_db)
 
-        result = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
+        result = await auth.issue_token("partner-1", "super-secret")
 
         assert await mock_db["integrationTokens"].count_documents(
             {"token_id": result.refresh_token}
@@ -119,18 +118,18 @@ class TestIssueTokenSuccess:
     async def test_access_token_verifiable(self, mock_db, auth, settings):
         await _seed_client(mock_db, tenant_ids=["tenant-a"], allowed_scopes=["content:read"])
 
-        result = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
+        result = await auth.issue_token("partner-1", "super-secret")
         payload = _decode_access_token(result.access_token, settings)
 
         assert payload["sub"] == "partner-1"
         assert payload["client_name"] == "Partner One"
         assert payload["tenant_ids"] == ["tenant-a"]
-        assert payload["scope"] == "content:read"
+        assert payload["scopes"] == ["content:read"]
 
     async def test_multi_tenant_client_receives_all_tenant_ids_by_default(self, mock_db, auth, settings):
         await _seed_client(mock_db, tenant_ids=["tenant-a", "tenant-b"])
 
-        result = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
+        result = await auth.issue_token("partner-1", "super-secret")
         payload = _decode_access_token(result.access_token, settings)
 
         assert payload["tenant_ids"] == ["tenant-a", "tenant-b"]
@@ -139,23 +138,23 @@ class TestIssueTokenSuccess:
 class TestIssueTokenFailures:
     async def test_unknown_client_id_returns_401_no_enumeration(self, auth):
         with pytest.raises(UnauthorizedError) as exc_info:
-            await auth.issue_token("does-not-exist", "whatever", scopes=["content:read"])
+            await auth.issue_token("does-not-exist", "whatever")
         assert exc_info.value.status_code == 401
 
     async def test_wrong_secret_returns_401(self, mock_db, auth):
         await _seed_client(mock_db, secret="correct-secret")
 
         with pytest.raises(UnauthorizedError) as exc_info:
-            await auth.issue_token("partner-1", "wrong-secret", scopes=["content:read"])
+            await auth.issue_token("partner-1", "wrong-secret")
         assert exc_info.value.status_code == 401
 
     async def test_unknown_and_wrong_secret_raise_identical_error_shape(self, mock_db, auth):
         await _seed_client(mock_db, secret="correct-secret")
 
         with pytest.raises(UnauthorizedError) as unknown_exc:
-            await auth.issue_token("does-not-exist", "whatever", scopes=["content:read"])
+            await auth.issue_token("does-not-exist", "whatever")
         with pytest.raises(UnauthorizedError) as wrong_secret_exc:
-            await auth.issue_token("partner-1", "wrong-secret", scopes=["content:read"])
+            await auth.issue_token("partner-1", "wrong-secret")
 
         assert unknown_exc.value.code == wrong_secret_exc.value.code
         assert unknown_exc.value.message == wrong_secret_exc.value.message
@@ -165,50 +164,33 @@ class TestIssueTokenFailures:
         await _seed_client(mock_db, status="revoked")
 
         with pytest.raises(AppError) as exc_info:
-            await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
+            await auth.issue_token("partner-1", "super-secret")
         assert exc_info.value.status_code == 403
         assert exc_info.value.code == "TENANT_NOT_ALLOWED"
-
-    async def test_excess_scope_returns_403_scope_insufficient(self, mock_db, auth):
-        await _seed_client(mock_db, allowed_scopes=["content:read"])
-
-        with pytest.raises(AppError) as exc_info:
-            await auth.issue_token("partner-1", "super-secret", scopes=["content:write"])
-        assert exc_info.value.status_code == 403
-        assert exc_info.value.code == "SCOPE_INSUFFICIENT"
-
-    async def test_empty_allowed_scopes_rejected(self, mock_db, auth):
-        await _seed_client(mock_db, allowed_scopes=[])
-
-        with pytest.raises(AppError) as exc_info:
-            await auth.issue_token("partner-1", "super-secret", scopes=[])
-        assert exc_info.value.status_code == 403
-        assert exc_info.value.code == "SCOPE_INSUFFICIENT"
-        assert exc_info.value.message == "Request must include at least one scope."
 
 
 class TestRequestValidation:
     def test_empty_client_id_rejected(self):
         with pytest.raises(ValidationError):
-            ContentAggregatorTokenRequest(client_id="", client_secret="x", scope="content:read")
+            ContentAggregatorTokenRequest(client_id="", client_secret="x")
 
     def test_empty_client_secret_rejected(self):
         with pytest.raises(ValidationError):
-            ContentAggregatorTokenRequest(client_id="x", client_secret="", scope="content:read")
+            ContentAggregatorTokenRequest(client_id="x", client_secret="")
 
 
 class TestRefreshTokenSuccess:
     async def test_refresh_does_not_require_client_id_or_client_secret(self, mock_db, auth):
         await _seed_client(mock_db)
-        issued = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
+        issued = await auth.issue_token("partner-1", "super-secret")
 
         result = await auth.refresh_token(issued.refresh_token)
 
-        assert set(result.model_dump()) == {"access_token", "refresh_token", "expires_in", "token_type", "scope"}
+        assert set(result.model_dump()) == {"access_token", "refresh_token", "expires_in", "token_type"}
 
     async def test_refresh_token_is_rotated(self, mock_db, auth):
         await _seed_client(mock_db)
-        issued = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
+        issued = await auth.issue_token("partner-1", "super-secret")
 
         result = await auth.refresh_token(issued.refresh_token)
 
@@ -216,7 +198,7 @@ class TestRefreshTokenSuccess:
 
     async def test_replaying_consumed_refresh_token_revokes_all_client_tokens(self, mock_db, auth):
         await _seed_client(mock_db)
-        issued = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
+        issued = await auth.issue_token("partner-1", "super-secret")
 
         rotated = await auth.refresh_token(issued.refresh_token)
 
@@ -228,24 +210,24 @@ class TestRefreshTokenSuccess:
 
     async def test_refresh_does_not_write_to_integration_token_replays(self, mock_db, auth):
         await _seed_client(mock_db)
-        issued = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
+        issued = await auth.issue_token("partner-1", "super-secret")
 
         await auth.refresh_token(issued.refresh_token)
 
         assert "integrationTokenReplays" not in await mock_db.list_collection_names()
 
-    async def test_refreshed_access_token_carries_original_scopes_not_escalated(self, mock_db, auth, settings):
+    async def test_refreshed_access_token_carries_client_allowed_scopes(self, mock_db, auth, settings):
         await _seed_client(mock_db, allowed_scopes=["content:read", "content:write"])
-        issued = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
+        issued = await auth.issue_token("partner-1", "super-secret")
 
         result = await auth.refresh_token(issued.refresh_token)
         payload = _decode_access_token(result.access_token, settings)
 
-        assert payload["scope"] == "content:read"
+        assert payload["scopes"] == ["content:read", "content:write"]
 
     async def test_refreshed_access_token_carries_original_tenant_ids(self, mock_db, auth, settings):
         await _seed_client(mock_db, tenant_ids=["tenant-a", "tenant-b"])
-        issued = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
+        issued = await auth.issue_token("partner-1", "super-secret")
 
         result = await auth.refresh_token(issued.refresh_token)
         payload = _decode_access_token(result.access_token, settings)
@@ -256,7 +238,7 @@ class TestRefreshTokenSuccess:
 class TestRefreshTokenExpiredOrRevoked:
     async def test_revoked_refresh_token_rejected(self, mock_db, auth):
         await _seed_client(mock_db)
-        issued = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
+        issued = await auth.issue_token("partner-1", "super-secret")
         token_id = hash_refresh_token(issued.refresh_token)
         await mock_db["integrationTokens"].update_one(
             {"token_id": token_id}, {"$set": {"revoked": True}}
@@ -267,7 +249,7 @@ class TestRefreshTokenExpiredOrRevoked:
 
     async def test_invalid_tampered_refresh_token_is_rejected(self, mock_db, auth):
         await _seed_client(mock_db)
-        issued = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
+        issued = await auth.issue_token("partner-1", "super-secret")
         tampered = issued.refresh_token[:-1] + (
             "A" if issued.refresh_token[-1] != "A" else "B"
         )
@@ -279,7 +261,7 @@ class TestRefreshTokenExpiredOrRevoked:
 class TestRefreshTokenUnknownOrDisabledClient:
     async def test_disabled_client_rejected_at_refresh(self, mock_db, auth):
         await _seed_client(mock_db)
-        issued = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
+        issued = await auth.issue_token("partner-1", "super-secret")
 
         await mock_db["integrationClients"].update_one(
             {"client_id": "partner-1"}, {"$set": {"status": "revoked"}}
@@ -292,7 +274,7 @@ class TestRefreshTokenUnknownOrDisabledClient:
 
     async def test_deleted_client_rejected_at_refresh(self, mock_db, auth):
         await _seed_client(mock_db)
-        issued = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
+        issued = await auth.issue_token("partner-1", "super-secret")
 
         await mock_db["integrationClients"].delete_one({"client_id": "partner-1"})
 
@@ -341,7 +323,7 @@ class TestNoSecretLogging:
 
         with caplog.at_level(logging.DEBUG):
             with pytest.raises(UnauthorizedError):
-                await auth.issue_token("partner-1", "super-secret-but-wrong", scopes=["content:read"])
+                await auth.issue_token("partner-1", "super-secret-but-wrong")
 
         logged_text = "\n".join(record.getMessage() for record in caplog.records)
         assert "super-secret" not in logged_text
@@ -350,7 +332,7 @@ class TestNoSecretLogging:
         await _seed_client(mock_db)
 
         with caplog.at_level(logging.DEBUG):
-            result = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
+            result = await auth.issue_token("partner-1", "super-secret")
 
         logged_text = "\n".join(record.getMessage() for record in caplog.records)
         assert result.access_token not in logged_text
@@ -369,7 +351,7 @@ class TestAggregatorTokenControllerResponse:
         result = await issue_token(
             Response(),
             body=ContentAggregatorTokenRequest(
-                client_id="partner-1", client_secret="super-secret", scope="content:read"
+                client_id="partner-1", client_secret="super-secret"
             ),
             auth=auth,
         )
@@ -385,7 +367,7 @@ class TestAggregatorTokenControllerResponse:
         from app.models.requests.content_aggregator_requests import ContentAggregatorRefreshRequest
 
         await _seed_client(mock_db)
-        issued = await auth.issue_token("partner-1", "super-secret", scopes=["content:read"])
+        issued = await auth.issue_token("partner-1", "super-secret")
 
         result = await refresh_token(
             Response(),

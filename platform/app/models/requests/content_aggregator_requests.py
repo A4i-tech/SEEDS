@@ -6,7 +6,6 @@ from pydantic import BaseModel, Field, field_validator
 class ContentAggregatorTokenRequest(BaseModel):
     client_id: str = Field(min_length=1)
     client_secret: str = Field(min_length=1)
-    scope: str
 
 
 class ContentAggregatorRefreshRequest(BaseModel):

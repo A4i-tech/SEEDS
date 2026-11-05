@@ -32,5 +32,5 @@ class IntegrationClient(BaseModel):
 
 class IntegrationClaims(TypedDict):
     tenant_ids: list[str]
-    scope: str
+    scopes: list[str]
     client_name: str
