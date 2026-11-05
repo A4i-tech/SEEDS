@@ -10,6 +10,7 @@ import "../shared/buttons.css";
 import "../shared/cards.css";
 import "../ContentTab/css/ContentTab.css";
 import "../RegistrationTab/css/TeachersList.css";
+import "../AnalyticsTab/css/AnalyticsTab.css";
 import { Pagination } from "../../ContentAggregatorDetails/Pagination";
 import { translationService } from "../../../services/translationService";
 import { toSegment } from "../../../utils/segments";
@@ -440,7 +441,7 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
         </div>
       </div>
       {pagesError && (
-        <p className="import-error-message">
+        <p className="error-message">
           {pagesError === "forbidden" ? "Permission denied loading pages" : pagesError}
         </p>
       )}

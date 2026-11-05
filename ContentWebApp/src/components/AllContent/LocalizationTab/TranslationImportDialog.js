@@ -4,6 +4,7 @@ import Select from "../shared/Select";
 import "../shared/buttons.css";
 import "../shared/utilities.css";
 import "../shared/modal.css";
+import "../AnalyticsTab/css/AnalyticsTab.css";
 import "./TranslationImportDialog.css";
 import { translationService } from "../../../services/translationService";
 import {
@@ -211,20 +212,20 @@ function TranslationImportDialog({ siteId, languages, defaultLang, onClose, onIm
         </fieldset>
 
         {problem && (
-          <p className="import-error-message" role="alert">
+          <p className="error-message" role="alert">
             {problem}
           </p>
         )}
         {target?.warning && <p className="status-message">{target.warning}</p>}
         {failure && (
-          <p className="import-error-message" role="alert">
+          <p className="error-message" role="alert">
             {failure}
           </p>
         )}
 
         {result && (
           <div role="status" ref={resultRef} tabIndex={-1}>
-            <p className={result.failed ? "import-error-message" : "success-message"}>
+            <p className={result.failed ? "error-message" : "success-message"}>
               {`Updated ${result.updated}, created ${result.created}, unchanged ${result.unchanged}, skipped blank ${result.skippedBlank}, failed ${result.failed}`}
             </p>
             {result.warnings.length > 0 && (

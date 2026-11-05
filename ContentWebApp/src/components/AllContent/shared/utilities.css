@@ -1,12 +1,3 @@
-/* Error message styling */
-.import-error-message {
-  padding: 20px;
-  background-color: #ffebee;
-  color: #c62828;
-  margin: 20px;
-  border-radius: 4px;
-}
-
 /* Text and typography utilities  */
 .label {
   font-size: 13px;

@@ -9,7 +9,6 @@ import SchoolDashboardStats from "./SchoolDashboardStats";
 import StatCardsSkeleton from "../shared/StatCardsSkeleton";
 import "./css/AnalyticsTab.css";
 import "../shared/cards.css";
-import "../shared/utilities.css";
 
 const AnalyticsTab = () => {
   const [startDate, setStartDate] = useState(null);
@@ -111,7 +110,7 @@ const AnalyticsTab = () => {
       {isSchoolAdmin && isDashboardLoading && !schoolDashboard && <StatCardsSkeleton count={3} />}
       {isSchoolAdmin && schoolDashboard && <SchoolDashboardStats dashboard={schoolDashboard} />}
 
-      {error && <div className="import-error-message">{error}</div>}
+      {error && <div className="error-message">{error}</div>}
 
       {!error && analyticsData && analyticsData.length > 0 && (
         <>

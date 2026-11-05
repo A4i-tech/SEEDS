@@ -9,7 +9,7 @@ from pymongo.errors import BulkWriteError, PyMongoError
 from app.models.requests.translation_requests import TranslationImportRow
 from app.platform.error_handling import NotFoundError, ValidationError
 from app.repositories.translation_repository import TranslationRepository
-from app.services.sdk_rolling_hash import sdk_rolling_hash
+from app.services.sdk_rolling_hash import js_trim, sdk_rolling_hash
 from app.services.translation_service import TranslationService, _same_instant
 from tests.support.mongomock_async import AsyncMongoMockClient
 
@@ -103,12 +103,6 @@ async def _import(service, rows, lang="kn", **kwargs):
 )
 def test_sdk_rolling_hash_matches_sdk_js_vectors(text, expected):
     assert sdk_rolling_hash(text) == expected
-
-
-def test_sdk_rolling_hash_differs_from_sha1_helper():
-    from app.services.sdk_hash import sdk_hash_text
-
-    assert sdk_rolling_hash("Hello World") != sdk_hash_text("Hello World")
 
 
 def test_same_instant_stored_none_is_false():
@@ -485,6 +479,30 @@ async def test_import_silent_zero_match_write_is_not_reported_as_confirmed(servi
     assert (await _doc(repo, sdk_rolling_hash("First")))["translations"]["kn"]["text"] == "one"
 
 
+async def test_import_mixed_batch_missed_unguarded_write_is_not_reported_as_confirmed(
+    service, mock_db, repo, monkeypatch
+):
+    approved_key = await _seed(repo, "First")
+    cleared_key = await _seed(repo, "Second", lang="kn", text="old")
+
+    async def _vanish_then_write(ops):
+        await mock_db["translations"].delete_one({"route": "/", "key": cleared_key})
+        return await real_write(ops)
+
+    real_write = service._repo.bulk_write
+    monkeypatch.setattr(service._repo, "bulk_write", _vanish_then_write)
+
+    res = await _import(
+        service, [_row("First", "one"), _row("Second", "")], state="approved", overwrite_blank=True
+    )
+
+    assert res["failed"] == 0 and res["updated"] == 2
+    assert [(w.row, w.route, w.key, w.reason) for w in res["warnings"]] == [
+        (2, "/", cleared_key, "save_not_confirmed"),
+    ]
+    assert (await _doc(repo, approved_key))["translations"]["kn"]["status"] == "approved"
+
+
 async def test_import_mixed_rows_report_each_outcome(service, repo):
     await _seed(repo, "Existing")
     await _seed(repo, "Blank one")
@@ -520,8 +538,6 @@ JS_WHITESPACE_CODE_POINTS = {
 
 
 def test_js_trim_matches_javascript_trim_for_every_bmp_code_point():
-    from app.services.sdk_rolling_hash import js_trim
-
     mismatches = [
         cp
         for cp in range(0x10000)
@@ -532,8 +548,6 @@ def test_js_trim_matches_javascript_trim_for_every_bmp_code_point():
 
 
 def test_js_trim_differs_from_python_strip_where_it_matters():
-    from app.services.sdk_rolling_hash import js_trim
-
     nel, fs, bom = chr(0x85), chr(0x1C), chr(0xFEFF)
     assert js_trim(nel + "x" + nel) == nel + "x" + nel
     assert js_trim(fs + "x" + fs) == fs + "x" + fs

@@ -810,8 +810,7 @@ class TranslationService:
         if ops:
             try:
                 result = await self._repo.bulk_write(ops)
-                guarded_count = sum(1 for p in planned if p.get("version_doc"))
-                if result.matched_count < len(ops) - result.upserted_count - guarded_count:
+                if result.matched_count < len(ops) - result.upserted_count:
                     bulk_write_unknown = True
             except BulkWriteError as exc:
                 write_errors = exc.details["writeErrors"]

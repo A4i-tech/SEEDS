@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useState } from "react";
 import "../shared/utilities.css";
 import "../shared/buttons.css";
+import "../AnalyticsTab/css/AnalyticsTab.css";
 
 const ToastCtx = createContext(null);
 export const useToast = () => {
@@ -9,7 +10,7 @@ export const useToast = () => {
   return ctx;
 };
 
-const TONE_CLASS = { good: "success-message", crit: "import-error-message", info: "status-message" };
+const TONE_CLASS = { good: "success-message", crit: "error-message", info: "status-message" };
 
 export function ToastProvider({ children }) {
   const [queue, setQueue] = useState([]);
