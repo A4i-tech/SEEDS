@@ -2,7 +2,7 @@
 
 ## 1. How staging deploys
 
-Staging runs on kube-dev, not Render/Fly.io. A push to `a4i/staging` runs `.github/workflows/deploy-websocket-service-staging.yml`, which builds and pushes `ghcr.io/a4i-tech/seeds/websocket-service:staging`. ArgoCD Image Updater on kube-dev watches that tag and rolls the new digest out automatically, no manual deploy step.
+Staging runs on kube-dev, not Render/Fly.io. A push to `a4i/staging` runs `.github/workflows/build-staging-images.yml`, which builds and pushes `ghcr.io/a4i-tech/seeds/websocket-service:staging`. ArgoCD Image Updater on kube-dev watches that tag and rolls the new digest out automatically, no manual deploy step.
 
 ## 2. Environment Variables
 
@@ -18,7 +18,7 @@ Kube-dev's `seeds` namespace runs its own DB, secrets, and endpoints, separate f
 
 ## 5. Troubleshooting
 
-- Check the GitHub Actions run for `deploy-websocket-service-staging.yml` for build/push failures.
+- Check the GitHub Actions run for `build-staging-images.yml` for build/push failures.
 - Check ArgoCD for the `websocket-service` Application's sync status on kube-dev.
 - `kubectl -n seeds logs` on the `seeds-websocket` pod for runtime errors.
 
