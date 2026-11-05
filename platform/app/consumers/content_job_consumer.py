@@ -71,14 +71,18 @@ import logging
 import os
 import subprocess  # nosec B404 — used safely with list form, no shell=True
 import tempfile
+from datetime import datetime
 from pathlib import Path
 
 from pymongo.asynchronous.database import AsyncDatabase
 
+from app.models.requests.webhook_registration_requests import WebhookEventType
 from app.repositories.content_job_repository import ContentJobRepository
 from app.repositories.content_repository import ContentRepository
+from app.services.webhook_delivery_service import get_webhook_delivery_service
 
 logger = logging.getLogger(__name__)
+
 
 # Maximum processing time per job
 JOB_TIMEOUT_SECONDS = 5 * 60  # 5 minutes
@@ -91,6 +95,44 @@ RETRY_BASE_SECONDS = 1.0  # backoff: 1 s, 2 s, 4 s
 
 # Errors that indicate a transient condition and should be retried
 _TRANSIENT_ERRORS = (ConnectionError, TimeoutError, OSError)
+
+
+async def _dispatch_job_webhook(
+    db: AsyncDatabase,
+    job_id,
+    content_id,
+    event: WebhookEventType,
+    *,
+    at: datetime,
+    error: str | None = None,
+) -> None:
+    job: dict = {"_id": job_id, "content_id": content_id}
+    if event is WebhookEventType.JOB_COMPLETED:
+        job["completed_at"] = at
+    elif event is WebhookEventType.JOB_FAILED:
+        job["failed_at"] = at
+        job["reason"] = error
+    await get_webhook_delivery_service(db).dispatch_terminal_event(job, event)
+
+
+async def _fail_job(
+    db: AsyncDatabase,
+    job_repo: ContentJobRepository,
+    job_id,
+    content_id,
+    reason: str,
+) -> None:
+    """Mark a job failed and dispatch the terminal webhook, logging (not raising) dispatch errors."""
+    failed_at = await job_repo.mark_failed(job_id, reason)
+    try:
+        await _dispatch_job_webhook(
+            db, job_id, content_id, WebhookEventType.JOB_FAILED, at=failed_at, error=reason
+        )
+    except Exception as exc:  # noqa: BLE001 — job already marked failed; dispatch failure is logged only
+        logger.exception(
+            "content_job: webhook dispatch failed job_id=%s content_id=%s — %s",
+            job_id, content_id, exc,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -347,6 +389,7 @@ async def _process_audio_content_job(
     job_repo: ContentJobRepository,
     content_repo: ContentRepository,
     blob_provider,
+    db: AsyncDatabase,
 ) -> None:
     """Process a single audio content job with retry and dead-letter handling.
 
@@ -407,11 +450,20 @@ async def _process_audio_content_job(
                 update_fields["theme"] = content_doc["theme"]
 
             await content_repo.save_processed(content_id, update_fields)
-            await job_repo.mark_completed(job_id)
+            completed_at = await job_repo.mark_completed(job_id)
             logger.info(
                 "content_job: completed job_id=%s content_id=%s (attempt %d)",
                 job_id, content_id, attempt,
             )
+            try:
+                await _dispatch_job_webhook(
+                    db, job_id, content_id, WebhookEventType.JOB_COMPLETED, at=completed_at
+                )
+            except Exception as exc:  # noqa: BLE001 — job already completed; dispatch failure must not dead-letter it
+                logger.exception(
+                    "content_job: webhook dispatch failed job_id=%s content_id=%s — %s",
+                    job_id, content_id, exc,
+                )
             return  # success — exit retry loop
 
         except _TRANSIENT_ERRORS as exc:
@@ -424,7 +476,7 @@ async def _process_audio_content_job(
                 )
                 await asyncio.sleep(backoff)
             else:
-                logger.error(
+                logger.exception(
                     "content_job: max retries exhausted job_id=%s content_id=%s — %s",
                     job_id, content_id, exc,
                 )
@@ -444,9 +496,7 @@ async def _process_audio_content_job(
         "content_job: dead-lettering job_id=%s content_id=%s reason=%r",
         job_id, content_id, error_msg,
     )
-    await job_repo.mark_failed(job_id, error_msg)
-    if last_exc is not None:
-        raise last_exc
+    await _fail_job(db, job_repo, job_id, content_id, error_msg)
 
 
 # ---------------------------------------------------------------------------
@@ -509,16 +559,22 @@ class ContentJobConsumer:
                 if job_doc:
                     try:
                         await asyncio.wait_for(
-                            _process_audio_content_job(job_doc, job_repo, content_repo, blob_provider),
+                            _process_audio_content_job(job_doc, job_repo, content_repo, blob_provider, self._db),
                             timeout=JOB_TIMEOUT_SECONDS,
                         )
                     except TimeoutError:
-                        job_id = job_doc.get("_id")
-                        logger.error("content_job: timeout job_id=%s", job_id)
-                        await job_repo.mark_failed(job_id, "Job exceeded timeout of 5 minutes")
+                        job_id = job_doc["_id"]
+                        content_id = job_doc["content_id"]
+                        reason = "Job exceeded timeout of 5 minutes"
+                        logger.error("content_job: timeout job_id=%s content_id=%s", job_id, content_id)
+                        await _fail_job(self._db, job_repo, job_id, content_id, reason)
                     except Exception as exc:  # noqa: BLE001
-                        # Already dead-lettered inside _process_audio_content_job
-                        logger.debug("content_job: job processing exception handled: %s", exc)
+                        job_id = job_doc["_id"]
+                        content_id = job_doc["content_id"]
+                        logger.exception(
+                            "content_job: unexpected exception job_id=%s content_id=%s — %s",
+                            job_id, content_id, exc,
+                        )
                 else:
                     # No pending jobs — wait before polling again
                     await asyncio.sleep(POLL_INTERVAL_SECONDS)

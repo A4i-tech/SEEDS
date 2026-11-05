@@ -21,13 +21,16 @@ from app.platform.auth.jwt import parse_expires_delta, verify_token
 from app.platform.auth.providers.firebase_provider import verify_firebase_token
 from app.platform.database import get_database
 from app.platform.error_handling import ForbiddenError, NotFoundError, UnauthorizedError
+from app.platform.logging import tenant_id_ctx_var, user_id_ctx_var
 from app.platform.settings import get_settings
 from app.platform.telemetry import get_counter
 from app.repositories.conference_repository import ConferenceOwnershipRepository
+from app.services.content_aggregator import _jwt
 
 logger = logging.getLogger(__name__)
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token", auto_error=False)
+_aggregator_oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/v1/auth/token", auto_error=False)
 
 REFRESH_COOKIE_NAME = "refresh_token"
 RefreshCookie = Annotated[str, Cookie(alias=REFRESH_COOKIE_NAME)]
@@ -158,6 +161,17 @@ def require_role(*roles: str):
 require_teacher = require_role("teacher")
 require_tenant = require_role("tenant")
 require_translation_reviewer = require_tenant
+
+
+async def require_aggregator_client(
+    token: str | None = Depends(_aggregator_oauth2_scheme),
+) -> _jwt.AccessTokenClaims:
+    if not token:
+        raise UnauthorizedError("Missing authentication token")
+    claims = _jwt.decode_access_token(token, secret_key=get_settings().secret_key)
+    user_id_ctx_var.set(claims.sub)
+    tenant_id_ctx_var.set(",".join(claims.tenant_ids))
+    return claims
 
 
 # ---------------------------------------------------------------------------

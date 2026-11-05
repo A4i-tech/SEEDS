@@ -2,17 +2,18 @@ from __future__ import annotations
 
 import secrets
 from datetime import UTC, datetime
-from typing import TypedDict
 
-from jose import jwt
+from jose import ExpiredSignatureError, JWTError, jwt
+from pydantic import BaseModel
 
 from app.platform.auth.jwt import parse_expires_delta
+from app.platform.error_handling import UnauthorizedError
 
 _ALGORITHM = "HS256"
 _ISSUER = "content-aggregator"
 
 
-class AccessTokenClaims(TypedDict):
+class AccessTokenClaims(BaseModel):
     sub: str
     iss: str
     iat: datetime
@@ -36,7 +37,7 @@ def encode_access_token(
     now = datetime.now(tz=UTC)
     expire = now + delta
 
-    payload: AccessTokenClaims = {
+    payload = {
         "sub": client_id,
         "iss": _ISSUER,
         "iat": now,
@@ -48,3 +49,19 @@ def encode_access_token(
     }
     token = jwt.encode(payload, secret_key, algorithm=_ALGORITHM)
     return token, int(delta.total_seconds())
+
+
+def decode_access_token(token: str, *, secret_key: str) -> AccessTokenClaims:
+    try:
+        raw = jwt.decode(
+            token,
+            secret_key,
+            algorithms=[_ALGORITHM],
+            issuer=_ISSUER,
+            options={"require": ["sub", "tenant_ids", "exp", "iss", "jti", "scopes", "client_name"]},
+        )
+    except ExpiredSignatureError as exc:
+        raise UnauthorizedError("Token has expired") from exc
+    except JWTError as exc:
+        raise UnauthorizedError("Invalid token") from exc
+    return AccessTokenClaims.model_validate(raw)
