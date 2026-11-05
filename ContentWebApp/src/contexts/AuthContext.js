@@ -4,27 +4,29 @@ import { apiFetch, initSession } from "../services/api";
 import { setAccessToken, getAccessToken } from "../utils/tokenStore";
 import { clearAuth } from "../utils/authHelpers";
 
-const AuthContext = createContext(null);
+const IDLE_LOGIN_STATE = { status: "idle", data: {}, error: "" };
+
+const AuthContext = createContext({ provided: false });
 
 export const AuthProvider = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [initState, setInitState] = useState({ data: null, error: null, isLoading: true });
+  const [initStatus, setInitStatus] = useState("loading");
 
   useEffect(() => {
     const init = async () => {
-      const { data, error } = await initSession();
+      const { ok, error } = await initSession();
       if (error) {
         console.error("AuthProvider: session init failed", error);
       }
-      setIsAuthenticated(!!data);
-      setInitState({ data, error, isLoading: false });
+      setIsAuthenticated(ok);
+      setInitStatus(ok ? "ok" : "error");
     };
     init();
   }, []);
 
-  const [loginState, setLoginState] = useState({ data: null, error: null, isLoading: false });
+  const [loginState, setLoginState] = useState(IDLE_LOGIN_STATE);
   const login = useCallback(async (body) => {
-    setLoginState({ data: null, error: null, isLoading: true });
+    setLoginState({ ...IDLE_LOGIN_STATE, status: "loading" });
     try {
       const data = await apiFetch(`${SEEDS_URL}/auth/login`, {
         method: "POST",
@@ -34,16 +36,17 @@ export const AuthProvider = ({ children }) => {
       });
       setAccessToken(data.token);
       setIsAuthenticated(true);
-      setLoginState({ data, error: null, isLoading: false });
+      setLoginState({ ...IDLE_LOGIN_STATE, status: "ok", data });
       return data;
     } catch (error) {
       console.error("AuthProvider: login failed", error);
-      setLoginState({ data: null, error, isLoading: false });
+      setLoginState({ ...IDLE_LOGIN_STATE, status: "error", error });
+      return {};
     }
   }, []);
 
   const clearLoginError = useCallback(() => {
-    setLoginState((prev) => (prev.error ? { ...prev, error: null } : prev));
+    setLoginState((prev) => (prev.error ? IDLE_LOGIN_STATE : prev));
   }, []);
 
   const logout = useCallback(async () => {
@@ -59,7 +62,11 @@ export const AuthProvider = ({ children }) => {
         if (error.status !== 401 && error.status !== 403) {
           throw error;
         }
-        console.warn("AuthProvider: logout request failed with", error.status, "— treating as already logged out");
+        console.warn(
+          "AuthProvider: logout request failed with",
+          error.status,
+          "— treating as already logged out"
+        );
       }
     }
 
@@ -70,8 +77,9 @@ export const AuthProvider = ({ children }) => {
   return (
     <AuthContext.Provider
       value={{
+        provided: true,
         isAuthenticated,
-        initializing: initState.isLoading,
+        initializing: initStatus === "loading",
         login,
         loginState,
         clearLoginError,
@@ -85,6 +93,6 @@ export const AuthProvider = ({ children }) => {
 
 export const useAuthContext = () => {
   const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuthContext must be used within AuthProvider");
+  if (!ctx.provided) throw new Error("useAuthContext must be used within AuthProvider");
   return ctx;
 };

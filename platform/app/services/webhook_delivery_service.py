@@ -11,8 +11,7 @@ import httpx
 from cryptography.fernet import InvalidToken
 from pymongo.asynchronous.database import AsyncDatabase
 
-from app.models.content_aggregator import DeliveryAttempt, DeliveryStatus, Webhook
-from app.models.content_aggregator import IntegrationClientStatus as WebhookStatus
+from app.models.content_aggregator import DeliveryAttempt, DeliveryStatus, Webhook, WebhookStatus
 from app.models.requests.webhook_registration_requests import WebhookEventType
 from app.platform.auth.webhook_secret import decrypt_secret
 from app.platform.error_handling import ConfigurationError

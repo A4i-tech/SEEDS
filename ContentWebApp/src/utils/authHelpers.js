@@ -15,12 +15,6 @@ export const getAuthHeaders = () => {
   };
 };
 
-/**
- * Check if user is authenticated
- * @returns {boolean} True if token exists
- */
-export const isAuthenticated = () => !!getAccessToken();
-
 export const getTokenPayload = () => {
   const token = getAccessToken();
   if (!token) {
@@ -36,7 +30,8 @@ export const getTokenPayload = () => {
     const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
     const padded = normalized.padEnd(normalized.length + ((4 - normalized.length % 4) % 4), "=");
     return JSON.parse(atob(padded));
-  } catch (_error) {
+  } catch (error) {
+    console.error("getTokenPayload: failed to decode access token", error);
     return {};
   }
 };
@@ -60,7 +55,7 @@ export const setAuth = (token, role, schoolId = null) => {
  */
 export const getRole = () => {
   const tokenPayload = getTokenPayload();
-  return tokenPayload.role || tokenPayload.iss || localStorage.getItem("userRole");
+  return tokenPayload.role || localStorage.getItem("userRole");
 };
 
 /**
@@ -76,5 +71,4 @@ export const clearAuth = () => {
   clearAccessToken();
   localStorage.removeItem("userRole");
   localStorage.removeItem("schoolId");
-  localStorage.removeItem("authToken");
 };

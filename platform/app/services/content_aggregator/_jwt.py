@@ -2,10 +2,9 @@ from __future__ import annotations
 
 import secrets
 from datetime import UTC, datetime
-from typing import Annotated
 
 from jose import ExpiredSignatureError, JWTError, jwt
-from pydantic import BaseModel, BeforeValidator
+from pydantic import BaseModel
 
 from app.platform.auth.jwt import parse_expires_delta
 from app.platform.error_handling import UnauthorizedError
@@ -14,17 +13,13 @@ _ALGORITHM = "HS256"
 _ISSUER = "content-aggregator"
 
 
-def _split_scope(value: object) -> object:
-    return value.split() if isinstance(value, str) else value
-
-
 class AccessTokenClaims(BaseModel):
     sub: str
     iss: str
     iat: datetime
     exp: datetime
     jti: str
-    scope: Annotated[set[str], BeforeValidator(_split_scope)]
+    scopes: list[str]
     tenant_ids: list[str]
     client_name: str
 
@@ -48,7 +43,7 @@ def encode_access_token(
         "iat": now,
         "exp": expire,
         "jti": secrets.token_urlsafe(16),
-        "scope": " ".join(scopes),
+        "scopes": scopes,
         "tenant_ids": tenant_ids,
         "client_name": client_name,
     }
@@ -63,7 +58,7 @@ def decode_access_token(token: str, *, secret_key: str) -> AccessTokenClaims:
             secret_key,
             algorithms=[_ALGORITHM],
             issuer=_ISSUER,
-            options={"require": ["sub", "tenant_ids", "exp", "iss", "jti", "scope", "client_name"]},
+            options={"require": ["sub", "tenant_ids", "exp", "iss", "jti", "scopes", "client_name"]},
         )
     except ExpiredSignatureError as exc:
         raise UnauthorizedError("Token has expired") from exc

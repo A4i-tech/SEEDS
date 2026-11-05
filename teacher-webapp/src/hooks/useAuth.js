@@ -32,7 +32,7 @@ export const useAuth = () => {
    * Logout user and clear all auth data
    */
   const logout = useCallback(async () => {
-    await contextLogout();
+    await contextLogout(); // Clears token 
     clearSessionHistory(); // Clear session history
     resetTeacherCache();
     navigate("/", { replace: true });

@@ -26,7 +26,7 @@ const AppHeader = ({
 }) => {
   const visibility = { showContent, showRegistration, showAnalytics, showLocalization };
   const [showUserDropdown, setShowUserDropdown] = useState(false);
-  const [logoutError, setLogoutError] = useState(null);
+  const [logoutError, setLogoutError] = useState("");
   const navigate = useNavigate();
 
   const handleProfileClick = () => {
@@ -36,7 +36,7 @@ const AppHeader = ({
 
   const handleLogoutClick = async () => {
     setShowUserDropdown(false);
-    setLogoutError(null);
+    setLogoutError("");
     try {
       await onLogout();
     } catch (error) {

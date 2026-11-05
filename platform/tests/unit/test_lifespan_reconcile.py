@@ -11,6 +11,20 @@ from app.repositories.content_aggregator_sync_job_repository import (
     ContentAggregatorSyncJobRepository,
 )
 
+ENSURE_INDEXES_TARGETS = [
+    "app.repositories.website_repository.WebsiteRepository",
+    "app.repositories.translation_repository.TranslationRepository",
+    "app.repositories.translation_version_repository.TranslationVersionRepository",
+    "app.repositories.translation_audit_repository.TranslationAuditRepository",
+    "app.repositories.content_job_repository.ContentJobRepository",
+    "app.repositories.textbook_remediation_repository.TextbookRemediationRepository",
+    "app.repositories.integration_client_repository.IntegrationClientRepository",
+    "app.repositories.user_refresh_token_repository.UserRefreshTokenRepository",
+    "app.repositories.integration_token_repository.IntegrationTokenRepository",
+    "app.repositories.content_aggregator_webhook_repository.ContentAggregatorWebhookRepository",
+    "app.repositories.content_aggregator_webhook_delivery_repository.ContentAggregatorWebhookDeliveryRepository",
+]
+
 
 @pytest.mark.asyncio
 @pytest.mark.parametrize(
@@ -20,73 +34,38 @@ from app.repositories.content_aggregator_sync_job_repository import (
 async def test_lifespan_reconciles_sync_jobs_by_app_mode(app_mode, expected_calls):
     settings = MagicMock(app_mode=app_mode, env="development", version="0.1.0")
 
-    patchers = [
-        patch("app.platform.lifespan.get_settings", return_value=settings),
-        patch("app.platform.lifespan.init_database", new=AsyncMock()),
-        patch("app.platform.lifespan.get_database", return_value=MagicMock()),
-        patch("app.platform.lifespan.close_database", new=AsyncMock()),
-        patch("app.platform.lifespan.close_subodha_client", new=AsyncMock()),
-        patch("app.platform.lifespan._init_conference_manager", return_value=None),
-        patch("app.platform.lifespan._make_consumer_tasks", return_value=[]),
-        patch(
-            "app.repositories.textbook_remediation_repository.TextbookRemediationRepository.reconcile_interrupted_jobs",
-            new=AsyncMock(return_value=0),
-        ),
-        patch(
-            "app.repositories.website_repository.WebsiteRepository.ensure_indexes",
-            new=AsyncMock(),
-        ),
-        patch(
-            "app.repositories.translation_repository.TranslationRepository.ensure_indexes",
-            new=AsyncMock(),
-        ),
-        patch(
-            "app.repositories.translation_version_repository.TranslationVersionRepository.ensure_indexes",
-            new=AsyncMock(),
-        ),
-        patch(
-            "app.repositories.translation_audit_repository.TranslationAuditRepository.ensure_indexes",
-            new=AsyncMock(),
-        ),
-        patch(
-            "app.repositories.content_job_repository.ContentJobRepository.ensure_indexes",
-            new=AsyncMock(),
-        ),
-        patch(
-            "app.repositories.textbook_remediation_repository.TextbookRemediationRepository.ensure_indexes",
-            new=AsyncMock(),
-        ),
-        patch(
-            "app.repositories.integration_client_repository.IntegrationClientRepository.ensure_indexes",
-            new=AsyncMock(),
-        ),
-        patch(
-            "app.repositories.integration_token_repository.IntegrationTokenRepository.ensure_indexes",
-            new=AsyncMock(),
-        ),
-        patch(
-            "app.repositories.user_refresh_token_repository.UserRefreshTokenRepository.ensure_indexes",
-            new=AsyncMock(),
-        ),
-        patch(
-            "app.repositories.content_aggregator_webhook_repository.ContentAggregatorWebhookRepository.ensure_indexes",
-            new=AsyncMock(),
-        ),
-        patch(
-            "app.repositories.content_aggregator_webhook_delivery_repository.ContentAggregatorWebhookDeliveryRepository.ensure_indexes",
-            new=AsyncMock(),
-        ),
-        patch.object(ContentAggregatorSyncJobRepository, "ensure_indexes", new=AsyncMock()),
-        patch.object(
-            ContentAggregatorSyncJobRepository,
-            "reconcile_interrupted_jobs",
-            new=AsyncMock(return_value=0),
-        ),
-    ]
-
     with ExitStack() as stack:
-        mocks = [stack.enter_context(p) for p in patchers]
-        reconcile_mock = mocks[-1]
+        stack.enter_context(patch("app.platform.lifespan.get_settings", return_value=settings))
+        stack.enter_context(patch("app.platform.lifespan.init_database", new=AsyncMock()))
+        stack.enter_context(patch("app.platform.lifespan.get_database", return_value=MagicMock()))
+        stack.enter_context(patch("app.platform.lifespan.close_database", new=AsyncMock()))
+        stack.enter_context(patch("app.platform.lifespan.close_subodha_client", new=AsyncMock()))
+        stack.enter_context(patch("app.platform.lifespan._init_conference_manager", return_value=None))
+        stack.enter_context(patch("app.platform.lifespan._make_consumer_tasks", return_value=[]))
+        stack.enter_context(
+            patch("app.providers.service_bus.service_bus_provider.initialize", new=AsyncMock())
+        )
+        stack.enter_context(
+            patch("app.providers.service_bus.service_bus_provider.close", new=AsyncMock())
+        )
+        stack.enter_context(
+            patch(
+                "app.repositories.textbook_remediation_repository.TextbookRemediationRepository.reconcile_interrupted_jobs",
+                new=AsyncMock(return_value=0),
+            )
+        )
+        for target in ENSURE_INDEXES_TARGETS:
+            stack.enter_context(patch(f"{target}.ensure_indexes", new=AsyncMock()))
+        stack.enter_context(
+            patch.object(ContentAggregatorSyncJobRepository, "ensure_indexes", new=AsyncMock())
+        )
+        reconcile_mock = stack.enter_context(
+            patch.object(
+                ContentAggregatorSyncJobRepository,
+                "reconcile_interrupted_jobs",
+                new=AsyncMock(return_value=0),
+            )
+        )
 
         app = FastAPI()
         async with lifespan_mod.lifespan(app):

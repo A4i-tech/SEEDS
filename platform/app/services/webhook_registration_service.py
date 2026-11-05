@@ -40,13 +40,13 @@ class WebhookRegistrationService:
         self._repo = webhook_repo
 
     @staticmethod
-    def _require_scope(events: list[WebhookEventType], granted_scope: set[str]) -> None:
+    def _require_scope(events: list[WebhookEventType], granted_scope: list[str]) -> None:
         required = {_EVENT_REQUIRED_SCOPE[e] for e in events}
         if not required.issubset(granted_scope):
             raise AppError("SCOPE_INSUFFICIENT", "requested events exceed granted scope", 403)
 
     async def register(
-        self, client_id: str, granted_scope: set[str], body: WebhookRegisterRequest
+        self, client_id: str, granted_scope: list[str], body: WebhookRegisterRequest
     ) -> tuple[Webhook, str]:
         self._require_scope(body.events, granted_scope)
         secret, encrypted = _new_secret()
@@ -62,7 +62,7 @@ class WebhookRegistrationService:
         return webhook, secret
 
     async def update(
-        self, client_id: str, webhook_id: str, granted_scope: set[str], body: WebhookUpdateRequest
+        self, client_id: str, webhook_id: str, granted_scope: list[str], body: WebhookUpdateRequest
     ) -> tuple[Webhook, str | None]:
         if body.events is not None:
             self._require_scope(body.events, granted_scope)

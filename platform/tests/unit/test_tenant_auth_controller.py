@@ -9,7 +9,6 @@ from fastapi import Response
 from app.controllers.tenant_auth_controller import tenant_logout
 from app.models.user import UserCreate, UserRole
 from app.platform.auth.hashing import hash_password
-from app.platform.auth.jwt import create_access_token
 from app.platform.settings import Settings
 from app.platform.telemetry import configure_telemetry
 from app.repositories.user_refresh_token_repository import UserRefreshTokenRepository
@@ -20,11 +19,6 @@ from tests.support.mongomock_async import AsyncMongoMockClient
 
 def _stored_token_id(raw_token: str) -> str:
     return hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
-
-
-class _FakeRequest:
-    def __init__(self) -> None:
-        self.cookies: dict[str, str] = {}
 
 
 @pytest.fixture
@@ -39,7 +33,7 @@ def _telemetry():
 
 
 @pytest.mark.asyncio
-async def test_tenant_logout_bearer_fallback_revokes_other_active_sessions(mock_db):
+async def test_tenant_logout_revokes_other_active_sessions(mock_db):
     user = await UserRepository(mock_db).create(
         UserCreate(
             role=UserRole.TENANT,
@@ -50,21 +44,19 @@ async def test_tenant_logout_bearer_fallback_revokes_other_active_sessions(mock_
     )
     owner_id = str(user.id)
 
-    other_session_repo = UserRefreshTokenRepository(mock_db)
+    repo = UserRefreshTokenRepository(mock_db)
     now = datetime.now(tz=UTC)
-    await other_session_repo.insert(
-        token_id="other-session-raw-token",
-        owner_id=owner_id,
-        claims={"role": "tenant", "tenant_id": None, "school_id": None},
-        expires_at=now + timedelta(days=30),
-        family_expires_at=now + timedelta(days=30),
-        created_at=now,
-    )
+    for raw_token in ("other-session-raw-token", "this-session-raw-token"):
+        await repo.insert(
+            token_id=raw_token,
+            owner_id=owner_id,
+            claims={"role": "tenant", "tenant_id": owner_id, "school_id": ""},
+            expires_at=now + timedelta(days=30),
+            family_expires_at=now + timedelta(days=30),
+            created_at=now,
+        )
 
-    token = create_access_token({"sub": owner_id, "role": "tenant"})
-    service = AuthService(mock_db)
-
-    await tenant_logout(_FakeRequest(), Response(), token=token, service=service)
+    await tenant_logout(Response(), "this-session-raw-token", service=AuthService(mock_db))
 
     other_doc = await mock_db["userRefreshTokens"].find_one(
         {"token_id": _stored_token_id("other-session-raw-token")}

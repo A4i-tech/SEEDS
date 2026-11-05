@@ -4,7 +4,7 @@ import asyncio
 
 import pytest
 
-from app.models.content_aggregator import IntegrationClientStatus as WebhookStatus
+from app.models.content_aggregator import WebhookStatus
 from app.models.requests.webhook_registration_requests import WebhookEventType
 from app.repositories.content_aggregator_webhook_repository import (
     ContentAggregatorWebhookRepository,

@@ -5,27 +5,23 @@ import secrets
 import uuid
 from datetime import UTC, datetime
 
-import bcrypt
 from pymongo.asynchronous.database import AsyncDatabase
 
-from app.models.content_aggregator import IntegrationClient, IntegrationClientStatus
+from app.models.content_aggregator import (
+    IntegrationClaims,
+    IntegrationClient,
+    IntegrationClientStatus,
+)
+from app.models.responses.login import AggregatorTokenResponse
 from app.platform.auth import refresh_tokens
-from app.platform.auth.hashing import verify_password
-from app.platform.auth.refresh_tokens import TokenPair
+from app.platform.auth.hashing import hash_password, verify_password
 from app.platform.error_handling import AppError, UnauthorizedError
 from app.platform.settings import Settings
 from app.repositories.integration_client_repository import IntegrationClientRepository
-from app.repositories.integration_token_repository import (
-    IntegrationClaims,
-    IntegrationTokenRepository,
-)
+from app.repositories.integration_token_repository import IntegrationTokenRepository
 from app.services.content_aggregator import _jwt
 
 logger = logging.getLogger(__name__)
-
-
-class IntegrationTokenPair(TokenPair):
-    scope: str
 
 
 class ContentAggregatorAuth:
@@ -38,14 +34,23 @@ class ContentAggregatorAuth:
         self._store = IntegrationTokenRepository(db)
         self._settings = settings
 
+    def _encode_access_token(self, client_id: str, claims: IntegrationClaims) -> tuple[str, int]:
+        return _jwt.encode_access_token(
+            client_id=client_id,
+            tenant_ids=claims["tenant_ids"],
+            scopes=claims["scopes"],
+            client_name=claims["client_name"],
+            secret_key=self._settings.secret_key,
+            expires_in=self._settings.content_aggregator_access_token_expires_in,
+        )
+
     async def issue_token(
         self,
         client_id: str,
         client_secret: str,
-        scopes: list[str],
-    ) -> IntegrationTokenPair:
+    ) -> AggregatorTokenResponse:
         client = await self._clients.find_by_client_id(client_id)
-        if client is None or not verify_password(client_secret, client.client_secret_hash):
+        if not verify_password(client_secret, client.client_secret_hash):
             logger.warning(
                 "content_aggregator auth: invalid credentials for client_id=%s", client_id
             )
@@ -54,92 +59,60 @@ class ContentAggregatorAuth:
         if client.status != IntegrationClientStatus.ACTIVE:
             raise AppError("TENANT_NOT_ALLOWED", "Client is not active", 403)
 
-        granted_tenant_ids = list(client.tenant_ids)
-
-        if not set(scopes).issubset(client.allowed_scopes):
-            raise AppError("SCOPE_INSUFFICIENT", "Requested scopes exceed allowed scopes", 403)
-        requested_scopes = scopes
-        if not requested_scopes:
-            raise AppError("SCOPE_INSUFFICIENT", "Request must include at least one scope.", 403)
-
-        access_token, expires_in = _jwt.encode_access_token(
-            client_id=client.client_id,
-            tenant_ids=granted_tenant_ids,
-            scopes=requested_scopes,
-            client_name=client.name,
-            secret_key=self._settings.secret_key,
-            expires_in=self._settings.content_aggregator_access_token_expires_in,
-        )
-
-        granted_scope = " ".join(requested_scopes)
+        claims: IntegrationClaims = {
+            "tenant_ids": client.tenant_ids,
+            "scopes": client.allowed_scopes,
+            "client_name": client.name,
+        }
+        access_token, expires_in = self._encode_access_token(client.client_id, claims)
         pair = await refresh_tokens.issue_pair(
             self._store,
             owner_id=client.client_id,
-            claims={"tenant_ids": granted_tenant_ids, "scope": granted_scope},
+            claims=claims,
             access_token=access_token,
             access_expires_in=expires_in,
             refresh_ttl=self._settings.content_aggregator_refresh_token_expires_in,
         )
-        return {**pair, "scope": granted_scope}
+        return AggregatorTokenResponse(**pair)
 
     async def register_client(
         self,
         name: str,
         tenant_ids: list[str],
         scopes: list[str],
+        created_by: str,
     ) -> tuple[str, str]:
         client_id = str(uuid.uuid4())
         client_secret = secrets.token_urlsafe(32)
-        secret_hash = bcrypt.hashpw(
-            client_secret.encode("utf-8"),
-            bcrypt.gensalt(rounds=self._settings.password_salt_rounds),
-        ).decode("utf-8")
+        now = datetime.now(tz=UTC)
         await self._clients.create(
             IntegrationClient(
                 client_id=client_id,
-                client_secret_hash=secret_hash,
+                client_secret_hash=hash_password(client_secret),
                 name=name,
                 tenant_ids=tenant_ids,
                 allowed_scopes=scopes,
-                created_at=datetime.now(tz=UTC),
+                created_by=created_by,
+                created_at=now,
+                updated_at=now,
             )
         )
         return client_id, client_secret
 
-    async def refresh_token(self, refresh_token: str) -> IntegrationTokenPair:
-        granted_scope = ""
-        client_name = ""
-
+    async def refresh_token(self, refresh_token: str) -> AggregatorTokenResponse:
         async def verify_owner_active(
             owner_id: str, claims: IntegrationClaims
         ) -> IntegrationClaims:
-            nonlocal client_name
             client = await self._clients.find_by_client_id(owner_id)
-            if client is None:
-                raise UnauthorizedError("Invalid refresh token")
             if client.status != IntegrationClientStatus.ACTIVE:
                 raise AppError("TENANT_NOT_ALLOWED", "Client is not active", 403)
-            client_name = client.name
-            return claims
+            return {**claims, "client_name": client.name}
 
-        async def build_access_token(owner_id: str, claims: IntegrationClaims) -> tuple[str, int]:
-            nonlocal granted_scope
-            granted_scope = claims["scope"]
-            return _jwt.encode_access_token(
-                client_id=owner_id,
-                tenant_ids=claims["tenant_ids"],
-                scopes=claims["scope"].split(),
-                client_name=client_name,
-                secret_key=self._settings.secret_key,
-                expires_in=self._settings.content_aggregator_access_token_expires_in,
-            )
-
-        pair = await refresh_tokens.rotate(
+        pair, claims = await refresh_tokens.rotate(
             self._store,
             refresh_token,
             verify_owner_active=verify_owner_active,
-            build_access_token=build_access_token,
+            build_access_token=self._encode_access_token,
             refresh_ttl=self._settings.content_aggregator_refresh_token_expires_in,
-            reuse_counter_name="content_aggregator_auth.reuse_detected",
         )
-        return {**pair, "scope": granted_scope}
+        return AggregatorTokenResponse(**pair)

@@ -12,6 +12,7 @@ SECURITY:
 from __future__ import annotations
 
 import logging
+from functools import partial
 from typing import Any
 
 from fastapi import Depends
@@ -24,21 +25,13 @@ from app.models.responses.dashboard import (
     TenantDashboardResponse,
 )
 from app.models.responses.school_response import SchoolResponse
-from app.models.responses.user import UserPublicResponse
+from app.models.responses.user import TenantNameResponse, UserPublicResponse
 from app.models.user import User, UserCreate, UserRole
 from app.platform.auth import refresh_tokens
 from app.platform.auth.dependencies import get_db
 from app.platform.auth.hashing import hash_password, verify_password
 from app.platform.auth.jwt import create_access_token, parse_expires_delta
-from app.platform.auth.refresh_tokens import (
-    RefreshTokenExpiredError,
-    RefreshTokenNotFoundError,
-    RefreshTokenPendingError,
-    RefreshTokenReplayedError,
-    RefreshTokenReusedError,
-    RefreshTokenRevokedError,
-    TokenPair,
-)
+from app.platform.auth.refresh_tokens import TokenPair
 from app.platform.error_handling import AppError, ConflictError, NotFoundError, UnauthorizedError
 from app.platform.settings import Settings, get_settings
 from app.platform.telemetry import get_counter
@@ -55,20 +48,19 @@ def _make_access_token(sub: str, claims: UserClaims, settings: Settings) -> tupl
     return token, expires_in
 
 
-async def _issue_token_pair(
-    *,
-    sub: str,
-    role: str,
-    tenant_id: str,
-    school_id: str | None,
-    db: AsyncDatabase,
-) -> TokenPair:
+def _user_claims(user: User) -> UserClaims:
+    own_tenant = str(user.id) if user.role == UserRole.TENANT else ""
+    tenant_id = user.tenant_id or own_tenant
+    return {"role": user.role.value, "tenant_id": tenant_id, "school_id": user.school_id or ""}
+
+
+async def _issue_token_pair(user: User, db: AsyncDatabase) -> TokenPair:
     settings = get_settings()
-    claims: UserClaims = {"role": role, "tenant_id": tenant_id, "school_id": school_id}
-    access_token, expires_in = _make_access_token(sub, claims, settings)
+    claims = _user_claims(user)
+    access_token, expires_in = _make_access_token(str(user.id), claims, settings)
     return await refresh_tokens.issue_pair(
         UserRefreshTokenRepository(db),
-        owner_id=sub,
+        owner_id=str(user.id),
         claims=claims,
         access_token=access_token,
         access_expires_in=expires_in,
@@ -179,13 +171,7 @@ async def login_unified(
     # Tenant users are the root of their own tenant scope — their _id IS the
     # tenantId used in content/school documents, but tenant_id is not stored on
     # their own user record (they don't reference themselves). Use sub as tenant_id.
-    pair = await _issue_token_pair(
-        sub=str(user.id),
-        role=user.role.value,
-        tenant_id=user.tenant_id or str(user.id),
-        school_id=user.school_id,
-        db=db,
-    )
+    pair = await _issue_token_pair(user, db)
     return {**pair, "user": _user_public(user)}
 
 
@@ -222,13 +208,7 @@ async def login_by_phone(
         auth_failures.add(1, {"reason": "inactive_account"})
         raise UnauthorizedError("Invalid phone or password")
 
-    pair = await _issue_token_pair(
-        sub=str(user.id),
-        role=user.role.value,
-        tenant_id=user.tenant_id or str(user.id),
-        school_id=user.school_id,
-        db=db,
-    )
+    pair = await _issue_token_pair(user, db)
     return {**pair, "user": _user_public(user)}
 
 
@@ -323,23 +303,16 @@ async def refresh(
         user = await repo.find_by_id(owner_id)
         if user is None or not user.is_active:
             raise AppError("TENANT_NOT_ALLOWED", "Account is inactive or no longer exists", 403)
-        return {
-            "role": user.role.value,
-            "tenant_id": user.tenant_id or str(user.id),
-            "school_id": user.school_id,
-        }
+        return _user_claims(user)
 
-    async def build_access_token(owner_id: str, claims: UserClaims) -> tuple[str, int]:
-        return _make_access_token(owner_id, claims, settings)
-
-    return await refresh_tokens.rotate(
+    pair, _ = await refresh_tokens.rotate(
         UserRefreshTokenRepository(db),
         refresh_token,
         verify_owner_active=verify_owner_active,
-        build_access_token=build_access_token,
+        build_access_token=partial(_make_access_token, settings=settings),
         refresh_ttl=settings.refresh_token_expires_in,
-        reuse_counter_name="auth.reuse_detected",
     )
+    return pair
 
 
 # ---------------------------------------------------------------------------
@@ -392,11 +365,10 @@ async def get_school_admin_profile(
 
 async def get_tenant_names(
     db: AsyncDatabase,  # type: ignore[type-arg]
-) -> list[str]:
-    """Return a list of all tenant names (public endpoint)."""
-    cursor = db["users"].find({"role": UserRole.TENANT.value}, {"tenant_name": 1, "name": 1})
-    docs = await cursor.to_list(length=None)
-    return [d.get("tenant_name") or d.get("name", "") for d in docs]
+) -> list[TenantNameResponse]:
+    """Return the id and name of every tenant (public endpoint)."""
+    tenants = await UserRepository(db).find_all_by_role(UserRole.TENANT.value)
+    return [TenantNameResponse(id=tenant.id, name=tenant.name) for tenant in tenants]
 
 
 async def get_tenant_dashboard(
@@ -419,12 +391,8 @@ async def get_tenant_dashboard(
         school_rows.append(
             SchoolDashboardRow(
                 **SchoolResponse.from_domain(school).to_response(),
-                teacher_count=sum(
-                    1 for u in all_users if str(u.school_id) == sid and u.role == UserRole.TEACHER
-                ),
-                student_count=sum(
-                    1 for u in all_users if str(u.school_id) == sid and u.role == UserRole.STUDENT
-                ),
+                teacher_count=sum(1 for u in all_users if str(u.school_id) == sid and u.role == UserRole.TEACHER),
+                student_count=sum(1 for u in all_users if str(u.school_id) == sid and u.role == UserRole.STUDENT),
                 class_count=len(classes),
             )
         )
@@ -470,27 +438,8 @@ class AuthService:
     async def refresh(self, refresh_token: str) -> TokenPair:
         return await refresh(refresh_token, self._db)
 
-    async def logout(self, owner_id: str) -> None:
-        repo = UserRefreshTokenRepository(self._db)
-        await repo.revoke_all_for_owner(owner_id, reason="logout")
-
     async def logout_by_refresh_token(self, refresh_token: str) -> None:
-        repo = UserRefreshTokenRepository(self._db)
-        try:
-            consumed = await repo.try_consume(refresh_token, for_logout=True)
-        except (RefreshTokenNotFoundError, RefreshTokenExpiredError, RefreshTokenRevokedError):
-            return
-        except (RefreshTokenReplayedError, RefreshTokenPendingError) as exc:
-            await repo.revoke_all_for_owner(
-                exc.owner_id, reason="logout", include_token_id=refresh_token
-            )
-            return
-        except RefreshTokenReusedError as exc:
-            await refresh_tokens.handle_reuse_detected(repo, exc, "auth.reuse_detected")
-            raise UnauthorizedError("Invalid refresh token") from None
-        await repo.revoke_all_for_owner(
-            consumed.owner_id, reason="logout", include_token_id=refresh_token
-        )
+        await UserRefreshTokenRepository(self._db).revoke_session(refresh_token)
 
     async def get_user_profile(self, user_id: str, entity_label: str) -> User:
         return await get_user_profile(user_id, entity_label, self._db)
@@ -501,7 +450,7 @@ class AuthService:
     async def get_school_admin_profile(self, school_id: str, tenant_id: str) -> UserPublicResponse:
         return await get_school_admin_profile(school_id, tenant_id, self._db)
 
-    async def get_tenant_names(self) -> list[str]:
+    async def get_tenant_names(self) -> list[TenantNameResponse]:
         return await get_tenant_names(self._db)
 
     async def get_tenant_dashboard(self, tenant_id: str) -> TenantDashboardResponse:

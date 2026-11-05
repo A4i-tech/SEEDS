@@ -4,7 +4,7 @@ from typing import Annotated
 
 from pydantic import AfterValidator, AnyUrl, BaseModel, Field
 
-from app.models.content_aggregator import IntegrationClientStatus, WebhookEventType
+from app.models.content_aggregator import WebhookEventType, WebhookStatus
 from app.platform.settings import get_settings
 
 
@@ -30,5 +30,5 @@ class WebhookRegisterRequest(BaseModel):
 class WebhookUpdateRequest(BaseModel):
     url: HttpsUrl | None = None
     events: EventList | None = None
-    status: IntegrationClientStatus | None = None
+    status: WebhookStatus | None = None
     rotate_secret: bool = False

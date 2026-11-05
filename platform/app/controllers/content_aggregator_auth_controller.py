@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Depends, Response
-from fastapi.responses import JSONResponse
 from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.requests.content_aggregator_requests import (
@@ -11,10 +12,13 @@ from app.models.requests.content_aggregator_requests import (
     ContentAggregatorTokenRequest,
 )
 from app.models.responses.login import AggregatorTokenResponse
-from app.platform.auth.dependencies import get_db, require_tenant
-from app.platform.error_handling import AppError, ForbiddenError, UnauthorizedError
+from app.platform.auth.dependencies import get_db
+from app.platform.auth.rate_limit import check_rate_limit
+from app.platform.error_handling import AppError
 from app.platform.settings import Settings, get_settings
 from app.services.content_aggregator.auth import ContentAggregatorAuth
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/v1/auth", tags=["Content Aggregator Auth"])
 
@@ -31,68 +35,44 @@ def _set_no_store_headers(response: Response) -> None:
     response.headers["Pragma"] = "no-cache"
 
 
-def _oauth_error(error: str, description: str, status_code: int) -> JSONResponse:
-    response = JSONResponse(
-        status_code=status_code,
-        content={"error": error, "error_description": description},
-    )
-    _set_no_store_headers(response)
-    if status_code == 401:
-        response.headers["WWW-Authenticate"] = "Bearer"
-    return response
-
-
-@router.post("/token", summary="Exchange client_id/client_secret for a JWT", response_model=None)
+@router.post("/token", summary="Exchange client_id/client_secret for a JWT")
 async def issue_token(
     response: Response,
     body: ContentAggregatorTokenRequest,
     auth: ContentAggregatorAuth = Depends(get_content_aggregator_auth),
-) -> AggregatorTokenResponse | JSONResponse:
-    try:
-        result = await auth.issue_token(
-            client_id=body.client_id,
-            client_secret=body.client_secret,
-            scopes=body.scope.split(),
-        )
-    except UnauthorizedError as exc:
-        return _oauth_error("invalid_client", str(exc), 401)
-    except AppError as exc:
-        error = "invalid_scope" if exc.code == "SCOPE_INSUFFICIENT" else "invalid_client"
-        return _oauth_error(error, exc.message, exc.status_code)
+) -> AggregatorTokenResponse:
+    if not check_rate_limit(f"token:{body.client_id}"):
+        logger.warning("content_aggregator auth: rate limited client_id=%s", body.client_id)
+        raise AppError("RATE_LIMITED", "Too many token requests for this client_id.", 429)
+    result = await auth.issue_token(
+        client_id=body.client_id,
+        client_secret=body.client_secret,
+    )
     _set_no_store_headers(response)
-    return AggregatorTokenResponse.model_validate(result)
+    return result
 
 
-@router.post(
-    "/token/refresh", summary="Exchange a refresh token for a new access token", response_model=None
-)
+@router.post("/token/refresh", summary="Exchange a refresh token for a new access token")
 async def refresh_token(
     response: Response,
     body: ContentAggregatorRefreshRequest,
     auth: ContentAggregatorAuth = Depends(get_content_aggregator_auth),
-) -> AggregatorTokenResponse | JSONResponse:
-    try:
-        result = await auth.refresh_token(refresh_token=body.refresh_token)
-    except UnauthorizedError as exc:
-        return _oauth_error("invalid_grant", str(exc), 401)
-    except AppError as exc:
-        error = "invalid_grant" if exc.code == "REFRESH_TOKEN_EXPIRED" else "invalid_client"
-        return _oauth_error(error, exc.message, exc.status_code)
+) -> AggregatorTokenResponse:
+    result = await auth.refresh_token(refresh_token=body.refresh_token)
     _set_no_store_headers(response)
-    return AggregatorTokenResponse.model_validate(result)
+    return result
 
 
 @router.post("/register", summary="Register a new integration client")
 async def register_client(
     body: ContentAggregatorRegisterRequest,
     auth: ContentAggregatorAuth = Depends(get_content_aggregator_auth),
-    current_user: dict = Depends(require_tenant),
 ) -> ContentAggregatorRegisterResponse:
-    caller_tenant_id = current_user.get("sub", "")
-    if any(tenant_id != caller_tenant_id for tenant_id in body.tenant_ids):
-        raise ForbiddenError("tenant_ids must match the authenticated tenant")
     client_id, client_secret = await auth.register_client(
-        name=body.name, tenant_ids=body.tenant_ids, scopes=body.scopes
+        name=body.name,
+        tenant_ids=body.tenant_ids,
+        scopes=body.scopes,
+        created_by="",
     )
     return ContentAggregatorRegisterResponse(
         client_id=client_id,

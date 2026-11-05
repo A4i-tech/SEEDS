@@ -1,19 +1,14 @@
 from __future__ import annotations
 
-import asyncio
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
 
-from app.platform.auth import refresh_tokens as refresh_tokens_module
 from app.platform.auth.refresh_tokens import (
     ConsumedToken,
     RefreshTokenExpiredError,
-    RefreshTokenNotFoundError,
-    RefreshTokenReplayedError,
-    RefreshTokenReusedError,
-    RefreshTokenRevokedError,
+    RefreshTokenInvalidError,
     issue_pair,
     rotate,
 )
@@ -25,7 +20,6 @@ from app.platform.telemetry import configure_telemetry
 class FakeStore:
     def __init__(self) -> None:
         self._tokens: dict[str, dict[str, Any]] = {}
-        self._replays: dict[str, Any] = {}
 
     async def insert(
         self, *, token_id, owner_id, claims, expires_at, family_expires_at, created_at
@@ -36,40 +30,27 @@ class FakeStore:
             "expires_at": expires_at,
             "family_expires_at": family_expires_at,
             "revoked": False,
-            "revoked_reason": None,
-            "consumed_at": None,
+            "revoked_reason": "",
         }
 
     async def try_consume(self, token_id: str) -> ConsumedToken:
         doc = self._tokens.get(token_id)
         if doc is None:
-            raise RefreshTokenNotFoundError
+            raise RefreshTokenInvalidError
         if doc["revoked"]:
             if doc["revoked_reason"] == "logout":
-                raise RefreshTokenRevokedError(doc["owner_id"])
-            if doc["revoked_reason"] == "consumed" and doc["consumed_at"] is not None:
-                elapsed = datetime.now(tz=UTC) - doc["consumed_at"]
-                if elapsed <= refresh_tokens_module.REPLAY_GRACE_WINDOW:
-                    cached = self._replays.get(token_id)
-                    if cached is not None:
-                        raise RefreshTokenReplayedError(doc["owner_id"], cached)
-            raise RefreshTokenReusedError(doc["owner_id"])
+                raise RefreshTokenInvalidError
+            await self.revoke_all_for_owner(doc["owner_id"], reason="consumed")
+            raise RefreshTokenInvalidError
         if doc["expires_at"] <= datetime.now(tz=UTC):
             raise RefreshTokenExpiredError
         doc["revoked"] = True
         doc["revoked_reason"] = "consumed"
-        doc["consumed_at"] = datetime.now(tz=UTC)
         return ConsumedToken(
             owner_id=doc["owner_id"],
             claims=doc["claims"],
             family_expires_at=doc["family_expires_at"],
         )
-
-    async def cache_replay(self, token_id: str, pair) -> None:
-        self._replays[token_id] = pair
-
-    async def logged_out_since(self, owner_id: str, since: datetime) -> bool:
-        return False
 
     async def revoke_all_for_owner(self, owner_id: str, *, reason: str) -> None:
         for doc in self._tokens.values():
@@ -89,7 +70,7 @@ async def _verify_owner_active(owner_id: str, claims: dict[str, Any]) -> dict[st
     return claims
 
 
-async def _build_access_token(owner_id: str, claims: dict[str, Any]) -> tuple[str, int]:
+def _build_access_token(owner_id: str, claims: dict[str, Any]) -> tuple[str, int]:
     return f"access-for-{owner_id}", 900
 
 
@@ -121,13 +102,12 @@ class TestRotate:
         issued = await _issue(store)
         old_refresh = issued["refresh_token"]
 
-        result = await rotate(
+        result, _ = await rotate(
             store,
             old_refresh,
             verify_owner_active=_verify_owner_active,
             build_access_token=_build_access_token,
             refresh_ttl="30d",
-            reuse_counter_name="auth.reuse_detected",
         )
 
         assert result["refresh_token"] != old_refresh
@@ -144,7 +124,6 @@ class TestRotate:
             verify_owner_active=_verify_owner_active,
             build_access_token=_build_access_token,
             refresh_ttl="30d",
-            reuse_counter_name="auth.reuse_detected",
         )
 
         new_token = next(
@@ -161,22 +140,19 @@ class TestRotate:
                 verify_owner_active=_verify_owner_active,
                 build_access_token=_build_access_token,
                 refresh_ttl="30d",
-                reuse_counter_name="auth.reuse_detected",
             )
 
-    async def test_replaying_consumed_token_revokes_all_tokens_for_owner(self, monkeypatch):
+    async def test_replaying_consumed_token_revokes_all_tokens_for_owner(self):
         store = FakeStore()
         issued = await _issue(store)
         root_refresh = issued["refresh_token"]
-        rotated = await rotate(
+        rotated, _ = await rotate(
             store,
             root_refresh,
             verify_owner_active=_verify_owner_active,
             build_access_token=_build_access_token,
             refresh_ttl="30d",
-            reuse_counter_name="auth.reuse_detected",
         )
-        monkeypatch.setattr(refresh_tokens_module, "REPLAY_GRACE_WINDOW", timedelta(seconds=-1))
 
         with pytest.raises(UnauthorizedError):
             await rotate(
@@ -185,7 +161,6 @@ class TestRotate:
                 verify_owner_active=_verify_owner_active,
                 build_access_token=_build_access_token,
                 refresh_ttl="30d",
-                reuse_counter_name="auth.reuse_detected",
             )
 
         with pytest.raises(UnauthorizedError):
@@ -195,26 +170,23 @@ class TestRotate:
                 verify_owner_active=_verify_owner_active,
                 build_access_token=_build_access_token,
                 refresh_ttl="30d",
-                reuse_counter_name="auth.reuse_detected",
             )
 
         assert all(doc["revoked"] for doc in store._tokens.values())
         assert all(doc["revoked_reason"] == "consumed" for doc in store._tokens.values())
 
-    async def test_replay_revokes_other_tokens_for_same_owner(self, monkeypatch):
+    async def test_replay_revokes_other_tokens_for_same_owner(self):
         store = FakeStore()
         token_a = await _issue(store, owner_id="user-1")
         token_b = await _issue(store, owner_id="user-1")
 
-        rotated_a = await rotate(
+        rotated_a, _ = await rotate(
             store,
             token_a["refresh_token"],
             verify_owner_active=_verify_owner_active,
             build_access_token=_build_access_token,
             refresh_ttl="30d",
-            reuse_counter_name="auth.reuse_detected",
         )
-        monkeypatch.setattr(refresh_tokens_module, "REPLAY_GRACE_WINDOW", timedelta(seconds=-1))
 
         with pytest.raises(UnauthorizedError):
             await rotate(
@@ -223,7 +195,6 @@ class TestRotate:
                 verify_owner_active=_verify_owner_active,
                 build_access_token=_build_access_token,
                 refresh_ttl="30d",
-                reuse_counter_name="auth.reuse_detected",
             )
 
         assert store._tokens[rotated_a["refresh_token"]]["revoked"] is True
@@ -244,67 +215,12 @@ class TestRotate:
                 verify_owner_active=_verify_owner_active,
                 build_access_token=_build_access_token,
                 refresh_ttl="30d",
-                reuse_counter_name="auth.reuse_detected",
             )
 
         assert store._tokens[token_a["refresh_token"]]["revoked_reason"] == "logout"
         assert store._tokens[token_b["refresh_token"]]["revoked_reason"] == "logout"
 
-    async def test_interleaved_refresh_within_grace_window_both_get_winners_pair(self):
-        store = FakeStore()
-        issued = await _issue(store)
-        root_refresh = issued["refresh_token"]
 
-        results = await asyncio.gather(
-            rotate(
-                store,
-                root_refresh,
-                verify_owner_active=_verify_owner_active,
-                build_access_token=_build_access_token,
-                refresh_ttl="30d",
-                reuse_counter_name="auth.reuse_detected",
-            ),
-            rotate(
-                store,
-                root_refresh,
-                verify_owner_active=_verify_owner_active,
-                build_access_token=_build_access_token,
-                refresh_ttl="30d",
-                reuse_counter_name="auth.reuse_detected",
-            ),
-            return_exceptions=True,
-        )
-
-        successes = [r for r in results if not isinstance(r, BaseException)]
-        failures = [r for r in results if isinstance(r, BaseException)]
-        assert len(successes) == 2
-        assert len(failures) == 0
-        assert successes[0] == successes[1]
-
-    async def test_replay_outside_grace_window_still_triggers_reuse_alarm(self, monkeypatch):
-        store = FakeStore()
-        issued = await _issue(store)
-        root_refresh = issued["refresh_token"]
-        await rotate(
-            store,
-            root_refresh,
-            verify_owner_active=_verify_owner_active,
-            build_access_token=_build_access_token,
-            refresh_ttl="30d",
-            reuse_counter_name="auth.reuse_detected",
-        )
-        monkeypatch.setattr(refresh_tokens_module, "REPLAY_GRACE_WINDOW", timedelta(seconds=-1))
-
-        with pytest.raises(UnauthorizedError):
-            await rotate(
-                store,
-                root_refresh,
-                verify_owner_active=_verify_owner_active,
-                build_access_token=_build_access_token,
-                refresh_ttl="30d",
-                reuse_counter_name="auth.reuse_detected",
-            )
-        assert store._tokens[root_refresh]["revoked_reason"] == "consumed"
 
     async def test_expired_token_raises_distinct_error_code(self):
         store = FakeStore()
@@ -319,7 +235,6 @@ class TestRotate:
                 verify_owner_active=_verify_owner_active,
                 build_access_token=_build_access_token,
                 refresh_ttl="30d",
-                reuse_counter_name="auth.reuse_detected",
             )
         assert exc_info.value.code == "REFRESH_TOKEN_EXPIRED"
         assert exc_info.value.status_code == 401
@@ -338,7 +253,6 @@ class TestRotate:
                 verify_owner_active=_verify_owner_active,
                 build_access_token=_build_access_token,
                 refresh_ttl="30d",
-                reuse_counter_name="auth.reuse_detected",
             )
         assert exc_info.value.code == "REFRESH_TOKEN_EXPIRED"
         assert store._tokens[expired_refresh]["revoked"] is False
@@ -355,7 +269,6 @@ class TestRotate:
                 verify_owner_active=_verify_owner_active,
                 build_access_token=_build_access_token,
                 refresh_ttl="30d",
-                reuse_counter_name="auth.reuse_detected",
             )
         assert exc_info.value.code == "TENANT_NOT_ALLOWED"
         assert exc_info.value.status_code == 403

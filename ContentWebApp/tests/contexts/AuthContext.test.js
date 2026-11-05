@@ -41,7 +41,7 @@ const Probe = () => {
 };
 
 const renderAuthed = async () => {
-  initSession.mockResolvedValue({ data: { token: "access-1" }, error: null });
+  initSession.mockResolvedValue({ ok: true, error: "" });
   setAccessToken("access-1");
   render(
     <AuthProvider>
@@ -65,7 +65,7 @@ describe("AuthProvider logout", () => {
 
     await waitFor(() => expect(screen.getByTestId("outcome").textContent).toBe("resolved"));
     expect(screen.getByTestId("authed").textContent).toBe("false");
-    expect(screen.getByTestId("token").textContent).toBe("null");
+    expect(screen.getByTestId("token").textContent).toBe("");
   });
 
   it("keeps the session and rethrows when the server never confirmed", async () => {
@@ -89,7 +89,7 @@ describe("AuthProvider logout", () => {
 
     await waitFor(() => expect(screen.getByTestId("outcome").textContent).toBe("resolved"));
     expect(screen.getByTestId("authed").textContent).toBe("false");
-    expect(screen.getByTestId("token").textContent).toBe("null");
+    expect(screen.getByTestId("token").textContent).toBe("");
   });
 
   it("treats 403 as an already-terminated session", async () => {
@@ -100,11 +100,11 @@ describe("AuthProvider logout", () => {
 
     await waitFor(() => expect(screen.getByTestId("outcome").textContent).toBe("resolved"));
     expect(screen.getByTestId("authed").textContent).toBe("false");
-    expect(screen.getByTestId("token").textContent).toBe("null");
+    expect(screen.getByTestId("token").textContent).toBe("");
   });
 
   it("resolves and clears local state when logout is called with no access token", async () => {
-    initSession.mockResolvedValue({ data: null, error: new ApiError("Missing refresh token", 401) });
+    initSession.mockResolvedValue({ ok: false, error: new ApiError("Missing refresh token", 401) });
     render(
       <AuthProvider>
         <Probe />
@@ -116,7 +116,7 @@ describe("AuthProvider logout", () => {
 
     await waitFor(() => expect(screen.getByTestId("outcome").textContent).toBe("resolved"));
     expect(screen.getByTestId("authed").textContent).toBe("false");
-    expect(screen.getByTestId("token").textContent).toBe("null");
+    expect(screen.getByTestId("token").textContent).toBe("");
     expect(apiFetch).not.toHaveBeenCalled();
   });
 });
@@ -137,7 +137,7 @@ describe("Login unmount/remount clears stale error", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     clearAccessToken();
-    initSession.mockResolvedValue({ data: null, error: null });
+    initSession.mockResolvedValue({ ok: false, error: "" });
   });
 
   const fillAndSubmit = async () => {

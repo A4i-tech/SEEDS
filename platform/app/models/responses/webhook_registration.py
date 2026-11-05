@@ -4,7 +4,7 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict
 
-from app.models.content_aggregator import IntegrationClientStatus, Webhook, WebhookEventType
+from app.models.content_aggregator import Webhook, WebhookEventType, WebhookStatus
 
 
 class WebhookResponse(BaseModel):
@@ -13,7 +13,7 @@ class WebhookResponse(BaseModel):
     id: str
     url: str
     events: list[WebhookEventType]
-    status: IntegrationClientStatus
+    status: WebhookStatus
     created_at: datetime
     updated_at: datetime
 

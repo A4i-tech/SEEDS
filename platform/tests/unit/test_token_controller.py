@@ -6,13 +6,7 @@ import pytest
 from fastapi import Response
 
 from app.controllers.token_controller import refresh_token
-from app.platform.auth.dependencies import REFRESH_COOKIE_NAME
 from app.platform.error_handling import UnauthorizedError
-
-
-class FakeRequest:
-    def __init__(self, cookies: dict[str, str]) -> None:
-        self.cookies = cookies
 
 
 class FakeService:
@@ -34,8 +28,8 @@ async def test_refresh_returns_access_token_only() -> None:
     service = FakeService()
 
     result = await refresh_token(
-        FakeRequest({REFRESH_COOKIE_NAME: "old-refresh"}),  # type: ignore[arg-type]
         response,
+        "old-refresh",
         service,  # type: ignore[arg-type]
     )
 
@@ -51,8 +45,8 @@ async def test_refresh_sets_rotated_cookie_and_never_bodies_it() -> None:
     response = Response()
 
     result = await refresh_token(
-        FakeRequest({REFRESH_COOKIE_NAME: "old-refresh"}),  # type: ignore[arg-type]
         response,
+        "old-refresh",
         FakeService(),  # type: ignore[arg-type]
     )
 
@@ -68,8 +62,8 @@ async def test_refresh_sets_rotated_cookie_and_never_bodies_it() -> None:
 async def test_refresh_without_cookie_is_unauthorized() -> None:
     with pytest.raises(UnauthorizedError):
         await refresh_token(
-            FakeRequest({}),  # type: ignore[arg-type]
             Response(),
+            "",
             FakeService(),  # type: ignore[arg-type]
         )
 
@@ -79,18 +73,10 @@ class FakeFailingService:
         raise UnauthorizedError("Invalid refresh token")
 
 
-async def test_refresh_failure_clears_refresh_cookie() -> None:
-    result = await refresh_token(
-        FakeRequest({REFRESH_COOKIE_NAME: "bad-refresh"}),  # type: ignore[arg-type]
-        Response(),
-        FakeFailingService(),  # type: ignore[arg-type]
-    )
-
-    assert result.status_code == 401
-    cookie_headers = [
-        value for key, value in result.raw_headers if key == b"set-cookie"
-    ]
-    assert any(
-        f"{REFRESH_COOKIE_NAME}=".encode() in header and b"Max-Age=0" in header
-        for header in cookie_headers
-    )
+async def test_refresh_failure_raises_unauthorized() -> None:
+    with pytest.raises(UnauthorizedError):
+        await refresh_token(
+            Response(),
+            "bad-refresh",
+            FakeFailingService(),  # type: ignore[arg-type]
+        )

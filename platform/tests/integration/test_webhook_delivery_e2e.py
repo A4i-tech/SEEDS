@@ -65,7 +65,6 @@ async def _register_client_and_webhook(client, receiver, *, events=("job.complet
         json={
             "client_id": creds["client_id"],
             "client_secret": creds["client_secret"],
-            "scope": "content:write content:read",
         },
     )
     assert tok.status_code == 200, tok.text

@@ -59,7 +59,7 @@ def claims():
         iat=now,
         exp=now + timedelta(hours=1),
         jti="jti-a",
-        scope="content:read content:write",
+        scopes=["content:read", "content:write"],
         tenant_ids=["tenant-a"],
         client_name="partner-a",
     )
@@ -76,7 +76,7 @@ async def test_update_webhook_rejects_event_outside_granted_scope(service, claim
     body = WebhookRegisterRequest(url="https://x.example.com/hook", events=["job.completed"])
     created = await register_webhook(request_obj, body, claims=claims, service=service)
 
-    claims = claims.model_copy(update={"scope": {"content:read"}})
+    claims = claims.model_copy(update={"scopes": ["content:read"]})
     update = WebhookUpdateRequest(events=["job.failed"])
     with pytest.raises(AppError) as exc_info:
         await update_webhook(request_obj, created.id, update, claims=claims, service=service)

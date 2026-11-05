@@ -5,22 +5,18 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from fastapi import APIRouter, Depends, Request, Response, status
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, Depends, Response, status
 
-from app.controllers._auth_helpers import logout_bearer_fallback
 from app.models.requests.auth_requests import TeacherLoginRequest, TeacherRegisterRequest
 from app.models.responses.login import LoginResponse, MessageResponse
 from app.models.responses.user import UserPublicResponse
 from app.platform.auth.dependencies import (
-    REFRESH_COOKIE_NAME,
+    RefreshCookie,
     clear_refresh_cookie,
     get_current_user,
-    oauth2_scheme,
     require_role,
     set_refresh_cookie,
 )
-from app.platform.error_handling import AppError, build_error_response
 from app.services.auth_service import AuthService, TeacherCreate, get_auth_service
 
 logger = logging.getLogger(__name__)
@@ -75,24 +71,16 @@ async def teacher_register(
     "/logout",
     summary="Teacher logout",
     status_code=status.HTTP_200_OK,
-    response_model=None,
 )
 async def teacher_logout(
-    request: Request,
     response: Response,
-    token: str | None = Depends(oauth2_scheme),
+    refresh_token: RefreshCookie = "",
     service: AuthService = Depends(get_auth_service),
-) -> MessageResponse | JSONResponse:
-    refresh_token = request.cookies.get(REFRESH_COOKIE_NAME)
+) -> MessageResponse:
     if refresh_token:
-        try:
-            await service.logout_by_refresh_token(refresh_token)
-        except AppError as exc:
-            error_response = build_error_response(exc)
-            clear_refresh_cookie(error_response)
-            return error_response
+        await service.logout_by_refresh_token(refresh_token)
     else:
-        await logout_bearer_fallback(token, service)
+        logger.info("logout: no refresh cookie present")
     clear_refresh_cookie(response)
     return MessageResponse(message="Logout successful")
 

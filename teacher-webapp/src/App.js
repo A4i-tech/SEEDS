@@ -21,7 +21,7 @@ function AppRoutes() {
   const { initializing } = useAuthContext();
 
   if (initializing) {
-    return null;
+    return <></>;
   }
 
   return (

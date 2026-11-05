@@ -1,6 +1,5 @@
 import {
   getAuthHeaders,
-  isAuthenticated,
   getTokenPayload,
   setAuth,
   getRole,
@@ -38,16 +37,6 @@ describe("authHelpers", () => {
     });
   });
 
-  describe("isAuthenticated", () => {
-    it("true when token present", () => {
-      setAccessToken("abc");
-      expect(isAuthenticated()).toBe(true);
-    });
-    it("false when absent", () => {
-      expect(isAuthenticated()).toBe(false);
-    });
-  });
-
   describe("getTokenPayload", () => {
     it("returns {} when no token", () => {
       expect(getTokenPayload()).toEqual({});
@@ -55,6 +44,12 @@ describe("authHelpers", () => {
     it("decodes a valid token", () => {
       setAccessToken(makeToken({ role: "tenant", id: "t1" }));
       expect(getTokenPayload()).toMatchObject({ role: "tenant", id: "t1" });
+    });
+    it("returns {} for malformed token", () => {
+      const consoleError = jest.spyOn(console, "error").mockImplementation(() => {});
+      setAccessToken("not-a-jwt");
+      expect(getTokenPayload()).toEqual({});
+      consoleError.mockRestore();
     });
     it("returns {} when payload segment missing", () => {
       setAccessToken("onlyonesegment");
@@ -82,9 +77,9 @@ describe("authHelpers", () => {
       setAuth(makeToken({ role: "content_creator" }), "tenant");
       expect(getRole()).toBe("content_creator");
     });
-    it("getRole falls back to issuer then stored role", () => {
+    it("getRole ignores issuer and falls back to stored role", () => {
       setAuth(makeToken({ iss: "school_admin" }), "tenant");
-      expect(getRole()).toBe("school_admin");
+      expect(getRole()).toBe("tenant");
       setAccessToken("plain");
       localStorage.setItem("userRole", "teacher");
       expect(getRole()).toBe("teacher");
@@ -92,7 +87,7 @@ describe("authHelpers", () => {
     it("clearAuth removes everything", () => {
       setAuth("tok", "tenant", "s1");
       clearAuth();
-      expect(getAccessToken()).toBeNull();
+      expect(getAccessToken()).toBe("");
       expect(localStorage.getItem("userRole")).toBeNull();
       expect(localStorage.getItem("schoolId")).toBeNull();
     });

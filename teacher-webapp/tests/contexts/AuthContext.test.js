@@ -51,7 +51,7 @@ const renderProbe = async () => {
 beforeEach(() => {
   jest.clearAllMocks();
   clearAccessToken();
-  initSession.mockResolvedValue({ data: { token: "tok" }, error: null });
+  initSession.mockResolvedValue(true);
   setAccessToken("tok");
   useNavigation.mockReturnValue({ goToClassroom: jest.fn(), goToRegister: jest.fn() });
   authHelpers.isLocalStorageAvailable.mockReturnValue(true);
@@ -65,12 +65,12 @@ describe("AuthContext logout", () => {
     await userEvent.click(screen.getByText("logout"));
 
     await waitFor(() => expect(screen.getByTestId("outcome")).toHaveTextContent("resolved"));
-    expect(getAccessToken()).toBeNull();
+    expect(getAccessToken()).toBe("");
     expect(screen.getByTestId("authed")).toHaveTextContent("false");
   });
 
   it("keeps the session and rethrows when the server revoke fails", async () => {
-    axiosInstance.post.mockRejectedValue({ response: { status: 500 } });
+    axiosInstance.post.mockRejectedValue({ status: 500 });
     await renderProbe();
 
     await userEvent.click(screen.getByText("logout"));
@@ -81,18 +81,18 @@ describe("AuthContext logout", () => {
   });
 
   it("treats 401 as an already-terminated session and clears state", async () => {
-    axiosInstance.post.mockRejectedValue({ response: { status: 401 } });
+    axiosInstance.post.mockRejectedValue({ status: 401 });
     await renderProbe();
 
     await userEvent.click(screen.getByText("logout"));
 
     await waitFor(() => expect(screen.getByTestId("outcome")).toHaveTextContent("resolved"));
-    expect(getAccessToken()).toBeNull();
+    expect(getAccessToken()).toBe("");
     expect(screen.getByTestId("authed")).toHaveTextContent("false");
   });
 
   it("still sends the revoke request when no in-memory access token is present", async () => {
-    initSession.mockResolvedValue({ data: null, error: { message: "no session" } });
+    initSession.mockResolvedValue(false);
     clearAccessToken();
     axiosInstance.post.mockResolvedValue({ data: {} });
     render(
@@ -105,7 +105,7 @@ describe("AuthContext logout", () => {
     await userEvent.click(screen.getByText("logout"));
 
     await waitFor(() => expect(screen.getByTestId("outcome")).toHaveTextContent("resolved"));
-    expect(getAccessToken()).toBeNull();
+    expect(getAccessToken()).toBe("");
     expect(screen.getByTestId("authed")).toHaveTextContent("false");
     expect(axiosInstance.post).toHaveBeenCalled();
   });
@@ -119,7 +119,7 @@ describe("AuthContext logout", () => {
     await userEvent.click(screen.getByText("logout"));
 
     await waitFor(() => expect(screen.getByTestId("outcome")).toHaveTextContent("resolved"));
-    expect(getAccessToken()).toBeNull();
+    expect(getAccessToken()).toBe("");
     expect(screen.getByTestId("authed")).toHaveTextContent("false");
   });
 });
@@ -139,7 +139,7 @@ const ToggleLogin = () => {
 
 describe("Login unmount/remount clears stale error", () => {
   beforeEach(() => {
-    initSession.mockResolvedValue({ data: null, error: null });
+    initSession.mockResolvedValue(false);
   });
 
   const fillAndSubmit = async () => {
@@ -149,7 +149,7 @@ describe("Login unmount/remount clears stale error", () => {
   };
 
   it("does not resurface a stale login error after Login unmounts and remounts", async () => {
-    axiosInstance.post.mockRejectedValueOnce({ response: { status: 401 } });
+    axiosInstance.post.mockRejectedValueOnce({ status: 401 });
     render(
       <AuthProvider>
         <ToggleLogin />
@@ -170,7 +170,7 @@ describe("Login unmount/remount clears stale error", () => {
   });
 
   it("does not clear unrelated auth state when the stale login error is cleared", async () => {
-    axiosInstance.post.mockRejectedValueOnce({ response: { status: 401 } });
+    axiosInstance.post.mockRejectedValueOnce({ status: 401 });
     render(
       <AuthProvider>
         <ToggleLogin />

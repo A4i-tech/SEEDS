@@ -13,7 +13,7 @@ async def _register_and_token(client, *, scopes=("content:write", "content:read"
     body = reg.json()
     tok = await client.post(
         "/v1/auth/token",
-        json={"client_id": body["client_id"], "client_secret": body["client_secret"], "scope": " ".join(scopes)},
+        json={"client_id": body["client_id"], "client_secret": body["client_secret"]},
     )
     assert tok.status_code == 200, tok.text
     return body, tok.json()["access_token"]

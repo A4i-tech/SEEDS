@@ -103,6 +103,7 @@ const ClassroomList = () => {
     try {
       await logout();
     } catch (error) {
+      console.error("Logout failed:", error);
       setErrorMsg("Logout failed. You are still signed in — please try again.");
     }
   };

@@ -11,9 +11,9 @@ from __future__ import annotations
 
 import logging
 from collections.abc import AsyncGenerator
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import Depends, Request, Response
+from fastapi import Cookie, Depends, Request, Response
 from fastapi.security import OAuth2PasswordBearer
 from pymongo.asynchronous.database import AsyncDatabase
 
@@ -33,6 +33,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/token", auto_error=False)
 _aggregator_oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/v1/auth/token", auto_error=False)
 
 REFRESH_COOKIE_NAME = "refresh_token"
+RefreshCookie = Annotated[str, Cookie(alias=REFRESH_COOKIE_NAME)]
 
 
 def set_refresh_cookie(response: Response, refresh_token: str) -> None:
@@ -46,7 +47,6 @@ def set_refresh_cookie(response: Response, refresh_token: str) -> None:
         httponly=True,
         secure=settings.refresh_cookie_secure,
         samesite=settings.refresh_cookie_samesite,
-        domain=settings.refresh_cookie_domain or None,
         path="/",
         max_age=max_age,
     )
@@ -57,7 +57,6 @@ def clear_refresh_cookie(response: Response) -> None:
     response.delete_cookie(
         key=REFRESH_COOKIE_NAME,
         path="/",
-        domain=settings.refresh_cookie_domain or None,
         secure=settings.refresh_cookie_secure,
         samesite=settings.refresh_cookie_samesite,
     )
@@ -132,7 +131,7 @@ async def get_current_user(
 
     # Attach to request state for logging / telemetry middleware
     request.state.user_id = user.get("sub", "")
-    request.state.tenant_id = user.get("tenant_id")
+    request.state.tenant_id = user.get("tenant_id", "")
 
     return user
 

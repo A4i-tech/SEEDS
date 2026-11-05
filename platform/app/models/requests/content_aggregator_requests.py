@@ -6,7 +6,6 @@ from pydantic import BaseModel, Field, field_validator
 class ContentAggregatorTokenRequest(BaseModel):
     client_id: str = Field(min_length=1)
     client_secret: str = Field(min_length=1)
-    scope: str
 
 
 class ContentAggregatorRefreshRequest(BaseModel):
@@ -16,7 +15,7 @@ class ContentAggregatorRefreshRequest(BaseModel):
 class ContentAggregatorRegisterRequest(BaseModel):
     name: str = Field(min_length=1)
     tenant_ids: list[str] = Field(min_length=1)
-    scopes: list[str] = Field(min_length=1)
+    scopes: list[str] = Field(default_factory=lambda: ["content:read"])
 
     @field_validator("name")
     @classmethod
@@ -35,6 +34,8 @@ class ContentAggregatorRegisterRequest(BaseModel):
     @field_validator("scopes")
     @classmethod
     def _validate_scopes(cls, values: list[str]) -> list[str]:
+        if not values:
+            raise ValueError("scopes must not be empty")
         if any(v.split() != [v] for v in values):
             raise ValueError("scopes must be non-empty, whitespace-free tokens")
         return values

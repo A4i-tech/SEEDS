@@ -22,49 +22,38 @@ const messageFromBody = (text) => {
   }
 };
 
-let refreshPromise = null;
+let refreshing = false;
+let refreshPromise = Promise.resolve("");
 
-const requestTokenRefresh = async (isPendingRetry = false) => {
-  const response = await fetch(`${SEEDS_URL}/auth/token/refresh`, {
-    method: "POST",
-    credentials: "include",
-  });
-  if (!response.ok) {
-    const body = await response.text();
-    if (response.status === 409 && !isPendingRetry && isPendingRefreshBody(body)) {
-      return requestTokenRefresh(true);
-    }
-    throw new ApiError(body || "refresh failed", response.status, response);
-  }
-  const data = await response.json();
-  setAccessToken(data.access_token);
-  return data.access_token;
-};
-
-const isPendingRefreshBody = (body) => {
+const requestTokenRefresh = async () => {
   try {
-    return JSON.parse(body).code === "REFRESH_TOKEN_PENDING";
-  } catch {
-    return false;
+    const response = await fetch(`${SEEDS_URL}/auth/token/refresh`, {
+      method: "POST",
+      credentials: "include",
+    });
+    if (!response.ok) {
+      const body = await response.text();
+      throw new ApiError(body || "refresh failed", response.status, response);
+    }
+    const data = await response.json();
+    setAccessToken(data.access_token);
+    return data.access_token;
+  } finally {
+    refreshing = false;
   }
 };
 
-export const refreshAccessToken = async () => {
-  if (!refreshPromise) {
-    refreshPromise = (async () => {
-      try {
-        return await requestTokenRefresh();
-      } finally {
-        refreshPromise = null;
-      }
-    })();
+export const refreshAccessToken = () => {
+  if (!refreshing) {
+    refreshing = true;
+    refreshPromise = requestTokenRefresh();
   }
   return refreshPromise;
 };
 
 const clearAuthAndRedirect = () => {
   clearAuth();
-  if (typeof window !== "undefined" && window.location.pathname !== "/") {
+  if (window.location.pathname !== "/") {
     window.location.href = "/";
   }
 };
@@ -86,10 +75,10 @@ const refreshAndRetry = async (label, retry) => {
 export const initSession = async () => {
   try {
     await refreshAccessToken();
-    return { data: true, error: null };
+    return { ok: true, error: "" };
   } catch (error) {
     clearAccessToken();
-    return { data: null, error };
+    return { ok: false, error };
   }
 };
 
@@ -134,6 +123,7 @@ export const apiFetch = async (url, { timeoutMs, ...options } = {}, _isRetry = f
     if (response.status !== 204 && contentType && contentType.includes("application/json")) {
       return await response.json();
     }
+
     return await response.text();
   } catch (error) {
     if (error instanceof ApiError) {

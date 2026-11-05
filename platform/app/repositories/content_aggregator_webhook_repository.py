@@ -8,8 +8,7 @@ from pymongo import ReturnDocument
 from pymongo.asynchronous.database import AsyncDatabase
 from pymongo.errors import DuplicateKeyError
 
-from app.models.content_aggregator import IntegrationClientStatus as WebhookStatus
-from app.models.content_aggregator import Webhook
+from app.models.content_aggregator import Webhook, WebhookStatus
 from app.models.requests.webhook_registration_requests import WebhookEventType
 from app.repositories.base_repository import BaseRepository
 

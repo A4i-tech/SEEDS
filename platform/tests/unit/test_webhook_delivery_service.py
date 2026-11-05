@@ -11,7 +11,7 @@ from bson import ObjectId
 from cryptography.fernet import InvalidToken
 from pydantic import ValidationError
 
-from app.models.content_aggregator import IntegrationClientStatus as WebhookStatus
+from app.models.content_aggregator import WebhookStatus
 from app.models.requests.webhook_registration_requests import WebhookEventType
 from app.platform.auth.webhook_secret import encrypt_secret
 from app.platform.error_handling import ConfigurationError

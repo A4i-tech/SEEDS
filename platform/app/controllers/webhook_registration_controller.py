@@ -88,7 +88,7 @@ async def register_webhook(
     claims: _jwt.AccessTokenClaims = Depends(require_aggregator_client),
     service: WebhookRegistrationService = Depends(get_webhook_registration_service),
 ) -> WebhookWithSecretResponse:
-    webhook, secret = await service.register(claims.sub, claims.scope, body)
+    webhook, secret = await service.register(claims.sub, claims.scopes, body)
     return WebhookWithSecretResponse.of_new(webhook, secret)
 
 
@@ -113,7 +113,7 @@ async def update_webhook(
     service: WebhookRegistrationService = Depends(get_webhook_registration_service),
 ) -> WebhookResponse | WebhookWithSecretResponse:
     webhook, secret = await service.update(
-        claims.sub, _parse_webhook_id(webhook_id), claims.scope, body
+        claims.sub, _parse_webhook_id(webhook_id), claims.scopes, body
     )
     if secret is None:
         return WebhookResponse.of(webhook)
