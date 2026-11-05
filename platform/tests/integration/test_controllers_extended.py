@@ -242,7 +242,7 @@ class TestTenantAuth:
         tenant = await _seed_tenant(mock_db, email="t1@t.com")
         resp = await client.get("/tenant/names")
         assert resp.status_code == 200
-        assert resp.json() == [{"_id": tenant["_id"], "name": "Ext Tenant"}]
+        assert resp.json() == [{"id": tenant["_id"], "name": "Ext Tenant"}]
 
     @pytest.mark.asyncio
     async def test_teacher_me_returns_profile(self, client, mock_db):
