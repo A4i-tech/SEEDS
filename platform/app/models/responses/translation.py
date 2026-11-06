@@ -1,11 +1,28 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.platform.settings import get_settings
 from app.services.quality_scorer import is_low_confidence
+
+ImportRowReason = Literal[
+    "missing_key",
+    "key_too_long",
+    "missing_route",
+    "invalid_route",
+    "missing_source",
+    "source_too_long",
+    "text_too_long",
+    "duplicate_row",
+    "source_mismatch",
+    "key_mismatch",
+    "write_failed",
+    "version_not_recorded",
+    "save_not_confirmed",
+    "audit_not_recorded",
+]
 
 
 class TranslationResponse(BaseModel):
@@ -80,3 +97,21 @@ class TranslationVersionResponse(BaseModel):
     @classmethod
     def from_doc(cls, doc: dict) -> TranslationVersionResponse:
         return cls.model_validate(doc)
+
+
+class ImportRowError(BaseModel):
+    row: int
+    route: str
+    key: str
+    reason: ImportRowReason
+    detail: str | None = None
+
+
+class TranslationImportResponse(BaseModel):
+    updated: int = 0
+    created: int = 0
+    unchanged: int = 0
+    skipped_blank: int = 0
+    failed: int = 0
+    errors: list[ImportRowError] = Field(default_factory=list)
+    warnings: list[ImportRowError] = Field(default_factory=list)

@@ -8,7 +8,9 @@ import {
   toTranslationApproveRequest,
   toTranslationRejectRequest,
   toBulkApproveRequest,
+  toTranslationImportRequest,
   fromTranslationResponse,
+  fromTranslationImportResponse,
 } from "../dto/LocalizationDto";
 
 const GENERATE_TIMEOUT_MS = 5 * 60 * 1000;
@@ -102,5 +104,15 @@ export const translationService = {
       headers: getAuthHeaders(),
       body: JSON.stringify(toBulkApproveRequest({ route, lang })),
     });
+  },
+
+  async importTranslations({ siteId, lang, overwriteBlank, state, rows }) {
+    const response = await request(`${SEEDS_URL}/translations/import?${buildQueryString({ site_id: siteId })}`, {
+      timeoutMs: GENERATE_TIMEOUT_MS,
+      method: "POST",
+      headers: getAuthHeaders(),
+      body: JSON.stringify(toTranslationImportRequest({ lang, overwriteBlank, state, rows })),
+    });
+    return fromTranslationImportResponse(response);
   },
 };
