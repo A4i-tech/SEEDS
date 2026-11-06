@@ -44,6 +44,8 @@ class ArtifactName(StrEnum):
     TRANSLATED_DOCX = "translated_docx"
     TRANSLATED_TEX = "translated_tex"
     TRANSLATED_PDF = "translated_pdf"
+    BRF = "brf"
+    BRAILLE_REPORT = "braille_report"
 
 
 _DOCX_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
@@ -74,6 +76,8 @@ ARTIFACTS: dict[ArtifactName, tuple[str, str]] = {
     ArtifactName.TRANSLATED_DOCX: ("translated.docx", _DOCX_TYPE),
     ArtifactName.TRANSLATED_TEX: ("translated.tex", "application/x-tex"),
     ArtifactName.TRANSLATED_PDF: ("translated.pdf", "application/pdf"),
+    ArtifactName.BRF: ("remediated.brf", "text/plain"),
+    ArtifactName.BRAILLE_REPORT: ("remediated.braille.json", "application/json"),
 }
 
 

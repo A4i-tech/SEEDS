@@ -5,6 +5,8 @@ export const ARTIFACT_DOWNLOADS = [
   { key: "translated_docx", ext: "translated.docx" },
   { key: "translated_pdf", ext: "translated.pdf" },
   { key: "translated_tex", ext: "translated.tex" },
+  { key: "brf", ext: "brf" },
+  { key: "braille_report", ext: "braille.json" },
 ];
 
 export const artifactFilename = (job, entry) =>

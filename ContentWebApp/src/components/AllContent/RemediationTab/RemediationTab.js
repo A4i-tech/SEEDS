@@ -21,6 +21,8 @@ const ARTIFACT_LABELS = {
   translated_docx: "Word (translated)",
   translated_pdf: "PDF (translated)",
   translated_tex: "LaTeX (translated)",
+  brf: "BRF",
+  braille_report: "Braille report",
 };
 
 const RemediationTab = () => {
