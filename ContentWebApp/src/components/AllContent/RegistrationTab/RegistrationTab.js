@@ -3,7 +3,9 @@ import TeacherRegistrationForm from "./TeacherRegistrationForm";
 import TeachersList from "./TeachersList";
 import StudentsSection from "./StudentsSection";
 import SchoolsPanel from "./SchoolsPanel";
+import VolunteersPanel from "./VolunteersPanel";
 import { getRole } from "../../../utils/authHelpers";
+import { USER_ROLES } from "../../../Constants";
 import "./css/RegistrationTab.css";
 import "../shared/buttons.css";
 import "../shared/cards.css";
@@ -30,20 +32,57 @@ const RegistrationTab = ({
   onDeleteSchool,
   schoolMessage,
   schoolMessageType,
+  volunteers,
+  isVolunteersLoading,
+  volunteersLoadError,
+  onCreateVolunteer,
+  volunteerMessage,
+  volunteerMessageType,
 }) => {
   const [activeSection, setActiveSection] = useState("teachers");
+  const [tenantSection, setTenantSection] = useState("schools");
 
-  if (getRole() === "tenant") {
+  if (getRole() === USER_ROLES.TENANT) {
+    const tenantSections = [
+      { key: "schools", label: "Schools" },
+      { key: "volunteers", label: "Volunteers" },
+    ];
     return (
-      <SchoolsPanel
-        schools={schools}
-        isLoading={isSchoolsLoading}
-        onCreateSchool={onCreateSchool}
-        onUpdateSchool={onUpdateSchool}
-        onDeleteSchool={onDeleteSchool}
-        message={schoolMessage}
-        messageType={schoolMessageType}
-      />
+      <div className="card registration-page-card">
+        <div className="pill-tabs">
+          {tenantSections.map(({ key, label }) => (
+            <button
+              key={key}
+              type="button"
+              className={`pill-tab ${tenantSection === key ? "pill-tab--active" : ""}`}
+              onClick={() => setTenantSection(key)}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        {tenantSection === "schools" ? (
+          <SchoolsPanel
+            schools={schools}
+            isLoading={isSchoolsLoading}
+            onCreateSchool={onCreateSchool}
+            onUpdateSchool={onUpdateSchool}
+            onDeleteSchool={onDeleteSchool}
+            message={schoolMessage}
+            messageType={schoolMessageType}
+          />
+        ) : (
+          <VolunteersPanel
+            volunteers={volunteers}
+            isLoading={isVolunteersLoading}
+            loadError={volunteersLoadError}
+            onCreateVolunteer={onCreateVolunteer}
+            message={volunteerMessage}
+            messageType={volunteerMessageType}
+          />
+        )}
+      </div>
     );
   }
 

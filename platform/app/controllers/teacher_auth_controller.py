@@ -10,6 +10,7 @@ from fastapi import APIRouter, Depends, Response, status
 from app.models.requests.auth_requests import TeacherLoginRequest, TeacherRegisterRequest
 from app.models.responses.login import LoginResponse, MessageResponse
 from app.models.responses.user import UserPublicResponse
+from app.models.user import UserRole
 from app.platform.auth.dependencies import (
     RefreshCookie,
     clear_refresh_cookie,
@@ -59,7 +60,7 @@ async def teacher_register(
         email=body.phone_number,
         password=body.password,
         phone=body.phone_number,
-        role=body.role,
+        role=UserRole(body.role),
         tenant_id=current_user.get("tenant_id"),
         school_id=current_user.get("school_id"),
     )

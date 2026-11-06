@@ -6,6 +6,7 @@ import { useContentAggregatorSync } from "../hooks/useContentAggregatorSync";
 import { useContentFilters } from "../hooks/useContentFilters";
 import { useTeachers } from "../hooks/useTeachers";
 import { useSchools } from "../hooks/useSchools";
+import { useVolunteers } from "../hooks/useVolunteers";
 import { ivrService } from "../services/ivrService";
 import { getRole } from "../utils/authHelpers";
 import AppHeader from "./AllContent/Header/AppHeader";
@@ -15,7 +16,7 @@ import RegistrationTab from "./AllContent/RegistrationTab/RegistrationTab";
 import AnalyticsTab from "./AllContent/AnalyticsTab/AnalyticsTab";
 import LocalizationTab from "./AllContent/LocalizationTab/LocalizationTab";
 import RemediationTab from "./AllContent/RemediationTab/RemediationTab";
-import { USER_ROLES } from "../Constants";
+import { USER_ROLES, TAB_ROLES } from "../Constants";
 import "./AllContent/AllContent.css";
 import "./AllContent/shared/responsive.css";
 
@@ -26,10 +27,13 @@ const AllContent = () => {
   const [isUpdatingIVR, setIsUpdatingIVR] = useState(false);
   const [currentUser, setCurrentUser] = useState("User");
   const [currentUserRole, setCurrentUserRole] = useState(() => getRole() || null);
+  const [userError, setUserError] = useState("");
 
   const navigate = useNavigate();
   const { getAuthHeaders, logout, getCurrentUser } = useAuth();
-  const canViewContent = currentUserRole !== null;
+  const canManage = currentUserRole === USER_ROLES.TENANT;
+  const canViewContent = TAB_ROLES.content.includes(currentUserRole);
+  const canViewRemediation = TAB_ROLES.remediation.includes(currentUserRole);
   const {
     content,
     allContent,
@@ -42,7 +46,7 @@ const AllContent = () => {
     refreshContentAggregatorCourses,
     setContent,
     setIsFiltered,
-  } = useContent();
+  } = useContent(canViewContent);
 
   const { syncingAll, syncAllProgress, courseStates, syncAll, syncCourse } =
     useContentAggregatorSync(refreshContentAggregatorCourses);
@@ -78,11 +82,27 @@ const AllContent = () => {
     deleteSchool,
   } = useSchools(activeTab);
 
+  const {
+    volunteers,
+    isLoading: isVolunteersLoading,
+    loadError: volunteersLoadError,
+    message: volunteerMessage,
+    messageType: volunteerMessageType,
+    createVolunteer,
+  } = useVolunteers(canManage);
+
   const ivrURL = process.env.REACT_APP_API_BASE_URL;
-  const canViewRegistration =
-    currentUserRole === USER_ROLES.TENANT || currentUserRole === USER_ROLES.SCHOOL_ADMIN;
-  const canViewAnalytics = canViewRegistration;
-  const canViewLocalization = currentUserRole === USER_ROLES.TENANT;
+  const canViewRegistration = TAB_ROLES.registration.includes(currentUserRole);
+  const canViewAnalytics = TAB_ROLES.analytics.includes(currentUserRole);
+  const canViewLocalization = TAB_ROLES.localization.includes(currentUserRole);
+  const tabs = [
+    canViewContent && "content",
+    canViewContent && "ivr",
+    canViewRegistration && "registration",
+    canViewAnalytics && "analytics",
+    canViewLocalization && "localization",
+    canViewRemediation && "remediation",
+  ].filter(Boolean);
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -96,24 +116,17 @@ const AllContent = () => {
         }
       } catch (error) {
         console.error("Error fetching user:", error);
+        setUserError(error.message);
       }
     };
     fetchUser();
   }, [getCurrentUser]);
 
   useEffect(() => {
-    if (!canViewContent && activeTab === "content") {
-      setActiveTab(canViewRegistration ? "registration" : canViewAnalytics ? "analytics" : "content");
-      return;
+    if (!tabs.includes(activeTab)) {
+      setActiveTab(tabs[0] || null);
     }
-    if (
-      (!canViewRegistration && activeTab === "registration") ||
-      (!canViewAnalytics && activeTab === "analytics") ||
-      (!canViewLocalization && activeTab === "localization")
-    ) {
-      setActiveTab("content");
-    }
-  }, [activeTab, canViewAnalytics, canViewContent, canViewLocalization, canViewRegistration]);
+  }, [activeTab, tabs]);
 
   const handleUpdateIVR = useCallback(async () => {
     setIsUpdatingIVR(true);
@@ -157,10 +170,16 @@ const AllContent = () => {
           showRegistration={canViewRegistration}
           showAnalytics={canViewAnalytics}
           showLocalization={canViewLocalization}
-          showRemediation={false}
+          showRemediation={canViewRemediation}
         />
 
+        {userError && <div className="status-message">{userError}</div>}
+
         {updateIVRStatus && <div className="status-message">{updateIVRStatus}</div>}
+
+        {tabs.length === 0 && (
+          <div className="status-message">No sections are available for your role.</div>
+        )}
 
         {canViewContent && (activeTab === "content" || activeTab === "ivr") && (
           <div className="tabs-container">
@@ -200,7 +219,7 @@ const AllContent = () => {
             onLoadMore={loadMore}
             isUpdatingIVR={isUpdatingIVR}
             onSyncAll={syncAll}
-            isTenant={currentUserRole === USER_ROLES.TENANT}
+            isTenant={canManage}
             syncingAll={syncingAll}
             syncAllProgress={syncAllProgress}
             courseSyncStates={courseStates}
@@ -211,7 +230,9 @@ const AllContent = () => {
 
         {canViewContent && activeTab === "ivr" && <IVRTab />}
 
-        {canViewContent && activeTab === "remediation" && <RemediationTab />}
+        {canViewRemediation && activeTab === "remediation" && (
+          <RemediationTab volunteers={volunteers} canManage={canManage} />
+        )}
 
         {canViewAnalytics && activeTab === "analytics" && <AnalyticsTab />}
 
@@ -238,6 +259,12 @@ const AllContent = () => {
             onDeleteSchool={deleteSchool}
             schoolMessage={schoolMessage}
             schoolMessageType={schoolMessageType}
+            volunteers={volunteers}
+            isVolunteersLoading={isVolunteersLoading}
+            volunteersLoadError={volunteersLoadError}
+            onCreateVolunteer={createVolunteer}
+            volunteerMessage={volunteerMessage}
+            volunteerMessageType={volunteerMessageType}
           />
         )}
       </div>

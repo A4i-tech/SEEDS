@@ -10,6 +10,7 @@ export const useRemediationJobs = () => {
   const [error, setError] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const controllersRef = useRef({});
+  const assignRequestRef = useRef({});
 
   const upsert = useCallback((job) => {
     setJobs((previous) => {
@@ -27,8 +28,18 @@ export const useRemediationJobs = () => {
       const controller = new AbortController();
       controllersRef.current[jobId] = controller;
 
+      const onEvent = (event) => {
+        if (event.event === "revoked") {
+          controller.abort();
+          delete controllersRef.current[jobId];
+          setJobs((previous) => previous.filter((job) => job.job_id !== jobId));
+          return;
+        }
+        upsert(event.job);
+      };
+
       textbookRemediationService
-        .streamJob(jobId, (event) => upsert(event.job), { signal: controller.signal })
+        .streamJob(jobId, onEvent, { signal: controller.signal })
         .catch((streamError) => {
           if (controller.signal.aborted) return;
           setError(streamError.message);
@@ -92,5 +103,24 @@ export const useRemediationJobs = () => {
     }
   }, []);
 
-  return { jobs, isLoading, isUploading, error, upload, remove, reload: load };
+  const assign = useCallback(
+    async (jobId, volunteerId) => {
+      setError(null);
+      const requestId = (assignRequestRef.current[jobId] || 0) + 1;
+      assignRequestRef.current[jobId] = requestId;
+      try {
+        const updated = await textbookRemediationService.assignJob(jobId, volunteerId);
+        if (assignRequestRef.current[jobId] === requestId) upsert(updated);
+      } catch (err) {
+        if (assignRequestRef.current[jobId] === requestId) {
+          setError(err.message);
+        } else {
+          console.warn(`assign request for job ${jobId} superseded; discarding error`, err);
+        }
+      }
+    },
+    [upsert]
+  );
+
+  return { jobs, isLoading, isUploading, error, upload, remove, assign, reload: load };
 };

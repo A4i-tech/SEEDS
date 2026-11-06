@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import AppHeader from "./AllContent/Header/AppHeader";
 import { useAuth } from "../hooks/useAuth";
-import { SEEDS_URL, USER_ROLES } from "../Constants";
+import { SEEDS_URL, USER_ROLES, TAB_ROLES } from "../Constants";
 import "./AllContent/AllContent.css";
 import "./AllContent/shared/cards.css";
 import "./AllContent/shared/buttons.css";
@@ -113,10 +113,10 @@ const Profile = () => {
           onTabChange={handleTabChange}
           currentUser={currentUser}
           onLogout={logout}
-          showContent={Boolean(profile)}
-          showRegistration={profile && profile.role !== USER_ROLES.CONTENT_CREATOR}
-          showAnalytics={profile && profile.role !== USER_ROLES.CONTENT_CREATOR}
-          showLocalization={profile && profile.role === USER_ROLES.TENANT}
+          showContent={Boolean(profile) && TAB_ROLES.content.includes(profile.role)}
+          showRegistration={Boolean(profile) && TAB_ROLES.registration.includes(profile.role)}
+          showAnalytics={Boolean(profile) && TAB_ROLES.analytics.includes(profile.role)}
+          showLocalization={Boolean(profile) && TAB_ROLES.localization.includes(profile.role)}
         />
 
         {loading || !profile ? (

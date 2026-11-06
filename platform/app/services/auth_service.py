@@ -19,6 +19,7 @@ from fastapi import Depends
 from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.refresh_token import UserClaims
+from app.models.requests.auth_requests import VolunteerCreateRequest
 from app.models.responses.dashboard import (
     DashboardStatistics,
     SchoolDashboardRow,
@@ -91,7 +92,7 @@ class TeacherCreate:
         name: str,
         email: str,
         password: str,
-        role: str = "teacher",
+        role: UserRole = UserRole.TEACHER,
         tenant_id: str | None = None,
         school_id: str | None = None,
         phone: str | None = None,
@@ -148,10 +149,14 @@ async def login_unified(
 
     if is_email:
         user = await repo.find_by_email(identifier)
-        allowed_roles = (UserRole.TENANT, UserRole.SCHOOL_ADMIN)
+        allowed_roles = (
+            UserRole.TENANT,
+            UserRole.SCHOOL_ADMIN,
+            UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER,
+        )
     else:
         user = await repo.find_by_phone(identifier)
-        allowed_roles = UserRole.CONTENT_CREATOR
+        allowed_roles = (UserRole.CONTENT_CREATOR,)
 
     if user is None or user.role not in allowed_roles or not user.hashed_password:
         logger.warning("auth: login failed — user not found or wrong role")
@@ -227,11 +232,6 @@ async def register_teacher(
     Raises ConflictError if email is already taken.
     SECURITY: password is hashed before storage; plaintext is never retained.
     """
-    try:
-        role = UserRole(data.role)
-    except ValueError:
-        raise ConflictError(f"invalid role: {data.role}")
-
     repo = UserRepository(db)
 
     existing = await repo.find_by_email(data.email)
@@ -242,7 +242,7 @@ async def register_teacher(
 
     user = await repo.create(
         UserCreate(
-            role=role,
+            role=data.role,
             name=data.name,
             email=data.email,
             hashed_password=hashed,
@@ -432,6 +432,16 @@ class AuthService:
     async def register_teacher(self, data: TeacherCreate) -> User:
         return await register_teacher(data, self._db)
 
+    async def register_volunteer(self, tenant_id: str, body: VolunteerCreateRequest) -> User:
+        data = TeacherCreate(
+            name=body.name,
+            email=body.email,
+            password=body.password,
+            role=UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER,
+            tenant_id=tenant_id,
+        )
+        return await register_teacher(data, self._db)
+
     async def register_tenant(self, data: TenantCreate) -> User:
         return await register_tenant(data, self._db)
 
@@ -455,6 +465,11 @@ class AuthService:
 
     async def get_tenant_dashboard(self, tenant_id: str) -> TenantDashboardResponse:
         return await get_tenant_dashboard(tenant_id, self._db)
+
+    async def list_volunteers(self, tenant_id: str) -> list[User]:
+        return await UserRepository(self._db).find_all_by_tenant_and_role(
+            tenant_id, UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER.value
+        )
 
 
 def get_auth_service(db: AsyncDatabase[Any] = Depends(get_db)) -> AuthService:

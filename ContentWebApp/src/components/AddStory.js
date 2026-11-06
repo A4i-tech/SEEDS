@@ -270,6 +270,15 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
   };
 
   const sendStory = async () => {
+    try {
+      await saveStory();
+    } catch (error) {
+      setIsSaveButtonDisabled(false);
+      setUploadError(error.message);
+    }
+  };
+
+  const saveStory = async () => {
     const _id = content ? content.id : uuidv4();
     const languageLower = (metadata.language || "").toLowerCase();
     // Always send title and theme as objects

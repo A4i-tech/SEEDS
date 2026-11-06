@@ -191,9 +191,18 @@ const RemediationDetails = () => {
           setDraftText(current.draft_remediated_md);
         }
         if (current.status === JOB_STATUS.PENDING || current.status === JOB_STATUS.RUNNING) {
-          return textbookRemediationService.streamJob(jobId, (event) => setJob(event.job), {
-            signal: controller.signal,
-          });
+          return textbookRemediationService.streamJob(
+            jobId,
+            (event) => {
+              if (event.event === "revoked") {
+                controller.abort();
+                setError("Access to this job was revoked.");
+                return;
+              }
+              setJob(event.job);
+            },
+            { signal: controller.signal }
+          );
         }
         return undefined;
       })
