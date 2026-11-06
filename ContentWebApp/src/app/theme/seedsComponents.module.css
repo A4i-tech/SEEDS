@@ -57,10 +57,20 @@
 }
 
 .navLink.navLink {
-  border-radius: var(--mantine-radius-md);
-  padding-block: var(--mantine-spacing-sm);
+  border-radius: var(--mantine-radius-xs);
+  min-height: 44px;
+  padding-block: 0;
   color: var(--seeds-text-primary);
-  margin-block-end: var(--mantine-spacing-xs);
+}
+
+.navDivider {
+  margin-block: var(--mantine-spacing-xs);
+}
+
+.avatar.avatar {
+  background-color: #dfebf0;
+  color: #1b404e;
+  font-weight: 700;
 }
 
 .navLink.navLink[data-active] {

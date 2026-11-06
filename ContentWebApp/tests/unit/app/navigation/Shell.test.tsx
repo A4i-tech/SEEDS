@@ -51,11 +51,11 @@ describe('Shell', () => {
     expect(document.getElementById('main-content')).toBeInTheDocument()
   })
 
-  it('shows initials in the account trigger and a red Sign out with no Theme item', async () => {
+  it('shows the initial in the account trigger and a red Sign out with no Theme item', async () => {
     vi.mocked(useMe).mockReturnValue({ isSuccess: true, data: { name: 'Asha Rao' } } as ReturnType<typeof useMe>)
     renderWithProviders(<Shell />)
     const trigger = screen.getByRole('button', { name: 'Account' })
-    expect(trigger).toHaveTextContent('AR')
+    expect(trigger).toHaveTextContent('A')
     fireEvent.click(trigger)
     expect(await screen.findByRole('menuitem', { name: 'Sign out' })).toHaveStyle({ '--menu-item-color': 'var(--mantine-color-red-6)' })
     expect(screen.queryByRole('menuitem', { name: 'Theme' })).toBeNull()

@@ -2,6 +2,7 @@ import {
   AppShell as MantineAppShell,
   Avatar,
   Burger,
+  Divider,
   Group,
   Image,
   Menu,
@@ -22,7 +23,7 @@ import {
   ScanEye,
   Users,
 } from 'lucide-react';
-import { useEffect, useRef } from 'react';
+import { Fragment, useEffect, useRef } from 'react';
 import { Link, Outlet, useLocation, useMatchRoute, useNavigate } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { useMe } from '@features/account/hooks/useAccount';
@@ -114,7 +115,7 @@ function AuthenticatedShell() {
           <Menu position="bottom-end">
             <Menu.Target>
               <UnstyledButton aria-label={t('account.menu')} p="xs">
-                <Avatar name={me.data?.name} color="initials" radius="xl" size="md" />
+                <Avatar className={classes.avatar} radius="xl" size={32}>{me.data?.name?.trim().charAt(0).toUpperCase()}</Avatar>
               </UnstyledButton>
             </Menu.Target>
             <Menu.Dropdown>
@@ -137,8 +138,9 @@ function AuthenticatedShell() {
           .map(({ to, key, Icon }) => {
           const label = t(key);
           return (
+            <Fragment key={to}>
+            {to === '/create' && <Divider className={classes.navDivider} />}
             <NavLink
-              key={to}
               label={label}
               leftSection={<Icon size={20} aria-hidden />}
               active={Boolean(matchRoute({ to, fuzzy: true }))}
@@ -147,6 +149,7 @@ function AuthenticatedShell() {
               to={to}
               onClick={closeMobile}
             />
+            </Fragment>
           );
         })}
       </MantineAppShell.Navbar>
