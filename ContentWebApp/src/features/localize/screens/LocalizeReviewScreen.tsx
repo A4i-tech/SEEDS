@@ -1,4 +1,4 @@
-import { Alert, Anchor, Button, Flex, Group, Select, Stack, Text, Textarea, TextInput } from '@mantine/core';
+import { Alert, Anchor, Button, Flex, Group, Select, Stack, Tabs, Text, Textarea, TextInput } from '@mantine/core';
 import { Search } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -148,15 +148,6 @@ export function LocalizeReviewScreen() {
           }}
           data={langCodes.map((code) => ({ value: code, label: languageName(code) }))}
         />
-        <Select
-          aria-label={t('localize.statusFilter')}
-          value={stage}
-          onChange={(v) => {
-            setStage(selectValue(v, 'pending'));
-            setPage(1);
-          }}
-          data={stageOptions.map((v) => ({ value: v, label: t(`localize.stageOptions.${v}`) }))}
-        />
         <TextInput
           aria-label={t('localize.reviewSearch')}
           placeholder={t('localize.reviewSearch')}
@@ -167,6 +158,19 @@ export function LocalizeReviewScreen() {
           miw="min(240px, 100%)"
         />
       </Flex>
+      <Tabs
+        value={stage}
+        onChange={(v) => {
+          setStage(selectValue(v, 'pending'));
+          setPage(1);
+        }}
+      >
+        <Tabs.List>
+          {stageOptions.map((v) => (
+            <Tabs.Tab key={v} value={v}>{t(`localize.stageOptions.${v}`)}</Tabs.Tab>
+          ))}
+        </Tabs.List>
+      </Tabs>
       <Group gap="md">
         <Button
           variant="outline"

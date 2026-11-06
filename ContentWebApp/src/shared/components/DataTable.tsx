@@ -65,6 +65,7 @@ export function DataTable<T>({
 
   return (
     <>
+      <div className={classes.frame}>
       <Table.ScrollContainer minWidth={600}>
         <Table
           highlightOnHover
@@ -128,6 +129,7 @@ export function DataTable<T>({
           </Table.Tbody>
         </Table>
       </Table.ScrollContainer>
+      </div>
       <Group justify="space-between" mt="md">
         <Text size="sm" c="dimmed">
           {t('common.rangeOf', { start: rangeStart, end: rangeEnd, total: itemCount })}

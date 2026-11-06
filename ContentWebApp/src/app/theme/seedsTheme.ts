@@ -26,7 +26,7 @@ export const seedsTheme = createTheme({
     }),
     Text: Text.extend({ defaultProps: { size: 'sm' }, classNames: { root: classes.text } }),
     Anchor: Anchor.extend({ defaultProps: { size: 'sm' }, classNames: { root: classes.anchor } }),
-    Modal: Modal.extend({ defaultProps: { closeButtonProps: { 'aria-label': i18n.t('common.close') } } }),
+    Modal: Modal.extend({ defaultProps: { closeButtonProps: { 'aria-label': i18n.t('common.close') } }, classNames: { title: classes.modalTitle } }),
     NavLink: NavLink.extend({ classNames: { root: classes.navLink, label: classes.navLinkLabel } }),
     Paper: Paper.extend({ defaultProps: { withBorder: true }, classNames: { root: classes.paper } }),
     Alert: Alert.extend({ defaultProps: { color: 'red', variant: 'light' } }),

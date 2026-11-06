@@ -146,3 +146,8 @@
 .skipLink:focus {
   transform: translateY(0);
 }
+
+.modalTitle.modalTitle {
+  font-size: var(--mantine-font-size-md);
+  font-weight: 700;
+}

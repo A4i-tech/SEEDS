@@ -36,7 +36,7 @@ export function AttentionSection({ rows }: { rows: JobRow[] }) {
       </Group>
       {attention.length === 0 && <Text>{t('home.attentionEmpty')}</Text>}
       {attention.length > 0 && (
-        <SimpleGrid cols={{ base: 1, md: 2 }} spacing="md">
+        <SimpleGrid cols={1} spacing="md">
           {attention.slice(0, 2).map((row) => (
             <RowCard
               key={`${row.type}:${row.id}`}

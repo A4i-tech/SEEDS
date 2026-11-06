@@ -4,6 +4,12 @@
   font-weight: 700;
 }
 
+.frame {
+  border: 1px solid var(--seeds-table-border);
+  border-radius: var(--mantine-radius-md);
+  overflow: hidden;
+}
+
 .table.table {
   --table-border-color: var(--seeds-table-border);
   border-collapse: separate;
@@ -11,11 +17,11 @@
 }
 
 .table.table th {
+  background-color: var(--seeds-table-header-bg);
   color: var(--seeds-table-header-text);
-  text-transform: uppercase;
-  letter-spacing: 1px;
   font-size: var(--mantine-font-size-xs);
-  padding-block: 14px;
+  font-weight: 700;
+  padding-block: 12px;
 }
 
 .table.table th,
