@@ -148,7 +148,7 @@ describe('seedsPalette', () => {
   })
 
   it('keeps the exact chosen hexes', () => {
-    expect(seedsCssVariables.light['--mantine-color-dimmed']).toBe('#5f6769')
+    expect(seedsCssVariables.light['--mantine-color-dimmed']).toBe('#434849')
     expect(seedsCssVariables.light['--seeds-chart-1']).toBe('#2e7d32')
     expect(seedsCssVariables.light['--seeds-chart-3']).toBe('#b35900')
     expect(seedsCssVariables.dark['--mantine-color-default-border']).toBe('#8a8a8a')

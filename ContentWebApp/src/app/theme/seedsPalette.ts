@@ -16,9 +16,9 @@ export interface SeedsCssVariables {
 
 export const seedsCssVariables: SeedsCssVariables = {
   light: {
-    '--mantine-color-dimmed': '#5f6769',
-    '--mantine-color-placeholder': '#5f6769',
-    '--mantine-color-default-border': '#7a8284',
+    '--mantine-color-dimmed': '#434849',
+    '--mantine-color-placeholder': '#434849',
+    '--mantine-color-default-border': '#6e7476',
     '--seeds-text-primary': '#1a1d1e',
     '--seeds-text-secondary': '#434849',
     '--seeds-bg-page': '#f4f6f7',

@@ -67,7 +67,7 @@ export function MakeAccessibleScreen() {
         }}
       >
         <Upload size={32} aria-hidden />
-        <Text size="lg">{t('makeAccessible.dropzone')}</Text>
+        <Text variant="rowTitle">{t('makeAccessible.dropzone')}</Text>
         <Text size="sm" c="dimmed">
           {t('makeAccessible.dropzoneHint')}
         </Text>

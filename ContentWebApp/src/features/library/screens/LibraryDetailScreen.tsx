@@ -56,11 +56,7 @@ function DetailView({ item }: { item: ContentItem }) {
             >
               {t('library.edit')}
             </Button>
-            <Button
-              bg="var(--seeds-btn-destructive-bg)"
-              c="var(--seeds-btn-destructive-text)"
-              onClick={confirmRemove}
-            >
+            <Button variant="destructive" onClick={confirmRemove}>
               {t('library.delete')}
             </Button>
           </>

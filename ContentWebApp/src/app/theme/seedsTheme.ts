@@ -1,4 +1,4 @@
-import { Alert, Anchor, AppShell, Breadcrumbs, Burger, Chip, createTheme, Modal, MultiSelect, NavLink, Paper, Progress, Select, Tabs, Text } from '@mantine/core';
+import { Alert, Anchor, AppShell, Breadcrumbs, Burger, Button, Chip, createTheme, Modal, MultiSelect, NavLink, Paper, Progress, Select, Tabs, Text } from '@mantine/core';
 import i18n from '../../shared/i18n';
 import { seedsColors } from './seedsPalette';
 import classes from './seedsComponents.module.css';
@@ -11,7 +11,9 @@ export const seedsTheme = createTheme({
   primaryColor: 'seeds',
   primaryShade: { light: 6, dark: 4 },
   autoContrast: true,
+  defaultRadius: 'md',
   components: {
+    Button: Button.extend({ classNames: { root: classes.button } }),
     AppShell: AppShell.extend({ classNames: { header: classes.topbar, navbar: classes.navbar, main: classes.main } }),
     Burger: Burger.extend({ defaultProps: { color: 'var(--seeds-nav-topbar-text)' } }),
     Select: Select.extend({ defaultProps: searchableDefaults }),

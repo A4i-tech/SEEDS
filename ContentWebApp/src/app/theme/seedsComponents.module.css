@@ -4,6 +4,19 @@
   border: 1px solid var(--seeds-nav-topbar-bg);
 }
 
+.button.button {
+  font-weight: 700;
+}
+
+.button.button[data-variant='outline'] {
+  border-width: 2px;
+}
+
+.button.button[data-variant='destructive'] {
+  background-color: var(--seeds-btn-destructive-bg);
+  color: var(--seeds-btn-destructive-text);
+}
+
 .text[data-variant='rowTitle'],
 .text[data-variant='label'],
 .anchor[data-variant='rowAction'],

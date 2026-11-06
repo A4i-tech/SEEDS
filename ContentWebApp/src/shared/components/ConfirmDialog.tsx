@@ -20,7 +20,7 @@ export function openConfirmDialog({ title, body, confirmLabel, cancelLabel, onCo
     title: <Title order={3}>{title}</Title>,
     children: <Text size="sm">{body}</Text>,
     labels: { confirm: confirmLabel, cancel: cancelLabel },
-    confirmProps: { bg: 'var(--seeds-btn-destructive-bg)', c: 'var(--seeds-btn-destructive-text)' },
+    confirmProps: { variant: 'destructive' },
     onConfirm,
   });
 }

@@ -61,7 +61,7 @@ function CourseContent({ course, id }: { course: CourseDetail; id: string }) {
           {t('library.syncCourse')}
         </Button>
         {canDeleteCourse && (
-          <Button bg="var(--seeds-btn-destructive-bg)" c="var(--seeds-btn-destructive-text)" onClick={confirmRemove}>
+          <Button variant="destructive" onClick={confirmRemove}>
             {t('library.delete')}
           </Button>
         )}

@@ -13,7 +13,7 @@ describe('AppProviders', () => {
       </AppProviders>,
     )
     expect(document.documentElement.innerHTML).toMatch(/--seeds-text-primary:\s*#1a1d1e/i)
-    expect(document.documentElement.innerHTML).toMatch(/--mantine-color-dimmed:\s*#5f6769/i)
+    expect(document.documentElement.innerHTML).toMatch(/--mantine-color-dimmed:\s*#434849/i)
   })
 
   it('uses the palette ramps, primary shades and autoContrast', () => {

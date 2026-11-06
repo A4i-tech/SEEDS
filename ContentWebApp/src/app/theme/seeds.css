@@ -1,3 +1,9 @@
+:root {
+  --button-height-sm: 44px;
+  --button-padding-x-sm: 24px;
+  --input-height-sm: 44px;
+}
+
 html body {
   background-color: var(--seeds-bg-page);
   color: var(--seeds-text-primary);

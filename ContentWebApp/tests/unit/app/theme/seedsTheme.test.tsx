@@ -26,6 +26,6 @@ describe('seedsTheme', () => {
   })
 
   it('carries the page title size on h1', () => {
-    expect(seedsTheme.headings?.sizes?.h1?.fontSize).toBe('40px')
+    expect(seedsTheme.headings?.sizes?.h1?.fontSize).toBe('32px')
   })
 })
