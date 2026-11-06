@@ -13,7 +13,6 @@ on:
         description: "E2E_INSTANCE to run against (local is not reachable from a GitHub-hosted runner, so it is not offered here)"
         type: choice
         options:
-          - onrender
           - dev
         default: dev
 
