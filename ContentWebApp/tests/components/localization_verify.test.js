@@ -525,3 +525,16 @@ describe("Translate & Review — live component verification", () => {
     expect(screen.queryByText("From route A")).not.toBeInTheDocument();
   });
 });
+
+describe("math tokens in the review screen", () => {
+  test("PASS — a {m0} token renders as a [math] chip and not as raw text", async () => {
+    translationService.listTranslations.mockResolvedValue([
+      makeDoc("k1", "Bangles {m0} smooth and circular", { translated: "बांग्लेस {m0} चिकनी", status: "pending" }),
+    ]);
+    renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
+
+    const chip = await screen.findByText("[math]");
+    expect(chip.closest("td").textContent).not.toContain("{m0}");
+    expect(screen.getByText(/Bangles/)).toBeInTheDocument();
+  });
+});

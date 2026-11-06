@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
@@ -28,6 +29,12 @@ from app.services.placeholder_protector import mask, unmask
 from app.services.quality_scorer import is_low_confidence, score_translation
 
 logger = logging.getLogger(__name__)
+
+_MATH_TOKEN = re.compile(r"\{m\d+\}")
+
+
+def _math_tokens(text: str) -> list[str]:
+    return _MATH_TOKEN.findall(text)
 
 
 class TranslationService:
@@ -233,6 +240,8 @@ class TranslationService:
                     for (doc, _m, pmap, _s, normalized), out in zip(chunk, outs, strict=True):
                         translated = unmask(out, pmap)
                         quality = score_translation(normalized, out, pmap)
+                        if _math_tokens(doc["source_text"]) != _math_tokens(translated):
+                            quality = 0.0
                         await self._persist_translation(site_id, route, doc, lang, translated, type(self._provider).__name__, quality)
                         result[doc["key"]] = translated if serve_pending else doc["source_text"]
                 except (TransientTranslationError, ValueError):
@@ -244,6 +253,8 @@ class TranslationService:
                             continue
                         translated = unmask(out, pmap)
                         quality = score_translation(normalized, out, pmap)
+                        if _math_tokens(doc["source_text"]) != _math_tokens(translated):
+                            quality = 0.0
                         await self._persist_translation(site_id, route, doc, lang, translated, type(self._provider).__name__, quality)
                         result[doc["key"]] = translated if serve_pending else doc["source_text"]
 
@@ -302,6 +313,8 @@ class TranslationService:
                 translated = unmask(masked_translated, placeholder_map)
                 provider_name = type(self._provider).__name__
                 quality_score = score_translation(normalized_text, masked_translated, placeholder_map)
+                if _math_tokens(doc["source_text"]) != _math_tokens(translated):
+                    quality_score = 0.0
 
             actor = f"system:{provider_name}"
             await self._repo.save_translation(
