@@ -52,30 +52,17 @@ def _init_conference_manager() -> ConferenceCallManager:
 
     settings = get_settings()
 
-    import base64
-
     from app.providers.smartphone_connection import (
         SmartphoneConnectionManagerFactory,  # noqa: PLC0415
     )
     from app.providers.vonage_api import VonageAPIProvider  # noqa: PLC0415
     from app.services.conference_service import ConferenceCallManager  # noqa: PLC0415
 
-    # Decode base64 private key if set
-    private_key_raw = settings.vonage_conference_application_private_key64
-    private_key: str
-    if private_key_raw:
-        try:
-            private_key = base64.b64decode(private_key_raw).decode()
-        except Exception:
-            private_key = private_key_raw  # Already PEM
-    else:
-        private_key = ""
-
     class _VonageAPIFactory:
         def create(self, conf_id: str, ws_url: str) -> VonageAPIProvider:
             return VonageAPIProvider(
                 application_id=settings.vonage_conference_application_id,
-                private_key=private_key,
+                private_key=settings.vonage_conference_application_private_key64,
                 vonage_number=settings.vonage_number,
                 conf_id=conf_id,
                 ws_server_url=ws_url,
@@ -229,7 +216,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     try:
         conf_mgr = _init_conference_manager()
     except Exception as exc:  # noqa: BLE001
-        logger.warning("Conference manager init failed (non-fatal in test mode): %s", exc)
+        logger.error("Conference manager initialization failed: %s", exc)
         conf_mgr = None  # type: ignore[assignment]
 
     from app.providers.service_bus import service_bus_provider  # noqa: PLC0415
@@ -246,6 +233,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         except Exception as exc:  # noqa: BLE001
             logger.error("Failed to start consumers: %s", exc)
             raise
+        if not consumer_tasks:
+            logger.warning("No consumers started: running in degraded mode with zero consumer tasks")
 
     app.state.consumer_tasks = consumer_tasks
     app.state.conference_manager = conf_mgr
