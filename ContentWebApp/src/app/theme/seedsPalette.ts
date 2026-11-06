@@ -1,0 +1,107 @@
+import type { CSSVariablesResolver, MantineColorsTuple } from '@mantine/core';
+
+export const seedsColors: { seeds: MantineColorsTuple; red: MantineColorsTuple } = {
+  seeds: ['#eaf2f5', '#dfebf0', '#c1d7e0', '#9dbfcd', '#6f9fb3', '#43788f', '#235265', '#1b404e', '#153341', '#0f2530'],
+  red: ['#fdeceb', '#fbe0dd', '#f7c3bd', '#f5a9a1', '#f08a80', '#c94539', '#9e241c', '#8a1f18', '#741a14', '#5e150f'],
+};
+
+const { seeds, red } = seedsColors;
+
+export type CssVariableMap = Record<`--${string}`, string>;
+
+export interface SeedsCssVariables {
+  light: CssVariableMap;
+  dark: CssVariableMap;
+}
+
+export const seedsCssVariables: SeedsCssVariables = {
+  light: {
+    '--mantine-color-dimmed': '#434849',
+    '--mantine-color-placeholder': '#434849',
+    '--mantine-color-default-border': '#6e7476',
+    '--seeds-text-primary': '#1a1d1e',
+    '--seeds-text-secondary': '#434849',
+    '--seeds-bg-page': '#f4f6f7',
+    '--seeds-bg-surface': '#ffffff',
+    '--seeds-border-default': '#7a8284',
+    '--seeds-brandmark-bg': seeds[6],
+    '--seeds-nav-topbar-bg': seeds[7],
+    '--seeds-nav-topbar-text': '#ffffff',
+    '--seeds-subnav-text-active': seeds[7],
+    '--seeds-subnav-bg-active': seeds[1],
+    '--seeds-btn-primary-bg': seeds[6],
+    '--seeds-btn-primary-text': '#ffffff',
+    '--seeds-btn-secondary-border': seeds[6],
+    '--seeds-btn-secondary-text': seeds[6],
+    '--seeds-btn-tertiary-text': seeds[6],
+    '--seeds-btn-destructive-bg': red[6],
+    '--seeds-btn-destructive-text': '#ffffff',
+    '--seeds-table-border': '#7a8284',
+    '--seeds-table-header-bg': '#f4f6f7',
+    '--seeds-table-header-text': '#434849',
+    '--seeds-card-border': '#7a8284',
+    '--seeds-badge-easy-bg': '#dcf3e3',
+    '--seeds-badge-easy-text': '#166534',
+    '--seeds-badge-hard-bg': red[1],
+    '--seeds-badge-hard-text': red[6],
+    '--seeds-badge-neutral-bg': '#e4e8e9',
+    '--seeds-badge-neutral-text': '#434849',
+    '--seeds-badge-subject-bg': seeds[1],
+    '--seeds-badge-subject-text': seeds[7],
+    '--seeds-badge-warning-bg': '#fbebcf',
+    '--seeds-badge-warning-text': '#7a4e00',
+    '--seeds-pagebtn-active-bg': seeds[6],
+    '--seeds-pagebtn-active-text': '#ffffff',
+    '--seeds-eyebrow-text': '#355b3b',
+    '--seeds-chart-1': '#2e7d32',
+    '--seeds-chart-2': '#2f7de1',
+    '--seeds-chart-3': '#b35900',
+    '--seeds-chart-4': '#9b4fd9',
+  },
+  dark: {
+    '--mantine-color-dimmed': '#b8b8b8',
+    '--mantine-color-placeholder': '#9a9a9a',
+    '--mantine-color-default-border': '#8a8a8a',
+    '--mantine-color-error': red[4],
+    '--seeds-text-primary': 'var(--mantine-color-text)',
+    '--seeds-text-secondary': 'var(--mantine-color-dimmed)',
+    '--seeds-bg-page': 'var(--mantine-color-body)',
+    '--seeds-bg-surface': 'var(--mantine-color-default)',
+    '--seeds-border-default': 'var(--mantine-color-default-border)',
+    '--seeds-brandmark-bg': seeds[4],
+    '--seeds-nav-topbar-bg': seeds[8],
+    '--seeds-nav-topbar-text': '#ffffff',
+    '--seeds-subnav-text-active': 'var(--mantine-color-text)',
+    '--seeds-subnav-bg-active': 'var(--mantine-color-default-hover)',
+    '--seeds-btn-primary-bg': seeds[4],
+    '--seeds-btn-primary-text': seeds[9],
+    '--seeds-btn-secondary-border': 'var(--mantine-color-default-border)',
+    '--seeds-btn-secondary-text': 'var(--mantine-color-text)',
+    '--seeds-btn-tertiary-text': 'var(--mantine-color-text)',
+    '--seeds-btn-destructive-bg': red[4],
+    '--seeds-btn-destructive-text': '#3a0a06',
+    '--seeds-table-border': 'var(--mantine-color-default-border)',
+    '--seeds-table-header-bg': 'var(--mantine-color-default)',
+    '--seeds-table-header-text': 'var(--mantine-color-text)',
+    '--seeds-card-border': 'var(--mantine-color-default-border)',
+    '--seeds-badge-easy-bg': '#1d3a27',
+    '--seeds-badge-easy-text': '#8fd9a8',
+    '--seeds-badge-hard-bg': '#4a1f1b',
+    '--seeds-badge-hard-text': red[3],
+    '--seeds-badge-neutral-bg': '#3b3b3b',
+    '--seeds-badge-neutral-text': '#d9dcdd',
+    '--seeds-badge-subject-bg': seeds[8],
+    '--seeds-badge-subject-text': seeds[3],
+    '--seeds-badge-warning-bg': '#4a3512',
+    '--seeds-badge-warning-text': '#f2c36b',
+    '--seeds-pagebtn-active-bg': seeds[4],
+    '--seeds-pagebtn-active-text': seeds[9],
+    '--seeds-eyebrow-text': 'var(--mantine-color-dimmed)',
+    '--seeds-chart-1': '#4caf50',
+    '--seeds-chart-2': '#5fa8ff',
+    '--seeds-chart-3': '#f59a4a',
+    '--seeds-chart-4': '#b388f0',
+  },
+};
+
+export const seedsCssVariablesResolver: CSSVariablesResolver = () => ({ variables: {}, ...seedsCssVariables });
