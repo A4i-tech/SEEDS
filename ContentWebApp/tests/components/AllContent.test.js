@@ -130,3 +130,11 @@ test("a removed active tab resets to the first available tab", async () => {
   expect(await screen.findByText("Content Tab")).toBeInTheDocument();
   expect(screen.queryByText("Remediation Tab Content")).not.toBeInTheDocument();
 });
+
+test("a failed user fetch shows the error in the banner", async () => {
+  mockGetCurrentUser.mockRejectedValue(new Error("Session role not recognized. Sign in again."));
+
+  render(<AllContent />);
+
+  expect(await screen.findByText("Session role not recognized. Sign in again.")).toBeInTheDocument();
+});
