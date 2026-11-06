@@ -10,30 +10,31 @@ function flush(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function makeDom({ url = "https://app.example.com/authn/login", bodyHtml = "<p>Hello World</p>" } = {}) {
+function defaultFetch(url) {
+  const u = String(url);
+  if (u.includes("/languages")) {
+    return Promise.resolve({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          languages: [{ code: "en", name: "English" }, { code: "hi", name: "Hindi" }],
+        }),
+    });
+  }
+  return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+}
+
+async function makeDom({
+  url = "https://app.example.com/authn/login",
+  bodyHtml = "<p>Hello World</p>",
+  fetch,
+} = {}) {
   const dom = new JSDOM(
     `<!doctype html><html><head></head><body>${bodyHtml}</body></html>`,
     { url, runScripts: "dangerously", pretendToBeVisual: true }
   );
 
-  const fetchMock = jest.fn((url) => {
-    const u = String(url);
-    if (u.includes("/languages")) {
-      return Promise.resolve({
-        json: () =>
-          Promise.resolve({
-            languages: [{ code: "en", name: "English" }, { code: "hi", name: "Hindi" }],
-          }),
-      });
-    }
-    if (u.includes("/translations/extract")) {
-      return Promise.resolve({ json: () => Promise.resolve({}) });
-    }
-    if (u.includes("/translations?")) {
-      return Promise.resolve({ json: () => Promise.resolve({}) });
-    }
-    return Promise.resolve({ json: () => Promise.resolve({}) });
-  });
+  const fetchMock = fetch || jest.fn(defaultFetch);
   dom.window.fetch = fetchMock;
 
   const script = dom.window.document.createElement("script");
@@ -173,11 +174,11 @@ test("characterData mutation does not create an infinite loop from our own trans
   fetchMock.mockClear();
   fetchMock.mockImplementation((url) => {
     const u = String(url);
-    if (u.includes("/translations/extract")) return Promise.resolve({ json: () => Promise.resolve({}) });
+    if (u.includes("/translations/extract")) return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
     if (u.includes("/translations?")) {
-      return Promise.resolve({ json: () => Promise.resolve({ t3hchgd: "नमस्ते" }) });
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ t3hchgd: "नमस्ते" }) });
     }
-    return Promise.resolve({ json: () => Promise.resolve({}) });
+    return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
   });
 
   dom.window.localStorage.setItem("translationSdk.lang", "hi");
@@ -234,9 +235,9 @@ test("pending (not-yet-approved) translations fall back to source text, not an e
   const { dom, fetchMock } = await makeDom({ bodyHtml: "<p>Pending Phrase</p>" });
   fetchMock.mockImplementation((url) => {
     const u = String(url);
-    if (u.includes("/translations?")) return Promise.resolve({ json: () => Promise.resolve({}) });
-    if (u.includes("/translations/extract")) return Promise.resolve({ json: () => Promise.resolve({}) });
-    return Promise.resolve({ json: () => Promise.resolve({}) });
+    if (u.includes("/translations?")) return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+    if (u.includes("/translations/extract")) return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+    return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
   });
 
   dom.window.localStorage.setItem("translationSdk.lang", "hi");
@@ -265,10 +266,10 @@ test("approved translations are rendered via swapText", async () => {
     if (u.includes("/translations?")) {
       const result = {};
       result[hashed] = "अनुमोदित वाक्यांश";
-      return Promise.resolve({ json: () => Promise.resolve(result) });
+      return Promise.resolve({ ok: true, json: () => Promise.resolve(result) });
     }
-    if (u.includes("/translations/extract")) return Promise.resolve({ json: () => Promise.resolve({}) });
-    return Promise.resolve({ json: () => Promise.resolve({}) });
+    if (u.includes("/translations/extract")) return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+    return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
   });
 
   dom.window.localStorage.setItem("translationSdk.lang", "hi");
@@ -309,9 +310,9 @@ async function applyHindi(dom, fetchMock, source, translated) {
     if (u.includes("/translations?")) {
       const r = {};
       r[hashed] = translated;
-      return Promise.resolve({ json: () => Promise.resolve(r) });
+      return Promise.resolve({ ok: true, json: () => Promise.resolve(r) });
     }
-    return Promise.resolve({ json: () => Promise.resolve({}) });
+    return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
   });
   dom.window.localStorage.setItem("translationSdk.lang", "hi");
   const select = dom.window.document.querySelector("#translation-sdk-widget select");
@@ -426,4 +427,81 @@ test("a long text node (well over 1109 chars) is extracted whole and never trunc
 
   expect(long.length).toBeGreaterThan(2000);
   expect(extractedTexts(fetchMock)).toContain(long);
+});
+
+async function makeExtractDom(bodyHtml) {
+  let items = [];
+  let translations = null;
+  const fetchMock = jest.fn((url, opts) => {
+    if (String(url).includes("/translations/extract")) {
+      items = JSON.parse(opts.body).items;
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
+    }
+    if (String(url).includes("/translations?")) {
+      const out = {};
+      items.forEach((item) => {
+        if (translations && translations[item.text]) out[item.key] = translations[item.text];
+      });
+      return Promise.resolve({ ok: true, json: () => Promise.resolve(out) });
+    }
+    return defaultFetch(url);
+  });
+  const { dom } = await makeDom({ url: "https://app.example.com/learning/page", bodyHtml, fetch: fetchMock });
+  await flush(1000);
+
+  return {
+    dom,
+    getItems: () => items,
+    setTranslations: (map) => {
+      translations = map;
+    },
+  };
+}
+
+test.each([
+  ["a whitespace-only tag", "<p>about<strong> </strong>geometric ideas</p>", "about geometric ideas"],
+  ["a leading bullet", "<ul><li><span>·<span> </span></span>calculating the sum</li></ul>", "· calculating the sum"],
+  ["a label", "<p><strong>Drying: </strong>It is the removal of water.</p>", "Drying: It is the removal of water."],
+])("joins a run across %s", async (_name, html, expected) => {
+  const { getItems } = await makeExtractDom(html);
+  expect(getItems().map((item) => item.text)).toContain(expected);
+});
+
+test("math is one opaque token and survives apply and restore", async () => {
+  const { dom, getItems, setTranslations } = await makeExtractDom(
+    "<p>Bangles <math><mo>–</mo></math> smooth and circular</p>"
+  );
+  expect(getItems().map((item) => item.text)).toContain("Bangles {m0} smooth and circular");
+
+  setTranslations({ "Bangles {m0} smooth and circular": "बांग्लेस {m0} चिकनी और गोलाकार" });
+  const select = dom.window.document.querySelector("#translation-sdk-widget select");
+  const p = dom.window.document.querySelector("p");
+
+  select.value = "hi";
+  select.dispatchEvent(new dom.window.Event("change"));
+  await flush(100);
+
+  expect(p.textContent).toBe("बांग्लेस – चिकनी और गोलाकार");
+  expect(p.querySelector("math")).not.toBeNull();
+
+  select.value = "en";
+  select.dispatchEvent(new dom.window.Event("change"));
+  await flush(100);
+
+  expect(p.textContent).toBe("Bangles – smooth and circular");
+});
+
+test("a translation that drops the math token keeps the English row", async () => {
+  const { dom, setTranslations } = await makeExtractDom(
+    "<p>Bangles <math><mo>–</mo></math> smooth and circular</p>"
+  );
+  setTranslations({ "Bangles {m0} smooth and circular": "बांग्लेस चिकनी" });
+  const select = dom.window.document.querySelector("#translation-sdk-widget select");
+  const p = dom.window.document.querySelector("p");
+
+  select.value = "hi";
+  select.dispatchEvent(new dom.window.Event("change"));
+  await flush(100);
+
+  expect(p.textContent).toBe("Bangles – smooth and circular");
 });

@@ -73,6 +73,34 @@ function StatusBadge({ seg }) {
   );
 }
 
+const MATH_TOKEN = /\{m\d+\}/;
+const MATH_CHIP_STYLE = {
+  display: "inline-block",
+  padding: "1px 6px",
+  margin: "0 2px",
+  borderRadius: "4px",
+  background: "var(--color-skeleton-base, #eef1f5)",
+  color: "var(--color-text-muted, #555)",
+  fontSize: "11px",
+  fontWeight: 600,
+};
+
+function MathText({ text, style }) {
+  return (
+    <span style={style}>
+      {text.split(/(\{m\d+\})/).map((part, i) =>
+        MATH_TOKEN.test(part) ? (
+          <span key={i} style={MATH_CHIP_STYLE}>
+            [math]
+          </span>
+        ) : (
+          part
+        )
+      )}
+    </span>
+  );
+}
+
 function TransRow({ seg, idx, onEdit, onApprove, onReject, onCopy }) {
   const inputRef = useRef(null);
   const [text, setText] = useState(seg.translation);
@@ -93,8 +121,11 @@ function TransRow({ seg, idx, onEdit, onApprove, onReject, onCopy }) {
       <td className="table-cell">{idx}</td>
       <td className="table-cell table-cell-truncate">
         <div ref={sourceRef}>
-          {expanded ? (
-            <span style={{ display: "block", whiteSpace: "normal", overflowWrap: "anywhere" }}>{seg.sourceText}</span>
+          {expanded || MATH_TOKEN.test(seg.sourceText) ? (
+            <MathText
+              text={seg.sourceText}
+              style={{ display: "block", whiteSpace: "normal", overflowWrap: "anywhere" }}
+            />
           ) : (
             <MiddleEllipsis text={seg.sourceText} />
           )}
