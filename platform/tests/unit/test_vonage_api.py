@@ -100,9 +100,12 @@ async def _seed_participant(
 
 
 class TestInit:
-    def test_init_decodes_base64_private_key(self) -> None:
+    @pytest.mark.parametrize("wrap", [False, True])
+    def test_init_decodes_base64_private_key(self, wrap: bool) -> None:
         raw_key = "-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----"
         encoded_key = base64.b64encode(raw_key.encode("utf-8")).decode("utf-8")
+        if wrap:
+            encoded_key = "\n".join(encoded_key[i : i + 20] for i in range(0, len(encoded_key), 20))
         with patch("vonage.Client", return_value=MagicMock()) as mock_client_cls:
             VonageAPIProvider(
                 application_id="app-id",

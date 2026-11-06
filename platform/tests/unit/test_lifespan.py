@@ -73,10 +73,9 @@ class TestInitConferenceManager:
             assert result is mock_manager_cls.return_value
             assert lifespan_module._conference_manager is result
 
-    def test_decodes_base64_private_key(self) -> None:
-        import base64
-
-        settings = _fake_settings(vonage_conference_application_private_key64=base64.b64encode(b"decoded-key-material-placeholder").decode())
+    @pytest.mark.parametrize("key", ["-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----", "YWJj\nZGVm"])
+    def test_passes_private_key_through_unchanged(self, key: str) -> None:
+        settings = _fake_settings(vonage_conference_application_private_key64=key)
         with (
             patch("app.platform.lifespan.get_settings", return_value=settings),
             patch("app.providers.vonage_api.VonageAPIProvider") as mock_provider,
@@ -88,18 +87,7 @@ class TestInitConferenceManager:
             lifespan_module._init_conference_manager()
             captured["communication_api_factory"].create("conf1", "ws://x")
 
-            mock_provider.assert_called_once()
-            assert mock_provider.call_args.kwargs["private_key"] == "decoded-key-material-placeholder"
-
-    def test_invalid_base64_raises(self) -> None:
-        import binascii
-
-        settings = _fake_settings(vonage_conference_application_private_key64="YWJj!ZGVm")
-        with (
-            patch("app.platform.lifespan.get_settings", return_value=settings),
-            pytest.raises(binascii.Error, match="Only base64"),
-        ):
-            lifespan_module._init_conference_manager()
+            assert mock_provider.call_args.kwargs["private_key"] == key
 
     def test_vonage_api_factory_creates_provider_with_expected_args(self) -> None:
         settings = _fake_settings()

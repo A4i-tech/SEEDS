@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import functools
 import json
 import logging
 from datetime import UTC, datetime, timedelta
@@ -68,17 +69,12 @@ def _make_settings(**overrides):
 
 
 def _make_client(settings=None, transport=None):
-    if settings is None:
-        settings = _make_settings()
-    with patch("app.providers.subodha_client.get_settings", return_value=settings):
-        if transport is None:
-            return SubodhaClient()
-        real_async_client = httpx.AsyncClient
-        with patch(
-            "app.providers.subodha_client.httpx.AsyncClient",
-            lambda **kwargs: real_async_client(**{**kwargs, "transport": transport}),
-        ):
-            return SubodhaClient()
+    settings = settings or _make_settings()
+    with (
+        patch("app.providers.subodha_client.get_settings", return_value=settings),
+        patch("app.providers.subodha_client.httpx.AsyncClient", functools.partial(httpx.AsyncClient, transport=transport)),
+    ):
+        return SubodhaClient()
 
 
 @pytest.fixture

@@ -52,23 +52,17 @@ def _init_conference_manager() -> ConferenceCallManager:
 
     settings = get_settings()
 
-    import base64
-
     from app.providers.smartphone_connection import (
         SmartphoneConnectionManagerFactory,  # noqa: PLC0415
     )
     from app.providers.vonage_api import VonageAPIProvider  # noqa: PLC0415
     from app.services.conference_service import ConferenceCallManager  # noqa: PLC0415
 
-    # Decode base64 private key if set
-    private_key_raw = settings.vonage_conference_application_private_key64
-    private_key = base64.b64decode(private_key_raw, validate=True).decode() if private_key_raw else ""
-
     class _VonageAPIFactory:
         def create(self, conf_id: str, ws_url: str) -> VonageAPIProvider:
             return VonageAPIProvider(
                 application_id=settings.vonage_conference_application_id,
-                private_key=private_key,
+                private_key=settings.vonage_conference_application_private_key64,
                 vonage_number=settings.vonage_number,
                 conf_id=conf_id,
                 ws_server_url=ws_url,
@@ -228,7 +222,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             logger.error("Failed to start consumers: %s", exc)
             raise
         if not consumer_tasks:
-            logger.warning("No consumers started — running in degraded mode with zero consumer tasks")
+            logger.warning("No consumers started: running in degraded mode with zero consumer tasks")
 
     app.state.consumer_tasks = consumer_tasks
     app.state.conference_manager = conf_mgr
