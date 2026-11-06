@@ -278,6 +278,9 @@ class TestLifespan:
             "TranslationRepository": _patch_repo(monkeypatch, "app.repositories.translation_repository", "TranslationRepository"),
             "TranslationVersionRepository": _patch_repo(monkeypatch, "app.repositories.translation_version_repository", "TranslationVersionRepository"),
             "TranslationAuditRepository": _patch_repo(monkeypatch, "app.repositories.translation_audit_repository", "TranslationAuditRepository"),
+            "IntegrationClientRepository": _patch_repo(monkeypatch, "app.repositories.integration_client_repository", "IntegrationClientRepository"),
+            "IntegrationTokenRepository": _patch_repo(monkeypatch, "app.repositories.integration_token_repository", "IntegrationTokenRepository"),
+            "UserRefreshTokenRepository": _patch_repo(monkeypatch, "app.repositories.user_refresh_token_repository", "UserRefreshTokenRepository"),
         }
 
         monkeypatch.setattr(lifespan_module, "_init_conference_manager", MagicMock(return_value=init_conf_mgr))
