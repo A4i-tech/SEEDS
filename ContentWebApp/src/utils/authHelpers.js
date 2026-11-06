@@ -1,16 +1,11 @@
-/**
- * Get the raw auth token, for callers that can't send an Authorization
- * header (e.g. a plain <img> tag needs it as a query param).
- * @returns {string|null} The stored JWT, or null if not logged in
- */
-export const getAuthToken = () => localStorage.getItem("authToken");
+import { getAccessToken, setAccessToken, clearAccessToken } from "./tokenStore";
 
 /**
  * Get authorization headers with bearer token
  * @returns {Object} Headers object with Authorization
  */
 export const getAuthHeaders = () => {
-  const token = localStorage.getItem("authToken");
+  const token = getAccessToken();
   if (!token) {
     throw new Error("No auth token found");
   }
@@ -20,16 +15,8 @@ export const getAuthHeaders = () => {
   };
 };
 
-/**
- * Check if user is authenticated
- * @returns {boolean} True if token exists
- */
-export const isAuthenticated = () => {
-  return !!localStorage.getItem("authToken");
-};
-
 export const getTokenPayload = () => {
-  const token = localStorage.getItem("authToken");
+  const token = getAccessToken();
   if (!token) {
     return {};
   }
@@ -43,7 +30,8 @@ export const getTokenPayload = () => {
     const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
     const padded = normalized.padEnd(normalized.length + ((4 - normalized.length % 4) % 4), "=");
     return JSON.parse(atob(padded));
-  } catch (_error) {
+  } catch (error) {
+    console.error("getTokenPayload: failed to decode access token", error);
     return {};
   }
 };
@@ -55,7 +43,7 @@ export const getTokenPayload = () => {
  * @param {string|null} schoolId - Required for school_admin, content_creator, and teacher
  */
 export const setAuth = (token, role, schoolId = null) => {
-  localStorage.setItem("authToken", token);
+  setAccessToken(token);
   localStorage.setItem("userRole", role);
   if (schoolId) localStorage.setItem("schoolId", schoolId);
   else localStorage.removeItem("schoolId");
@@ -67,7 +55,7 @@ export const setAuth = (token, role, schoolId = null) => {
  */
 export const getRole = () => {
   const tokenPayload = getTokenPayload();
-  return tokenPayload.role || tokenPayload.iss || localStorage.getItem("userRole");
+  return tokenPayload.role || localStorage.getItem("userRole");
 };
 
 /**
@@ -80,7 +68,7 @@ export const getSchoolId = () => localStorage.getItem("schoolId");
  * Clear all authentication data
  */
 export const clearAuth = () => {
-  localStorage.removeItem("authToken");
+  clearAccessToken();
   localStorage.removeItem("userRole");
   localStorage.removeItem("schoolId");
 };

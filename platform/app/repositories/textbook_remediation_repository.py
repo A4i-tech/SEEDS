@@ -45,7 +45,8 @@ class TextbookRemediationRepository:
 
     async def create(
         self, *, job_id: ObjectId, tenant_id: str, source_name: str, source_url: str, language: str,
-        created_by: str, target_language: str | None = None,
+        created_by: str,
+        target_language: str | None = None,
     ) -> RemediationJob:
         initial_lang = "detecting" if language in AUTO_LANGUAGES else language
         doc: dict[str, object] = {

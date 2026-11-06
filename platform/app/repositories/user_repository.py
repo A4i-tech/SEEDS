@@ -87,6 +87,12 @@ class UserRepository(BaseRepository):
         )
         return User.from_mongo(doc) if doc else None
 
+    async def find_all_by_role(self, role: str) -> list[User]:
+        """Return every user with the given role."""
+        cursor = self._col.find({"role": role})
+        docs = await cursor.to_list(length=None)
+        return [User.from_mongo(d) for d in docs]
+
     async def find_all_by_tenant_and_role(self, tenant_id: str, role: str) -> list[User]:
         """Return all users belonging to a tenant, filtered to a single role."""
         cursor = self._col.find({"tenant_id": self._to_id(tenant_id), "role": role})

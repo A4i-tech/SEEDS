@@ -1,5 +1,5 @@
 import { Navigate } from "react-router-dom";
-import { isAuthenticated } from "../utils/authHelpers";
+import { useAuthContext } from "../contexts/AuthContext";
 
 /**
  * PublicRoute component that prevents authenticated users from accessing public routes (login/register).
@@ -9,7 +9,8 @@ import { isAuthenticated } from "../utils/authHelpers";
  * @returns {JSX.Element} The public component or redirect to content
  */
 const PublicRoute = ({ element }) => {
-  return isAuthenticated() ? <Navigate to="/content" replace /> : element;
+  const { isAuthenticated } = useAuthContext();
+  return isAuthenticated ? <Navigate to="/content" replace /> : element;
 };
 
 export default PublicRoute;

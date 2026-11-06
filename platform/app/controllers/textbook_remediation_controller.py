@@ -56,6 +56,7 @@ require_remediation_access = require_role(
     UserRole.CONTENT_CREATOR.value,
     UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER.value,
 )
+
 MAX_PDF_BYTES = 200 * 1024 * 1024
 
 _LANGUAGE_CODES = frozenset(lang["code"] for lang in SUPPORTED_LANGUAGES)
@@ -124,10 +125,7 @@ async def remediation_me(
 async def create_remediation_job(
     file: UploadFile = File(..., description="The textbook PDF"),
     language: str = Form("en", description="Language the figure alt text is translated into"),
-    target_language: str = Form(
-        "",
-        description="When set, also translate the result into this language once remediation finishes",
-    ),
+    target_language: str = Form("", description="When set, also translate the result into this language once remediation finishes"),
     user: dict[str, object] = Depends(require_tenant),
     repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
     blob_provider: BlobStorageProvider = Depends(get_blob_storage_provider),
@@ -148,8 +146,7 @@ async def create_remediation_job(
         _validate_language(target_language)
 
     job = await create_job(
-        repo,
-        blob_provider,
+        repo, blob_provider,
         tenant_id=str(user["tenant_id"]),
         source_name=file.filename or "textbook.pdf",
         data=file.file,
@@ -292,9 +289,7 @@ async def verify_remediation_job(
 ) -> dict[str, object]:
     job = await _get_job(repo, user, job_id)
     verified_by = str(user["sub"])
-    updated = await verify_job(
-        repo, blob_provider, job, title=payload.title, verified_by=verified_by
-    )
+    updated = await verify_job(repo, blob_provider, job, title=payload.title, verified_by=verified_by)
     return serialize_job(updated)
 
 

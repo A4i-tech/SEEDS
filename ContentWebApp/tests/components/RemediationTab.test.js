@@ -69,6 +69,13 @@ test("assigned volunteer still in the list shows their name", async () => {
   expect(screen.getByText("Volunteer One")).toBeInTheDocument();
 });
 
+test("assigned volunteer missing from the list shows Assigned volunteer", async () => {
+  mockJobs = [job({ assigned_to: "vol-1" })];
+  render(<RemediationTab volunteers={[]} canManage={true} />);
+
+  expect(screen.getByText("Assigned volunteer")).toBeInTheDocument();
+});
+
 test("unassigned job still shows Unassigned", async () => {
   mockJobs = [job({ assigned_to: null })];
   render(<RemediationTab volunteers={volunteers} canManage={true} />);

@@ -19,10 +19,14 @@ const ARTIFACT_LABELS = { docx: "Word", pdf: "PDF", tex: "LaTeX" };
 const RemediationTab = ({ volunteers, canManage }) => {
   const navigate = useNavigate();
   const { jobs, isLoading, isUploading, error, upload, remove, assign } = useRemediationJobs();
-  const assigneeOptions = [
+  const volunteerOptions = [
     { value: "", label: "Unassigned" },
     ...volunteers.map((volunteer) => ({ value: volunteer.id, label: volunteer.name })),
   ];
+  const assigneeOptions = (assignedTo) =>
+    !assignedTo || volunteers.some((volunteer) => volunteer.id === assignedTo)
+      ? volunteerOptions
+      : [...volunteerOptions, { value: assignedTo, label: "Assigned volunteer" }];
   const fileRef = useRef(null);
   const [selectedFile, setSelectedFile] = useState(null);
   const [targetLanguage, setTargetLanguage] = useState("");
@@ -192,7 +196,7 @@ const RemediationTab = ({ volunteers, canManage }) => {
                         id={`remediation-assignee-${job.job_id}`}
                         value={job.assigned_to || ""}
                         onChange={(volunteerId) => assign(job.job_id, volunteerId || null)}
-                        options={assigneeOptions}
+                        options={assigneeOptions(job.assigned_to)}
                         placeholder="Unassigned"
                       />
                     </td>

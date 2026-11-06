@@ -27,6 +27,7 @@ const AllContent = () => {
   const [isUpdatingIVR, setIsUpdatingIVR] = useState(false);
   const [currentUser, setCurrentUser] = useState("User");
   const [currentUserRole, setCurrentUserRole] = useState(() => getRole() || null);
+  const [userError, setUserError] = useState("");
 
   const navigate = useNavigate();
   const { getAuthHeaders, logout, getCurrentUser } = useAuth();
@@ -115,6 +116,7 @@ const AllContent = () => {
         }
       } catch (error) {
         console.error("Error fetching user:", error);
+        setUserError(error.message);
       }
     };
     fetchUser();
@@ -170,6 +172,8 @@ const AllContent = () => {
           showLocalization={canViewLocalization}
           showRemediation={canViewRemediation}
         />
+
+        {userError && <div className="status-message">{userError}</div>}
 
         {updateIVRStatus && <div className="status-message">{updateIVRStatus}</div>}
 

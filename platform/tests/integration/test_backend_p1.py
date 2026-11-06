@@ -256,7 +256,6 @@ async def test_get_teacher_with_token(client, mock_db):
 
 @pytest.mark.asyncio
 async def test_remediation_me_with_volunteer_token(client, mock_db):
-    """GET /textbook-remediation/me with a volunteer token returns the volunteer's own profile."""
     volunteer = await _seed_volunteer(mock_db)
     token = _volunteer_token(volunteer["_id"])
 
@@ -273,7 +272,6 @@ async def test_remediation_me_with_volunteer_token(client, mock_db):
 
 @pytest.mark.asyncio
 async def test_remediation_me_requires_auth(client):
-    """GET /textbook-remediation/me without a token returns 401."""
     resp = await client.get("/textbook-remediation/me")
     assert resp.status_code == 401
 
@@ -305,8 +303,6 @@ async def test_tenant_me_rejects_volunteer_token(client, mock_db):
 
 @pytest.mark.asyncio
 async def test_create_volunteer_as_tenant(client, mock_db):
-    """POST /tenant/volunteers creates a volunteer scoped to the authenticated tenant;
-    school_id is not accepted and is not set on the created user."""
     tenant = await _seed_tenant(mock_db)
     token = _tenant_token(tenant["_id"])
 
@@ -327,7 +323,6 @@ async def test_create_volunteer_as_tenant(client, mock_db):
 
 @pytest.mark.asyncio
 async def test_create_volunteer_rejects_school_id(client, mock_db):
-    """POST /tenant/volunteers must reject an unexpected school_id field."""
     tenant = await _seed_tenant(mock_db)
     token = _tenant_token(tenant["_id"])
 
@@ -346,7 +341,6 @@ async def test_create_volunteer_rejects_school_id(client, mock_db):
 
 @pytest.mark.asyncio
 async def test_create_volunteer_rejects_school_admin(client, mock_db):
-    """POST /tenant/volunteers must reject a school_admin token (tenant role required)."""
     token = _school_admin_token("school001")
 
     resp = await client.post(
@@ -360,7 +354,6 @@ async def test_create_volunteer_rejects_school_admin(client, mock_db):
 @pytest.mark.asyncio
 @pytest.mark.parametrize("role", ["teacher", "content_creator", "textbook_remediation_volunteer"])
 async def test_create_volunteer_rejects_non_tenant_roles(client, mock_db, role):
-    """POST /tenant/volunteers must reject every non-tenant role."""
     token = create_access_token({"sub": "someone", "role": role, "tenant_id": "tenant001"})
 
     resp = await client.post(
@@ -373,7 +366,6 @@ async def test_create_volunteer_rejects_non_tenant_roles(client, mock_db, role):
 
 @pytest.mark.asyncio
 async def test_list_volunteers_scopes_by_authenticated_sub(client, mock_db):
-    """GET /tenant/volunteers must scope by the authenticated sub, not the tenant_id claim."""
     own_tenant = await _seed_tenant(mock_db, email="owner@test.com")
     other_tenant = await _seed_tenant(mock_db, email="other@test.com")
     await mock_db["users"].insert_one(

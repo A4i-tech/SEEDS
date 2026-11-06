@@ -1,6 +1,8 @@
 import { fetchEventSource } from "@microsoft/fetch-event-source";
 
+import { getAccessToken, setAccessToken, clearAccessToken } from "../utils/tokenStore";
 import { clearAuth } from "../utils/authHelpers";
+import { SEEDS_URL } from "../Constants";
 
 export class ApiError extends Error {
   constructor(message, status, response, details) {
@@ -21,24 +23,93 @@ const parseBody = (text) => {
   }
 };
 
+let refreshing = false;
+let refreshPromise = Promise.resolve("");
+
+const requestTokenRefresh = async () => {
+  try {
+    const response = await fetch(`${SEEDS_URL}/auth/token/refresh`, {
+      method: "POST",
+      credentials: "include",
+    });
+    if (!response.ok) {
+      const body = await response.text();
+      throw new ApiError(body || "refresh failed", response.status, response);
+    }
+    const data = await response.json();
+    setAccessToken(data.access_token);
+    return data.access_token;
+  } finally {
+    refreshing = false;
+  }
+};
+
+export const refreshAccessToken = () => {
+  if (!refreshing) {
+    refreshing = true;
+    refreshPromise = requestTokenRefresh();
+  }
+  return refreshPromise;
+};
+
+const clearAuthAndRedirect = () => {
+  clearAuth();
+  if (window.location.pathname !== "/") {
+    window.location.href = "/";
+  }
+};
+
+const refreshAndRetry = async (label, retry) => {
+  let newToken;
+  try {
+    newToken = await refreshAccessToken();
+  } catch (refreshError) {
+    console.error(`${label}: token refresh failed`, refreshError);
+    if (refreshError.status === 401) {
+      clearAuthAndRedirect();
+    }
+    throw refreshError;
+  }
+  return retry(newToken);
+};
+
+export const initSession = async () => {
+  try {
+    await refreshAccessToken();
+    return { ok: true, error: "" };
+  } catch (error) {
+    clearAccessToken();
+    return { ok: false, error };
+  }
+};
+
 /**
  * Generic fetch wrapper with error handling
  * @param {string} url - The URL to fetch
  * @param {Object} options - Fetch options
  * @returns {Promise<any>} - Parsed JSON response
  */
-export const apiFetch = async (url, { timeoutMs, ...options } = {}) => {
+export const apiFetch = async (url, { timeoutMs, ...options } = {}, _isRetry = false) => {
   const controller = timeoutMs ? new AbortController() : null;
   const timer = controller ? setTimeout(() => controller.abort(), timeoutMs) : null;
   try {
-    const response = await fetch(url, controller ? { ...options, signal: controller.signal } : options);
+    const response = await fetch(url, {
+      credentials: "include",
+      ...options,
+      ...(controller ? { signal: controller.signal } : {}),
+    });
 
     if (!response.ok) {
-      if (response.status === 401) {
-        clearAuth();
-        if (typeof window !== "undefined" && window.location.pathname !== "/") {
-          window.location.href = "/";
-        }
+      if (response.status === 401 && getAccessToken() && !_isRetry) {
+        return await refreshAndRetry("apiFetch", (newToken) =>
+          apiFetch(
+            url,
+            { ...options, timeoutMs, headers: { ...options.headers, Authorization: `Bearer ${newToken}` } },
+            true
+          )
+        );
+      } else if (response.status === 401) {
+        clearAuthAndRedirect();
       }
       const text = await response.text();
       const { message, details } = parseBody(text);
@@ -91,9 +162,17 @@ export const buildQueryString = (params) => {
   return searchParams.toString();
 };
 
-const apiFetchRaw = async (url, { headers, signal } = {}) => {
+const apiFetchRaw = async (url, { headers, signal } = {}, _isRetry = false) => {
   const response = await fetch(url, { headers, signal });
   if (!response.ok) {
+    if (response.status === 401 && getAccessToken() && !_isRetry) {
+      return refreshAndRetry("apiFetchRaw", (newToken) =>
+        apiFetchRaw(url, { headers: { ...headers, Authorization: `Bearer ${newToken}` }, signal }, true)
+      );
+    }
+    if (response.status === 401) {
+      clearAuthAndRedirect();
+    }
     throw new ApiError(`Request failed with status ${response.status}`, response.status, response);
   }
   return response;
