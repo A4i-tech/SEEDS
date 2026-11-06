@@ -18,5 +18,7 @@ runs:
         node-version: ${{ inputs['node-version'] }}
 
     - name: Install dependencies
-      run: cd ${{ inputs.directory}} && npm ci
+      env:
+        DIRECTORY: ${{ inputs.directory }}
+      run: cd "$DIRECTORY" && npm ci
       shell: bash

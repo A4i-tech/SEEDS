@@ -1,5 +1,5 @@
 # ---- Build stage ----
-FROM node:18-alpine AS builder
+FROM node:22-alpine AS builder
 
 WORKDIR /app
 
@@ -21,7 +21,7 @@ ENV REACT_APP_GOOGLE_SITE_VERIFICATION=$REACT_APP_GOOGLE_SITE_VERIFICATION
 RUN npm run build
 
 # ---- Production stage ----
-FROM nginxinc/nginx-unprivileged:alpine
+FROM nginxinc/nginx-unprivileged:1.27-alpine
 
 # Copy React build output to Nginx
 COPY --from=builder /app/build /usr/share/nginx/html
@@ -29,6 +29,9 @@ COPY --from=builder /app/build /usr/share/nginx/html
 # Copy custom nginx configuration
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
+USER 101
+
 EXPOSE 8080
 
+# nosemgrep: dockerfile.security.missing-user.missing-user -- base image already runs as non-root
 CMD ["nginx", "-g", "daemon off;"]

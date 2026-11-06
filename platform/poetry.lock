@@ -7892,7 +7892,10 @@ idna = ">=2.0"
 multidict = ">=4.0"
 propcache = ">=0.2.1"
 
+[extras]
+azure = ["azure-ai-translation-text"]
+
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<4.0"
-content-hash = "0c37139c95b3424fd19d0afca1ac80396bce2fef2736e37dc2e83ce58ae43533"
+content-hash = "1ca7bc9fc3cc030e89b7d55f215bcef84b0e298ce192f4c141864c173e7e6bd2"

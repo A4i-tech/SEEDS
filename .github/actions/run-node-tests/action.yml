@@ -8,5 +8,7 @@ runs:
   using: composite
   steps:
     - name: Run tests with coverage
-      run: cd ${{ inputs.directory }} && npm test
+      env:
+        DIRECTORY: ${{ inputs.directory }}
+      run: cd "$DIRECTORY" && npm test
       shell: bash
