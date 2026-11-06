@@ -7,7 +7,7 @@ import i18n from '@shared/i18n';
 import type { DataTableColumn } from '@shared/components/DataTable';
 import { DataTable } from '@shared/components/DataTable';
 import { openConfirmDialog } from '@shared/components/ConfirmDialog';
-import { CONTENT_UI, experiences as audioExperiences } from '../types/content.types';
+import { CONTENT_UI } from '../types/content.types';
 import type { ContentItem } from '../types/content.types';
 import type { Course } from '../api/library';
 import { useLibrary } from '../hooks/useLibrary';
@@ -15,7 +15,7 @@ import { useLibraryAccess } from '../hooks/useLibraryAccess';
 import { PageTitle } from '@shared/components/PageTitle';
 import { RowActions } from '@shared/components/RowActions';
 
-const experiences = [...audioExperiences, 'quiz', 'lesson', 'course', 'audio', 'textbook', 'webpage'];
+const experiences = ['poem', 'story', 'quiz', 'lesson', 'course', 'audio', 'song', 'textbook', 'webpage', 'snippet'];
 
 interface LibraryRow {
   id: string;

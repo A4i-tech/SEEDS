@@ -451,7 +451,7 @@ void i18n.use(initReactI18next).init({
           reviewEmpty: 'Nothing here yet.',
           pickSiteFirst: 'Pick a site above to start reviewing its translations.',
           lowConfidence: 'Low confidence — please review.',
-          stageOptions: { pending: 'Pending', approved: 'Approved' },
+          stageOptions: { all: 'All', pending: 'Pending', approved: 'Approved' },
         },
         analytics: {
           title: 'Analytics',

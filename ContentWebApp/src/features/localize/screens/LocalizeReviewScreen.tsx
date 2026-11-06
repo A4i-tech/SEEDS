@@ -155,7 +155,7 @@ export function LocalizeReviewScreen() {
             setStage(selectValue(v, 'pending'));
             setPage(1);
           }}
-          data={stageOptions.map((v) => ({ value: v, label: t(`localize.statusOptions.${v}`) }))}
+          data={stageOptions.map((v) => ({ value: v, label: t(`localize.stageOptions.${v}`) }))}
         />
         <TextInput
           aria-label={t('localize.reviewSearch')}
