@@ -50,17 +50,21 @@ class TestSinkConferenceEvent:
         assert entry.metadata == {}
 
     @pytest.mark.parametrize("teacher_phone", [None, ""])
-    async def test_action_history_owner_defaults_to_empty_string(
+    async def test_missing_teacher_phone_warns_and_still_tears_down(
         self, teacher_phone: str | None, caplog: pytest.LogCaptureFixture,
     ) -> None:
         conf = _make_conf(teacher_phone=teacher_phone)
-        event = SinkConferenceEvent(conf, on_sink_callback=None)
+        callback = MagicMock()
+        event = SinkConferenceEvent(conf, on_sink_callback=callback)
 
         with caplog.at_level(logging.WARNING):
             await event.execute_event()
 
-        assert conf.state.action_history[0].owner == ""
         assert "teacher_phone_number missing" in caplog.text
+        assert conf.state.is_running is False
+        conf.update_state.assert_awaited_once()
+        conf.end_processing_conf_events_from_queue.assert_called_once()
+        callback.assert_called_once_with()
 
     async def test_calls_update_state(self) -> None:
         conf = _make_conf()
