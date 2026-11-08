@@ -17,6 +17,7 @@ NCCO-building code path (``VonageStreamAction.get()`` / ``ActionAccumulator``).
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import UTC, datetime, timedelta
 from typing import IO
@@ -63,6 +64,18 @@ class BlobStorageProvider:
                 account_url=f"https://{self._account_name}.blob.core.windows.net",
                 credential=credential,
             )
+        self._user_delegation_key = None
+        self._key_expiry: datetime | None = None
+        self._key_lock = asyncio.Lock()
+
+    async def _get_user_delegation_key(self, start: datetime, expiry: datetime):
+        async with self._key_lock:
+            if self._user_delegation_key is None or (
+                self._key_expiry is not None and datetime.now(UTC) >= self._key_expiry
+            ):
+                self._user_delegation_key = await self._client.get_user_delegation_key(start, expiry)
+                self._key_expiry = expiry - timedelta(minutes=5)
+            return self._user_delegation_key
 
     # ------------------------------------------------------------------
     # Container helpers
@@ -166,7 +179,7 @@ class BlobStorageProvider:
             )
         else:
             # User delegation SAS via managed identity
-            user_delegation_key = await self._client.get_user_delegation_key(start, expiry)
+            user_delegation_key = await self._get_user_delegation_key(start, expiry)
             sas_token = generate_blob_sas(
                 account_name=self._account_name,
                 container_name=container,

@@ -126,6 +126,7 @@ class AudioCaptureService:
                 fh,
                 overwrite=True,
                 content_settings=ContentSettings(content_type="audio/wav"),
+                timeout=self.upload_timeout,
             )
         return blob_client.url
 
@@ -134,14 +135,7 @@ class AudioCaptureService:
         last_error = None
         for attempt in range(1, self.upload_max_retries + 1):
             try:
-                url = await asyncio.wait_for(
-                    asyncio.to_thread(self._do_upload, blob_name),
-                    timeout=self.upload_timeout,
-                )
-                return url
-            except TimeoutError:
-                last_error = "timeout"
-                logger.warning("audio_capture: upload attempt %d/%d timed out", attempt, self.upload_max_retries)
+                return await asyncio.to_thread(self._do_upload, blob_name)
             except Exception as exc:
                 last_error = exc
                 logger.warning("audio_capture: upload attempt %d/%d failed — %s", attempt, self.upload_max_retries, exc)

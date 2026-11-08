@@ -504,3 +504,50 @@ class TestConferenceEventDispatcher:
             event_data={"type": "some_other_event"},
             conference_manager=mgr,
         )
+
+
+# ---------------------------------------------------------------------------
+# delete_conference — retained task ref, failures logged never raised
+# ---------------------------------------------------------------------------
+
+
+class TestDeleteConference:
+    def _make_manager(self):
+        from app.services.conference_service import ConferenceCallManager
+
+        return ConferenceCallManager(
+            communication_api_factory=MagicMock(),
+            connection_manager_factory=MagicMock(),
+            storage_manager=MagicMock(),
+        )
+
+    @pytest.mark.asyncio
+    async def test_delete_conference_holds_task_and_logs_failure(self, caplog) -> None:
+        import asyncio
+
+        mgr = self._make_manager()
+        mgr._redis_store = MagicMock()
+        mgr._redis_store.delete = AsyncMock(side_effect=RuntimeError("redis down"))
+
+        with caplog.at_level("ERROR", logger="app.services.conference_service"):
+            mgr.delete_conference("conf1")
+
+        assert mgr._pending_deletes
+        await asyncio.gather(*list(mgr._pending_deletes), return_exceptions=True)
+        mgr._redis_store.delete.assert_awaited_once_with("conf1")
+        assert not mgr._pending_deletes
+        assert "redis delete failed" in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_delete_conference_success_clears_ref(self) -> None:
+        import asyncio
+
+        mgr = self._make_manager()
+        mgr._redis_store = MagicMock()
+        mgr._redis_store.delete = AsyncMock(return_value=None)
+
+        mgr.delete_conference("conf1")
+
+        await asyncio.gather(*list(mgr._pending_deletes))
+        mgr._redis_store.delete.assert_awaited_once_with("conf1")
+        assert not mgr._pending_deletes

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+
 import pytest
 
 from app.aggregators.models import (
@@ -230,3 +232,66 @@ async def test_to_course_doc_leaves_image_url_untouched_if_signing_fails():
     doc = (await to_course_doc([course, chapter, seq, vert, html_item], blob)).to_dict()
 
     assert doc["blocks"][0]["markdown"] == markdown
+
+
+class TrackingBlob(FakeBlob):
+    def __init__(self, files: dict[str, bytes]):
+        super().__init__(files)
+        self._in_flight = 0
+        self.max_in_flight = 0
+        self._sign_in_flight = 0
+        self.max_sign_in_flight = 0
+
+    async def download_from_url(self, blob_url: str) -> bytes:
+        self._in_flight += 1
+        self.max_in_flight = max(self.max_in_flight, self._in_flight)
+        try:
+            await asyncio.sleep(0)
+            return await super().download_from_url(blob_url)
+        finally:
+            self._in_flight -= 1
+
+    async def get_sas_url_from_blob_url(self, blob_url: str, expiry_hours: int = 1) -> str:
+        self._sign_in_flight += 1
+        self.max_sign_in_flight = max(self.max_sign_in_flight, self._sign_in_flight)
+        try:
+            await asyncio.sleep(0)
+            return await super().get_sas_url_from_blob_url(blob_url, expiry_hours)
+        finally:
+            self._sign_in_flight -= 1
+
+
+@pytest.mark.asyncio
+async def test_to_course_doc_bounds_fan_out_to_ten():
+    count = 200
+    course = _node(
+        source_id="course-1", parent_id=None, node_kind=NodeKind.CONTAINER, item_type=None,
+        display_name="Demo", native_type="course",
+        source_metadata={"org": "edX", "course_number": "DemoX", "description": "", "language": "en",
+                          "start": "2030-05-06T09:46:11+00:00", "pacing": "instructor", "hidden": False,
+                          "invitation_only": False, "mobile_available": True, "content_hash": "abc123"},
+    )
+    chapter = _node(source_id="chapter-1", parent_id="course-1", node_kind=NodeKind.CONTAINER, item_type=None,
+                    display_name="Intro", native_type="chapter")
+    seq = _node(source_id="seq-1", parent_id="chapter-1", node_kind=NodeKind.CONTAINER, item_type=None,
+                display_name="Lesson 1", native_type="sequential")
+    vert = _node(source_id="vert-1", parent_id="seq-1", node_kind=NodeKind.CONTAINER, item_type=None,
+                 display_name="Unit 1", native_type="vertical")
+    items = [
+        _node(source_id=f"item-{i}", parent_id="vert-1", node_kind=NodeKind.ITEM, item_type=ItemType.TEXT,
+              display_name=f"Item {i}", lms_url=f"https://lms/item-{i}", native_type="html", order=i,
+              content=TextContent(markdown_url=f"blob://{i}.md"))
+        for i in range(count)
+    ]
+    files = {
+        f"blob://{i}.md": f"![img{i}](https://acct.blob.core.windows.net/c/b{i}.png)".encode()
+        for i in range(count)
+    }
+    blob = TrackingBlob(files)
+
+    doc = (await to_course_doc([course, chapter, seq, vert, *items], blob)).to_dict()
+
+    assert [b["block_id"] for b in doc["blocks"]] == [f"item-{i}" for i in range(count)]
+    assert all("?sas=signed" in b["markdown"] for b in doc["blocks"])
+    assert blob.max_in_flight <= 10
+    assert blob.max_sign_in_flight <= 10
