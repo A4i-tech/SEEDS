@@ -50,11 +50,15 @@ class BlobStorageProvider:
 
         conn_str = settings.azure_storage_connection_string
         if conn_str:
-            self._client = BlobServiceClient.from_connection_string(conn_str)
+            self._client = BlobServiceClient.from_connection_string(
+                conn_str, max_single_put_size=4 * 1024 * 1024, max_single_get_size=4 * 1024 * 1024
+            )
         elif self._account_name and self._account_key:
             self._client = BlobServiceClient(
                 account_url=f"https://{self._account_name}.blob.core.windows.net",
                 credential=self._account_key,
+                max_single_put_size=4 * 1024 * 1024,
+                max_single_get_size=4 * 1024 * 1024,
             )
         else:
             credential = AsyncDefaultAzureCredential()
@@ -62,6 +66,8 @@ class BlobStorageProvider:
             self._client = BlobServiceClient(
                 account_url=f"https://{self._account_name}.blob.core.windows.net",
                 credential=credential,
+                max_single_put_size=4 * 1024 * 1024,
+                max_single_get_size=4 * 1024 * 1024,
             )
 
     # ------------------------------------------------------------------
@@ -122,6 +128,7 @@ class BlobStorageProvider:
         return await self.download_file(container, blob_path)
 
     async def download_url_to_path(self, blob_url: str, path: str) -> int:
+        """Stream a blob to *path* via ``readinto`` and return bytes written."""
         container, blob_path = _parse_blob_url(blob_url)
         blob_client = self._client.get_container_client(container).get_blob_client(blob_path)
         stream = await blob_client.download_blob()

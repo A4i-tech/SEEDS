@@ -5,7 +5,7 @@ import httpx
 import pytest
 
 from app.consumers import content_job_consumer as consumer
-from app.providers import subodha_client as sc
+from app.providers import subodha_client as sc_target
 from app.providers.blob_storage import BlobStorageProvider
 from app.providers.subodha_client import SubodhaClient
 from app.services import subodha_service
@@ -84,12 +84,18 @@ def _client(handler):
 
 
 @pytest.mark.asyncio
-async def test_fetch_asset_spools_to_disk_above_threshold(monkeypatch):
-    monkeypatch.setattr(sc, "_ASSET_SPOOL_BYTES", 4)
+async def test_fetch_asset_streams_chunks_to_tempfile():
     handle = await _client(lambda r: httpx.Response(200, content=b"x" * 100)).fetch_asset("/a", "c=1")
-    assert handle._rolled
-    assert len(handle.read()) == 100
+    assert handle.tell() == 0
+    assert handle.read() == b"x" * 100
     handle.close()
+
+
+@pytest.mark.asyncio
+async def test_fetch_asset_rejects_over_max_bytes(monkeypatch):
+    monkeypatch.setattr(sc_target, "_MAX_ASSET_BYTES", 4)
+    with pytest.raises(ValueError, match="asset too large"):
+        await _client(lambda r: httpx.Response(200, content=b"x" * 100)).fetch_asset("/a", "c=1")
 
 
 @pytest.mark.asyncio
