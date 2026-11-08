@@ -5,6 +5,7 @@ import asyncio
 import base64
 import logging
 import os
+import time
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -602,7 +603,9 @@ class IVRService:
             upsert=True,
         )
         if prev_fsm_id and prev_fsm_id != _latest_fsm_id:
-            await fsm_col.delete_one({"_id": prev_fsm_id})
+            pinned = await ongoing_col.count_documents({"fsm_id": prev_fsm_id})
+            if not pinned:
+                await fsm_col.delete_one({"_id": prev_fsm_id})
         await self._evict_unreferenced_fsms()
 
         return {
@@ -649,7 +652,10 @@ class IVRService:
         async with _fsm_load_lock:
             if _latest_fsm_id and _latest_fsm_id in _fsm_cache:
                 return
+            started = time.monotonic()
+            logger.info("ivr_service: FSM cache miss, loading under lock")
             await self._load_fsm_locked()
+            logger.info("ivr_service: FSM load took %.2fs", time.monotonic() - started)
             await self._evict_unreferenced_fsms()
 
     async def _evict_unreferenced_fsms(self) -> None:

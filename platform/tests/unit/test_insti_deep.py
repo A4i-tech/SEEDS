@@ -458,3 +458,33 @@ class TestFsmCacheEviction:
             ivr_service._fsm_cache.clear()
             ivr_service._fsm_cache.update(old_cache)
             ivr_service._latest_fsm_id = old_latest
+
+    @pytest.mark.asyncio
+    async def test_update_keeps_prev_doc_when_pinned(self) -> None:
+        from datetime import UTC, datetime, timedelta
+
+        from app.services import ivr_service
+        from app.services.ivr_service import IVRService
+
+        client = mongomock_async.AsyncMongoMockClient()
+        db = client["test_fsm_pinned_doc"]
+        old_cache = dict(ivr_service._fsm_cache)
+        old_latest = ivr_service._latest_fsm_id
+        ivr_service._fsm_cache.clear()
+        ivr_service._latest_fsm_id = None
+        try:
+            first = await IVRService(db).update_ivr_structure(tenant_id="t1", structure={})
+            assert first["status_code"] == 200
+            await db["ongoingIVRState"].insert_one({
+                "_id": "leg1",
+                "fsm_id": first["fsm_id"],
+                "updated_at": datetime.now(UTC) - timedelta(hours=5),
+            })
+            second = await IVRService(db).update_ivr_structure(tenant_id="t1", structure={})
+            assert second["status_code"] == 200
+            assert await db["ivrfsms"].count_documents({}) == 2
+            assert await db["ivrfsms"].find_one({"_id": first["fsm_id"]}) is not None
+        finally:
+            ivr_service._fsm_cache.clear()
+            ivr_service._fsm_cache.update(old_cache)
+            ivr_service._latest_fsm_id = old_latest

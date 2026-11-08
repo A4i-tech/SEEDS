@@ -463,6 +463,30 @@ class TestConfeventExecution:
         assert state == {}
         mgr._redis_store.save.assert_awaited()
 
+    @pytest.mark.asyncio
+    async def test_end_event_callback_failure_still_stops_task(self) -> None:
+        from app.services.confevents.end_conf_event import EndConferenceEvent
+
+        mgr = _make_manager()
+        conf = await mgr.create_conference(teacher_phone="+779", student_phones=[])
+        conf.start_processing_conf_events_from_queue()
+
+        fake_ws = MagicMock()
+        fake_ws.send_message = AsyncMock()
+
+        def bad_callback() -> None:
+            raise RuntimeError("boom")
+
+        with patch("app.providers.websocket_client.WebsocketClientProvider", return_value=fake_ws):
+            evt = EndConferenceEvent(conf_call=conf, on_end_callback=bad_callback)
+            with pytest.raises(RuntimeError):
+                await evt.execute_event()
+
+        import asyncio
+
+        await asyncio.sleep(0)
+        assert not conf.is_queue_processing()
+
 
 # ---------------------------------------------------------------------------
 # Caller state service

@@ -33,6 +33,8 @@ class EndConferenceEvent(ConferenceEvent):
         except Exception as exc:
             logger.warning("end_conf_event: websocket disconnect failed — %s", exc)
         await self.conf_call.update_state()
-        if self.on_end_callback:
-            self.on_end_callback()
-        self.conf_call.end_processing_conf_events_from_queue()
+        try:
+            if self.on_end_callback:
+                self.on_end_callback()
+        finally:
+            self.conf_call.end_processing_conf_events_from_queue()
