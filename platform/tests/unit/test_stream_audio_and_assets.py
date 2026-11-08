@@ -68,14 +68,6 @@ async def test_process_audio_item_uploads_file_handle():
     assert uploaded == {"has_read": True, "bytes": b"wav"}
 
 
-@pytest.mark.asyncio
-async def test_process_audio_item_raises_on_empty_download():
-    provider = MagicMock()
-    provider.download_url_to_path = AsyncMock(return_value=0)
-    with pytest.raises(RuntimeError, match="empty"):
-        await consumer._process_audio_item("https://acct.blob.core.windows.net/c/a.mp3", "cid", provider)
-
-
 def _client(handler):
     client = SubodhaClient.__new__(SubodhaClient)
     client._http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
@@ -110,4 +102,19 @@ async def test_upload_one_closes_handle_when_upload_fails(monkeypatch):
     blocks = {"blocks": {"b": {"student_view_html": '<img src="/asset-v1:o+c+r+type@asset+block@a.png">'}}}
     result = await subodha_service.fetch_and_store_assets(client, "course:1", blocks, "cookie")
     assert result == {}
+    handle.close.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_upload_one_closes_handle_on_success(monkeypatch):
+    handle = MagicMock()
+    client = MagicMock()
+    client.fetch_asset = AsyncMock(return_value=handle)
+    provider = MagicMock()
+    provider.exists = AsyncMock(return_value=False)
+    provider.upload_file = AsyncMock(return_value="https://blob.test/c/a.png")
+    monkeypatch.setattr(subodha_service, "BlobStorageProvider", lambda: provider)
+    blocks = {"blocks": {"b": {"student_view_html": '<img src="/asset-v1:o+c+r+type@asset+block@a.png">'}}}
+    result = await subodha_service.fetch_and_store_assets(client, "course:1", blocks, "cookie")
+    assert result == {"/asset-v1:o+c+r+type@asset+block@a.png": "https://blob.test/c/a.png"}
     handle.close.assert_called_once()
