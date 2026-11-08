@@ -66,6 +66,7 @@ class BlobStorageProvider:
             )
         self._user_delegation_key = None
         self._key_expiry: datetime | None = None
+        self._key_valid_until: datetime | None = None
         self._key_lock = asyncio.Lock()
 
     async def _get_user_delegation_key(self, start: datetime, expiry: datetime):
@@ -74,8 +75,9 @@ class BlobStorageProvider:
                 self._key_expiry is not None and datetime.now(UTC) >= self._key_expiry
             ):
                 self._user_delegation_key = await self._client.get_user_delegation_key(start, expiry)
+                self._key_valid_until = expiry
                 self._key_expiry = expiry - timedelta(minutes=5)
-            return self._user_delegation_key
+            return self._user_delegation_key, self._key_valid_until
 
     # ------------------------------------------------------------------
     # Container helpers
@@ -179,14 +181,14 @@ class BlobStorageProvider:
             )
         else:
             # User delegation SAS via managed identity
-            user_delegation_key = await self._get_user_delegation_key(start, expiry)
+            user_delegation_key, key_valid_until = await self._get_user_delegation_key(start, expiry)
             sas_token = generate_blob_sas(
                 account_name=self._account_name,
                 container_name=container,
                 blob_name=blob_name,
                 user_delegation_key=user_delegation_key,
                 permission=permissions,
-                expiry=expiry,
+                expiry=min(expiry, key_valid_until),
                 start=start,
             )
 

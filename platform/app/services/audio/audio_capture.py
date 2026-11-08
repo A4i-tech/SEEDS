@@ -20,6 +20,8 @@ from datetime import datetime
 
 logger = logging.getLogger("audio-capture")
 
+_UPLOAD_BACKSTOP_SECONDS = 60.0
+
 
 class AudioCaptureService:
     """Captures raw audio chunks to a local WAV file and uploads to Azure Blob on finalize."""
@@ -135,7 +137,13 @@ class AudioCaptureService:
         last_error = None
         for attempt in range(1, self.upload_max_retries + 1):
             try:
-                return await asyncio.to_thread(self._do_upload, blob_name)
+                return await asyncio.wait_for(
+                    asyncio.to_thread(self._do_upload, blob_name),
+                    timeout=self.upload_timeout + _UPLOAD_BACKSTOP_SECONDS,
+                )
+            except TimeoutError:
+                last_error = "timeout"
+                logger.warning("audio_capture: upload attempt %d/%d timed out", attempt, self.upload_max_retries)
             except Exception as exc:
                 last_error = exc
                 logger.warning("audio_capture: upload attempt %d/%d failed — %s", attempt, self.upload_max_retries, exc)

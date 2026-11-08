@@ -237,6 +237,24 @@ class TestAudioUploadSdkTimeout:
         assert result is None
         assert stub.attempts == 2
 
+    @pytest.mark.asyncio
+    async def test_upload_backstop_bounds_sdk_hang(self, tmp_path) -> None:
+        import time as time_module
+
+        service = _upload_service(tmp_path, upload_timeout=0.05, upload_max_retries=2)
+        stub = _StubBlobClient([], [], delay=2.0)
+        service.blob_service_client = stub
+
+        with patch("app.services.audio.audio_capture._UPLOAD_BACKSTOP_SECONDS", 0.2), \
+             patch("asyncio.sleep", new=AsyncMock()):
+            started = time_module.monotonic()
+            result = await service._upload_to_azure()
+            elapsed = time_module.monotonic() - started
+
+        assert result is None
+        assert stub.attempts == 2
+        assert elapsed < 2.0
+
 
 class TestAudioCaptureFlushUpload:
     @pytest.mark.asyncio
