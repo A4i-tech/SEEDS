@@ -60,6 +60,7 @@ def _get_factory_and_accumulator():
 
 _fsm_cache: dict[str, Any] = {}
 _latest_fsm_id: str | None = None
+_fsm_load_lock = asyncio.Lock()
 
 
 def get_fsm_cache() -> dict[str, Any]:
@@ -588,6 +589,7 @@ class IVRService:
                 "message": f"Cannot update IVR — {active_count} active call(s). Try again later.",
             }
 
+        prev_fsm_id = _latest_fsm_id
         updated_fsm = await instantiate_from_latest_content(db=self._db)
         _fsm_cache[updated_fsm.fsm_id] = updated_fsm
         _latest_fsm_id = updated_fsm.fsm_id
@@ -599,6 +601,9 @@ class IVRService:
             fsm_doc.model_dump(by_alias=True),
             upsert=True,
         )
+        if prev_fsm_id and prev_fsm_id != _latest_fsm_id:
+            await fsm_col.delete_one({"_id": prev_fsm_id})
+        await self._evict_unreferenced_fsms()
 
         return {
             "status_code": 200,
@@ -640,6 +645,22 @@ class IVRService:
 
         if _latest_fsm_id and _latest_fsm_id in _fsm_cache:
             return
+
+        async with _fsm_load_lock:
+            if _latest_fsm_id and _latest_fsm_id in _fsm_cache:
+                return
+            await self._load_fsm_locked()
+            await self._evict_unreferenced_fsms()
+
+    async def _evict_unreferenced_fsms(self) -> None:
+        live_ids = set(await self._db["ongoingIVRState"].distinct("fsm_id"))
+        if _latest_fsm_id:
+            live_ids.add(_latest_fsm_id)
+        for fsm_id in [key for key in _fsm_cache if key not in live_ids]:
+            _fsm_cache.pop(fsm_id)
+
+    async def _load_fsm_locked(self) -> None:
+        global _latest_fsm_id
 
         fsm_col = self._db["ivrfsms"]
 

@@ -12,6 +12,7 @@ from starlette.responses import StreamingResponse
 logger = logging.getLogger(__name__)
 
 _KEEPALIVE_INTERVAL = 15  # seconds between keepalive comments
+_MAX_QUEUE = 50
 
 
 class SmartphoneConnectionManager:
@@ -19,7 +20,7 @@ class SmartphoneConnectionManager:
 
     def __init__(self, conf_id: str) -> None:
         self.conf_id = conf_id
-        self._queue: asyncio.Queue[str | None] = asyncio.Queue()
+        self._queue: asyncio.Queue[str | None] = asyncio.Queue(maxsize=_MAX_QUEUE)
 
     async def connect(self, client: Any) -> StreamingResponse:
         """Return an SSE StreamingResponse that streams queued messages to the teacher."""
@@ -56,7 +57,9 @@ class SmartphoneConnectionManager:
         try:
             self._queue.put_nowait(json.dumps(message))
         except asyncio.QueueFull:
-            logger.warning("smartphone_connection: queue full for conf_id=%s, dropping message", self.conf_id)
+            self._queue.get_nowait()
+            self._queue.put_nowait(json.dumps(message))
+            logger.warning("smartphone_connection: queue full for conf_id=%s, dropped oldest", self.conf_id)
 
 
 class SmartphoneConnectionManagerFactory:

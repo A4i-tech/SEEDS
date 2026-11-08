@@ -330,3 +330,131 @@ class TestIVRServiceUtils:
             assert isinstance(result, (dict, list))
         except Exception:
             pass
+
+
+# ---------------------------------------------------------------------------
+# _ensure_fsm_loaded — single-flight under concurrency
+# ---------------------------------------------------------------------------
+
+
+class TestEnsureFsmLoadedSingleFlight:
+    @pytest.mark.asyncio
+    async def test_concurrent_loads_build_once(self) -> None:
+        import asyncio
+        from unittest.mock import AsyncMock, patch
+
+        from app.services import ivr_service
+        from app.services.fsm.fsm import FSM
+        from app.services.ivr_service import IVRService
+
+        client = mongomock_async.AsyncMongoMockClient()
+        db = client["test_fsm_singleflight"]
+        old_cache = dict(ivr_service._fsm_cache)
+        old_latest = ivr_service._latest_fsm_id
+        ivr_service._fsm_cache.clear()
+        ivr_service._latest_fsm_id = None
+        try:
+            calls: list[int] = []
+
+            async def fake_build(db=None):  # noqa: ANN001, ANN202
+                calls.append(1)
+                await asyncio.sleep(0.05)
+                return FSM("shared-id")
+
+            ticks: list[int] = []
+
+            async def beat() -> None:
+                for _ in range(30):
+                    ticks.append(1)
+                    await asyncio.sleep(0.01)
+
+            with patch.object(ivr_service, "instantiate_from_latest_content", AsyncMock(side_effect=fake_build)):
+                svc = IVRService(db)
+                await asyncio.gather(*[svc._ensure_fsm_loaded() for _ in range(10)], beat())
+            assert len(calls) == 1
+            assert ivr_service._latest_fsm_id == "shared-id"
+            assert len(ticks) >= 3
+        finally:
+            ivr_service._fsm_cache.clear()
+            ivr_service._fsm_cache.update(old_cache)
+            ivr_service._latest_fsm_id = old_latest
+
+
+# ---------------------------------------------------------------------------
+# _fsm_cache eviction on update
+# ---------------------------------------------------------------------------
+
+
+class TestFsmCacheEviction:
+    @pytest.mark.asyncio
+    async def test_update_evicts_stale_cached_fsms(self) -> None:
+        from app.services import ivr_service
+        from app.services.ivr_service import IVRService
+
+        client = mongomock_async.AsyncMongoMockClient()
+        db = client["test_fsm_evict"]
+        old_cache = dict(ivr_service._fsm_cache)
+        old_latest = ivr_service._latest_fsm_id
+        ivr_service._fsm_cache.clear()
+        ivr_service._fsm_cache.update({"stale-1": object(), "stale-2": object(), "stale-3": object()})
+        ivr_service._latest_fsm_id = None
+        try:
+            result = await IVRService(db).update_ivr_structure(tenant_id="t1", structure={})
+            assert result["status_code"] == 200
+            assert set(ivr_service._fsm_cache) == {ivr_service._latest_fsm_id}
+        finally:
+            ivr_service._fsm_cache.clear()
+            ivr_service._fsm_cache.update(old_cache)
+            ivr_service._latest_fsm_id = old_latest
+
+    @pytest.mark.asyncio
+    async def test_update_keeps_referenced_fsm(self) -> None:
+        from datetime import UTC, datetime, timedelta
+
+        from app.services import ivr_service
+        from app.services.ivr_service import IVRService
+
+        client = mongomock_async.AsyncMongoMockClient()
+        db = client["test_fsm_evict_ref"]
+        await db["ongoingIVRState"].insert_one({
+            "_id": "leg1",
+            "fsm_id": "stale-1",
+            "updated_at": datetime.now(UTC) - timedelta(hours=5),
+        })
+        old_cache = dict(ivr_service._fsm_cache)
+        old_latest = ivr_service._latest_fsm_id
+        ivr_service._fsm_cache.clear()
+        ivr_service._fsm_cache.update({"stale-1": object(), "stale-2": object()})
+        ivr_service._latest_fsm_id = None
+        try:
+            result = await IVRService(db).update_ivr_structure(tenant_id="t1", structure={})
+            assert result["status_code"] == 200
+            assert set(ivr_service._fsm_cache) == {"stale-1", ivr_service._latest_fsm_id}
+        finally:
+            ivr_service._fsm_cache.clear()
+            ivr_service._fsm_cache.update(old_cache)
+            ivr_service._latest_fsm_id = old_latest
+
+    @pytest.mark.asyncio
+    async def test_update_twice_keeps_single_document(self) -> None:
+        from app.services import ivr_service
+        from app.services.ivr_service import IVRService
+
+        client = mongomock_async.AsyncMongoMockClient()
+        db = client["test_fsm_single_doc"]
+        old_cache = dict(ivr_service._fsm_cache)
+        old_latest = ivr_service._latest_fsm_id
+        ivr_service._fsm_cache.clear()
+        ivr_service._latest_fsm_id = None
+        try:
+            first = await IVRService(db).update_ivr_structure(tenant_id="t1", structure={})
+            second = await IVRService(db).update_ivr_structure(tenant_id="t1", structure={})
+            assert first["status_code"] == 200
+            assert second["status_code"] == 200
+            assert await db["ivrfsms"].count_documents({}) == 1
+            doc = await db["ivrfsms"].find_one({"_id": ivr_service._latest_fsm_id})
+            assert doc is not None
+        finally:
+            ivr_service._fsm_cache.clear()
+            ivr_service._fsm_cache.update(old_cache)
+            ivr_service._latest_fsm_id = old_latest

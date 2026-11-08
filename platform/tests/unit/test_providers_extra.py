@@ -365,3 +365,25 @@ class TestIVRStateModels:
         result = IVRCallStateMongoDoc.from_mongo(doc)
         assert result is not None
         assert result.phone_number == "+111"
+
+
+# ---------------------------------------------------------------------------
+# SmartphoneConnectionManager — bounded queue
+# ---------------------------------------------------------------------------
+
+
+class TestSmartphoneConnectionBoundedQueue:
+    @pytest.mark.asyncio
+    async def test_queue_bounded_newest_wins(self) -> None:
+        import json
+
+        from app.providers.smartphone_connection import SmartphoneConnectionManager
+
+        mgr = SmartphoneConnectionManager("conf_q")
+        for i in range(60):
+            await mgr.send_message_to_client(None, {"n": i})
+        assert mgr._queue.qsize() == 50
+        seen = []
+        while not mgr._queue.empty():
+            seen.append(json.loads(mgr._queue.get_nowait())["n"])
+        assert seen == list(range(10, 60))

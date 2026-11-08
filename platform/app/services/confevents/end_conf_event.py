@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -14,8 +15,9 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 class EndConferenceEvent(ConferenceEvent):
-    def __init__(self, conf_call: ConferenceCall) -> None:
+    def __init__(self, conf_call: ConferenceCall, on_end_callback: Callable[[], None] | None = None) -> None:
         self.conf_call = conf_call
+        self.on_end_callback = on_end_callback
 
     async def execute_event(self) -> None:
         self.conf_call.state.is_running = False
@@ -31,3 +33,6 @@ class EndConferenceEvent(ConferenceEvent):
         except Exception as exc:
             logger.warning("end_conf_event: websocket disconnect failed — %s", exc)
         await self.conf_call.update_state()
+        if self.on_end_callback:
+            self.on_end_callback()
+        self.conf_call.end_processing_conf_events_from_queue()

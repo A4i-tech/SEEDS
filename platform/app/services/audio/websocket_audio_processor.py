@@ -83,19 +83,15 @@ async def process_audio_message(
         logger.info("AUDIO_ANALYSIS: %s", json.dumps(analysis_log))
 
         if detect_result["is_hold"]:
+            if conf.state.hold_detected:
+                return
             from app.models.action_history import ActionHistory, ActionType  # noqa: PLC0415
 
             conf.state.hold_detected = True
             conf.state.action_history.append(ActionHistory(
                 timestamp=datetime.now(UTC).isoformat(),
-                action_type=ActionType.SYSTEM_AUDIO_ANALYSIS,
-                metadata=analysis_log,
-                owner="system",
-            ))
-            conf.state.action_history.append(ActionHistory(
-                timestamp=datetime.now(UTC).isoformat(),
                 action_type=ActionType.SYSTEM_HOLD_DETECTED,
-                metadata={"conference_id": conference_id, "status": "hold_detected", "scope": "conference"},
+                metadata={**analysis_log, "conference_id": conference_id, "status": "hold_detected", "scope": "conference"},
                 owner="system",
             ))
             await conf.update_state()

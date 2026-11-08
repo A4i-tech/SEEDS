@@ -197,6 +197,35 @@ class TestConferenceCallManager:
         assert mgr.get_conference(conf_id) is None
 
     @pytest.mark.asyncio
+    async def test_update_state_saves_before_sse_send(self) -> None:
+        from app.providers.smartphone_connection import SmartphoneConnectionManager
+
+        call = _make_conf_call()
+        order: list[str] = []
+
+        async def _storage(*args: Any) -> None:
+            order.append("storage")
+
+        async def _redis(*args: Any) -> None:
+            order.append("redis")
+
+        call.storage_manager.save_state = AsyncMock(side_effect=_storage)
+        call.redis_store = MagicMock()
+        call.redis_store.save = AsyncMock(side_effect=_redis)
+        real_mgr = SmartphoneConnectionManager("conf1")
+        orig_send = real_mgr.send_message_to_client
+
+        async def _send(client: Any, message: Any) -> None:
+            order.append("sse")
+            await orig_send(client, message)
+
+        real_mgr.send_message_to_client = _send  # type: ignore[method-assign]
+        call.connection_manager = real_mgr
+        await call.update_state()
+        assert order == ["storage", "redis", "sse"]
+        assert real_mgr._queue.qsize() == 1
+
+    @pytest.mark.asyncio
     async def test_get_conference_from_phone_number_found(self) -> None:
         mgr = _make_manager()
         conf = await mgr.create_conference(teacher_phone="+888", student_phones=["+999"])
@@ -405,6 +434,35 @@ class TestConfeventExecution:
 
         assert call.state.is_running is False
 
+    @pytest.mark.asyncio
+    async def test_end_conference_event_evicts_conference(self) -> None:
+        from app.services.caller_state_service import caller_state_service
+        from app.services.confevents.end_conf_event import EndConferenceEvent
+
+        mgr = _make_manager()
+        conf = await mgr.create_conference(teacher_phone="+778", student_phones=[])
+        await caller_state_service.update_state(conf.conf_id, "+778", {"call_status": "connected"})
+        conf.start_processing_conf_events_from_queue()
+
+        fake_ws = MagicMock()
+        fake_ws.send_message = AsyncMock()
+
+        with patch("app.providers.websocket_client.WebsocketClientProvider", return_value=fake_ws):
+            evt = EndConferenceEvent(
+                conf_call=conf,
+                on_end_callback=lambda: mgr.delete_conference(conf.conf_id),
+            )
+            await evt.execute_event()
+
+        assert mgr.get_conference(conf.conf_id) is None
+        import asyncio
+
+        await asyncio.sleep(0)
+        assert not conf.is_queue_processing()
+        state, _ = await caller_state_service.get_current_state(conf.conf_id)
+        assert state == {}
+        mgr._redis_store.save.assert_awaited()
+
 
 # ---------------------------------------------------------------------------
 # Caller state service
@@ -440,6 +498,28 @@ class TestCallerStateService:
         state, version = await svc.get_current_state("nonexistent_conf")
         assert state == {}
         assert version == 0
+
+    @pytest.mark.asyncio
+    async def test_delete_conference_clears_state(self) -> None:
+        from app.services.caller_state_service import CallerStateService
+
+        svc = CallerStateService()
+        await svc.update_state("conf_del_1", "p1", {"call_status": "connected"})
+        svc.delete_conference("conf_del_1")
+        state, version = await svc.get_current_state("conf_del_1")
+        assert state == {}
+        assert version == 0
+
+    @pytest.mark.asyncio
+    async def test_manager_delete_conference_clears_caller_state(self) -> None:
+        from app.services.caller_state_service import caller_state_service
+
+        mgr = _make_manager()
+        conf = await mgr.create_conference(teacher_phone="+776", student_phones=[])
+        await caller_state_service.update_state(conf.conf_id, "+776", {"call_status": "connected"})
+        mgr.delete_conference(conf.conf_id)
+        state, _ = await caller_state_service.get_current_state(conf.conf_id)
+        assert state == {}
 
 
 # ---------------------------------------------------------------------------
