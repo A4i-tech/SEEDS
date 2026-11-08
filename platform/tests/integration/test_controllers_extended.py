@@ -79,7 +79,7 @@ async def _seed_teacher(mock_db, email="teacher@ext.com", password="pass1234", t
         "role": UserRole.TEACHER.value,
         "name": "Ext Teacher",
         "email": email,
-        "hashed_password": hash_password(password),
+        "hashed_password": await hash_password(password),
         "tenant_id": tenant_id,
         "school_id": _SCHOOL_ID,
         "is_active": True,
@@ -95,7 +95,7 @@ async def _seed_school(mock_db, email="admin@school.com", password="adminpass123
         "role": UserRole.SCHOOL_ADMIN.value,
         "name": "Test School",
         "email": email,
-        "hashed_password": hash_password(password),
+        "hashed_password": await hash_password(password),
         "tenant_id": ObjectId(tenant_id),
         "is_active": True,
     }
@@ -116,7 +116,7 @@ async def _seed_tenant(mock_db, email="tenant@ext.com", password="tenantpass"):
         "name": "Ext Tenant",
         "email": email,
         "tenant_name": "Ext Org",
-        "hashed_password": hash_password(password),
+        "hashed_password": await hash_password(password),
         "is_active": True,
     }
     result = await mock_db["users"].insert_one(doc)
@@ -328,7 +328,7 @@ class TestContentAggregatorAuth:
         await mock_db["integrationClients"].insert_one(
             {
                 "client_id": "partner-1",
-                "client_secret_hash": hash_password("super-secret"),
+                "client_secret_hash": await hash_password("super-secret"),
                 "name": "Partner One",
                 "tenant_ids": ["tenant-a"],
                 "allowed_scopes": ["content:read"],
@@ -354,7 +354,7 @@ class TestContentAggregatorAuth:
         await mock_db["integrationClients"].insert_one(
             {
                 "client_id": "partner-1",
-                "client_secret_hash": hash_password("super-secret"),
+                "client_secret_hash": await hash_password("super-secret"),
                 "name": "Partner One",
                 "tenant_ids": ["tenant-a"],
                 "allowed_scopes": ["content:read"],
@@ -406,7 +406,7 @@ class TestContentAggregatorAuth:
         await mock_db["integrationClients"].insert_one(
             {
                 "client_id": "partner-1",
-                "client_secret_hash": hash_password("super-secret"),
+                "client_secret_hash": await hash_password("super-secret"),
                 "name": "Partner One",
                 "tenant_ids": ["tenant-a"],
                 "allowed_scopes": ["content:read"],
@@ -569,6 +569,29 @@ class TestAuditController:
         }], headers={"Authorization": f"Bearer {token}"})
         assert resp.status_code == 200
 
+    @pytest.mark.asyncio
+    async def test_create_log_entries_over_cap_rejected(self, client, mock_db):
+        """POST /log with more than the cap returns 413."""
+        teacher = await _seed_teacher(mock_db)
+        token = _teacher_token(teacher["_id"])
+        payload = [{
+            "user": teacher["_id"],
+            "log_text": "test action",
+            "time": "12:00",
+            "priority": 1,
+        }] * 101
+        resp = await client.post("/log", json=payload, headers={"Authorization": f"Bearer {token}"})
+        assert resp.status_code == 413
+
+    @pytest.mark.asyncio
+    async def test_get_logs_by_user_limit_clamped(self, client, mock_db):
+        teacher = await _seed_teacher(mock_db)
+        token = _teacher_token(teacher["_id"])
+        resp = await client.get(
+            f"/log/{teacher['_id']}?limit=5000", headers={"Authorization": f"Bearer {token}"})
+        assert resp.status_code == 200
+        assert isinstance(resp.json(), list)
+
 
 # ---------------------------------------------------------------------------
 # Tenant dashboard and analytics
@@ -602,7 +625,7 @@ class TestTenantDashboard:
         }, headers={"Authorization": f"Bearer {token}"})
         assert resp.status_code == 200
         stored = await mock_db["users"].find_one({"_id": ObjectId(tenant["_id"])})
-        assert verify_password("newSecurePass123", stored["hashed_password"])
+        assert await verify_password("newSecurePass123", stored["hashed_password"])
 
     @pytest.mark.asyncio
     async def test_change_password_missing_current_password_rejected(self, client, mock_db):

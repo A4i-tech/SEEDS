@@ -49,7 +49,7 @@ async def _seed_teacher(db, email="t@parts.com", tid="t1", sid="s1"):
         "role": UserRole.TEACHER.value,
         "name": "Parts Teacher",
         "email": email,
-        "hashed_password": hash_password("pass1234"),
+        "hashed_password": await hash_password("pass1234"),
         "tenant_id": tid,
         "school_id": sid,
         "is_active": True,

@@ -31,6 +31,11 @@ class Settings(BaseSettings):
     jwt_expires_in: str = "1h"
     password_salt_rounds: int = 10
 
+    website_extract_max_bytes: int = 5_000_000
+    audit_log_page_default: int = 100
+    audit_log_page_max: int = 500
+    audit_log_post_max: int = 100
+
     refresh_token_expires_in: str = "30d"
     refresh_cookie_samesite: Literal["lax", "strict", "none"] = "lax"
     refresh_cookie_secure: bool = True

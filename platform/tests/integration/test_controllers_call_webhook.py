@@ -56,7 +56,7 @@ async def _seed_teacher(mock_db, email="teacher@call.com", password="callpass123
         "role": UserRole.TEACHER.value,
         "name": "Call Teacher",
         "email": email,
-        "hashed_password": hash_password(password),
+        "hashed_password": await hash_password(password),
         "tenant_id": "t1",
         "school_id": "s1",
         "is_active": True,

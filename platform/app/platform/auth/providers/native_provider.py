@@ -41,7 +41,7 @@ async def get_user_by_credentials(
         return None
 
     stored_hash: str = user.get("hashed_password", "")
-    if not stored_hash or not verify_password(password, stored_hash):
+    if not stored_hash or not await verify_password(password, stored_hash):
         logger.debug("auth/native: password mismatch for user id=%s", user.get("_id"))
         return None
 
