@@ -109,7 +109,7 @@ class TestSASGenerator:
             "app.providers.blob_storage.DefaultAzureCredential"
         ):
             gen = self._delegation_generator()
-            blob_storage._delegation_key = (MagicMock(), datetime.now(UTC) + timedelta(hours=1))
+            blob_storage._delegation_key = ("testaccount", MagicMock(), datetime.now(UTC) + timedelta(hours=1))
             gen._get_delegation_key()
         assert client.return_value.get_user_delegation_key.call_count == 1
 

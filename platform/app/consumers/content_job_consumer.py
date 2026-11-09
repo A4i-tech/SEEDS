@@ -208,7 +208,7 @@ async def _process_audio_item(
     audio_url: str,
     content_id: str,
     blob_provider,
-) -> tuple[str, float]:
+) -> tuple[str, float | None]:
     """Download *audio_url*, transcode to WAV, upload, return (new_url, duration).
 
     Raises on any failure; caller handles dead-lettering.
@@ -235,7 +235,7 @@ async def _process_audio_item(
             transcoded = fh.read()
 
         # Extract duration (best-effort)
-        duration = 0.0
+        duration: float | None = None
         try:
             duration = await _extract_duration(output_path)
         except Exception as exc:  # noqa: BLE001
@@ -252,7 +252,7 @@ async def _process_audio_item(
         _cleanup_temp_files(input_path, output_path)
 
 
-async def _extract_duration(wav_path: str) -> float:
+async def _extract_duration(wav_path: str) -> float | None:
     """Extract duration in seconds from a WAV file using ffprobe."""
     _validate_temp_path(wav_path)
 
@@ -274,7 +274,11 @@ async def _extract_duration(wav_path: str) -> float:
         )
         return result.stdout.strip()
 
-    return float(await asyncio.to_thread(_run))
+    output = await asyncio.to_thread(_run)
+    try:
+        return float(output)
+    except (ValueError, TypeError):
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -377,7 +381,7 @@ async def _process_audio_content_job(
 
                 new_url, duration = await _process_audio_item(audio_url, str(content_id), blob_provider)
                 updated_item = {**item, "audio_url": new_url}
-                if duration:
+                if duration is not None:
                     updated_item["duration_seconds"] = duration
                 updated_audio.append(updated_item)
 

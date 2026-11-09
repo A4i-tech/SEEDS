@@ -12,11 +12,13 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from concurrent.futures import ThreadPoolExecutor
 
 logger = logging.getLogger(__name__)
 
 _TTS_CONCURRENCY = 8
 _tts_semaphore = asyncio.Semaphore(_TTS_CONCURRENCY)
+_tts_executor = ThreadPoolExecutor(max_workers=_TTS_CONCURRENCY, thread_name_prefix="tts")
 
 # ---------------------------------------------------------------------------
 # Language / voice mappings (from ttsService.js)
@@ -44,7 +46,7 @@ _VOICE_NAME: dict[str, str] = {
 
 
 def _get_tts_attributes(language: str) -> tuple[str, str]:
-    """Return (language_code, voice_name) for *language*, or None if unsupported."""
+    """Return (language_code, voice_name) for *language*. Raises ValueError if unsupported."""
     lang_code = _TRANSLATION_TO_AZURE.get(language.lower())
     voice = _VOICE_NAME.get(lang_code or "")
     if not voice:
@@ -123,7 +125,10 @@ async def synthesize(
 
         synthesizer = sdk.SpeechSynthesizer(speech_config=speech_config, audio_config=None)
         async with _tts_semaphore:
-            result = await asyncio.to_thread(lambda: synthesizer.speak_ssml_async(ssml).get())
+            loop = asyncio.get_running_loop()
+            result = await loop.run_in_executor(
+                _tts_executor, lambda: synthesizer.speak_ssml_async(ssml).get()
+            )
 
         if result.reason == sdk.ResultReason.SynthesizingAudioCompleted:
             audio_data: bytes = bytes(result.audio_data)

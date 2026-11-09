@@ -80,6 +80,10 @@ def _extract_video_data(raw: str) -> dict[str, object] | None:
     }
 
 
+def _extract_content_html(raw: str) -> str:
+    return _strip_staff_debug(_extract_html(raw))
+
+
 async def _with_retry(fn, *, label: str = "", retries: int = 5, base_delay: float = 5.0):
     """Retry *fn* on 429/503/network errors with exponential backoff."""
     last_exc: Exception | None = None
@@ -236,10 +240,10 @@ class SubodhaClient:
                     res = await _with_retry(_get, label=f"xblock {block.get('id')}")
                     raw = res.text
                     if block.get("type") == "video":
-                        block["student_view_data"] = _extract_video_data(raw)
+                        block["student_view_data"] = await asyncio.to_thread(_extract_video_data, raw)
                         block["student_view_html"] = ""
                     else:
-                        extracted = _strip_staff_debug(_extract_html(raw))
+                        extracted = await asyncio.to_thread(_extract_content_html, raw)
                         block["student_view_html"] = _MATHTYPE_ANNOTATION_RE.sub("", extracted)
                         block["student_view_data"] = None
                 except Exception as exc:  # noqa: BLE001

@@ -234,7 +234,7 @@ class BlobStorageProvider:
 _DELEGATION_KEY_LIFETIME = timedelta(hours=24)
 _DELEGATION_REFRESH_MARGIN = timedelta(hours=2)
 _delegation_lock = threading.Lock()
-_delegation_key: tuple[UserDelegationKey, datetime] | None = None
+_delegation_key: tuple[str, UserDelegationKey, datetime] | None = None
 
 
 class SASGenerator:
@@ -256,23 +256,24 @@ class SASGenerator:
         global _delegation_key
         now = datetime.now(UTC)
         cached = _delegation_key
-        if cached and cached[1] - now > _DELEGATION_REFRESH_MARGIN:
-            return cached[0]
+        if cached and cached[0] == self._account_name and cached[2] - now > _DELEGATION_REFRESH_MARGIN:
+            return cached[1]
         with _delegation_lock:
             cached = _delegation_key
-            if cached and cached[1] - now > _DELEGATION_REFRESH_MARGIN:
-                return cached[0]
+            if cached and cached[0] == self._account_name and cached[2] - now > _DELEGATION_REFRESH_MARGIN:
+                return cached[1]
             expiry = now + _DELEGATION_KEY_LIFETIME
             client = SyncBlobServiceClient(
                 account_url=f"https://{self._account_name}.blob.core.windows.net",
                 credential=DefaultAzureCredential(),
             )
             udk = client.get_user_delegation_key(now - timedelta(minutes=5), expiry)
-            _delegation_key = (udk, expiry)
+            _delegation_key = (self._account_name, udk, expiry)
             return udk
 
     def get_url_with_sas(self, url: str) -> str:  # noqa: C901
-        """Return *url* with a read SAS token appended, or the original URL on error."""
+        """Return *url* with a read SAS token appended. Raises on failure."""
+        global _delegation_key
         if not self._azure_enabled:
             return url
         decoded_url = unquote(url)
@@ -287,27 +288,34 @@ class SASGenerator:
         expiry = datetime.now(UTC) + timedelta(hours=self._sas_expiry_hours)
         start = datetime.now(UTC) - timedelta(minutes=5)
 
-        if self._use_account_key:
-            sas_token = generate_blob_sas(
-                account_name=self._account_name,
-                container_name=container_name,
-                blob_name=blob_path,
-                account_key=self._account_key,
-                permission=BlobSasPermissions(read=True),
-                expiry=expiry,
-                start=start,
-            )
-        else:
-            udk = self._get_delegation_key()
-            sas_token = generate_blob_sas(
-                account_name=self._account_name,
-                container_name=container_name,
-                blob_name=blob_path,
-                user_delegation_key=udk,
-                permission=BlobSasPermissions(read=True),
-                expiry=expiry,
-                start=start,
-            )
+        try:
+            if self._use_account_key:
+                sas_token = generate_blob_sas(
+                    account_name=self._account_name,
+                    container_name=container_name,
+                    blob_name=blob_path,
+                    account_key=self._account_key,
+                    permission=BlobSasPermissions(read=True),
+                    expiry=expiry,
+                    start=start,
+                )
+            else:
+                udk = self._get_delegation_key()
+                sas_token = generate_blob_sas(
+                    account_name=self._account_name,
+                    container_name=container_name,
+                    blob_name=blob_path,
+                    user_delegation_key=udk,
+                    permission=BlobSasPermissions(read=True),
+                    expiry=expiry,
+                    start=start,
+                )
+        except Exception as exc:
+            with _delegation_lock:
+                if _delegation_key and _delegation_key[0] == self._account_name:
+                    _delegation_key = None
+            logger.error("SASGenerator: failed to generate SAS URL — %s", exc)
+            raise
 
         blob_base = f"https://{self._account_name}.blob.core.windows.net/{container_name}/{blob_path}"
         return f"{blob_base}?{sas_token}"

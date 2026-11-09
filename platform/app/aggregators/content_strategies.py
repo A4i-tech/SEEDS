@@ -132,7 +132,7 @@ def _parse_multiple_choice(raw_html: str) -> tuple[str, list[dict[str, str]]] | 
 class QuizStrategy(ContentStrategy):
     async def process(self, raw: RawItemPayload, ctx: BlobContext, blob: BlobStorageProvider) -> ContentPayload:
         raw_html_url = await _upload_raw_html(raw, ctx, blob)
-        parsed = _parse_multiple_choice(raw)
+        parsed = await asyncio.to_thread(_parse_multiple_choice, raw)
         if parsed is None:
             return QuizContent(raw_html_url=raw_html_url)
         question, choices = parsed
