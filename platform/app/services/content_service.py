@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import logging
-import re
 import time
 from datetime import UTC, datetime
 from typing import Any, BinaryIO
@@ -278,7 +277,7 @@ class ContentService:
         return await self.get_sas_url(get_blob_storage_provider().blob_url(container, name.format(id=content_id)))
 
     async def upload_audio(self, blob_name: str, file: BinaryIO) -> str:
-        if not (blob_name.endswith(".mp3") and re.fullmatch(r"[\w.-]+", blob_name)) or ".." in blob_name:
+        if not (blob_name.endswith(".mp3") and all(c.isalnum() or c in "_.-" for c in blob_name)) or ".." in blob_name:
             raise AppError("INVALID_AUDIO_NAME", "Only .mp3 files are allowed.", 400)
         size = file.seek(0, 2)
         file.seek(0)
