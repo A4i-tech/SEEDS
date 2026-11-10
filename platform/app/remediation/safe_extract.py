@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Callable
-from pathlib import Path
 from typing import Any
 
 from omni_ingest.agent.enrichment import ExtractAgent
@@ -22,23 +21,6 @@ class SafeExtractAgent(ExtractAgent):
         sem: asyncio.Semaphore,
         advance: Callable[[str], None],
     ) -> tuple[dict[str, Any], Any]:
-        if item_doc and "id" in item_doc:
-            item_id = item_doc["id"]
-            if item_id in item_by_id:
-                img_item = item_by_id[item_id]
-                try:
-                    img_bytes = await img_item.content(ingestion_ctx)
-                    if img_bytes:
-                        filename = img_item.metadata.get("filename") or str(item_id)
-                        if not filename.endswith((".jpg", ".jpeg", ".png", ".webp", ".gif")):
-                            filename = f"{filename}.jpg"
-                        filename = Path(filename).name
-                        out_dir = Path("out")
-                        out_dir.mkdir(parents=True, exist_ok=True)
-                        (out_dir / filename).write_bytes(img_bytes)
-                except Exception as e:
-                    logger.warning("safe_extract: could not save image %s to disk: %s", item_id, e)
-
         for attempt in range(3):
             try:
                 return await super()._extract(ingestion_ctx, item_doc, item_by_id, sem, advance)
