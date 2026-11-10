@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import pytest
 
+from app.aggregators.models import SourceType
+from app.aggregators.sync_job_models import SyncOptions, SyncScope
+from app.platform.error_handling import NotFoundError
 from app.repositories.content_aggregator_repository import ContentAggregatorRepository
 from app.repositories.content_aggregator_sync_job_item_repository import (
     ContentAggregatorSyncJobItemRepository,
@@ -11,6 +14,7 @@ from app.repositories.content_aggregator_sync_job_repository import (
 )
 from app.services.content_aggregator_sync_jobs import SyncJobService
 from app.services.subodha_service import SubodhaService
+from tests.support.fake_blob import FakeBlob
 from tests.support.mongomock_async import AsyncMongoMockClient
 
 
@@ -42,20 +46,6 @@ class FakeSubodhaClient:
 
     async def enrich_blocks_with_content(self, blocks_response, session_cookie):
         return None
-
-
-class FakeBlobStorageProvider:
-    def __init__(self):
-        self.uploaded: dict[str, bytes] = {}
-
-    async def upload_file(self, container, blob_name, data, content_type="application/octet-stream"):
-        self.uploaded[blob_name] = data
-        return f"https://blob.test/{container}/{blob_name}"
-
-    async def download_from_url(self, blob_url: str) -> bytes:
-        prefix = "https://blob.test/subodha/"
-        blob_name = blob_url[len(prefix):]
-        return self.uploaded[blob_name]
 
 
 def _course(course_id: str, name: str) -> dict[str, object]:
@@ -92,9 +82,9 @@ def sync_jobs(job_repo, item_repo):
 
 
 @pytest.fixture
-def make_service(mock_db):
+def make_service(mock_db, sync_jobs):
     def _make(client):
-        return SubodhaService(mock_db, blob=FakeBlobStorageProvider(), client=client)
+        return SubodhaService(mock_db, FakeBlob(), client, sync_jobs)
     return _make
 
 
@@ -102,12 +92,9 @@ def make_service(mock_db):
 async def test_run_sync_persists_every_course_result(make_service, job_repo, item_repo, content_repo, sync_jobs):
     client = FakeSubodhaClient([_course("c1", "Course One"), _course("c2", "Course Two")])
     service = make_service(client)
-    job = await sync_jobs.create_job(tenant_id="tenant-a", source_type="subodha", scope="all", source_id=None, total_items=0)
+    job = await sync_jobs.create_job(tenant_id="tenant-a", source_type=SourceType.SUBODHA, scope=SyncScope.ALL, source_id="", total_items=0, options=SyncOptions())
 
-    summary = await service.run_sync("tenant-a", job.job_id, await client.list_all_courses())
-
-    assert summary["totalCourses"] == 2
-    assert summary["processed"] == 2
+    await service.run_sync("tenant-a", job.job_id, only_new=False, limit=0, dry_run=False)
 
     stored = await job_repo.get_job("tenant-a", job.job_id)
     assert stored.total_items == 2
@@ -124,11 +111,10 @@ async def test_run_sync_persists_every_course_result(make_service, job_repo, ite
 async def test_run_single_course_sync_persists_one_result(make_service, job_repo, item_repo, content_repo, sync_jobs):
     client = FakeSubodhaClient([_course("c1", "Course One")])
     service = make_service(client)
-    job = await sync_jobs.create_job(tenant_id="tenant-a", source_type="subodha", scope="course", source_id="c1", total_items=1)
+    job = await sync_jobs.create_job(tenant_id="tenant-a", source_type=SourceType.SUBODHA, scope=SyncScope.COURSE, source_id="c1", total_items=1, options=SyncOptions())
 
-    summary = await service.run_single_course_sync("tenant-a", job.job_id, "c1")
+    await service.run_single_course_sync("tenant-a", job.job_id, "c1", dry_run=False)
 
-    assert summary["processed"] == 1
     items = await item_repo.list_by_job("tenant-a", job.job_id)
     assert items[0].source_id == "c1"
     assert items[0].status == "saved"
@@ -138,8 +124,8 @@ async def test_run_single_course_sync_persists_one_result(make_service, job_repo
 async def test_get_course_returns_legacy_shaped_doc(make_service, job_repo, sync_jobs):
     client = FakeSubodhaClient([_course("c1", "Course One")])
     service = make_service(client)
-    job = await sync_jobs.create_job(tenant_id="tenant-a", source_type="subodha", scope="course", source_id="c1", total_items=1)
-    await service.run_single_course_sync("tenant-a", job.job_id, "c1")
+    job = await sync_jobs.create_job(tenant_id="tenant-a", source_type=SourceType.SUBODHA, scope=SyncScope.COURSE, source_id="c1", total_items=1, options=SyncOptions())
+    await service.run_single_course_sync("tenant-a", job.job_id, "c1", dry_run=False)
 
     doc = await service.get_course("tenant-a", "c1")
     assert doc.source_id == "c1"
@@ -150,18 +136,19 @@ async def test_get_course_returns_legacy_shaped_doc(make_service, job_repo, sync
 async def test_get_course_returns_none_for_unenrolled_tenant(make_service, job_repo, sync_jobs):
     client = FakeSubodhaClient([_course("c1", "Course One")])
     service = make_service(client)
-    job = await sync_jobs.create_job(tenant_id="tenant-a", source_type="subodha", scope="course", source_id="c1", total_items=1)
-    await service.run_single_course_sync("tenant-a", job.job_id, "c1")
+    job = await sync_jobs.create_job(tenant_id="tenant-a", source_type=SourceType.SUBODHA, scope=SyncScope.COURSE, source_id="c1", total_items=1, options=SyncOptions())
+    await service.run_single_course_sync("tenant-a", job.job_id, "c1", dry_run=False)
 
-    assert await service.get_course("tenant-b", "c1") is None
+    with pytest.raises(NotFoundError):
+        await service.get_course("tenant-b", "c1")
 
 
 @pytest.mark.asyncio
 async def test_update_problem_block_is_private_to_the_editing_tenant(make_service, job_repo, sync_jobs):
     client = FakeSubodhaClient([_course("c1", "Course One")])
     service = make_service(client)
-    job = await sync_jobs.create_job(tenant_id="tenant-a", source_type="subodha", scope="course", source_id="c1", total_items=1)
-    await service.run_single_course_sync("tenant-a", job.job_id, "c1")
+    job = await sync_jobs.create_job(tenant_id="tenant-a", source_type=SourceType.SUBODHA, scope=SyncScope.COURSE, source_id="c1", total_items=1, options=SyncOptions())
+    await service.run_single_course_sync("tenant-a", job.job_id, "c1", dry_run=False)
 
-    job_b = await sync_jobs.create_job(tenant_id="tenant-b", source_type="subodha", scope="course", source_id="c1", total_items=1)
-    await service.run_single_course_sync("tenant-b", job_b.job_id, "c1")
+    job_b = await sync_jobs.create_job(tenant_id="tenant-b", source_type=SourceType.SUBODHA, scope=SyncScope.COURSE, source_id="c1", total_items=1, options=SyncOptions())
+    await service.run_single_course_sync("tenant-b", job_b.job_id, "c1", dry_run=False)

@@ -18,3 +18,7 @@ def check_rate_limit(key: str) -> bool:
         return False
     hits.append(now)
     return True
+
+
+def reset_rate_limits() -> None:
+    _hits.clear()

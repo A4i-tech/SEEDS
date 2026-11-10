@@ -3,77 +3,20 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from pymongo.asynchronous.database import AsyncDatabase
-
-from app.aggregators.sync_job_models import SyncJob
+from app.aggregators.sync_job_models import SyncJob, SyncJobStatus, SyncScope
 from app.consumers.base_consumer import BaseConsumer
 from app.providers.service_bus import service_bus_provider
-from app.services.subodha_service import SubodhaService
+from app.services.content_aggregator_source_service import ContentAggregatorSourceService
 
 logger = logging.getLogger(__name__)
-
-SOURCE_TYPE = "subodha"
-
-
-async def _run_sync_job(
-    tenant_id: str,
-    job_id: str,
-    service: SubodhaService,
-    *,
-    only_new: bool,
-    dry_run: bool,
-    limit: int | None,
-) -> None:
-    try:
-        course_ids = None
-        if only_new:
-            diff = await service.get_course_diff(tenant_id)
-            course_ids = diff["newCourseIds"]
-            all_courses = diff["liveCourses"]
-        else:
-            all_courses = await service.list_live_courses()
-
-        await service.run_sync(
-            tenant_id, job_id, all_courses, course_ids=course_ids,
-            limit=limit if limit is not None else (len(course_ids) if course_ids is not None else None),
-            dry_run=dry_run,
-        )
-        await service.finish_job(tenant_id, job_id, "completed")
-    except Exception as exc:  # noqa: BLE001
-        logger.error("sync_job_consumer: job %s (tenant=%s) failed during run_sync: %s", job_id, tenant_id, exc)
-        await service.finish_job(tenant_id, job_id, "failed", error=str(exc))
-
-
-async def _run_course_sync_job(
-    tenant_id: str,
-    job_id: str,
-    service: SubodhaService,
-    course_id: str,
-    *,
-    dry_run: bool,
-) -> None:
-    try:
-        await service.run_single_course_sync(tenant_id, job_id, course_id, dry_run=dry_run)
-        await service.finish_job(tenant_id, job_id, "completed")
-    except Exception as exc:  # noqa: BLE001
-        logger.error(
-            "sync_job_consumer: job %s (tenant=%s, course=%s) failed during run_single_course_sync: %s",
-            job_id, tenant_id, course_id, exc,
-        )
-        await service.finish_job(tenant_id, job_id, "failed", error=str(exc))
 
 
 class SyncJobConsumer(BaseConsumer):
     name = "sync_job_consumer"
 
-    def __init__(
-        self,
-        db: AsyncDatabase,
-        poll_interval_seconds: float = 10.0,
-        service: SubodhaService | None = None,
-    ) -> None:
-        self._db = db
-        self._service = service if service is not None else SubodhaService(db)
+    def __init__(self, service: ContentAggregatorSourceService, poll_interval_seconds: float = 10.0) -> None:
+        self._service = service
+        self.name = f"sync_job_consumer_{service.SOURCE_TYPE.value}"
         self._poll_interval_seconds = poll_interval_seconds
 
     async def _sleep(self, seconds: float) -> None:
@@ -102,7 +45,7 @@ class SyncJobConsumer(BaseConsumer):
 
     async def _run_loop(self) -> None:
         while True:
-            job: SyncJob | None = await self._service.claim_next_pending_job()
+            job = await self._service.claim_next_pending_job()
             if job is None:
                 await self._wait_for_next_poll()
                 continue
@@ -111,18 +54,16 @@ class SyncJobConsumer(BaseConsumer):
     async def process(self, message: SyncJob) -> None:
         job = message
         try:
-            if job.scope == "all":
-                await _run_sync_job(
-                    job.tenant_id, job.job_id, self._service,
-                    only_new=bool(job.options.get("only_new", False)),
-                    dry_run=bool(job.options.get("dry_run", False)),
-                    limit=job.options.get("limit"),
+            if job.scope == SyncScope.ALL:
+                await self._service.run_sync(
+                    job.tenant_id, job.job_id,
+                    only_new=job.options.only_new, limit=job.options.limit, dry_run=job.options.dry_run,
                 )
             else:
-                await _run_course_sync_job(
-                    job.tenant_id, job.job_id, self._service,
-                    job.source_id, dry_run=bool(job.options.get("dry_run", False)),
+                await self._service.run_single_course_sync(
+                    job.tenant_id, job.job_id, job.source_id, dry_run=job.options.dry_run,
                 )
+            await self._service.finish_job(job.tenant_id, job.job_id, SyncJobStatus.COMPLETED)
         except Exception as exc:  # noqa: BLE001
-            logger.error("sync_job_consumer: job %s failed before/during dispatch: %s", job.job_id, exc)
-            await self._service.finish_job(job.tenant_id, job.job_id, "failed", error=str(exc))
+            logger.exception("sync_job_consumer: job %s failed before/during dispatch", job.job_id)
+            await self._service.finish_job(job.tenant_id, job.job_id, SyncJobStatus.FAILED, error=str(exc))

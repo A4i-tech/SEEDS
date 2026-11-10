@@ -40,6 +40,7 @@ class ContentAggregatorAuth:
             tenant_ids=claims["tenant_ids"],
             scopes=claims["scopes"],
             client_name=claims["client_name"],
+            source=claims["source"],
             secret_key=self._settings.secret_key,
             expires_in=self._settings.content_aggregator_access_token_expires_in,
         )
@@ -63,6 +64,7 @@ class ContentAggregatorAuth:
             "tenant_ids": client.tenant_ids,
             "scopes": client.allowed_scopes,
             "client_name": client.name,
+            "source": client.source_type,
         }
         access_token, expires_in = self._encode_access_token(client.client_id, claims)
         pair = await refresh_tokens.issue_pair(
@@ -81,6 +83,7 @@ class ContentAggregatorAuth:
         tenant_ids: list[str],
         scopes: list[str],
         created_by: str,
+        source_type: str = "",
     ) -> tuple[str, str]:
         client_id = str(uuid.uuid4())
         client_secret = secrets.token_urlsafe(32)
@@ -92,6 +95,7 @@ class ContentAggregatorAuth:
                 name=name,
                 tenant_ids=tenant_ids,
                 allowed_scopes=scopes,
+                source_type=source_type,
                 created_by=created_by,
                 created_at=now,
                 updated_at=now,
@@ -106,7 +110,7 @@ class ContentAggregatorAuth:
             client = await self._clients.find_by_client_id(owner_id)
             if client.status != IntegrationClientStatus.ACTIVE:
                 raise AppError("TENANT_NOT_ALLOWED", "Client is not active", 403)
-            return {**claims, "client_name": client.name}
+            return {**claims, "client_name": client.name, "source": client.source_type}
 
         pair, claims = await refresh_tokens.rotate(
             self._store,

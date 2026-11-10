@@ -27,14 +27,14 @@ class ContentAggregatorSyncJobItemRepository:
         return [SyncItemResult.from_doc(d) for d in docs]
 
     async def list_by_job_page(
-        self, tenant_id: str, job_id: str, *, limit: int = 50, after: str | None = None
-    ) -> tuple[list[SyncItemResult], str | None, int]:
+        self, tenant_id: str, job_id: str, *, limit: int = 50, after: str = ""
+    ) -> tuple[list[SyncItemResult], str, int]:
         query: dict[str, object] = {"tenant_id": tenant_id, "job_id": job_id}
         if after:
             query["_id"] = {"$gt": ObjectId(after)}
         docs = await self._col.find(query).sort("_id", 1).limit(limit).to_list(length=limit)
         total = await self._col.count_documents({"tenant_id": tenant_id, "job_id": job_id})
-        next_cursor = str(docs[-1]["_id"]) if len(docs) == limit else None
+        next_cursor = str(docs[-1]["_id"]) if len(docs) == limit else ""
         return [SyncItemResult.from_doc(d) for d in docs], next_cursor, total
 
     async def get_stats(self, tenant_id: str, job_id: str) -> SyncStats:

@@ -20,6 +20,7 @@ class IntegrationClient(BaseModel):
     name: str
     tenant_ids: list[str]
     allowed_scopes: list[str] = Field(default_factory=lambda: ["content:read"])
+    source_type: str = ""
     status: IntegrationClientStatus = IntegrationClientStatus.ACTIVE
     created_by: str
     created_at: datetime
@@ -34,3 +35,4 @@ class IntegrationClaims(TypedDict):
     tenant_ids: list[str]
     scopes: list[str]
     client_name: str
+    source: str

@@ -75,6 +75,7 @@ from pathlib import Path
 
 from pymongo.asynchronous.database import AsyncDatabase
 
+from app.repositories.content_aggregator_repository import ContentAggregatorRepository
 from app.repositories.content_job_repository import ContentJobRepository
 from app.repositories.content_repository import ContentRepository
 
@@ -347,6 +348,7 @@ async def _process_audio_content_job(
     job_repo: ContentJobRepository,
     content_repo: ContentRepository,
     blob_provider,
+    partner_repo: ContentAggregatorRepository | None = None,
 ) -> None:
     """Process a single audio content job with retry and dead-letter handling.
 
@@ -360,13 +362,18 @@ async def _process_audio_content_job(
     """
     job_id = job_doc.get("_id")
     content_id = job_doc.get("content_id")
+    tenant_id = job_doc.get("tenant_id")
+    is_partner = job_doc.get("source") == "partner"
 
     await job_repo.mark_running(job_id)
 
     last_exc: Exception | None = None
     for attempt in range(1, MAX_RETRIES + 1):
         try:
-            content_doc = await content_repo.find_raw_by_id(content_id)
+            if is_partner:
+                content_doc = await partner_repo.find_partner_content(tenant_id, content_id)
+            else:
+                content_doc = await content_repo.find_raw_by_id(content_id)
             if not content_doc:
                 raise RuntimeError(f"Content document not found: {content_id}")
 
@@ -406,7 +413,10 @@ async def _process_audio_content_job(
             if "theme" in content_doc:
                 update_fields["theme"] = content_doc["theme"]
 
-            await content_repo.save_processed(content_id, update_fields)
+            if is_partner:
+                await partner_repo.update_partner_content(tenant_id, content_id, update_fields)
+            else:
+                await content_repo.save_processed(content_id, update_fields)
             await job_repo.mark_completed(job_id)
             logger.info(
                 "content_job: completed job_id=%s content_id=%s (attempt %d)",
@@ -487,6 +497,7 @@ class ContentJobConsumer:
         blob_provider = None
         job_repo = ContentJobRepository(self._db)
         content_repo = ContentRepository(self._db)
+        partner_repo = ContentAggregatorRepository(self._db)
 
         while self._running:
             # Re-attempt init each cycle so we recover when blob storage comes back
@@ -509,7 +520,9 @@ class ContentJobConsumer:
                 if job_doc:
                     try:
                         await asyncio.wait_for(
-                            _process_audio_content_job(job_doc, job_repo, content_repo, blob_provider),
+                            _process_audio_content_job(
+                                job_doc, job_repo, content_repo, blob_provider, partner_repo
+                            ),
                             timeout=JOB_TIMEOUT_SECONDS,
                         )
                     except TimeoutError:

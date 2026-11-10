@@ -10,9 +10,11 @@ from datetime import UTC, datetime
 from typing import Any
 
 from bson import ObjectId
+from bson.errors import InvalidId
 from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.content import Content
+from app.models.requests.content_aggregator_content_requests import Cursor
 from app.repositories.base_repository import BaseRepository
 
 
@@ -25,6 +27,30 @@ def _oid(id_str: str | None) -> ObjectId | None:
     if id_str is None:
         return None
     return ObjectId(id_str)
+
+
+def _is_object_id(id_str: str) -> bool:
+    try:
+        ObjectId(id_str)
+        return True
+    except InvalidId:
+        return False
+
+
+def _content_id_conditions(content_id: str) -> list[dict]:
+    conditions: list[dict] = [{"content_id": content_id}]
+    if _is_object_id(content_id):
+        conditions.append({"_id": ObjectId(content_id)})
+    return conditions
+
+
+def after_cursor_clause(cursor: Cursor) -> dict:
+    return {
+        "$or": [
+            {"creation_time": {"$lt": cursor.creation_time}},
+            {"creation_time": cursor.creation_time, "content_id": {"$lt": cursor.key}},
+        ]
+    }
 
 
 class ContentRepository(BaseRepository):
@@ -76,6 +102,43 @@ class ContentRepository(BaseRepository):
     ) -> dict | None:
         q = {**self._tenant_query(tenant_id, school_id), "_id": ObjectId(content_id)}
         return await self._col.find_one(q)
+
+    async def find_by_content_id(self, content_id: str, tenant_id: str) -> dict | None:
+        q = {**self._tenant_query(tenant_id, None), "$or": _content_id_conditions(content_id)}
+        return await self._col.find_one(q)
+
+    async def search_content(
+        self,
+        tenant_id: str,
+        *,
+        content_ids: list[str] | None = None,
+        language: str | None = None,
+        theme: str | None = None,
+        exp_name: str | None = None,
+        only_teacher_app: bool = False,
+        cursor: Cursor | None = None,
+        limit: int = 16,
+    ) -> list[dict]:
+        q = self._tenant_query(tenant_id, None)
+        clauses: list[dict] = []
+        if content_ids:
+            oids = [ObjectId(i) for i in content_ids if _is_object_id(i)]
+            clauses.append({"$or": [{"content_id": {"$in": content_ids}}] + ([{"_id": {"$in": oids}}] if oids else [])})
+        if language:
+            q["language"] = language
+        if theme:
+            q["theme.english"] = urllib.parse.unquote(theme)
+        if exp_name:
+            q["type"] = exp_name.lower()
+        if only_teacher_app:
+            q["is_teacher_app"] = True
+        if cursor is not None:
+            clauses.append(after_cursor_clause(cursor))
+        if clauses:
+            q["$and"] = clauses
+        return await (
+            self._col.find(q).sort([("creation_time", -1), ("content_id", -1)]).to_list(length=limit)
+        )
 
     # ------------------------------------------------------------------
     # List reads
