@@ -47,11 +47,7 @@ export class AudioContentDto extends ContentBase {
     this.description = raw.description;
     this.audio_content = raw.audio_content.map((a) => new AudioTrack(a));
     this.is_processed = raw.is_processed;
-  }
-
-  /** Priority: dedicated audio track > title narration > theme narration. */
-  get primary_audio_url() {
-    return this.audio_content[0]?.audio_url ?? this.title.audio_url ?? this.theme.audio_url ?? null;
+    this.primary_audio_url = raw.primary_audio_url;
   }
 
   get duration_seconds() {

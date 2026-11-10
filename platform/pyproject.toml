@@ -15,8 +15,8 @@ pydantic = {extras = ["email"], version = ">=2.6"}
 python-jose = {extras = ["cryptography"], version = ">=3.3"}
 passlib = {extras = ["bcrypt"], version = ">=1.7"}
 azure-servicebus = ">=7.12"
-azure-storage-blob = ">=12.19"
-azure-identity = ">=1.15"
+azure-storage-blob = {version = ">=12.19", optional = true}
+boto3 = ">=1.36"
 azure-monitor-opentelemetry = ">=1.2"
 opentelemetry-instrumentation-fastapi = ">=0.44b0"
 opentelemetry-instrumentation-httpx = ">=0.44b0"
@@ -52,7 +52,7 @@ liblouis = [
 ]
 
 [tool.poetry.extras]
-azure = ["azure-ai-translation-text"]
+azure = ["azure-ai-translation-text", "azure-storage-blob"]
 
 [tool.poetry.group.test.dependencies]
 pytest = ">=8.0"

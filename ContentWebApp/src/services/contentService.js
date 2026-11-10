@@ -4,6 +4,24 @@ import { apiFetch, buildQueryString } from "./api";
 import { ContentDto, ContentPageDto } from "../dto/ContentDto";
 
 export const contentService = {
+  async getAudioUrl(contentId, variant) {
+    const query = buildQueryString({ content_id: contentId, variant });
+    const response = await apiFetch(`${SEEDS_URL}/content/audioUrl?${query}`, {
+      method: "GET",
+      headers: getAuthHeaders(),
+    });
+    return response.url;
+  },
+
+  async uploadAudio(blobName, file) {
+    const body = new FormData();
+    body.append("blob_name", blobName);
+    body.append("file", file);
+    const { "Content-Type": _contentType, ...headers } = getAuthHeaders();
+    const response = await apiFetch(`${SEEDS_URL}/content/audio`, { method: "POST", headers, body });
+    return response.audio_url;
+  },
+
   /**
    * Fetch paginated content
    * @param {string|null} cursor - Pagination cursor

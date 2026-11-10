@@ -189,8 +189,8 @@ async def websocket_endpoint(websocket: WebSocket, conference_id: str) -> None:
     except Exception as exc:
         logger.exception("websocket: error in loop conf_id=%s — %s", conference_id, exc)
     finally:
+        conf.set_websocket(None)
         if capture_session:
             uploaded_url = await capture_session.finalize()
             if uploaded_url:
                 logger.info("websocket: audio uploaded conf_id=%s", conference_id)
-        conf.set_websocket(None)
