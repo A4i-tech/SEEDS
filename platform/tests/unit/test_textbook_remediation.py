@@ -11,6 +11,7 @@ from app.consumers.textbook_remediation_consumer import _resolve_models
 from app.controllers.textbook_remediation_controller import (
     DraftUpdateRequest,
     VerifyJobRequest,
+    braille_remediation_job,
     create_remediation_job,
     get_remediation_artifact,
     get_remediation_image,
@@ -737,3 +738,78 @@ async def test_ensure_indexes_covers_jobs_and_edits():
 
     assert "status_1_deleted_at_1_created_at_1" in await db[TextbookRemediationRepository.COLLECTION_NAME].index_information()
     assert "job_id_1_timestamp_1" in await db[TextbookRemediationRepository.EDITS_COLLECTION_NAME].index_information()
+
+
+@pytest.mark.asyncio
+async def test_braille_endpoint_rejects_missing_other_tenant_and_unverified_jobs(repo):
+    created = await _create(repo)
+    await repo.update_draft(created.job_id, "# Title")
+
+    async def call(job_id, tenant):
+        return await braille_remediation_job(
+            job_id, user={"tenant_id": tenant}, repo=repo, blob_provider=_StubBlob()
+        )
+
+    with pytest.raises(NotFoundError):
+        await call(str(ObjectId()), "tenant-a")
+    with pytest.raises(NotFoundError):
+        await call(created.job_id, "tenant-b")
+    with pytest.raises(ValidationError, match="verified"):
+        await call(created.job_id, "tenant-a")
+
+
+@pytest.mark.asyncio
+async def test_braille_job_uploads_brf_and_report_under_the_braille_path(repo, monkeypatch):
+    from app.models.remediation_job import ArtifactName
+    from app.remediation.braille import BrailleCounts, BrailleReport, BrailleWarning
+    from app.services import textbook_remediation as remediation_service
+
+    seen = {}
+    report = BrailleReport(
+        table="t",
+        counts=BrailleCounts(tables=1),
+        warnings=[BrailleWarning(type="table", detail="d", confidence="medium")],
+        needs_review=True,
+    )
+
+    def _fake_build(markdown, language):
+        seen.update(markdown=markdown, language=language)
+        return "BRF", report
+
+    monkeypatch.setattr(remediation_service, "build_braille", _fake_build)
+    created = await _create(repo)
+    await repo.update_draft(created.job_id, "# Title")
+    job = await repo.mark_verified(created.job_id, verified_by="reviewer@seeds.org", title="Title")
+    blob = _StubBlob()
+
+    updated = await remediation_service.braille_job(repo, blob, job, "kn")
+
+    assert seen == {"markdown": "# Title", "language": "kn"}
+    assert blob.uploaded[f"textbook-remediation/{created.job_id}/braille/remediated.brf"] == b"BRF"
+    uploaded = json.loads(blob.uploaded[f"textbook-remediation/{created.job_id}/braille/remediated.braille.json"])
+    assert uploaded["needs_review"] is True
+    assert set(updated.artifacts) >= {ArtifactName.BRF, ArtifactName.BRAILLE_REPORT}
+    assert updated.counts["braille_warnings"] == 1
+
+
+@pytest.mark.asyncio
+async def test_braille_job_reads_the_remediated_artifact_when_there_is_no_draft(repo, monkeypatch):
+    from app.models.remediation_job import ArtifactName
+    from app.services import textbook_remediation as remediation_service
+
+    seen = {}
+
+    def _fake_build(markdown, language):
+        seen["markdown"] = markdown
+        raise RuntimeError("table missing")
+
+    monkeypatch.setattr(remediation_service, "build_braille", _fake_build)
+    created = await _create(repo)
+    await repo.record_artifacts(created.job_id, {ArtifactName.REMEDIATED: "https://blob/r.md"}, {})
+    job = await repo.mark_verified(created.job_id, verified_by="reviewer@seeds.org", title="Title")
+    blob = _StubBlob({"https://blob/r.md": b"# From artifact"})
+
+    with pytest.raises(ValidationError, match="Could not build the Braille files: table missing"):
+        await remediation_service.braille_job(repo, blob, job, "kn")
+
+    assert seen["markdown"] == "# From artifact"
