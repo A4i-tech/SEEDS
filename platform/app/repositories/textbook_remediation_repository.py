@@ -15,6 +15,7 @@ from app.models.remediation_job import (
     AUTO_LANGUAGES,
     ArtifactName,
     JobMetrics,
+    JobModels,
     JobProgress,
     JobStage,
     JobStatus,
@@ -35,13 +36,25 @@ def _oid(job_id: str) -> ObjectId:
 
 class TextbookRemediationRepository:
     COLLECTION_NAME: ClassVar[str] = "textbookRemediationJobs"
+    EDITS_COLLECTION_NAME: ClassVar[str] = "textbookRemediationEdits"
 
     def __init__(self, db: AsyncDatabase) -> None:
         self._col = db[self.COLLECTION_NAME]
+        self._edits = db[self.EDITS_COLLECTION_NAME]
+
+    async def record_edit(self, job_id: str, previous_md: str, new_md: str, edited_by: str) -> None:
+        await self._edits.insert_one({
+            "job_id": job_id, "timestamp": datetime.now(UTC).isoformat(), "edited_by": edited_by,
+            "previous": previous_md, "new": new_md,
+        })
+
+    async def list_edits(self, job_id: str) -> list[dict[str, object]]:
+        return await self._edits.find({"job_id": job_id}, {"_id": 0}).sort("timestamp", 1).to_list(length=None)
 
     @classmethod
     async def ensure_indexes(cls, db: AsyncDatabase) -> None:
         await db[cls.COLLECTION_NAME].create_index([("status", 1), ("deleted_at", 1), ("created_at", 1)])
+        await db[cls.EDITS_COLLECTION_NAME].create_index([("job_id", 1), ("timestamp", 1)])
 
     async def create(
         self, *, job_id: ObjectId, tenant_id: str, source_name: str, source_url: str, language: str,
@@ -56,12 +69,15 @@ class TextbookRemediationRepository:
         await self._col.insert_one(doc)
         return RemediationJob.from_doc(doc)
 
-    async def get(self, tenant_id: str, job_id: str) -> RemediationJob | None:
-        doc = await self._col.find_one({"_id": _oid(job_id), "tenant_id": tenant_id, "deleted_at": None})
+    async def get(self, tenant_id: str, job_id: str, *, include_draft: bool = True) -> RemediationJob | None:
+        projection = None if include_draft else {"draft_remediated_md": 0}
+        doc = await self._col.find_one({"_id": _oid(job_id), "tenant_id": tenant_id, "deleted_at": None}, projection)
         return RemediationJob.from_doc(doc) if doc else None
 
     async def list_jobs(self, tenant_id: str, *, limit: int = 20) -> list[RemediationJob]:
-        docs = await self._col.find({"tenant_id": tenant_id, "deleted_at": None}).sort("created_at", -1).to_list(length=limit)
+        docs = await self._col.find(
+            {"tenant_id": tenant_id, "deleted_at": None}, {"draft_remediated_md": 0}
+        ).sort("created_at", -1).to_list(length=limit)
         jobs = []
         for d in docs:
             try:
@@ -69,6 +85,12 @@ class TextbookRemediationRepository:
             except ValidationError as exc:
                 logger.error("remediation: skipping malformed job doc _id=%s: %s", d.get("_id"), exc)
         return jobs
+
+    async def _update(self, job_id: str, fields: dict[str, object]) -> RemediationJob | None:
+        doc = await self._col.find_one_and_update(
+            {"_id": _oid(job_id)}, {"$set": fields}, return_document=ReturnDocument.AFTER
+        )
+        return RemediationJob.from_doc(doc) if doc else None
 
     async def soft_delete(self, tenant_id: str, job_id: str) -> RemediationJob | None:
         doc = await self._col.find_one_and_update(
@@ -88,39 +110,28 @@ class TextbookRemediationRepository:
         return RemediationJob.from_doc(doc) if doc else None
 
     async def set_stage(self, job_id: str, stage: JobStage) -> RemediationJob | None:
-        doc = await self._col.find_one_and_update(
-            {"_id": _oid(job_id)}, {"$set": {"stage": stage}}, return_document=ReturnDocument.AFTER
-        )
-        return RemediationJob.from_doc(doc) if doc else None
+        return await self._update(job_id, {"stage": stage})
 
     async def update_progress(self, job_id: str, progress: JobProgress) -> RemediationJob | None:
-        doc = await self._col.find_one_and_update(
-            {"_id": _oid(job_id)}, {"$set": {"progress": progress.model_dump()}}, return_document=ReturnDocument.AFTER
-        )
-        return RemediationJob.from_doc(doc) if doc else None
+        return await self._update(job_id, {"progress": progress.model_dump()})
 
     async def update_language(self, job_id: str, language: str) -> RemediationJob | None:
-        doc = await self._col.find_one_and_update(
-            {"_id": _oid(job_id)},
-            {"$set": {"language": language, "detected_language": language}},
-            return_document=ReturnDocument.AFTER,
-        )
-        return RemediationJob.from_doc(doc) if doc else None
+        return await self._update(job_id, {"language": language, "detected_language": language})
 
     async def update_metrics(self, job_id: str, metrics: JobMetrics) -> RemediationJob | None:
-        doc = await self._col.find_one_and_update(
-            {"_id": _oid(job_id)}, {"$set": {"metrics": metrics.model_dump()}}, return_document=ReturnDocument.AFTER
-        )
-        return RemediationJob.from_doc(doc) if doc else None
+        return await self._update(job_id, {"metrics": metrics.model_dump()})
+
+    async def update_models(self, job_id: str, models: JobModels) -> RemediationJob | None:
+        return await self._update(job_id, {"models": models.model_dump()})
+
+    async def update_source_page_count(self, job_id: str, page_count: int) -> RemediationJob | None:
+        return await self._update(job_id, {"source_page_count": page_count})
 
     async def update_draft(self, job_id: str, draft_md: str, draft_url: str | None = None) -> RemediationJob | None:
         update: dict[str, object] = {"draft_remediated_md": draft_md, "status": JobStatus.IN_REVIEW}
         if draft_url:
             update[f"artifacts.{ArtifactName.DRAFT}"] = draft_url
-        doc = await self._col.find_one_and_update(
-            {"_id": _oid(job_id)}, {"$set": update}, return_document=ReturnDocument.AFTER
-        )
-        return RemediationJob.from_doc(doc) if doc else None
+        return await self._update(job_id, update)
 
     async def mark_verified(
         self,
@@ -136,32 +147,22 @@ class TextbookRemediationRepository:
         }
         if title:
             update["title"] = title
-        doc = await self._col.find_one_and_update(
-            {"_id": _oid(job_id)}, {"$set": update}, return_document=ReturnDocument.AFTER
-        )
-        return RemediationJob.from_doc(doc) if doc else None
+        return await self._update(job_id, update)
 
     async def record_artifacts(
         self, job_id: str, artifacts: dict[ArtifactName, str], counts: dict[str, int]
     ) -> RemediationJob | None:
         update: dict[str, object] = {f"artifacts.{name}": url for name, url in artifacts.items()}
         update.update({f"counts.{name}": value for name, value in counts.items()})
-        doc = await self._col.find_one_and_update({"_id": _oid(job_id)}, {"$set": update}, return_document=ReturnDocument.AFTER)
-        return RemediationJob.from_doc(doc) if doc else None
+        return await self._update(job_id, update)
 
     async def set_translation_error(self, job_id: str, message: str | None) -> RemediationJob | None:
-        doc = await self._col.find_one_and_update(
-            {"_id": _oid(job_id)}, {"$set": {"translation_error": message}}, return_document=ReturnDocument.AFTER
-        )
-        return RemediationJob.from_doc(doc) if doc else None
+        return await self._update(job_id, {"translation_error": message})
 
     async def finish(self, job_id: str, status: JobStatus, *, error: str | None = None) -> RemediationJob | None:
-        doc = await self._col.find_one_and_update(
-            {"_id": _oid(job_id)},
-            {"$set": {"status": status, "error": error, "finished_at": datetime.now(UTC).isoformat()}},
-            return_document=ReturnDocument.AFTER,
+        return await self._update(
+            job_id, {"status": status, "error": error, "finished_at": datetime.now(UTC).isoformat()}
         )
-        return RemediationJob.from_doc(doc) if doc else None
 
     async def reconcile_interrupted_jobs(self) -> int:
         result = await self._col.update_many(

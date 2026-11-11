@@ -1,11 +1,14 @@
 from __future__ import annotations
 
-import asyncio
+import json
 import logging
 from abc import ABC, abstractmethod
+from functools import cache
 from typing import TYPE_CHECKING
 
-import aiohttp
+import openai
+from azure.core.credentials import AzureKeyCredential
+from azure.core.exceptions import AzureError
 
 if TYPE_CHECKING:
     from app.platform.settings import Settings
@@ -28,101 +31,154 @@ class TranslationProvider(ABC):
         return [await self.translate(t, source_lang, target_lang) for t in texts]
 
 
-_AZURE_TRANSIENT_STATUS_CODES = {408, 429, 500, 502, 503, 504}
-_AZURE_MAX_ATTEMPTS = 3
-_AZURE_BASE_BACKOFF_SECONDS = 1.0
+_TRANSIENT_STATUS_CODES = {408, 429, 500, 502, 503, 504}
+_MAX_ATTEMPTS = 3
+_MAX_BATCH_ITEMS = 100
+_MAX_BATCH_CHARS = 50_000
+
+
+def _chunk_for_request(texts: list[str]) -> list[list[str]]:
+    chunks: list[list[str]] = []
+    current: list[str] = []
+    current_chars = 0
+    for text in texts:
+        if current and (len(current) >= _MAX_BATCH_ITEMS or current_chars + len(text) > _MAX_BATCH_CHARS):
+            chunks.append(current)
+            current, current_chars = [], 0
+        current.append(text)
+        current_chars += len(text)
+    if current:
+        chunks.append(current)
+    return chunks
 
 
 class AzureTranslationProvider(TranslationProvider):
-
-    _API_VERSION = "3.0"
-    _DEFAULT_ENDPOINT = "https://api.cognitive.microsofttranslator.com"
-    _MAX_BATCH_ITEMS = 100
-    _MAX_BATCH_CHARS = 50_000
-
-    def __init__(self, key: str, region: str, endpoint: str = "") -> None:
+    def __init__(self, key: str, region: str) -> None:
         if not key:
             raise ValueError("Azure Translator requires a subscription key (AZURE_TRANSLATION_KEY).")
         if not region:
             raise ValueError("Azure Translator requires a region (TTS_REGION).")
-        self._key = key
-        self._region = region
-        self._endpoint = (endpoint or self._DEFAULT_ENDPOINT).rstrip("/")
+        try:
+            from azure.ai.translation.text.aio import TextTranslationClient
+        except ImportError as exc:
+            raise RuntimeError(
+                "TRANSLATION_PROVIDER=azure needs the azure-ai-translation-text package. "
+                "Install it with `poetry install --extras azure`."
+            ) from exc
+        self._client = TextTranslationClient(
+            credential=AzureKeyCredential(key), region=region, retry_total=_MAX_ATTEMPTS - 1
+        )
 
     async def translate(self, text: str, source_lang: str, target_lang: str) -> str:
-        results = await self.translate_batch([text], source_lang, target_lang)
-        return results[0]
+        return (await self.translate_batch([text], source_lang, target_lang))[0]
 
     async def translate_batch(
         self, texts: list[str], source_lang: str, target_lang: str
     ) -> list[str]:
-        if not texts:
-            return []
-
         results: list[str] = []
-        for chunk in self._chunk_for_request(texts):
-            results.extend(await self._translate_batch_request(chunk, source_lang, target_lang))
+        for chunk in _chunk_for_request(texts):
+            results.extend(await self._request(chunk, source_lang, target_lang))
         return results
 
-    def _chunk_for_request(self, texts: list[str]) -> list[list[str]]:
-        chunks: list[list[str]] = []
-        current: list[str] = []
-        current_chars = 0
-        for text in texts:
-            if current and (
-                len(current) >= self._MAX_BATCH_ITEMS or current_chars + len(text) > self._MAX_BATCH_CHARS
-            ):
-                chunks.append(current)
-                current, current_chars = [], 0
-            current.append(text)
-            current_chars += len(text)
-        if current:
-            chunks.append(current)
-        return chunks
+    async def _request(self, texts: list[str], source_lang: str, target_lang: str) -> list[str]:
+        try:
+            data = await self._client.translate(
+                body=texts, to_language=[target_lang], from_language=source_lang or None
+            )
+        except AzureError as exc:
+            status = getattr(exc, "status_code", None)
+            if status is not None and status not in _TRANSIENT_STATUS_CODES:
+                raise
+            logger.warning("Azure Translator failed after %d attempts (%s); skipping item(s)", _MAX_ATTEMPTS, exc)
+            raise TransientTranslationError(str(exc)) from exc
+        return [item.translations[0].text for item in data]
 
-    async def _translate_batch_request(
+
+_OPENAI_SYSTEM_PROMPT = (
+    "Translate every string in `texts` from {source} to {target}. "
+    "Keep the order and the count. Keep placeholders, markup and numbers unchanged. "
+    'Return only JSON in the form {{"translations": ["..."]}}.'
+)
+
+
+class OpenAITranslationProvider(TranslationProvider):
+    def __init__(self, base_url: str, api_key: str, model: str) -> None:
+        if not model:
+            raise ValueError("OpenAI translation requires a model name (TRANSLATION_MODEL).")
+        self._client = openai.AsyncOpenAI(
+            base_url=base_url, api_key=api_key or "unused", max_retries=_MAX_ATTEMPTS - 1, timeout=60
+        )
+        self._model = model
+
+    async def translate(self, text: str, source_lang: str, target_lang: str) -> str:
+        return (await self.translate_batch([text], source_lang, target_lang))[0]
+
+    async def translate_batch(
         self, texts: list[str], source_lang: str, target_lang: str
     ) -> list[str]:
-        url = f"{self._endpoint}/translate"
-        params = {"api-version": self._API_VERSION, "to": target_lang}
-        if source_lang:
-            params["from"] = source_lang
-        headers = {
-            "Ocp-Apim-Subscription-Key": self._key,
-            "Ocp-Apim-Subscription-Region": self._region,
-            "Content-Type": "application/json",
-        }
-        body = [{"Text": t} for t in texts]
+        results = list(texts)
+        indexes = [i for i, t in enumerate(texts) if t.strip()]
+        done = 0
+        for chunk in _chunk_for_request([texts[i] for i in indexes]):
+            for offset, out in enumerate(await self._request(chunk, source_lang, target_lang)):
+                results[indexes[done + offset]] = out
+            done += len(chunk)
+        return results
 
-        last_error: Exception | None = None
-        for attempt in range(_AZURE_MAX_ATTEMPTS):
-            try:
-                async with aiohttp.ClientSession() as session, session.post(
-                    url, params=params, json=body, headers=headers
-                ) as resp:
-                    if resp.status == 200:
-                        data = await resp.json()
-                        return [item["translations"][0]["text"] for item in data]
-                    error_text = await resp.text()
-                    if resp.status not in _AZURE_TRANSIENT_STATUS_CODES:
-                        raise RuntimeError(f"Azure Translator error {resp.status}: {error_text}")
-                    last_error = RuntimeError(f"Azure Translator error {resp.status}: {error_text}")
-            except (aiohttp.ClientError, TimeoutError) as exc:
-                last_error = exc
+    async def _request(self, texts: list[str], source_lang: str, target_lang: str) -> list[str]:
+        source = source_lang if source_lang and source_lang != "auto" else "the language you detect"
+        try:
+            response = await self._client.chat.completions.create(
+                model=self._model,
+                temperature=0,
+                response_format={"type": "json_object"},
+                messages=[
+                    {
+                        "role": "system",
+                        "content": _OPENAI_SYSTEM_PROMPT.format(source=source, target=target_lang),
+                    },
+                    {"role": "user", "content": json.dumps({"texts": texts}, ensure_ascii=False)},
+                ],
+            )
+        except (openai.APIConnectionError, openai.APIStatusError) as exc:
+            if isinstance(exc, openai.APIStatusError) and exc.status_code not in _TRANSIENT_STATUS_CODES:
+                raise
+            logger.warning("OpenAI translation failed after %d attempts (%s); skipping item(s)", _MAX_ATTEMPTS, exc)
+            raise TransientTranslationError(str(exc)) from exc
+        try:
+            translations = json.loads(response.choices[0].message.content)["translations"]
+        except (KeyError, IndexError, TypeError, ValueError) as exc:
+            message = (
+                f"OpenAI translation reply is not the expected JSON ({exc}). "
+                "Check that TRANSLATION_MODEL supports JSON output."
+            )
+            logger.warning(message)
+            raise TransientTranslationError(message) from exc
+        if not isinstance(translations, list) or len(translations) != len(texts) or not all(isinstance(t, str) for t in translations):
+            message = (
+                f"OpenAI translation returned the wrong number or type of items (sent {len(texts)}). "
+                "Retry, or use a more capable TRANSLATION_MODEL."
+            )
+            logger.warning(message)
+            raise TransientTranslationError(message)
+        return translations
 
-            if attempt < _AZURE_MAX_ATTEMPTS - 1:
-                await asyncio.sleep(_AZURE_BASE_BACKOFF_SECONDS * (2**attempt))
 
-        logger.warning(
-            "Azure translation failed after %d attempts (%s); skipping item(s)",
-            _AZURE_MAX_ATTEMPTS,
-            last_error,
-        )
-        raise TransientTranslationError(str(last_error))
+@cache
+def _openai_provider(base_url: str, api_key: str, model: str) -> OpenAITranslationProvider:
+    return OpenAITranslationProvider(base_url, api_key, model)
+
+
+@cache
+def _azure_provider(key: str, region: str) -> AzureTranslationProvider:
+    return AzureTranslationProvider(key, region)
 
 
 def get_translation_provider(settings: Settings) -> TranslationProvider:
-    return AzureTranslationProvider(
-        settings.azure_translation_key,
-        settings.azure_translation_region,
+    if settings.translation_provider == "azure":
+        return _azure_provider(settings.azure_translation_key, settings.azure_translation_region)
+    return _openai_provider(
+        settings.translation_effective_base_url,
+        settings.translation_effective_api_key,
+        settings.translation_model,
     )

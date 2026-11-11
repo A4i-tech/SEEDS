@@ -51,6 +51,13 @@ _SCRIPT_RANGES: list[tuple[int, int, str]] = [
 ]
 
 
+def language_name_to_code(value: str) -> str | None:
+    cleaned = value.strip().lower()
+    if cleaned in _CODE_TO_NAME:
+        return cleaned
+    return _NAME_TO_CODE.get(cleaned) or _NATIVE_TO_CODE.get(cleaned)
+
+
 def normalize_language_name(lang: str | None) -> str:
     if not lang:
         return "English"

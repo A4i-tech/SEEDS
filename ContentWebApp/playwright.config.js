@@ -27,8 +27,7 @@ module.exports = defineConfig({
     screenshot: 'on',
     video: 'off',
   },
-  // Only spin up a local dev server when testing against localhost; remote
-  // instances (onrender, dev) are already running and reachable directly.
+  // Only spin up a local dev server when testing against localhost.
   webServer:
     instanceName === 'local'
       ? {

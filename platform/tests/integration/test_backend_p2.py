@@ -254,7 +254,7 @@ async def test_content_job_consumer_process_audio(mock_db):
         with open(path, "wb") as fh:
             return fh.write(b"fake_audio_data_12345")
 
-    mock_blob.download_url_to_path = AsyncMock(side_effect=_fake_download)
+    mock_blob.download_from_url_to_file = AsyncMock(side_effect=_fake_download)
     mock_blob.upload_file = AsyncMock(return_value="https://myaccount.blob.core.windows.net/output-container/test.wav")
     mock_blob.get_container_client = MagicMock()
 
@@ -317,7 +317,7 @@ async def test_content_job_dead_letter_on_failure(mock_db):
 
     # Mock blob provider to always fail
     mock_blob = MagicMock()
-    mock_blob.download_url_to_path = AsyncMock(side_effect=RuntimeError("Corrupt input: download failed"))
+    mock_blob.download_from_url_to_file = AsyncMock(side_effect=RuntimeError("Corrupt input: download failed"))
 
     from app.consumers.content_job_consumer import _process_audio_content_job
     from app.repositories.content_job_repository import ContentJobRepository

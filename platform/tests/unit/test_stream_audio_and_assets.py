@@ -34,10 +34,9 @@ def _provider(parts):
 
 
 @pytest.mark.asyncio
-async def test_download_url_to_path_writes_chunks(tmp_path):
+async def test_download_from_url_to_file_writes_chunks(tmp_path):
     path = tmp_path / "out.bin"
-    size = await _provider([b"ab", b"cd"]).download_url_to_path("https://acct.blob.core.windows.net/c/x/y.mp3", str(path))
-    assert size == 4
+    await _provider([b"ab", b"cd"]).download_from_url_to_file("https://acct.blob.core.windows.net/c/x/y.mp3", path)
     assert path.read_bytes() == b"abcd"
 
 
@@ -58,7 +57,7 @@ async def test_process_audio_item_uploads_file_handle():
         return "https://new"
 
     provider = MagicMock()
-    provider.download_url_to_path = download
+    provider.download_from_url_to_file = download
     provider.upload_file = upload
     with patch.object(consumer, "_transcode_to_wav", transcode), patch.object(
         consumer, "_extract_duration", AsyncMock(return_value=1.5)

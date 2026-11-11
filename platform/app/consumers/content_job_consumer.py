@@ -223,7 +223,8 @@ async def _process_audio_item(
     try:
         # Download input
         logger.info("content_job: downloading audio %s", audio_url)
-        if not await blob_provider.download_url_to_path(audio_url, input_path):
+        await blob_provider.download_from_url_to_file(audio_url, Path(input_path))
+        if not os.path.getsize(input_path):
             raise RuntimeError(f"Downloaded empty blob from {audio_url}")
 
         # Transcode

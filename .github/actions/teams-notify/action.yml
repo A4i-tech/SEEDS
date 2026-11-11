@@ -32,6 +32,10 @@ runs:
         SUMMARY_INPUT: ${{ inputs.summary }}
         ACTIVITY_INPUT: ${{ inputs.activity-title }}
         COLOR_INPUT: ${{ inputs.theme-color }}
+        REF_NAME: ${{ github.ref_name }}
+        ACTOR: ${{ github.actor }}
+        SHA: ${{ github.sha }}
+        REPOSITORY: ${{ github.repository }}
       run: |
         set -euo pipefail
 
@@ -46,9 +50,10 @@ runs:
           --arg color "$COLOR_INPUT" \
           --argjson facts "$FACTS_INPUT" \
           --argjson sections "$SECTIONS_INPUT" \
-          --arg branch "${{ github.ref_name }}" \
-          --arg actor "${{ github.actor }}" \
-          --arg sha "${{ github.sha }}" \
+          --arg branch "$REF_NAME" \
+          --arg actor "$ACTOR" \
+          --arg sha "$SHA" \
+          --arg repo "$REPOSITORY" \
           '{
             "type": "message",
             "attachments": [
@@ -77,7 +82,7 @@ runs:
                       },
                       {
                         "type": "TextBlock",
-                        "text": "[View commit](https://github.com/${{ github.repository }}/commit/\($sha))",
+                        "text": "[View commit](https://github.com/\($repo)/commit/\($sha))",
                         "size": "Small",
                         "wrap": true,
                         "spacing": "None"
