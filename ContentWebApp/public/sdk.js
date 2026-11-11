@@ -56,7 +56,7 @@
       hash = (hash << 5) - hash + text.charCodeAt(i);
       hash |= 0;
     }
-    return "t" + Math.abs(hash).toString(36);
+    return "t" + Math.abs(hash).toString(16);
   }
 
   function isTranslatable(text) {

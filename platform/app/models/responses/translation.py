@@ -11,7 +11,6 @@ ImportRowReason = Literal[
     "missing_source",
     "duplicate_row",
     "source_mismatch",
-    "key_mismatch",
     "write_failed",
 ]
 

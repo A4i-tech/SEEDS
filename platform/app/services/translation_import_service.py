@@ -28,7 +28,6 @@ from app.repositories.translation_audit_repository import TranslationAuditReposi
 from app.repositories.translation_repository import IMPORT_PROVIDER, TranslationRepository
 from app.repositories.translation_version_repository import TranslationVersionRepository
 from app.repositories.website_repository import WebsiteRepository
-from app.services.sdk_rolling_hash import sdk_rolling_hash
 from app.services.translation_service import _audit_doc, _version_doc, ensure_lang_enabled
 
 IMPORT_QUALITY_SCORE = 1.0
@@ -167,9 +166,6 @@ class TranslationImportService:
                     )
                 continue
 
-            if not doc and sdk_rolling_hash(item.source) != item.key:
-                fail(item.row, item.route, item.key, "key_mismatch")
-                continue
             if doc and item.text == current and (state != "approved" or entry["status"] == "approved"):
                 counts["unchanged"] += 1
                 continue

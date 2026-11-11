@@ -27,7 +27,6 @@ const REASONS = {
   missing_source: "Source text is missing",
   duplicate_row: "Duplicate route and Asset ID in the file",
   source_mismatch: "Source text differs from the existing row",
-  key_mismatch: "Asset ID does not match the source text",
   write_failed: "The update failed",
 };
 

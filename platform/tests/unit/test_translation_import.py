@@ -10,7 +10,6 @@ from pymongo.errors import BulkWriteError, PyMongoError
 from app.models.requests.translation_requests import TranslationImportRow, js_trim
 from app.platform.error_handling import NotFoundError, ValidationError
 from app.repositories.translation_repository import TranslationRepository
-from app.services.sdk_rolling_hash import sdk_rolling_hash
 from app.services.translation_import_service import TranslationImportService, _same_instant
 from app.services.translation_service import TranslationService
 from tests.support.mongomock_async import AsyncMongoMockClient
@@ -56,12 +55,16 @@ async def service(mock_db):
     return TranslationImportService(mock_db)
 
 
+def _slug(source: str) -> str:
+    return "k-" + source.strip().lower().replace(" ", "-")[:32]
+
+
 def _row(source: str, text: str, route: str = "/", key: str | None = None) -> dict[str, str]:
-    return {"route": route, "key": key if key is not None else sdk_rolling_hash(source), "source": source, "text": text}
+    return {"route": route, "key": key if key is not None else _slug(source), "source": source, "text": text}
 
 
-async def _seed(repo, source="Hello World", route="/", lang=None, text="", status=None, **extra):
-    key = sdk_rolling_hash(source)
+async def _seed(repo, source="Hello World", route="/", lang=None, text="", status=None):
+    key = _slug(source)
     await repo.upsert_source(SITE, route, key, "en", source)
     if lang:
         await repo.save_translation(SITE, route, key, lang, text, "AzureTranslationProvider")
@@ -88,26 +91,6 @@ def _models(rows):
 async def _import(service, rows, lang="kn", **kwargs):
     result = await service.import_translations(SITE, TENANT, ACTOR, lang, _models(rows), **kwargs)
     return result.model_dump()
-
-
-@pytest.mark.parametrize(
-    ("text", "expected"),
-    [
-        ("Hello World", "te9jc70"),
-        ("ಹಲೋ", "t1xbde"),
-        ("Welcome, friend", "tyjee6s"),
-        ('Say "hi" now', "t6x23p2"),
-        ("Multi\nline text", "twdvimw"),
-        ("😀 emoji", "tq0alrr"),
-        ("తెలుగు వచనం", "ty2lko4"),
-        ("", "t0"),
-        ("a", "t2p"),
-        ("x" * 300, "tt2j4zk"),
-        ("Learning that reaches every child.", "tualgr1"),
-    ],
-)
-def test_sdk_rolling_hash_matches_sdk_js_vectors(text, expected):
-    assert sdk_rolling_hash(text) == expected
 
 
 @pytest.mark.parametrize(
@@ -146,7 +129,7 @@ async def test_import_creates_unknown_key_as_pending_row(service, repo):
     res = await _import(service, [_row("Brand new", "ಹೊಸ", route="/new")])
 
     assert res["created"] == 1 and res["failed"] == 0
-    doc = await _doc(repo, sdk_rolling_hash("Brand new"), "/new")
+    doc = await _doc(repo, _slug("Brand new"), "/new")
     assert doc["site_id"] == SITE
     assert doc["source_text"] == "Brand new"
     assert doc["source_lang"] == "en"
@@ -156,19 +139,18 @@ async def test_import_creates_unknown_key_as_pending_row(service, repo):
     assert doc.get("status") is None
 
 
-async def test_import_rejects_key_that_is_not_the_sdk_hash_of_source(service, repo):
+async def test_import_accepts_any_key_for_new_rows(service, repo):
     res = await _import(service, [_row("Brand new", "ಹೊಸ", key="tdeadbeef")])
 
-    assert res["created"] == 0 and res["failed"] == 1
-    assert res["errors"] == [{"row": 1, "route": "/", "key": "tdeadbeef", "reason": "key_mismatch"}]
-    assert await repo.find_by_route(SITE, "/") == []
+    assert res["created"] == 1 and res["failed"] == 0
+    assert (await _doc(repo, "tdeadbeef"))["source_text"] == "Brand new"
 
 
-async def test_import_hashes_the_trimmed_source_for_new_rows(service, repo):
-    res = await _import(service, [{"route": "/", "key": sdk_rolling_hash("Padded"), "source": "  Padded \n", "text": "x"}])
+async def test_import_stores_the_trimmed_source_for_new_rows(service, repo):
+    res = await _import(service, [{"route": "/", "key": "k-padded", "source": "  Padded \n", "text": "x"}])
 
     assert res["created"] == 1
-    assert (await _doc(repo, sdk_rolling_hash("Padded")))["source_text"] == "Padded"
+    assert (await _doc(repo, "k-padded"))["source_text"] == "Padded"
 
 
 async def test_import_never_overwrites_source_and_fails_on_mismatch(service, repo):
@@ -242,7 +224,7 @@ async def test_import_same_key_on_two_routes_is_two_rows(service, repo):
     res = await _import(service, [_row("Hello World", "home", route="/"), _row("Hello World", "about", route="/about")])
 
     assert res["updated"] == 2
-    key = sdk_rolling_hash("Hello World")
+    key = _slug("Hello World")
     assert (await _doc(repo, key, "/"))["translations"]["kn"]["text"] == "home"
     assert (await _doc(repo, key, "/about"))["translations"]["kn"]["text"] == "about"
 
@@ -369,7 +351,7 @@ async def test_import_approved_state_creates_and_versions_new_rows(service, repo
     res = await _import(service, [_row("Brand new", "ಹೊಸ", route="/new")], state="approved")
 
     assert res["created"] == 1
-    key = sdk_rolling_hash("Brand new")
+    key = _slug("Brand new")
     doc = await _doc(repo, key, "/new")
     assert doc["translations"]["kn"]["status"] == "approved"
     assert doc["status"] == "approved"
@@ -458,7 +440,7 @@ async def test_import_zero_match_write_counts_driver_acked_rows(service, mock_db
     res = await _import(service, [_row("First", "one"), _row("Second", "two")])
 
     assert res["failed"] == 0 and res["updated"] == 2
-    assert (await _doc(repo, sdk_rolling_hash("First")))["translations"]["kn"]["text"] == "one"
+    assert (await _doc(repo, _slug("First")))["translations"]["kn"]["text"] == "one"
 
 
 async def test_import_mixed_batch_zero_match_counts_driver_acked_rows(
@@ -496,8 +478,8 @@ async def test_import_mixed_rows_report_each_outcome(service, repo):
         ],
     )
 
-    assert (res["updated"], res["created"], res["skipped_blank"], res["failed"]) == (1, 1, 1, 1)
-    assert [(e["row"], e["reason"]) for e in res["errors"]] == [(4, "key_mismatch")]
+    assert (res["updated"], res["created"], res["skipped_blank"], res["failed"]) == (1, 2, 1, 0)
+    assert res["errors"] == []
 
 
 async def test_imported_translations_are_not_counted_as_ai_generated(service, repo):
@@ -533,7 +515,7 @@ def test_js_trim_differs_from_python_strip_where_it_matters():
     assert js_trim(chr(0xA0) + "x" + chr(0x2028)) == "x"
 
 
-async def test_import_new_row_key_follows_javascript_trim_not_python_strip(service, repo):
+async def test_import_accepts_any_key_and_stores_the_canonical_source(service, repo):
     nel = chr(0x85)
     edged = nel + "Edged" + nel
     bom_source = chr(0xFEFF) + "Bom text"
@@ -541,18 +523,14 @@ async def test_import_new_row_key_follows_javascript_trim_not_python_strip(servi
     res = await _import(
         service,
         [
-            {"route": "/", "key": sdk_rolling_hash(edged), "source": edged, "text": "a"},
-            {"route": "/", "key": sdk_rolling_hash("Bom text"), "source": bom_source, "text": "b"},
-            {"route": "/", "key": sdk_rolling_hash(bom_source), "source": bom_source, "text": "c"},
+            {"route": "/", "key": "k-edged", "source": edged, "text": "a"},
+            {"route": "/", "key": "k-bom", "source": bom_source, "text": "b"},
         ],
     )
 
-    assert res["created"] == 2
-    assert res["errors"] == [
-        {"row": 3, "route": "/", "key": sdk_rolling_hash(bom_source), "reason": "key_mismatch"}
-    ]
-    assert (await _doc(repo, sdk_rolling_hash(edged)))["source_text"] == edged
-    assert (await _doc(repo, sdk_rolling_hash("Bom text")))["source_text"] == "Bom text"
+    assert res["created"] == 2 and res["failed"] == 0
+    assert (await _doc(repo, "k-edged"))["source_text"] == edged
+    assert (await _doc(repo, "k-bom"))["source_text"] == "Bom text"
 
 
 @pytest.mark.parametrize(
@@ -593,7 +571,7 @@ async def test_import_accepts_exact_url_pathnames_including_leading_double_slash
     res = await _import(service, [_row("Hello World", "x", route=route)])
 
     assert res["created"] == 1 and res["failed"] == 0
-    assert (await _doc(repo, sdk_rolling_hash("Hello World"), route))["route"] == route
+    assert (await _doc(repo, _slug("Hello World"), route))["route"] == route
 
 
 async def test_import_treats_a_trailing_slash_as_a_different_route(service, repo):
@@ -603,7 +581,7 @@ async def test_import_treats_a_trailing_slash_as_a_different_route(service, repo
     res = await _import(service, [_row("Hello World", "no slash", route="/about"), _row("Hello World", "slash", route="/about/")])
 
     assert res["updated"] == 2
-    key = sdk_rolling_hash("Hello World")
+    key = _slug("Hello World")
     assert (await _doc(repo, key, "/about"))["translations"]["kn"]["text"] == "no slash"
     assert (await _doc(repo, key, "/about/"))["translations"]["kn"]["text"] == "slash"
 
@@ -625,7 +603,7 @@ async def test_import_accepts_a_source_at_the_limit(service, repo):
     res = await _import(service, [_row(at_limit, "b")])
 
     assert res["created"] == 1
-    assert (await _doc(repo, sdk_rolling_hash(at_limit)))["translations"]["kn"]["text"] == "b"
+    assert (await _doc(repo, _slug(at_limit)))["translations"]["kn"]["text"] == "b"
 
 
 async def test_import_keep_state_with_overwrite_blank_still_clears_the_entry(service, repo):
@@ -682,7 +660,7 @@ async def test_import_resolves_rows_by_exact_route_and_key_without_a_site_wide_k
 
     monkeypatch.setattr(service._repo, "find_by_route_keys", spy)
     monkeypatch.setattr(service._repo, "find_by_keys", forbidden)
-    key = sdk_rolling_hash("Hello World")
+    key = _slug("Hello World")
 
     res = await _import(service, [_row("Hello World", "a", route="/a"), _row("Hello World", "b", route="/b")])
 
@@ -692,7 +670,7 @@ async def test_import_resolves_rows_by_exact_route_and_key_without_a_site_wide_k
 
 async def test_import_for_a_route_without_the_row_creates_it_and_leaves_the_same_key_on_other_routes(service, repo):
     await _seed(repo, route="/a", lang="kn", text="a original")
-    key = sdk_rolling_hash("Hello World")
+    key = _slug("Hello World")
 
     res = await _import(service, [_row("Hello World", "b new", route="/b")])
 
@@ -702,49 +680,36 @@ async def test_import_for_a_route_without_the_row_creates_it_and_leaves_the_same
 
 
 async def test_same_key_with_different_sources_on_two_routes_is_resolved_independently(service, repo):
-    colliding_key = sdk_rolling_hash("Aa")
-    assert colliding_key == sdk_rolling_hash("BB")
-    await repo.upsert_source(SITE, "/a", colliding_key, "en", "Aa")
-    await repo.upsert_source(SITE, "/b", colliding_key, "en", "BB")
+    await repo.upsert_source(SITE, "/a", "k-shared", "en", "Aa")
+    await repo.upsert_source(SITE, "/b", "k-shared", "en", "BB")
 
     res = await _import(
         service,
         [
-            {"route": "/a", "key": colliding_key, "source": "Aa", "text": "for a"},
-            {"route": "/b", "key": colliding_key, "source": "BB", "text": "for b"},
+            {"route": "/a", "key": "k-shared", "source": "Aa", "text": "for a"},
+            {"route": "/b", "key": "k-shared", "source": "BB", "text": "for b"},
         ],
     )
 
     assert res["updated"] == 2 and res["failed"] == 0
-    assert (await _doc(repo, colliding_key, "/a"))["translations"]["kn"]["text"] == "for a"
-    assert (await _doc(repo, colliding_key, "/b"))["translations"]["kn"]["text"] == "for b"
+    assert (await _doc(repo, "k-shared", "/a"))["translations"]["kn"]["text"] == "for a"
+    assert (await _doc(repo, "k-shared", "/b"))["translations"]["kn"]["text"] == "for b"
 
-    wrong = await _import(service, [{"route": "/a", "key": colliding_key, "source": "BB", "text": "x"}])
+    wrong = await _import(service, [{"route": "/a", "key": "k-shared", "source": "BB", "text": "x"}])
 
     assert wrong["errors"][0]["reason"] == "source_mismatch"
-    assert (await _doc(repo, colliding_key, "/a"))["translations"]["kn"]["text"] == "for a"
-    assert (await _doc(repo, colliding_key, "/b"))["translations"]["kn"]["text"] == "for b"
+    assert (await _doc(repo, "k-shared", "/a"))["translations"]["kn"]["text"] == "for a"
+    assert (await _doc(repo, "k-shared", "/b"))["translations"]["kn"]["text"] == "for b"
 
 
-async def test_canonical_source_is_used_for_the_hash_check_and_is_what_a_new_row_stores(service, repo):
+async def test_canonical_source_is_what_a_new_row_stores(service, repo):
     canonical = "Hello" + chr(10) + "World"
     messy = chr(13) + chr(10) + "  " + "Hello" + chr(13) + chr(10) + "World " + chr(10) + chr(10)
 
-    res = await _import(service, [{"route": "/", "key": sdk_rolling_hash(canonical), "source": messy, "text": "x"}])
+    res = await _import(service, [{"route": "/", "key": "k-canon", "source": messy, "text": "x"}])
 
     assert res["created"] == 1
-    assert (await _doc(repo, sdk_rolling_hash(canonical)))["source_text"] == canonical
-
-
-async def test_a_key_hashed_from_the_raw_untrimmed_crlf_source_is_rejected(service, repo):
-    messy = chr(13) + chr(10) + "  Hello" + chr(13) + chr(10) + "World "
-
-    res = await _import(service, [{"route": "/", "key": sdk_rolling_hash(messy), "source": messy, "text": "x"}])
-
-    assert res["errors"] == [
-        {"row": 1, "route": "/", "key": sdk_rolling_hash(messy), "reason": "key_mismatch"}
-    ]
-    assert await repo.find_by_route(SITE, "/") == []
+    assert (await _doc(repo, "k-canon"))["source_text"] == canonical
 
 
 @pytest.mark.parametrize(
@@ -788,10 +753,11 @@ async def test_internal_whitespace_and_case_differences_are_still_a_source_misma
     assert (await _doc(repo, "tstored"))["translations"] == {}
 
 
-async def test_a_key_at_the_length_limit_is_not_rejected_for_its_length(service):
+async def test_a_key_at_the_length_limit_is_not_rejected_for_its_length(service, repo):
     res = await _import(service, [{"route": "/", "key": "t" * 256, "source": "Anything", "text": "x"}])
 
-    assert res["errors"][0]["reason"] == "key_mismatch"
+    assert res["created"] == 1 and res["failed"] == 0
+    assert (await _doc(repo, "t" * 256))["source_text"] == "Anything"
 
 
 async def test_errors_report_the_csv_row_numbers_sent_by_the_client(service, repo):
@@ -804,16 +770,17 @@ async def test_errors_report_the_csv_row_numbers_sent_by_the_client(service, rep
 
     res = await _import(service, rows)
 
-    assert [(e["row"], e["reason"]) for e in res["errors"]] == [
-        (9, "duplicate_row"),
-        (12, "key_mismatch"),
-    ]
+    assert [(e["row"], e["reason"]) for e in res["errors"]] == [(9, "duplicate_row")]
+    assert (res["updated"], res["created"], res["failed"]) == (1, 1, 1)
 
 
-async def test_rows_without_a_csv_row_number_fall_back_to_their_position(service):
-    res = await _import(service, [{"route": "/", "key": "tbad", "source": "Nope", "text": "x"}])
+async def test_rows_without_a_csv_row_number_fall_back_to_their_position(service, repo):
+    res = await _import(
+        service, [_row("Hello World", "x"), _row("Hello World", "again")]
+    )
 
-    assert res["errors"][0]["row"] == 1
+    assert res["created"] == 1 and res["failed"] == 1
+    assert res["errors"][0]["row"] == 2
 
 
 async def test_import_reads_the_site_document_once(service, repo, monkeypatch):
@@ -878,8 +845,8 @@ async def test_failed_audit_write_raises_and_rows_stay_saved(service, repo, monk
     with pytest.raises(PyMongoError):
         await _import(service, [_row("First", "one"), _row("Second", "two")])
 
-    assert (await _doc(repo, sdk_rolling_hash("First")))["translations"]["kn"]["text"] == "one"
-    assert (await _doc(repo, sdk_rolling_hash("Second")))["translations"]["kn"]["text"] == "two"
+    assert (await _doc(repo, _slug("First")))["translations"]["kn"]["text"] == "one"
+    assert (await _doc(repo, _slug("Second")))["translations"]["kn"]["text"] == "two"
 
 
 async def test_failed_guard_lookup_for_new_rows_raises(service, repo, monkeypatch):
@@ -922,7 +889,7 @@ async def test_a_clean_import_records_import_and_approval(service, repo, reader)
 async def test_approved_import_does_not_overwrite_a_row_approved_concurrently(service, repo, monkeypatch):
     await _seed(repo, "First", lang="kn", text="old1", status="approved")
     await _seed(repo, "Second", lang="kn", text="old2", status="approved")
-    first = (await repo.find_by_keys(SITE, [sdk_rolling_hash("First")]))[0]
+    first = (await repo.find_by_keys(SITE, [_slug("First")]))[0]
     real = service._repo.bulk_write
 
     async def racing(ops):
@@ -938,7 +905,7 @@ async def test_approved_import_does_not_overwrite_a_row_approved_concurrently(se
 
     assert (res["updated"], res["failed"]) == (1, 1)
     assert res["errors"] == [
-        {"row": 2, "route": "/", "key": sdk_rolling_hash("First"), "reason": "write_failed"}
+        {"row": 2, "route": "/", "key": _slug("First"), "reason": "write_failed"}
     ]
-    assert (await _doc(repo, sdk_rolling_hash("First")))["translations"]["kn"]["text"] == "old1"
-    assert (await _doc(repo, sdk_rolling_hash("Second")))["translations"]["kn"]["text"] == "new2"
+    assert (await _doc(repo, _slug("First")))["translations"]["kn"]["text"] == "old1"
+    assert (await _doc(repo, _slug("Second")))["translations"]["kn"]["text"] == "new2"

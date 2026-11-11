@@ -248,7 +248,7 @@ describe("Import dialog", () => {
   test("imports the parsed rows with the chosen options, shows the summary and errors, and reloads the list", async () => {
     const onDataChanged = jest.fn();
     translationService.importTranslations.mockResolvedValue({
-      ...failedWith({ row: 3, route: "/new", key: "tbad", reason: "key_mismatch" }),
+      ...failedWith({ row: 3, route: "/new", key: "tbad", reason: "source_mismatch" }),
       updated: 1,
       created: 1,
     });
@@ -286,7 +286,7 @@ describe("Import dialog", () => {
       ],
     });
     expect(within(dialog).getByText("tbad")).toBeInTheDocument();
-    expect(within(dialog).getByText("Asset ID does not match the source text")).toBeInTheDocument();
+    expect(within(dialog).getByText("Source text differs from the existing row")).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: "Close" })).toBeInTheDocument();
     expect(onDataChanged).toHaveBeenCalledTimes(1);
     await waitFor(() =>
@@ -414,7 +414,7 @@ describe("Import dialog", () => {
 
   test("a partial import reloads the list and keeps the row errors visible", async () => {
     translationService.importTranslations.mockResolvedValue(
-      failedWith({ row: 5, route: "/x", key: "tbad", reason: "key_mismatch" })
+      failedWith({ row: 5, route: "/x", key: "tbad", reason: "source_mismatch" })
     );
     const dialog = await openWithFile(`${HEADER}\n${ROW}\n`);
     await within(dialog).findByText(/1 rows/);
@@ -422,22 +422,22 @@ describe("Import dialog", () => {
 
     await clickImport(dialog);
 
-    await within(dialog).findByText("Asset ID does not match the source text");
+    await within(dialog).findByText("Source text differs from the existing row");
     expect(translationService.listForReview).toHaveBeenCalled();
   });
 
   test("error cells keep their full text in a tooltip and show the route, key and row", async () => {
     translationService.importTranslations.mockResolvedValue(
-      failedWith({ row: 9, route: "/faq?page=2", key: "tbad", reason: "key_mismatch" })
+      failedWith({ row: 9, route: "/faq?page=2", key: "tbad", reason: "source_mismatch" })
     );
     const dialog = await openWithFile(`${HEADER}\n${ROW}\n`);
     await within(dialog).findByText(/1 rows/);
 
     await clickImport(dialog);
 
-    expect(await within(dialog).findByText("Asset ID does not match the source text")).toHaveAttribute(
+    expect(await within(dialog).findByText("Source text differs from the existing row")).toHaveAttribute(
       "title",
-      "Asset ID does not match the source text"
+      "Source text differs from the existing row"
     );
     expect(within(dialog).getByText("/faq?page=2")).toHaveAttribute("title", "/faq?page=2");
     const errorRow = within(dialog).getByRole("row", { name: /\/faq\?page=2/ });
@@ -495,7 +495,7 @@ describe("Import dialog layout on short viewports", () => {
           row: i + 1,
           route: `/page-${i}`,
           key: `tkey${i}`,
-          reason: "key_mismatch",
+          reason: "source_mismatch",
         }))
       )
     );
