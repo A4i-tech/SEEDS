@@ -345,10 +345,11 @@ export function WorkspaceScreen({
 
   const exportCsv = async () => {
     try {
-      const exported = [];
-      for (const { route: pageRoute } of pages) {
-        exported.push(...(await translationService.listTranslations({ siteId, route: pageRoute })));
-      }
+      const exported = (
+        await Promise.all(
+          pages.map((page) => translationService.listTranslations({ siteId, route: page.route }))
+        )
+      ).flat();
       if (!exported.length) return toast({ message: "Nothing to export", tone: "info" });
       const site = sites.find((s) => s.siteId === siteId);
       if (!site) throw new Error("Site not found");
@@ -547,7 +548,7 @@ export function WorkspaceScreen({
           onClose={() => setImportOpen(false)}
           onImported={() => {
             reload();
-            onDataChanged?.();
+            onDataChanged();
           }}
         />
       )}

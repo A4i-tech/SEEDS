@@ -1,27 +1,15 @@
 from __future__ import annotations
 
 import logging
-from collections import Counter
 from collections.abc import Callable
 from datetime import UTC, datetime
-from typing import Any, Literal, NamedTuple, NotRequired, TypedDict
+from typing import Any
 
-from bson import ObjectId
 from fastapi import Depends
 from pymongo import UpdateOne
 from pymongo.asynchronous.database import AsyncDatabase
-from pymongo.errors import BulkWriteError, PyMongoError
+from pymongo.errors import BulkWriteError
 
-from app.models.requests.translation_requests import (
-    ImportState,
-    TranslationImportRow,
-    js_trim,
-)
-from app.models.responses.translation import (
-    ImportRowError,
-    ImportRowReason,
-    TranslationImportResponse,
-)
 from app.platform.auth.dependencies import get_db
 from app.platform.error_handling import NotFoundError, ValidationError
 from app.platform.settings import get_settings
@@ -33,7 +21,6 @@ from app.providers.translation_provider import (
 from app.repositories.glossary_repository import GlossaryRepository
 from app.repositories.translation_audit_repository import TranslationAuditRepository
 from app.repositories.translation_repository import (
-    IMPORT_PROVIDER,
     TM_PROVIDER,
     TranslationRepository,
 )
@@ -42,51 +29,8 @@ from app.repositories.website_repository import WebsiteRepository
 from app.services.glossary_normalizer import GlossaryNormalizer
 from app.services.placeholder_protector import mask, unmask
 from app.services.quality_scorer import is_low_confidence, score_translation
-from app.services.sdk_rolling_hash import sdk_rolling_hash
 
 logger = logging.getLogger(__name__)
-
-
-class _PlannedRow(TypedDict):
-    row: int
-    route: str
-    key: str
-    kind: Literal["created", "updated"]
-    audits: list[dict[str, Any]]
-    version_doc: NotRequired[dict[str, Any] | None]
-    translation_id: NotRequired[str | None]
-
-
-class _PlanResult(NamedTuple):
-    counts: Counter[str]
-    errors: list[ImportRowError]
-    ops: list[UpdateOne]
-    planned: list[_PlannedRow]
-    now: datetime
-
-
-class _WriteResult(NamedTuple):
-    failed_ops: set[int]
-    bulk_write_unknown: bool
-
-
-class _OutcomeResult(NamedTuple):
-    counts: Counter[str]
-    warnings: list[ImportRowError]
-
-
-IMPORT_QUALITY_SCORE = 1.0
-IMPORT_SOURCE_LANG = "en"
-_REJECTION_FIELDS = ("rejected_by", "rejected_at", "rejection_reason")
-_REVIEW_FIELDS = ("approved_by", "approved_at", *_REJECTION_FIELDS)
-
-
-def _normalize_newlines(value: str) -> str:
-    return value.replace("\r\n", "\n").replace("\r", "\n")
-
-
-def _canonical_source(value: str) -> str:
-    return js_trim(_normalize_newlines(value))
 
 
 def _audit_doc(
@@ -123,27 +67,10 @@ def _version_doc(version: int, translations: dict[str, Any], approved_by: str, a
     }
 
 
-def _entry_fields(text: str, approving: bool, actor: str, now: datetime, *, is_new: bool) -> dict[str, Any]:
-    fields: dict[str, Any] = {
-        "text": text,
-        "provider": IMPORT_PROVIDER,
-        "quality_score": IMPORT_QUALITY_SCORE,
-        "status": "approved" if approving else "pending",
-    }
-    if is_new:
-        fields["created_by"] = actor
-        fields["created_at"] = now
-    if approving:
-        fields["approved_by"] = actor
-        fields["approved_at"] = now
-    return fields
-
-
-def _same_instant(stored: datetime | None, expected: datetime) -> bool:
-    if stored is None:
-        return False
-    millis = expected.microsecond // 1000 * 1000
-    return stored.replace(tzinfo=None) == expected.replace(tzinfo=None, microsecond=millis)
+def ensure_lang_enabled(website: dict[str, Any] | None, lang: str) -> None:
+    codes = {entry["code"] for entry in (website or {}).get("languages") or [] if entry.get("enabled")}
+    if lang not in codes:
+        raise ValidationError(f"lang {lang!r} is not an enabled language for this site")
 
 
 class TranslationService:
@@ -194,17 +121,6 @@ class TranslationService:
             raise NotFoundError("Translation", translation_id)
         await self._ensure_site_owned_by_tenant(doc["site_id"], tenant_id)
         return doc
-
-    async def _ensure_lang_enabled(
-        self, site_id: str, lang: str, website: dict[str, Any] | None = None
-    ) -> None:
-        if not self._enforce_lang_validation:
-            return
-        if website is None:
-            website = await self._website_repo.find_by_site_id(site_id)
-        codes = {entry["code"] for entry in (website or {}).get("languages") or [] if entry.get("enabled")}
-        if lang not in codes:
-            raise ValidationError(f"lang {lang!r} is not an enabled language for this site")
 
     async def _audit(
         self,
@@ -293,7 +209,8 @@ class TranslationService:
     async def _generate_translations(
         self, site_id: str, route: str, lang: str, serve_pending: bool
     ) -> dict[str, str]:
-        await self._ensure_lang_enabled(site_id, lang)
+        if self._enforce_lang_validation:
+            ensure_lang_enabled(await self._website_repo.find_by_site_id(site_id), lang)
         first_party = self._is_first_party(site_id)
         docs = await self._repo.find_by_route(site_id, route)
         result: dict[str, str] = {}
@@ -328,16 +245,25 @@ class TranslationService:
             masked, pmap = mask(normalized)
             pending.append((doc, masked, pmap, source_lang, normalized))
 
-        await self._runtime_batch_ai(site_id, route, lang, pending, result, serve_pending)
-        return result
-
-    async def _runtime_batch_ai(self, site_id, route, lang, pending, result, serve_pending) -> None:
         by_src: dict[str, list] = {}
         for entry in pending:
             by_src.setdefault(entry[3], []).append(entry)
 
         for source_lang, entries in by_src.items():
-            for chunk in self._chunk(entries):
+            chunks: list[list] = []
+            cur: list = []
+            cur_chars = 0
+            for e in entries:
+                clen = len(e[1])
+                if cur and (len(cur) >= self._RUNTIME_BATCH_ITEMS or cur_chars + clen > self._RUNTIME_BATCH_CHARS):
+                    chunks.append(cur)
+                    cur, cur_chars = [], 0
+                cur.append(e)
+                cur_chars += clen
+            if cur:
+                chunks.append(cur)
+
+            for chunk in chunks:
                 masked_texts = [m for (_d, m, _p, _s, _n) in chunk]
                 try:
                     outs = await self._provider.translate_batch(masked_texts, source_lang, lang)
@@ -357,21 +283,7 @@ class TranslationService:
                         quality = score_translation(normalized, out, pmap)
                         await self._persist_translation(site_id, route, doc, lang, translated, type(self._provider).__name__, quality)
                         result[doc["key"]] = translated if serve_pending else doc["source_text"]
-
-    def _chunk(self, entries: list) -> list[list]:
-        out: list[list] = []
-        cur: list = []
-        cur_chars = 0
-        for e in entries:
-            clen = len(e[1])
-            if cur and (len(cur) >= self._RUNTIME_BATCH_ITEMS or cur_chars + clen > self._RUNTIME_BATCH_CHARS):
-                out.append(cur)
-                cur, cur_chars = [], 0
-            cur.append(e)
-            cur_chars += clen
-        if cur:
-            out.append(cur)
-        return out
+        return result
 
     async def get_or_translate(self, site_id: str, route: str, lang: str) -> dict[str, str]:
         docs = await self._repo.find_by_route(site_id, route)
@@ -573,331 +485,6 @@ class TranslationService:
             await self._audit_repo.record_bulk(audit_docs)
 
         return {"approved": approved, "skipped": skipped, "failed": failed}
-
-    async def import_translations(
-        self,
-        site_id: str,
-        tenant_id: str,
-        actor: str,
-        lang: str,
-        rows: list[TranslationImportRow],
-        overwrite_blank: bool = False,
-        state: ImportState = "pending",
-    ) -> TranslationImportResponse:
-        website = await self._ensure_site_owned_by_tenant(site_id, tenant_id)
-        self._assert_website_active(website, site_id)
-        await self._ensure_lang_enabled(site_id, lang, website)
-
-        plan = await self._plan_import_rows(site_id, lang, rows, overwrite_blank, state, actor)
-        write = await self._write_import_ops(plan.ops, plan.planned, site_id)
-        outcome = await self._record_import_outcomes(
-            site_id, plan.now, plan.planned, write.failed_ops, write.bulk_write_unknown, plan.counts, plan.errors
-        )
-
-        plan.errors.sort(key=lambda e: e.row)
-        outcome.warnings.sort(key=lambda w: w.row)
-        return TranslationImportResponse(
-            **outcome.counts, failed=len(plan.errors), errors=plan.errors, warnings=outcome.warnings
-        )
-
-    async def _plan_import_rows(
-        self,
-        site_id: str,
-        lang: str,
-        rows: list[TranslationImportRow],
-        overwrite_blank: bool,
-        state: ImportState,
-        actor: str,
-    ) -> _PlanResult:
-        counts: Counter[str] = Counter(updated=0, created=0, unchanged=0, skipped_blank=0)
-        errors: list[ImportRowError] = []
-
-        def fail(row_no: int, route: str, key: str, reason: ImportRowReason, detail: str | None = None) -> None:
-            errors.append(ImportRowError(row=row_no, route=route, key=key, reason=reason, detail=detail))
-
-        parsed: list[tuple[int, str, str, str, str]] = []
-        seen: set[tuple[str, str]] = set()
-        for row in rows:
-            row_no = row.row
-            route = row.route
-            key = row.key
-            source = _canonical_source(row.source)
-            text = _normalize_newlines(row.text)
-            reason = "missing_source" if not source else "duplicate_row" if (route, key) in seen else None
-            if reason:
-                fail(row_no, route, key, reason)
-                continue
-            seen.add((route, key))
-            parsed.append((row_no, route, key, source, text))
-
-        existing: dict[tuple[str, str], dict[str, Any]] = {}
-        if parsed:
-            docs = await self._repo.find_by_route_keys(
-                site_id, sorted({(route, key) for _, route, key, _, _ in parsed})
-            )
-            existing = {(doc["route"], doc["key"]): doc for doc in docs}
-
-        now = datetime.now(UTC)
-        base = f"translations.{lang}"
-        approving = state == "approved"
-        ops: list[UpdateOne] = []
-        planned: list[_PlannedRow] = []
-
-        for row_no, route, key, source, text in parsed:
-            doc = existing.get((route, key))
-            existing_translations = doc["translations"] if doc is not None else {}
-            entry = existing_translations.get(lang)
-            current = _normalize_newlines((entry or {}).get("text") or "")
-
-            if doc is not None and _canonical_source(doc.get("source_text") or "") != source:
-                fail(row_no, route, key, "source_mismatch")
-                continue
-
-            if not text.strip():
-                if doc is None or not overwrite_blank:
-                    counts["skipped_blank"] += 1
-                elif not current:
-                    counts["unchanged"] += 1
-                else:
-                    ops.append(
-                        UpdateOne(
-                            {"_id": doc["_id"]},
-                            {
-                                "$unset": {base: ""},
-                                "$set": {"updated_at": now},
-                                "$push": {
-                                    "audit_log": {"action": "cleared", "actor": actor, "detail": f"lang={lang}", "at": now}
-                                },
-                            },
-                        )
-                    )
-                    cleared_audit = _audit_doc(site_id, route, key, lang, "cleared", actor, None, "", now)
-                    planned.append(
-                        {"row": row_no, "route": route, "key": key, "kind": "updated", "audits": [cleared_audit]}
-                    )
-                continue
-
-            if doc is None and sdk_rolling_hash(source) != key:
-                fail(row_no, route, key, "key_mismatch")
-                continue
-            if doc is not None and text == current and (not approving or (entry or {}).get("status") == "approved"):
-                counts["unchanged"] += 1
-                continue
-
-            version = (doc.get("version", 0) if doc is not None else 0) + 1
-            is_new = doc is None
-            new_id = ObjectId() if is_new else None
-            set_fields: dict[str, Any] = {f"{base}.text": text, "updated_at": now}
-            unset_fields: dict[str, str] = {}
-            if is_new or state != "keep" or entry is None:
-                entry_fields = _entry_fields(text, approving, actor, now, is_new=is_new or entry is None)
-                set_fields.update(
-                    {f"{base}.{field}": value for field, value in entry_fields.items() if field != "text"}
-                )
-                review_fields = _REJECTION_FIELDS if approving else _REVIEW_FIELDS
-                unset_fields = {f"{base}.{field}": "" for field in review_fields}
-            if approving:
-                set_fields.update(
-                    {"status": "approved", "approved_by": actor, "approved_at": now, "version": version}
-                )
-            update: dict[str, Any] = {"$set": set_fields}
-            if unset_fields:
-                update["$unset"] = unset_fields
-            if is_new:
-                update["$setOnInsert"] = {
-                    "_id": new_id,
-                    "site_id": site_id,
-                    "route": route,
-                    "key": key,
-                    "source_lang": IMPORT_SOURCE_LANG,
-                    "source_text": source,
-                    "created_at": now,
-                }
-                query: dict[str, Any] = {"site_id": site_id, "route": route, "key": key}
-            else:
-                query = {"_id": doc["_id"]}
-                if approving:
-                    query["version"] = {"$exists": False}
-                    if "version" in doc:
-                        query["version"] = doc["version"]
-            kind = "created" if is_new else "updated"
-
-            log_entries = [{"action": "imported", "actor": actor, "detail": f"lang={lang};state={state}", "at": now}]
-            audits = [
-                _audit_doc(
-                    site_id, route, key, lang, "imported", actor, IMPORT_PROVIDER, f"state={state}", now
-                )
-            ]
-            version_doc = None
-            if approving:
-                log_entries.append({"action": "approved", "actor": actor, "detail": f"version={version}", "at": now})
-                audits.append(
-                    _audit_doc(site_id, route, key, lang, "approved", actor, None, f"version={version}", now)
-                )
-                version_doc = _version_doc(
-                    version,
-                    {
-                        **existing_translations,
-                        lang: {
-                            **(entry or {}),
-                            "text": text,
-                            "provider": IMPORT_PROVIDER,
-                            "quality_score": IMPORT_QUALITY_SCORE,
-                            "status": "approved",
-                        },
-                    },
-                    actor,
-                    now,
-                )
-            update["$push"] = {"audit_log": {"$each": log_entries}}
-            ops.append(UpdateOne(query, update, upsert=is_new))
-            planned.append(
-                {
-                    "row": row_no,
-                    "route": route,
-                    "key": key,
-                    "kind": kind,
-                    "audits": audits,
-                    "version_doc": version_doc,
-                    "translation_id": str(doc["_id"]) if doc else str(new_id),
-                }
-            )
-
-        return _PlanResult(counts, errors, ops, planned, now)
-
-    async def _write_import_ops(
-        self, ops: list[UpdateOne], planned: list[_PlannedRow], site_id: str
-    ) -> _WriteResult:
-        failed_ops: set[int] = set()
-        bulk_write_unknown = False
-        if ops:
-            try:
-                result = await self._repo.bulk_write(ops)
-                if result.matched_count < len(ops) - result.upserted_count:
-                    bulk_write_unknown = True
-            except BulkWriteError as exc:
-                write_errors = exc.details["writeErrors"]
-                failed_ops = {err["index"] for err in write_errors}
-                logger.warning(
-                    "import_translations: %d row(s) failed to write",
-                    len(failed_ops),
-                    extra={
-                        "site_id": site_id,
-                        "failed_rows": sorted(planned[i]["row"] for i in failed_ops),
-                        "errors": [{"code": err.get("code"), "errmsg": err.get("errmsg")} for err in write_errors],
-                    },
-                    exc_info=True,
-                )
-                write_concern_errors = exc.details.get("writeConcernErrors")
-                if write_concern_errors:
-                    bulk_write_unknown = True
-                    logger.error(
-                        "import_translations: bulk_write reported write concern error(s); "
-                        "rows not already marked failed could not be confirmed as durably written",
-                        extra={"site_id": site_id, "errors": write_concern_errors},
-                    )
-            except PyMongoError:
-                bulk_write_unknown = True
-                logger.error(
-                    "import_translations: bulk_write raised an unexpected database error; "
-                    "row outcomes could not be confirmed from the write call itself",
-                    extra={"site_id": site_id, "row_count": len(planned)},
-                    exc_info=True,
-                )
-        return _WriteResult(failed_ops, bulk_write_unknown)
-
-    async def _record_import_outcomes(
-        self,
-        site_id: str,
-        now: datetime,
-        planned: list[_PlannedRow],
-        failed_ops: set[int],
-        bulk_write_unknown: bool,
-        counts: Counter[str],
-        errors: list[ImportRowError],
-    ) -> _OutcomeResult:
-        row_warnings: list[ImportRowError] = []
-
-        def warn(plan: _PlannedRow, reason: ImportRowReason) -> None:
-            row_warnings.append(ImportRowError(row=plan["row"], route=plan["route"], key=plan["key"], reason=reason))
-
-        guarded = [i for i, p in enumerate(planned) if p.get("version_doc") and i not in failed_ops]
-        unverified: set[int] = set()
-        if guarded:
-            try:
-                stored = await self._repo.find_by_route_keys(
-                    site_id, [(planned[i]["route"], planned[i]["key"]) for i in guarded]
-                )
-            except PyMongoError:
-                logger.error(
-                    "import_translations: rows were saved but their version-guard status could not be verified",
-                    extra={"site_id": site_id, "rows": [planned[i]["row"] for i in guarded]},
-                    exc_info=True,
-                )
-                unverified = set(guarded)
-            else:
-                applied_at = {(d["route"], d["key"]): _same_instant(d.get("approved_at"), now) for d in stored}
-                guard_mismatched = {i for i in guarded if not applied_at.get((planned[i]["route"], planned[i]["key"]))}
-                if guard_mismatched:
-                    logger.warning(
-                        "import_translations: %d row(s) failed the version guard (doc changed concurrently)",
-                        len(guard_mismatched),
-                        extra={"site_id": site_id, "rows": [planned[i]["row"] for i in guard_mismatched]},
-                    )
-                failed_ops |= guard_mismatched
-
-        if bulk_write_unknown:
-            unverified |= {i for i in range(len(planned)) if i not in failed_ops and i not in guarded}
-
-        written: list[_PlannedRow] = []
-        for index, plan in enumerate(planned):
-            if index in failed_ops:
-                errors.append(
-                    ImportRowError(row=plan["row"], route=plan["route"], key=plan["key"], reason="write_failed")
-                )
-            else:
-                counts[plan["kind"]] += 1
-                written.append(plan)
-                if index in unverified:
-                    warn(plan, "save_not_confirmed")
-
-        unverified_keys = {(planned[i]["route"], planned[i]["key"]) for i in unverified}
-
-        version_docs = []
-        version_doc_rows: list[_PlannedRow] = []
-        for p in written:
-            if not p.get("version_doc"):
-                continue
-            if (p["route"], p["key"]) in unverified_keys:
-                continue
-            version_docs.append({**p["version_doc"], "translation_id": p["translation_id"]})
-            version_doc_rows.append(p)
-
-        audit_docs = [audit for p in written for audit in p["audits"]]
-        if version_docs:
-            try:
-                await self._version_repo.add_versions_bulk(version_docs)
-            except PyMongoError:
-                logger.error(
-                    "import_translations: rows were saved but their versions were not recorded",
-                    extra={"site_id": site_id, "rows": [p["row"] for p in version_doc_rows]},
-                    exc_info=True,
-                )
-                for p in version_doc_rows:
-                    warn(p, "version_not_recorded")
-        if audit_docs:
-            try:
-                await self._audit_repo.record_bulk(audit_docs)
-            except PyMongoError:
-                logger.error(
-                    "import_translations: rows were saved but their audit entries were not recorded",
-                    extra={"site_id": site_id, "rows": [p["row"] for p in written]},
-                    exc_info=True,
-                )
-                for p in written:
-                    warn(p, "audit_not_recorded")
-
-        return _OutcomeResult(counts, row_warnings)
 
     async def get_translation(self, translation_id: str, tenant_id: str) -> dict[str, Any]:
         return await self._get_translation_owned_by_tenant(translation_id, tenant_id)

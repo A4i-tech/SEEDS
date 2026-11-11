@@ -11,7 +11,8 @@ from app.models.requests.translation_requests import TranslationImportRow, js_tr
 from app.platform.error_handling import NotFoundError, ValidationError
 from app.repositories.translation_repository import TranslationRepository
 from app.services.sdk_rolling_hash import sdk_rolling_hash
-from app.services.translation_service import TranslationService, _same_instant
+from app.services.translation_import_service import TranslationImportService, _same_instant
+from app.services.translation_service import TranslationService
 from tests.support.mongomock_async import AsyncMongoMockClient
 
 TENANT = "tenant-1"
@@ -27,6 +28,11 @@ def mock_db():
 @pytest.fixture
 def repo(mock_db):
     return TranslationRepository(mock_db)
+
+
+@pytest.fixture
+async def reader(mock_db):
+    return TranslationService(mock_db, lambda: None)
 
 
 @pytest.fixture
@@ -47,7 +53,7 @@ async def service(mock_db):
             },
         ]
     )
-    return TranslationService(mock_db, lambda: None)
+    return TranslationImportService(mock_db)
 
 
 def _row(source: str, text: str, route: str = "/", key: str | None = None) -> dict[str, str]:
@@ -106,20 +112,16 @@ def test_sdk_rolling_hash_matches_sdk_js_vectors(text, expected):
     assert sdk_rolling_hash(text) == expected
 
 
-def test_same_instant_stored_none_is_false():
-    assert _same_instant(None, datetime(2024, 1, 1, 0, 0, 0, 123000)) is False
-
-
-def test_same_instant_stored_truncated_to_millis_matches_expected_microseconds():
-    stored = datetime(2024, 1, 1, 0, 0, 0, 123000)
-    expected = datetime(2024, 1, 1, 0, 0, 0, 123456)
-    assert _same_instant(stored, expected) is True
-
-
-def test_same_instant_different_millisecond_is_false():
-    stored = datetime(2024, 1, 1, 0, 0, 0, 124000)
-    expected = datetime(2024, 1, 1, 0, 0, 0, 123456)
-    assert _same_instant(stored, expected) is False
+@pytest.mark.parametrize(
+    ("stored", "expected", "matches"),
+    [
+        (None, datetime(2024, 1, 1, 0, 0, 0, 123000), False),
+        (datetime(2024, 1, 1, 0, 0, 0, 123000), datetime(2024, 1, 1, 0, 0, 0, 123456), True),
+        (datetime(2024, 1, 1, 0, 0, 0, 124000), datetime(2024, 1, 1, 0, 0, 0, 123456), False),
+    ],
+)
+def test_same_instant_compares_at_millisecond_precision(stored, expected, matches):
+    assert _same_instant(stored, expected) is matches
 
 
 async def test_import_updates_existing_row_as_pending_by_default(service, repo):
@@ -345,7 +347,7 @@ async def test_import_only_touches_the_selected_language(service, repo):
     assert translations["te"]["status"] == "pending"
 
 
-async def test_import_approved_state_approves_with_version_and_audit(service, repo):
+async def test_import_approved_state_approves_with_version_and_audit(service, repo, reader):
     key = await _seed(repo, lang="kn", text="old")
     doc = await _doc(repo, key)
 
@@ -359,14 +361,14 @@ async def test_import_approved_state_approves_with_version_and_audit(service, re
     assert entry["approved_by"] == ACTOR
     assert updated["status"] == "approved"
     assert updated["version"] == 1
-    versions = await service.get_version_history(str(doc["_id"]), TENANT)
+    versions = await reader.get_version_history(str(doc["_id"]), TENANT)
     assert [v["version"] for v in versions] == [1]
     assert versions[0]["translations"]["kn"]["text"] == "new text"
-    actions = [a["action"] for a in await service.get_audit_trail(SITE, TENANT)]
+    actions = [a["action"] for a in await reader.get_audit_trail(SITE, TENANT)]
     assert sorted(actions) == ["approved", "imported"]
 
 
-async def test_import_approved_state_creates_and_versions_new_rows(service, repo):
+async def test_import_approved_state_creates_and_versions_new_rows(service, repo, reader):
     res = await _import(service, [_row("Brand new", "ಹೊಸ", route="/new")], state="approved")
 
     assert res["created"] == 1
@@ -374,7 +376,7 @@ async def test_import_approved_state_creates_and_versions_new_rows(service, repo
     doc = await _doc(repo, key, "/new")
     assert doc["translations"]["kn"]["status"] == "approved"
     assert doc["status"] == "approved"
-    versions = await service.get_version_history(str(doc["_id"]), TENANT)
+    versions = await reader.get_version_history(str(doc["_id"]), TENANT)
     assert len(versions) == 1 and versions[0]["version"] == 1
 
 
@@ -414,7 +416,7 @@ async def test_import_keep_state_updates_text_and_preserves_status(service, repo
     assert (fresh["text"], fresh["status"]) == ("new f", "pending")
 
 
-async def test_import_partial_write_failure_reports_the_failed_rows(service, repo, monkeypatch):
+async def test_import_partial_write_failure_reports_the_failed_rows(service, repo, reader, monkeypatch):
     await _seed(repo, "First")
     await _seed(repo, "Second")
 
@@ -434,7 +436,7 @@ async def test_import_partial_write_failure_reports_the_failed_rows(service, rep
     ]
     assert (await _doc(repo, sdk_rolling_hash("First")))["translations"]["kn"]["text"] == "one"
     assert (await _doc(repo, sdk_rolling_hash("Second")))["translations"] == {}
-    audit = await service.get_audit_trail(SITE, TENANT)
+    audit = await reader.get_audit_trail(SITE, TENANT)
     assert [a["key"] for a in audit] == [sdk_rolling_hash("First")]
 
 
@@ -663,7 +665,7 @@ async def test_import_keep_state_with_overwrite_blank_still_clears_the_entry(ser
     assert "kn" not in (await _doc(repo, approved_key))["translations"]
 
 
-async def test_import_approved_over_rejected_approves_and_clears_rejection(service, repo):
+async def test_import_approved_over_rejected_approves_and_clears_rejection(service, repo, reader):
     key = await _seed(repo, lang="kn", text="old", status="rejected")
     doc = await _doc(repo, key)
 
@@ -674,7 +676,7 @@ async def test_import_approved_over_rejected_approves_and_clears_rejection(servi
     assert entry["text"] == "fixed" and entry["status"] == "approved"
     assert entry["approved_by"] == ACTOR
     assert not {"rejected_by", "rejected_at", "rejection_reason"} & set(entry)
-    assert len(await service.get_version_history(str(doc["_id"]), TENANT)) == 1
+    assert len(await reader.get_version_history(str(doc["_id"]), TENANT)) == 1
 
 
 async def test_find_by_route_keys_returns_only_the_exact_route_and_key_pairs(repo):
@@ -855,7 +857,7 @@ async def test_import_reads_the_site_document_once(service, repo, monkeypatch):
     assert calls == [SITE]
 
 
-async def test_failed_version_write_does_not_turn_saved_rows_into_a_server_error(service, repo, monkeypatch):
+async def test_failed_version_write_does_not_turn_saved_rows_into_a_server_error(service, repo, reader, monkeypatch):
     key = await _seed(repo, lang="kn", text="old")
 
     async def boom(_docs):
@@ -869,7 +871,7 @@ async def test_failed_version_write_does_not_turn_saved_rows_into_a_server_error
     assert [(w.row, w.route, w.key, w.reason) for w in res["warnings"]] == [(4, "/", key, "version_not_recorded")]
     entry = (await _doc(repo, key))["translations"]["kn"]
     assert (entry["text"], entry["status"]) == ("new text", "approved")
-    assert sorted(a["action"] for a in await service.get_audit_trail(SITE, TENANT)) == ["approved", "imported"]
+    assert sorted(a["action"] for a in await reader.get_audit_trail(SITE, TENANT)) == ["approved", "imported"]
 
 
 async def test_failed_version_guard_lookup_does_not_turn_saved_rows_into_a_server_error(service, repo, monkeypatch):
@@ -958,13 +960,13 @@ async def test_history_warnings_do_not_hide_row_level_errors(service, repo, monk
     assert [w.reason for w in res["warnings"]] == ["audit_not_recorded"]
 
 
-async def test_a_clean_import_has_no_warnings(service, repo):
+async def test_a_clean_import_has_no_warnings(service, repo, reader):
     await _seed(repo)
 
     res = await _import(service, [_row("Hello World", "x")], state="approved")
 
     assert res["warnings"] == []
-    assert len(await service.get_audit_trail(SITE, TENANT)) == 2
+    assert len(await reader.get_audit_trail(SITE, TENANT)) == 2
 
 
 async def test_approved_import_does_not_overwrite_a_row_approved_concurrently(service, repo, monkeypatch):

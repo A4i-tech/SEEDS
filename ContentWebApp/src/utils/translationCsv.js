@@ -1,6 +1,8 @@
 import Papa from "papaparse";
 import { translatedText } from "../dto/LocalizationDto";
 
+const Q = "\u0022";
+
 export const MAX_IMPORT_ROWS = 5000;
 
 export const ENCODING_ERROR =
@@ -45,7 +47,7 @@ export const buildTranslationCsv = ({ docs, lang, languageName }) => {
 export const readFileText = (file) =>
   new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
+    reader.onload = () => resolve(reader.result);
     reader.onerror = () => reject(new Error("Could not read the file"));
     reader.readAsText(file, "UTF-8");
   });
@@ -59,7 +61,7 @@ const buildTable = (data, headerIndex) => {
   const header = data[headerIndex].map((value) => value.trim());
   const lower = header.map((value) => value.toLowerCase());
   const routeIndex = lower.indexOf("route");
-  if (routeIndex < 0) return { error: 'The CSV has no "Route" column.' };
+  if (routeIndex < 0) return { error: `The CSV has no ${Q}Route${Q} column.` };
   const locales = header
     .map((label, index) => ({ label, index }))
     .filter(({ label }) => label && !NON_LOCALE_HEADERS.has(label.toLowerCase()));
@@ -93,8 +95,7 @@ export const parseTranslationCsv = (text) => {
   const headerIndex = data.findIndex((row) => row[0].trim().toLowerCase() === "asset id");
   if (headerIndex < 0) {
     return {
-      error:
-        'No "Asset ID" header row was found. Use a file exported from Localization or Localise.biz.',
+      error: `No ${Q}Asset ID${Q} header row was found. Use a file exported from Localization or Localise.biz.`,
     };
   }
   return errors.length ? { error: parseError(errors) } : buildTable(data, headerIndex);
@@ -118,11 +119,8 @@ export const selectTargetColumn = (table, lang) => {
   return { error: `The CSV has no target column for "${lang}".` };
 };
 
-const lastRequiredIndex = (table, targetIndex) =>
-  Math.max(table.routeIndex, table.assetIndex, table.sourceIndex, targetIndex);
-
 export const buildImportRows = (table, targetIndex) => {
-  const required = lastRequiredIndex(table, targetIndex);
+  const required = Math.max(table.routeIndex, table.assetIndex, table.sourceIndex, targetIndex);
   const short = table.rows.find(({ cells }) => cells.length <= required);
   if (short) throw new Error(`Row ${short.number} has fewer columns than the header.`);
   return table.rows.map(({ cells: row, number }) => ({

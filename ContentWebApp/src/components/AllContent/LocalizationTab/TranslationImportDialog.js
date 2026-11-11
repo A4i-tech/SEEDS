@@ -63,14 +63,15 @@ function TranslationImportDialog({ siteId, languages, defaultLang, onClose, onIm
     }
   }, [result]);
 
+  const parsed = table && !table.error;
   const target = useMemo(
-    () => (table && !table.error && lang ? selectTargetColumn(table, lang) : null),
-    [table, lang]
+    () => (parsed && lang ? selectTargetColumn(table, lang) : null),
+    [table, parsed, lang]
   );
-  const tooManyRows = table && !table.error && table.rows.length > MAX_IMPORT_ROWS;
+  const tooManyRows = parsed && table.rows.length > MAX_IMPORT_ROWS;
   const { longRows, shortRows, importRows } = useMemo(() => {
     const checked = { longRows: [], shortRows: [], importRows: null };
-    if (table && !table.error && !tooManyRows) {
+    if (parsed && !tooManyRows) {
       const hasTarget = target && target.index !== undefined;
       const required = hasTarget
         ? Math.max(table.routeIndex, table.assetIndex, table.sourceIndex, target.index)
@@ -84,7 +85,7 @@ function TranslationImportDialog({ siteId, languages, defaultLang, onClose, onIm
       }
     }
     return checked;
-  }, [table, target, tooManyRows]);
+  }, [table, parsed, target, tooManyRows]);
   const questionMarks = importRows ? countQuestionMarkTranslations(importRows) : 0;
   const problem =
     table?.error ||
@@ -96,8 +97,6 @@ function TranslationImportDialog({ siteId, languages, defaultLang, onClose, onIm
       `Row${shortRows.length === 1 ? "" : "s"} ${shortRows.join(", ")} ${shortRows.length === 1 ? "has" : "have"} fewer columns than the header. Fix the file and import again.`) ||
     (questionMarks > 0 && questionMarkError(questionMarks));
   const canImport = Boolean(importRows && importRows.length && !problem && !busy);
-  const targetCodes =
-    table && !table.error ? table.targets.map((t) => t.code || t.label).join(", ") : "";
 
   const chooseFile = async (event) => {
     const file = event.target.files[0];
@@ -127,7 +126,7 @@ function TranslationImportDialog({ siteId, languages, defaultLang, onClose, onIm
         rows: importRows,
       });
       setResult(res);
-      onImported(res);
+      onImported();
     } catch (e) {
       setFailure(
         `${e.message} If this was a network or timeout error, some rows may already have been imported — check the list before retrying.`
@@ -156,9 +155,10 @@ function TranslationImportDialog({ siteId, languages, defaultLang, onClose, onIm
           onChange={chooseFile}
           disabled={busy || Boolean(result)}
         />
-        {fileName && table && !table.error && (
+        {fileName && parsed && (
           <p className="placeholder-text">
-            {fileName}: {table.rows.length} rows, language column: {targetCodes}
+            {fileName}: {table.rows.length} rows, language column:{" "}
+            {table.targets.map((t) => t.code || t.label).join(", ")}
           </p>
         )}
 
