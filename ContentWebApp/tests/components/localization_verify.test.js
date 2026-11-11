@@ -17,7 +17,8 @@ import { translationService } from "../../src/services/translationService";
 
 jest.mock("../../src/components/AllContent/shared/MiddleEllipsis", () => ({
   __esModule: true,
-  default: ({ text }) => require("react").createElement("span", { "data-testid": "middle-ellipsis" }, text),
+  default: ({ text }) =>
+    require("react").createElement("span", { "data-testid": "middle-ellipsis" }, text),
 }));
 
 beforeAll(() => {
@@ -31,7 +32,10 @@ beforeAll(() => {
   // jsdom has no layout engine (clientWidth is always 0) and no canvas 2D context.
   // Fake both so useIsTruncated's width comparison is meaningful in tests: a fixed
   // "container width" of 150px against a measured width proportional to text length.
-  Object.defineProperty(window.HTMLElement.prototype, "clientWidth", { configurable: true, value: 150 });
+  Object.defineProperty(window.HTMLElement.prototype, "clientWidth", {
+    configurable: true,
+    value: 150,
+  });
   window.HTMLCanvasElement.prototype.getContext = () => ({
     measureText: (text) => ({ width: text.length * 10 }),
   });
@@ -69,7 +73,13 @@ function renderWorkspace(scope) {
   });
   const utils = render(
     <ToastProvider>
-      <WorkspaceScreen scope={scope} languages={langs} sites={sites} onScope={onScope} pages={[{ route: "/" }]} />
+      <WorkspaceScreen
+        scope={scope}
+        languages={langs}
+        sites={sites}
+        onScope={onScope}
+        pages={[{ route: "/" }]}
+      />
     </ToastProvider>
   );
   return { ...utils, onScope };
@@ -87,7 +97,13 @@ describe("Translate & Review — live component verification", () => {
       makeDoc("k2", "Good Morning", { translated: "ಶುಭೋದಯ" }),
     ]);
     renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
-    await waitFor(() => expect(translationService.listForReview).toHaveBeenCalledWith({ siteId: "site-1", route: "/", lang: "kn" }));
+    await waitFor(() =>
+      expect(translationService.listForReview).toHaveBeenCalledWith({
+        siteId: "site-1",
+        route: "/",
+        lang: "kn",
+      })
+    );
     await screen.findByText("Hello World");
     expect(screen.getByText("Good Morning")).toBeInTheDocument();
 
@@ -115,7 +131,9 @@ describe("Translate & Review — live component verification", () => {
   });
 
   test("PASS — Pagination slices rows per page and page buttons switch pages", async () => {
-    const docs = Array.from({ length: 15 }, (_, i) => makeDoc(`k${i}`, `Source ${i}`, { translated: `T${i}` }));
+    const docs = Array.from({ length: 15 }, (_, i) =>
+      makeDoc(`k${i}`, `Source ${i}`, { translated: `T${i}` })
+    );
     translationService.listForReview.mockResolvedValue(docs);
     renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
     await screen.findByText("Source 0");
@@ -155,7 +173,9 @@ describe("Translate & Review — live component verification", () => {
     await userEvent.click(approveBtn);
 
     expect(translationService.approveTranslation).toHaveBeenCalledWith("k1", "kn");
-    await waitFor(() => expect(within(screen.getByRole("table")).getByText("Approved")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(within(screen.getByRole("table")).getByText("Approved")).toBeInTheDocument()
+    );
   });
 
   test("PASS — Reject calls rejectTranslation and flips row to Rejected", async () => {
@@ -170,7 +190,9 @@ describe("Translate & Review — live component verification", () => {
     await userEvent.click(rejectBtn);
 
     expect(translationService.rejectTranslation).toHaveBeenCalledWith("k1", "kn", "needs work");
-    await waitFor(() => expect(within(screen.getByRole("table")).getByText("Rejected")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(within(screen.getByRole("table")).getByText("Rejected")).toBeInTheDocument()
+    );
   });
 
   test("PASS — Reject works on an already-approved row and flips it to Rejected", async () => {
@@ -186,7 +208,9 @@ describe("Translate & Review — live component verification", () => {
     await userEvent.click(rejectBtn);
 
     expect(translationService.rejectTranslation).toHaveBeenCalledWith("k1", "kn", "needs work");
-    await waitFor(() => expect(within(screen.getByRole("table")).getByText("Rejected")).toBeInTheDocument());
+    await waitFor(() =>
+      expect(within(screen.getByRole("table")).getByText("Rejected")).toBeInTheDocument()
+    );
   });
 
   test("PASS — Approve/Reject can be toggled back and forth repeatedly on the same row", async () => {
@@ -258,7 +282,11 @@ describe("Translate & Review — live component verification", () => {
     await userEvent.click(screen.getByRole("button", { name: /Approve all/i }));
 
     await waitFor(() =>
-      expect(translationService.bulkApproveTranslations).toHaveBeenCalledWith({ siteId: "site-1", route: "/", lang: "kn" })
+      expect(translationService.bulkApproveTranslations).toHaveBeenCalledWith({
+        siteId: "site-1",
+        route: "/",
+        lang: "kn",
+      })
     );
     expect(translationService.approveTranslation).not.toHaveBeenCalled();
     expect(await screen.findByText("Approved 2, skipped 2")).toBeInTheDocument();
@@ -270,7 +298,11 @@ describe("Translate & Review — live component verification", () => {
       makeDoc("k1", "Hello World", { translated: "ಹಲೋ ವರ್ಲ್ಡ್" }),
       makeDoc("k2", "Good Morning", { translated: "ಶುಭೋದಯ" }),
     ]);
-    translationService.bulkApproveTranslations.mockResolvedValue({ approved: 1, skipped: 0, failed: 1 });
+    translationService.bulkApproveTranslations.mockResolvedValue({
+      approved: 1,
+      skipped: 0,
+      failed: 1,
+    });
     renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
     await screen.findByText("Hello World");
     translationService.listForReview.mockClear();
@@ -358,7 +390,10 @@ describe("Translate & Review — live component verification", () => {
     translationService.listForReview.mockResolvedValue([
       makeDoc("k1", "Hello World", { translated: "ಹಲೋ ವರ್ಲ್ಡ್" }),
     ]);
-    translationService.updateTranslation.mockResolvedValue({ translations: { kn: { text: "Edited text" } }, status: "" });
+    translationService.updateTranslation.mockResolvedValue({
+      translations: { kn: { text: "Edited text" } },
+      status: "",
+    });
     renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
     await screen.findByText("Hello World");
 
@@ -366,7 +401,9 @@ describe("Translate & Review — live component verification", () => {
     fireEvent.change(textarea, { target: { value: "Edited text" } });
     fireEvent.blur(textarea);
 
-    await waitFor(() => expect(translationService.updateTranslation).toHaveBeenCalledWith("k1", "kn", "Edited text"));
+    await waitFor(() =>
+      expect(translationService.updateTranslation).toHaveBeenCalledWith("k1", "kn", "Edited text")
+    );
   });
 
   describe("source text expansion", () => {
@@ -389,10 +426,14 @@ describe("Translate & Review — live component verification", () => {
     });
 
     test("PASS — a row whose source text fits is never given a Show more toggle", async () => {
-      translationService.listForReview.mockResolvedValue([makeDoc("k1", "Hello World", { translated: "T1" })]);
+      translationService.listForReview.mockResolvedValue([
+        makeDoc("k1", "Hello World", { translated: "T1" }),
+      ]);
       renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
       await screen.findByText("Hello World");
-      expect(screen.queryByRole("button", { name: "Show full source text" })).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Show full source text" })
+      ).not.toBeInTheDocument();
     });
 
     test("PASS — expanding a row shows the full wrapped source and collapsing restores the truncated view", async () => {
@@ -410,8 +451,13 @@ describe("Translate & Review — live component verification", () => {
 
       await userEvent.click(toggle);
       expect(screen.getAllByTestId("middle-ellipsis")).toHaveLength(2);
-      expect(screen.queryByRole("button", { name: "Show less source text" })).not.toBeInTheDocument();
-      expect(screen.getAllByRole("button", { name: "Show full source text" })[0]).toHaveAttribute("aria-expanded", "false");
+      expect(
+        screen.queryByRole("button", { name: "Show less source text" })
+      ).not.toBeInTheDocument();
+      expect(screen.getAllByRole("button", { name: "Show full source text" })[0]).toHaveAttribute(
+        "aria-expanded",
+        "false"
+      );
     });
 
     test("PASS — expanding one row leaves the other row collapsed", async () => {
@@ -442,7 +488,9 @@ describe("Translate & Review — live component verification", () => {
     renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
 
     await screen.findByText("Permission denied");
-    expect(screen.getByText("Your account doesn't have access to Translate & Review.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Your account doesn't have access to Translate & Review.")
+    ).toBeInTheDocument();
     expect(screen.queryByText("This page hasn't been translated yet.")).not.toBeInTheDocument();
   });
 
@@ -480,7 +528,13 @@ describe("Translate & Review — live component verification", () => {
     const onScope = jest.fn();
     const { rerender } = render(
       <ToastProvider>
-        <WorkspaceScreen scope={scope} languages={langs} sites={sites} onScope={onScope} pages={[{ route: "/route-a" }, { route: "/route-b" }]} />
+        <WorkspaceScreen
+          scope={scope}
+          languages={langs}
+          sites={sites}
+          onScope={onScope}
+          pages={[{ route: "/route-a" }, { route: "/route-b" }]}
+        />
       </ToastProvider>
     );
 

@@ -4,10 +4,23 @@ from typing import Annotated, Literal
 
 from pydantic import AfterValidator, BaseModel, Field, field_validator
 
-from app.services.sdk_rolling_hash import js_trim
+_JS_WHITESPACE = "".join(
+    map(
+        chr,
+        [0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x20, 0xA0, 0x1680, *range(0x2000, 0x200B)]
+        + [0x2028, 0x2029, 0x202F, 0x205F, 0x3000, 0xFEFF],
+    )
+)
+
+
+def js_trim(text: str) -> str:
+    return text.strip(_JS_WHITESPACE)
+
 
 MAX_IMPORT_ROWS = 5000
+# Matches a language code: two lowercase letters with optional uppercase region, e.g. "en" or "pt-BR".
 LANG_PATTERN = r"^[a-z]{2}(-[A-Z]{2})?$"
+# Matches a URL pathname: leading "/" then printable ASCII excluding " # < > ? ^ ` { } \ (the SDK's route charset).
 ROUTE_PATTERN = r"^/[!-~--[\"#<>?^`{}\\]]*$"
 ROUTE_MAX_LENGTH = 2048
 KEY_MAX_LENGTH = 256

@@ -12,7 +12,11 @@ from pymongo import UpdateOne
 from pymongo.asynchronous.database import AsyncDatabase
 from pymongo.errors import BulkWriteError, PyMongoError
 
-from app.models.requests.translation_requests import ImportState, TranslationImportRow
+from app.models.requests.translation_requests import (
+    ImportState,
+    TranslationImportRow,
+    js_trim,
+)
 from app.models.responses.translation import (
     ImportRowError,
     ImportRowReason,
@@ -38,7 +42,7 @@ from app.repositories.website_repository import WebsiteRepository
 from app.services.glossary_normalizer import GlossaryNormalizer
 from app.services.placeholder_protector import mask, unmask
 from app.services.quality_scorer import is_low_confidence, score_translation
-from app.services.sdk_rolling_hash import js_trim, sdk_rolling_hash
+from app.services.sdk_rolling_hash import sdk_rolling_hash
 
 logger = logging.getLogger(__name__)
 
@@ -71,12 +75,8 @@ class _OutcomeResult(NamedTuple):
     warnings: list[ImportRowError]
 
 
-IMPORT_TEXT_MAX_LENGTH = 5000
-ROUTE_MAX_LENGTH = 2048
-IMPORT_KEY_MAX_LENGTH = 256
 IMPORT_QUALITY_SCORE = 1.0
 IMPORT_SOURCE_LANG = "en"
-_ROUTE_FORBIDDEN_CHARS = frozenset(['"', "#", "<", ">", "?", "^", "`", "{", "}", chr(92)])
 _REJECTION_FIELDS = ("rejected_by", "rejected_at", "rejection_reason")
 _REVIEW_FIELDS = ("approved_by", "approved_at", *_REJECTION_FIELDS)
 
@@ -144,32 +144,6 @@ def _same_instant(stored: datetime | None, expected: datetime) -> bool:
         return False
     millis = expected.microsecond // 1000 * 1000
     return stored.replace(tzinfo=None) == expected.replace(tzinfo=None, microsecond=millis)
-
-
-def _is_url_pathname(route: str) -> bool:
-    if len(route) > ROUTE_MAX_LENGTH or not route.startswith("/"):
-        return False
-    if not all("!" <= char <= "~" and char not in _ROUTE_FORBIDDEN_CHARS for char in route):
-        return False
-    return not any(segment in (".", "..") for segment in route.split("/"))
-
-
-def _import_row_error(route: str, key: str, source: str, text: str) -> ImportRowReason | None:
-    if not key:
-        return "missing_key"
-    if len(key) > IMPORT_KEY_MAX_LENGTH:
-        return "key_too_long"
-    if not route:
-        return "missing_route"
-    if not _is_url_pathname(route):
-        return "invalid_route"
-    if not source:
-        return "missing_source"
-    if len(source) > IMPORT_TEXT_MAX_LENGTH:
-        return "source_too_long"
-    if len(text) > IMPORT_TEXT_MAX_LENGTH:
-        return "text_too_long"
-    return None
 
 
 class TranslationService:
@@ -649,9 +623,7 @@ class TranslationService:
             key = row.key
             source = _canonical_source(row.source)
             text = _normalize_newlines(row.text)
-            reason = _import_row_error(route, key, source, text)
-            if reason is None and (route, key) in seen:
-                reason = "duplicate_row"
+            reason = "missing_source" if not source else "duplicate_row" if (route, key) in seen else None
             if reason:
                 fail(row_no, route, key, reason)
                 continue
@@ -673,7 +645,7 @@ class TranslationService:
 
         for row_no, route, key, source, text in parsed:
             doc = existing.get((route, key))
-            existing_translations = doc.get("translations") or {} if doc is not None else {}
+            existing_translations = doc["translations"] if doc is not None else {}
             entry = existing_translations.get(lang)
             current = _normalize_newlines((entry or {}).get("text") or "")
 
@@ -874,7 +846,6 @@ class TranslationService:
                     )
                 failed_ops |= guard_mismatched
 
-        # Rows outside the version guard have no other way to confirm a bulk_write_unknown outcome.
         if bulk_write_unknown:
             unverified |= {i for i in range(len(planned)) if i not in failed_ops and i not in guarded}
 

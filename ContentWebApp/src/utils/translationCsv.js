@@ -1,7 +1,7 @@
 import Papa from "papaparse";
+import { translatedText } from "../dto/LocalizationDto";
 
 export const MAX_IMPORT_ROWS = 5000;
-export const MAX_EXPORT_ROWS = 20000;
 
 export const ENCODING_ERROR =
   "The file is not valid UTF-8, so its text would be corrupted. In Excel use Save As > CSV UTF-8 (Comma delimited), then import that file.";
@@ -30,7 +30,7 @@ export const buildTranslationCsv = ({ docs, lang, languageName }) => {
   const rows = [...docs]
     .sort((a, b) => compare(a.route, b.route) || compare(a.key, b.key))
     .map((doc) =>
-      [doc.key, doc.route, doc.sourceText, doc.translations[lang]?.text ?? ""].map(escapeFormula)
+      [doc.key, doc.route, doc.sourceText, translatedText(doc, lang)].map(escapeFormula)
     );
   const csv = Papa.unparse(
     {
@@ -59,7 +59,7 @@ const buildTable = (data, headerIndex) => {
   const header = data[headerIndex].map((value) => value.trim());
   const lower = header.map((value) => value.toLowerCase());
   const routeIndex = lower.indexOf("route");
-  if (routeIndex < 0) return { error: "The CSV has no \"Route\" column." };
+  if (routeIndex < 0) return { error: 'The CSV has no "Route" column.' };
   const locales = header
     .map((label, index) => ({ label, index }))
     .filter(({ label }) => label && !NON_LOCALE_HEADERS.has(label.toLowerCase()));
@@ -94,7 +94,7 @@ export const parseTranslationCsv = (text) => {
   if (headerIndex < 0) {
     return {
       error:
-        "No \"Asset ID\" header row was found. Use a file exported from Localization or Localise.biz.",
+        'No "Asset ID" header row was found. Use a file exported from Localization or Localise.biz.',
     };
   }
   return errors.length ? { error: parseError(errors) } : buildTable(data, headerIndex);
@@ -120,14 +120,6 @@ export const selectTargetColumn = (table, lang) => {
 
 const lastRequiredIndex = (table, targetIndex) =>
   Math.max(table.routeIndex, table.assetIndex, table.sourceIndex, targetIndex);
-
-export const findShortRows = (table, targetIndex) =>
-  table.rows
-    .filter(({ cells }) => cells.length <= lastRequiredIndex(table, targetIndex))
-    .map(({ number }) => number);
-
-export const findLongRows = (table) =>
-  table.rows.filter(({ cells }) => cells.length > table.headerLength).map(({ number }) => number);
 
 export const buildImportRows = (table, targetIndex) => {
   const required = lastRequiredIndex(table, targetIndex);

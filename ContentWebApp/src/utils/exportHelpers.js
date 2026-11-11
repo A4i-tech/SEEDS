@@ -1,3 +1,7 @@
+/**
+ * Export utility functions for downloading data as CSV or JSON files
+ */
+
 export const downloadBlob = (blob, filename) => {
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -14,6 +18,12 @@ export const downloadCsv = (csvContent, filename) => {
   downloadBlob(new Blob([csvContent], { type: "text/csv;charset=utf-8;" }), `${filename}.csv`);
 };
 
+/**
+ * Convert array of objects to CSV and trigger download
+ * @param {Array} data - Array of objects to export
+ * @param {Array} headers - Array of keys to use as column headers
+ * @param {string} filename - Name for the downloaded file (without extension)
+ */
 export const exportToCSV = (data, headers, filename) => {
   if (!data || data.length === 0) {
     console.warn("No data to export");
@@ -41,9 +51,15 @@ export const exportToCSV = (data, headers, filename) => {
   // Combine header and data
   const csvContent = [headerRow, ...dataRows].join("\n");
 
+  // Create blob and trigger download
   downloadCsv(csvContent, filename);
 };
 
+/**
+ * Export array of objects as JSON and trigger download
+ * @param {Array} data - Array of objects to export
+ * @param {string} filename - Name for the downloaded file (without extension)
+ */
 export const exportToJSON = (data, filename) => {
   if (!data || data.length === 0) {
     console.warn("No data to export");

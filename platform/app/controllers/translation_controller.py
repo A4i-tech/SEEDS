@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field
 
 from app.models.requests.translation_requests import (
+    ROUTE_MAX_LENGTH,
     BulkApproveRequest,
     TranslationApproveRequest,
     TranslationImportRequest,
@@ -21,11 +22,7 @@ from app.models.responses.translation import (
 from app.platform.auth.dependencies import require_tenant, require_translation_reviewer
 from app.platform.security import limiter
 from app.services.analytics_service import AnalyticsService, get_analytics_service
-from app.services.translation_service import (
-    ROUTE_MAX_LENGTH,
-    TranslationService,
-    get_translation_service,
-)
+from app.services.translation_service import TranslationService, get_translation_service
 
 logger = logging.getLogger(__name__)
 

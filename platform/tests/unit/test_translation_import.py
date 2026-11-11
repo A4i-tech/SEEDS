@@ -7,10 +7,10 @@ import pytest
 from pydantic import ValidationError as PydanticValidationError
 from pymongo.errors import BulkWriteError, PyMongoError
 
-from app.models.requests.translation_requests import TranslationImportRow
+from app.models.requests.translation_requests import TranslationImportRow, js_trim
 from app.platform.error_handling import NotFoundError, ValidationError
 from app.repositories.translation_repository import TranslationRepository
-from app.services.sdk_rolling_hash import js_trim, sdk_rolling_hash
+from app.services.sdk_rolling_hash import sdk_rolling_hash
 from app.services.translation_service import TranslationService, _same_instant
 from tests.support.mongomock_async import AsyncMongoMockClient
 

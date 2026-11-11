@@ -1,13 +1,10 @@
 import Papa from "papaparse";
 import {
   ENCODING_ERROR,
-  MAX_EXPORT_ROWS,
   MAX_IMPORT_ROWS,
   buildImportRows as buildRows,
   buildTranslationCsv,
   countQuestionMarkTranslations,
-  findLongRows,
-  findShortRows,
   parseTranslationCsv,
   questionMarkError,
   selectTargetColumn,
@@ -26,23 +23,23 @@ describe("buildTranslationCsv", () => {
   test("starts with a UTF-8 BOM and the Loco-style header", () => {
     const csv = buildTranslationCsv({ docs: [], lang: "kn", languageName: "Kannada" });
     expect(csv.charCodeAt(0)).toBe(0xfeff);
-    expect(csv.slice(1).split("\r\n")[0]).toBe("\"Asset ID\",\"Route\",\"English, en\",\"Kannada, kn\"");
+    expect(csv.slice(1).split("\r\n")[0]).toBe('"Asset ID","Route","English, en","Kannada, kn"');
   });
 
   test("quotes every field, escapes quotes, keeps commas, multiline values and Unicode", () => {
     const csv = buildTranslationCsv({
       docs: [
         doc("k1", "/", "Welcome, friend", "ಸ್ವಾಗತ, ಸ್ನೇಹಿತ"),
-        doc("k2", "/", "Say \"hi\" now", "ಹೇ \"ಹಾಯ್\" ಈಗ"),
+        doc("k2", "/", 'Say "hi" now', 'ಹೇ "ಹಾಯ್" ಈಗ'),
         doc("k3", "/", "Line one\nLine two", "ಸಾಲು ೧\nಸಾಲು ೨"),
       ],
       lang: "kn",
       languageName: "Kannada",
     });
 
-    expect(csv).toContain("\"k1\",\"/\",\"Welcome, friend\",\"ಸ್ವಾಗತ, ಸ್ನೇಹಿತ\"");
-    expect(csv).toContain("\"k2\",\"/\",\"Say \"\"hi\"\" now\",\"ಹೇ \"\"ಹಾಯ್\"\" ಈಗ\"");
-    expect(csv).toContain("\"k3\",\"/\",\"Line one\nLine two\",\"ಸಾಲು ೧\nಸಾಲು ೨\"");
+    expect(csv).toContain('"k1","/","Welcome, friend","ಸ್ವಾಗತ, ಸ್ನೇಹಿತ"');
+    expect(csv).toContain('"k2","/","Say ""hi"" now","ಹೇ ""ಹಾಯ್"" ಈಗ"');
+    expect(csv).toContain('"k3","/","Line one\nLine two","ಸಾಲು ೧\nಸಾಲು ೨"');
   });
 
   test("includes blank-target rows and uses the selected language only", () => {
@@ -52,7 +49,10 @@ describe("buildTranslationCsv", () => {
         translations: { kn: { text: "ಹಲೋ" }, te: { text: "హలో" } },
       },
       doc("k2", "/", "No translation yet", ""),
-      { ...doc("k3", "/about", "Other language only", ""), translations: { kn: { text: "" }, te: { text: "తెలుగు" } } },
+      {
+        ...doc("k3", "/about", "Other language only", ""),
+        translations: { kn: { text: "" }, te: { text: "తెలుగు" } },
+      },
     ];
 
     const { data } = Papa.parse(
@@ -78,7 +78,7 @@ describe("buildTranslationCsv", () => {
   });
 
   test("falls back to the language code when no language name is given", () => {
-    expect(buildTranslationCsv({ docs: [], lang: "kn" })).toContain("\"kn, kn\"");
+    expect(buildTranslationCsv({ docs: [], lang: "kn" })).toContain('"kn, kn"');
   });
 });
 
@@ -86,7 +86,7 @@ describe("parseTranslationCsv", () => {
   test("round-trips an exported file", () => {
     const docs = [
       doc("k1", "/", "Welcome, friend", "ಸ್ವಾಗತ, ಸ್ನೇಹಿತ"),
-      doc("k2", "/about", "Say \"hi\"", ""),
+      doc("k2", "/about", 'Say "hi"', ""),
       doc("k3", "/", "Line one\nLine two", "ಸಾಲು ೧\nಸಾಲು ೨"),
     ];
 
@@ -99,17 +99,17 @@ describe("parseTranslationCsv", () => {
     expect(buildImportRows(table, target.index)).toEqual([
       { route: "/", key: "k1", source: "Welcome, friend", text: "ಸ್ವಾಗತ, ಸ್ನೇಹಿತ" },
       { route: "/", key: "k3", source: "Line one\nLine two", text: "ಸಾಲು ೧\nಸಾಲು ೨" },
-      { route: "/about", key: "k2", source: "Say \"hi\"", text: "" },
+      { route: "/about", key: "k2", source: 'Say "hi"', text: "" },
     ]);
   });
 
   test("tolerates leading Localise-style comment rows and a BOM", () => {
     const text =
-      "\uFEFF\"'Loco csv export: Comma separated values\"\n" +
-      "\"'Project: Untitled project\"\n" +
-      "\"'Locale: kn, Kannada\"\n" +
-      "\"Asset ID\",\"Route\",\"English, en\",\"Kannada, kn\",\"Context\",\"Notes\"\n" +
-      "\"hello\",\"/\",\"Hello World\",\"ಹಲೋ\",\"\",\"\"\n";
+      '\uFEFF"\'Loco csv export: Comma separated values"\n' +
+      '"\'Project: Untitled project"\n' +
+      '"\'Locale: kn, Kannada"\n' +
+      '"Asset ID","Route","English, en","Kannada, kn","Context","Notes"\n' +
+      '"hello","/","Hello World","ಹಲೋ","",""\n';
 
     const table = parseTranslationCsv(text);
 
@@ -124,12 +124,12 @@ describe("parseTranslationCsv", () => {
     const text =
       "\uFEFF'Loco csv export: Comma separated values,,,\r\n" +
       "'Project: Untitled project,,,\r\n" +
-      "\"'Exported at: Mon, 21 Sep 2026 12:58:50 +0530\",,,\r\n" +
-      "Asset ID,Route,\"English, en\",\"Kannada, kn\"\r\n" +
+      '"\'Exported at: Mon, 21 Sep 2026 12:58:50 +0530",,,\r\n' +
+      'Asset ID,Route,"English, en","Kannada, kn"\r\n' +
       "hello,/,Hello World,ಹೊಸ ಮೌಲ್ಯ (Excel-edit)\r\n" +
-      "comma,/,\"Welcome, friend\",\"ಒಂದು, ಎರಡು, ಮೂರು\"\r\n" +
-      "quote,/,\"Say \"\"hi\"\" now\",\"ಅವರು \"\"ನಮಸ್ಕಾರ\"\" ಎಂದರು\"\r\n" +
-      "newline,/,\"Multi\nline\",\"ಸಾಲು ೧\nಸಾಲು ೨\"\r\n" +
+      'comma,/,"Welcome, friend","ಒಂದು, ಎರಡು, ಮೂರು"\r\n' +
+      'quote,/,"Say ""hi"" now","ಅವರು ""ನಮಸ್ಕಾರ"" ಎಂದರು"\r\n' +
+      'newline,/,"Multi\nline","ಸಾಲು ೧\nಸಾಲು ೨"\r\n' +
       ",,,\r\n" +
       "untranslated,/,Untranslated one,\r\n";
 
@@ -139,7 +139,7 @@ describe("parseTranslationCsv", () => {
     expect(rows).toEqual([
       { route: "/", key: "hello", source: "Hello World", text: "ಹೊಸ ಮೌಲ್ಯ (Excel-edit)" },
       { route: "/", key: "comma", source: "Welcome, friend", text: "ಒಂದು, ಎರಡು, ಮೂರು" },
-      { route: "/", key: "quote", source: "Say \"hi\" now", text: "ಅವರು \"ನಮಸ್ಕಾರ\" ಎಂದರು" },
+      { route: "/", key: "quote", source: 'Say "hi" now', text: 'ಅವರು "ನಮಸ್ಕಾರ" ಎಂದರು' },
       { route: "/", key: "newline", source: "Multi\nline", text: "ಸಾಲು ೧\nಸಾಲು ೨" },
       { route: "/", key: "untranslated", source: "Untranslated one", text: "" },
     ]);
@@ -156,19 +156,10 @@ describe("parseTranslationCsv", () => {
 
   test("throws on a row missing one of the required columns", () => {
     const table = parseTranslationCsv(
-      "\"Asset ID\",\"Route\",\"English, en\",\"Kannada, kn\"\n\"k1\",\"/\",\"Hello\"\n"
+      '"Asset ID","Route","English, en","Kannada, kn"\n"k1","/","Hello"\n'
     );
 
     expect(() => buildImportRows(table, 3)).toThrow();
-    expect(findShortRows(table, 3)).toEqual([2]);
-  });
-
-  test("flags a row with more cells than the header instead of silently dropping the extra fields", () => {
-    const table = parseTranslationCsv(
-      "\"Asset ID\",\"Route\",\"English, en\",\"Kannada, kn\"\n\"k1\",\"/\",\"Hello\",\"ಹಲೋ\",\"extra\"\n"
-    );
-
-    expect(findLongRows(table)).toEqual([2]);
   });
 
   test("an empty file or one without an Asset ID header is an error", () => {
@@ -177,7 +168,7 @@ describe("parseTranslationCsv", () => {
   });
 
   test("a header-only file has no rows", () => {
-    const table = parseTranslationCsv("\"Asset ID\",\"Route\",\"English, en\",\"Kannada, kn\"\n");
+    const table = parseTranslationCsv('"Asset ID","Route","English, en","Kannada, kn"\n');
 
     expect(table.error).toBeUndefined();
     expect(table.rows).toEqual([]);
@@ -185,19 +176,19 @@ describe("parseTranslationCsv", () => {
 
   test("requires a Route column and a source plus target column", () => {
     expect(
-      parseTranslationCsv("\"Asset ID\",\"English, en\",\"Kannada, kn\"\n\"k\",\"a\",\"b\"\n").error
+      parseTranslationCsv('"Asset ID","English, en","Kannada, kn"\n"k","a","b"\n').error
     ).toMatch(/Route/);
-    expect(parseTranslationCsv("\"Asset ID\",\"Route\",\"English, en\"\n\"k\",\"/\",\"a\"\n").error).toMatch(
+    expect(parseTranslationCsv('"Asset ID","Route","English, en"\n"k","/","a"\n').error).toMatch(
       /target language/
     );
   });
 
   test("an unclosed quote is reported with its row instead of swallowing the rest of the file", () => {
     const result = parseTranslationCsv(
-      "\"Asset ID\",\"Route\",\"English, en\",\"Kannada, kn\"\n" +
-        "\"k1\",\"/\",\"Hello\",\"ಹಲೋ\"\n" +
-        "\"k2\",\"/\",\"Unclosed,ಹಲೋ\n" +
-        "\"k3\",\"/\",\"After\",\"ನಂತರ\"\n"
+      '"Asset ID","Route","English, en","Kannada, kn"\n' +
+        '"k1","/","Hello","ಹಲೋ"\n' +
+        '"k2","/","Unclosed,ಹಲೋ\n' +
+        '"k3","/","After","ನಂತರ"\n'
     );
 
     expect(result.error).toMatch(/could not be parsed.*\(row 3\)/);
@@ -206,7 +197,7 @@ describe("parseTranslationCsv", () => {
 
   test("a stray quote inside a quoted value is rejected too", () => {
     const result = parseTranslationCsv(
-      "\"Asset ID\",\"Route\",\"English, en\",\"Kannada, kn\"\n\"k1\",\"/\",\"Hel\"lo\",\"ಹಲೋ\"\n"
+      '"Asset ID","Route","English, en","Kannada, kn"\n"k1","/","Hel"lo","ಹಲೋ"\n'
     );
 
     expect(result.error).toMatch(/could not be parsed/);
@@ -216,7 +207,7 @@ describe("parseTranslationCsv", () => {
     const table = parseTranslationCsv(
       "'Loco csv export,,,\r\n" +
         "'Project: x,,,\r\n" +
-        "Asset ID,Route,\"English, en\",\"Kannada, kn\"\r\n" +
+        'Asset ID,Route,"English, en","Kannada, kn"\r\n' +
         "k1,/,One,ಒಂದು\r\n" +
         ",,,\r\n" +
         "\r\n" +
@@ -231,7 +222,7 @@ describe("parseTranslationCsv", () => {
 
   test("a CSV with only an Asset ID, Route, source and one target column is accepted", () => {
     const table = parseTranslationCsv(
-      "\"Asset ID\",\"Route\",\"English, en\",\"Kannada, kn\"\n\"k1\",\"/\",\"Hello\",\"ಹಲೋ\"\n"
+      '"Asset ID","Route","English, en","Kannada, kn"\n"k1","/","Hello","ಹಲೋ"\n'
     );
 
     expect(table.error).toBeUndefined();
@@ -241,7 +232,7 @@ describe("parseTranslationCsv", () => {
 
   test("Context and Notes columns do not change which column is the target", () => {
     const table = parseTranslationCsv(
-      "\"Asset ID\",\"Route\",\"English, en\",\"Kannada, kn\",\"Context\",\"Notes\"\n\"k1\",\"/\",\"Hello\",\"ಹಲೋ\",\"ctx\",\"note\"\n"
+      '"Asset ID","Route","English, en","Kannada, kn","Context","Notes"\n"k1","/","Hello","ಹಲೋ","ctx","note"\n'
     );
 
     expect(selectTargetColumn(table, "kn")).toEqual({ index: 3, code: "kn" });
@@ -252,7 +243,7 @@ describe("parseTranslationCsv", () => {
 
   test("a metadata column without a language code before the target is not read as a language", () => {
     const table = parseTranslationCsv(
-      "\"Asset ID\",\"Route\",\"English, en\",\"Screenshot\",\"Kannada, kn\"\n\"k1\",\"/\",\"Hello\",\"img\",\"ಹಲೋ\"\n"
+      '"Asset ID","Route","English, en","Screenshot","Kannada, kn"\n"k1","/","Hello","img","ಹಲೋ"\n'
     );
 
     expect(table.targets).toHaveLength(1);
@@ -301,7 +292,7 @@ describe("selectTargetColumn", () => {
 
 describe("formula injection protection", () => {
   const risky = [
-    "=HYPERLINK(\"http://evil.example\",\"click\")",
+    '=HYPERLINK("http://evil.example","click")',
     "+1 offer",
     "-5% off",
     "@user",
@@ -373,7 +364,7 @@ describe("formula injection protection", () => {
 
   test("an Excel re-saved file keeps the apostrophe as text and still imports the original value", () => {
     const table = parseTranslationCsv(
-      "Asset ID,Route,\"English, en\",\"Kannada, kn\"\r\nk1,/,'=SUM(1+1),'+91 ಹಲೋ\r\n"
+      'Asset ID,Route,"English, en","Kannada, kn"\r\nk1,/,\'=SUM(1+1),\'+91 ಹಲೋ\r\n'
     );
 
     expect(buildImportRows(table, 3)).toEqual([
@@ -384,7 +375,7 @@ describe("formula injection protection", () => {
 
 describe("encoding corruption", () => {
   const replacement = String.fromCharCode(0xfffd);
-  const header = "\"Asset ID\",\"Route\",\"English, en\",\"Kannada, kn\"";
+  const header = '"Asset ID","Route","English, en","Kannada, kn"';
 
   test("a file with replacement characters is rejected with CSV UTF-8 instructions", () => {
     const result = parseTranslationCsv(
@@ -405,8 +396,8 @@ describe("encoding corruption", () => {
     const text =
       String.fromCharCode(0xfeff) +
       `${header}\r\n` +
-      "\"k1\",\"/\",\"Welcome, friend\",\"ಸ್ವಾಗತ, \"\"ಸ್ನೇಹಿತ\"\"\"\r\n" +
-      "\"k2\",\"/about\",\"Line one\nLine two\",\"తెలుగు\nవచనం\"\r\n";
+      '"k1","/","Welcome, friend","ಸ್ವಾಗತ, ""ಸ್ನೇಹಿತ"""\r\n' +
+      '"k2","/about","Line one\nLine two","తెలుగు\nవచనం"\r\n';
 
     const table = parseTranslationCsv(text);
 
@@ -433,8 +424,4 @@ describe("encoding corruption", () => {
     expect(questionMarkError(3)).toMatch(/^3 translations contain only/);
     expect(questionMarkError(2)).toMatch(/CSV UTF-8/);
   });
-});
-
-test("MAX_EXPORT_ROWS is 20000", () => {
-  expect(MAX_EXPORT_ROWS).toBe(20000);
 });

@@ -276,12 +276,7 @@ function TranslationImportDialog({ siteId, languages, defaultLang, onClose, onIm
       </div>
 
       <div className="modal-actions">
-        <button
-          type="button"
-          className="action-ghost-button"
-          onClick={handleClose}
-          disabled={busy}
-        >
+        <button type="button" className="action-ghost-button" onClick={handleClose} disabled={busy}>
           {result ? "Close" : "Cancel"}
         </button>
         {!result && (

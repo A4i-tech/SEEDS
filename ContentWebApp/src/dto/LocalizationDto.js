@@ -71,3 +71,7 @@ export const toTranslationImportRequest = ({ lang, overwriteBlank, state, rows }
   state,
   rows,
 });
+
+// A language with no entry yet is untranslated; its text is blank by definition.
+export const translatedText = (doc, lang) =>
+  lang in doc.translations ? doc.translations[lang].text : "";
