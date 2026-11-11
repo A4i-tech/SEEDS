@@ -29,11 +29,11 @@ from app.platform.auth.dependencies import require_role
 from app.platform.error_handling import AppError, NotFoundError, ValidationError
 from app.platform.settings import get_settings
 from app.providers.blob_storage import BlobStorageProvider, get_blob_storage_provider
+from app.remediation.braille import validate_braille_job
 from app.repositories.textbook_remediation_repository import (
     TextbookRemediationRepository,
     get_textbook_remediation_repo,
 )
-from app.remediation.braille import validate_braille_job
 from app.services.language_registry import SUPPORTED_LANGUAGES
 from app.services.textbook_remediation import (
     artifact_chunks as _artifact_chunks,

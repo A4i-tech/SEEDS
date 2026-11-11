@@ -4,8 +4,8 @@ import re
 
 import pytest
 
-from app.platform.error_handling import ValidationError
 from app.models.remediation_job import JobStatus, RemediationJob
+from app.platform.error_handling import ValidationError
 from app.remediation.braille import build_braille, markdown_to_braille_text, validate_braille_job
 
 MARKDOWN = """# Chapter 1
