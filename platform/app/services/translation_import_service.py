@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import Counter
 from datetime import UTC, datetime
-from typing import Any, Literal, NamedTuple, TypedDict
+from typing import Any
 
 from bson import ObjectId
 from fastapi import Depends
@@ -11,6 +11,8 @@ from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.requests.translation_requests import (
     ImportState,
+    ParsedRow,
+    PlannedRow,
     TranslationImportRow,
     js_trim,
 )
@@ -19,6 +21,7 @@ from app.models.responses.translation import (
     ImportRowReason,
     TranslationImportResponse,
 )
+from app.models.translation import StoredVersionDoc, TranslationEntry
 from app.platform.auth.dependencies import get_db
 from app.platform.error_handling import NotFoundError
 from app.repositories.translation_audit_repository import TranslationAuditRepository
@@ -26,36 +29,12 @@ from app.repositories.translation_repository import IMPORT_PROVIDER, Translation
 from app.repositories.translation_version_repository import TranslationVersionRepository
 from app.repositories.website_repository import WebsiteRepository
 from app.services.sdk_rolling_hash import sdk_rolling_hash
-from app.services.translation_service import (
-    AuditDoc,
-    StoredVersionDoc,
-    TranslationEntry,
-    _audit_doc,
-    _version_doc,
-    ensure_lang_enabled,
-)
+from app.services.translation_service import _audit_doc, _version_doc, ensure_lang_enabled
 
 IMPORT_QUALITY_SCORE = 1.0
 IMPORT_SOURCE_LANG = "en"
 _REJECTION_FIELDS = ("rejected_by", "rejected_at", "rejection_reason")
 _REVIEW_FIELDS = ("approved_by", "approved_at", *_REJECTION_FIELDS)
-
-
-class PlannedRow(TypedDict):
-    row: int
-    route: str
-    key: str
-    kind: Literal["created", "updated"]
-    audits: list[AuditDoc]
-    version_doc: StoredVersionDoc | None
-
-
-class ParsedRow(NamedTuple):
-    row: int
-    route: str
-    key: str
-    source: str
-    text: str
 
 
 def _normalize_newlines(value: str) -> str:

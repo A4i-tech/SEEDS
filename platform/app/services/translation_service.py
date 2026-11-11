@@ -4,13 +4,14 @@ import logging
 from collections import defaultdict
 from collections.abc import Callable
 from datetime import UTC, datetime
-from typing import Any, TypedDict
+from typing import Any
 
 from fastapi import Depends
 from pymongo import UpdateOne
 from pymongo.asynchronous.database import AsyncDatabase
 from pymongo.errors import BulkWriteError
 
+from app.models.translation import AuditDoc, TranslationEntry, VersionDoc
 from app.platform.auth.dependencies import get_db
 from app.platform.error_handling import NotFoundError, ValidationError
 from app.platform.settings import get_settings
@@ -32,41 +33,6 @@ from app.services.placeholder_protector import mask, unmask
 from app.services.quality_scorer import is_low_confidence, score_translation
 
 logger = logging.getLogger(__name__)
-
-
-class TranslationEntry(TypedDict, total=False):
-    text: str
-    provider: str
-    quality_score: float
-    status: str
-    created_by: str
-    created_at: datetime
-    approved_by: str
-    approved_at: datetime
-
-
-class AuditDoc(TypedDict):
-    site_id: str
-    route: str
-    key: str
-    lang: str
-    action: str
-    actor: str
-    provider: str | None
-    detail: str
-    at: datetime
-
-
-class VersionDoc(TypedDict):
-    version: int
-    translations: dict[str, TranslationEntry]
-    approved_by: str
-    approved_at: datetime
-    created_at: datetime
-
-
-class StoredVersionDoc(VersionDoc):
-    translation_id: str
 
 
 def _audit_doc(

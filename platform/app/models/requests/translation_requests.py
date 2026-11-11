@@ -1,8 +1,10 @@
 from __future__ import annotations
 
-from typing import Annotated, Literal
+from typing import Annotated, Literal, NamedTuple, TypedDict
 
 from pydantic import AfterValidator, BaseModel, Field, field_validator
+
+from app.models.translation import AuditDoc, StoredVersionDoc
 
 _JS_WHITESPACE = "".join(
     map(
@@ -70,3 +72,20 @@ class TranslationImportRequest(BaseModel):
     overwrite_blank: bool = False
     state: ImportState = "pending"
     rows: list[TranslationImportRow] = Field(max_length=MAX_IMPORT_ROWS)
+
+
+class PlannedRow(TypedDict):
+    row: int
+    route: str
+    key: str
+    kind: Literal["created", "updated"]
+    audits: list[AuditDoc]
+    version_doc: StoredVersionDoc | None
+
+
+class ParsedRow(NamedTuple):
+    row: int
+    route: str
+    key: str
+    source: str
+    text: str
