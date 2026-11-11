@@ -192,8 +192,8 @@ class TestBlobStorageProvider:
             assert provider._client.get_user_delegation_key.await_count == 1
 
     @pytest.mark.asyncio
-    async def test_user_delegation_sas_capped_at_key_window(self) -> None:
-        from datetime import timedelta
+    async def test_user_delegation_sas_uses_full_requested_window(self) -> None:
+        from datetime import UTC, datetime, timedelta
         from unittest.mock import AsyncMock
 
         from app.providers.blob_storage import BlobStorageProvider
@@ -208,9 +208,11 @@ class TestBlobStorageProvider:
             provider = BlobStorageProvider()
             provider._client.get_user_delegation_key = AsyncMock(return_value=object())
 
+            before = datetime.now(UTC)
             await provider.generate_sas_url("c", "b1.wav", expiry_hours=1)
             await provider.generate_sas_url("c", "b2.wav", expiry_hours=2)
 
             assert provider._client.get_user_delegation_key.await_count == 1
             expiries = [c.kwargs["expiry"] for c in mock_sas.call_args_list]
-            assert expiries[1] <= expiries[0] + timedelta(seconds=5)
+            assert timedelta(minutes=55) <= expiries[0] - before <= timedelta(minutes=65)
+            assert timedelta(hours=1, minutes=55) <= expiries[1] - before <= timedelta(hours=2, minutes=5)

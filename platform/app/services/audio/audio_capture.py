@@ -20,8 +20,6 @@ from datetime import datetime
 
 logger = logging.getLogger("audio-capture")
 
-_UPLOAD_BACKSTOP_SECONDS = 60.0
-
 
 class AudioCaptureService:
     """Captures raw audio chunks to a local WAV file and uploads to Azure Blob on finalize."""
@@ -71,9 +69,11 @@ class AudioCaptureService:
 
         if self.upload_to_azure:
             if connection_string:
-                from azure.storage.blob import BlobServiceClient  # noqa: PLC0415
+                from azure.storage.blob.aio import (
+                    BlobServiceClient as AsyncBlobServiceClient,  # noqa: PLC0415
+                )
 
-                self.blob_service_client = BlobServiceClient.from_connection_string(connection_string)
+                self.blob_service_client = AsyncBlobServiceClient.from_connection_string(connection_string)
             else:
                 logger.error("audio_capture: AZURE_STORAGE_CONNECTION_STRING not set, disabling upload")
                 self.upload_to_azure = False
@@ -107,6 +107,8 @@ class AudioCaptureService:
         blob_url = None
         if self.upload_to_azure and self.blob_service_client:
             blob_url = await self._upload_to_azure()
+            with contextlib.suppress(Exception):
+                await self.blob_service_client.close()
         if self.delete_local and blob_url:
             self._cleanup_local()
         return blob_url
@@ -114,17 +116,17 @@ class AudioCaptureService:
     async def flush_and_upload(self) -> str | None:
         return await self.finalize()
 
-    def _do_upload(self, blob_name: str) -> str:
+    async def _do_upload(self, blob_name: str) -> str:
         from azure.storage.blob import ContentSettings  # noqa: PLC0415
 
         container_client = self.blob_service_client.get_container_client(self.container_name)
         try:
-            container_client.get_container_properties()
+            await container_client.get_container_properties()
         except Exception:
-            container_client.create_container()
+            await container_client.create_container()
         blob_client = container_client.get_blob_client(blob_name)
         with open(self.file_path, "rb") as fh:
-            blob_client.upload_blob(
+            await blob_client.upload_blob(
                 fh,
                 overwrite=True,
                 content_settings=ContentSettings(content_type="audio/wav"),
@@ -137,10 +139,7 @@ class AudioCaptureService:
         last_error = None
         for attempt in range(1, self.upload_max_retries + 1):
             try:
-                return await asyncio.wait_for(
-                    asyncio.to_thread(self._do_upload, blob_name),
-                    timeout=self.upload_timeout + _UPLOAD_BACKSTOP_SECONDS,
-                )
+                return await asyncio.wait_for(self._do_upload(blob_name), timeout=self.upload_timeout)
             except TimeoutError:
                 last_error = "timeout"
                 logger.warning("audio_capture: upload attempt %d/%d timed out", attempt, self.upload_max_retries)

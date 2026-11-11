@@ -110,3 +110,20 @@ async def test_unmute_all_batches_calls_and_writes_state_once() -> None:
     assert all(not conf.state.participants[p].is_muted for p in phones)
     entry = conf.state.action_history[-1]
     assert entry.metadata["unmuted_count"] == 30
+
+
+@pytest.mark.asyncio
+async def test_unmute_all_with_initiator_logs_leader_action() -> None:
+    from app.models.action_history import ActionType
+    from app.services.confevents.unmute_all_event import UnmuteAllEvent
+
+    phones = ["+441", "+442"]
+    conf = _make_conf(student_phones=phones, muted=True)
+    conf.communication_api.unmute_participant = AsyncMock()
+
+    with patch("asyncio.sleep", new=AsyncMock()):
+        await UnmuteAllEvent(conf_call=conf, initiator_phone="+441").execute_event()
+
+    entry = conf.state.action_history[-1]
+    assert entry.action_type == ActionType.LEADER_UNMUTE_ALL_VIA_DTMF
+    assert entry.metadata["unmuted_count"] == 2

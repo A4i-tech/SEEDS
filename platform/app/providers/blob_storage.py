@@ -34,6 +34,10 @@ from app.platform.settings import get_settings
 logger = logging.getLogger(__name__)
 
 
+_DELEGATION_KEY_LIFETIME = timedelta(hours=24)
+_DELEGATION_REFRESH_MARGIN = timedelta(hours=2)
+
+
 class BlobStorageProvider:
     """Async-capable wrapper around Azure Blob Service Client.
 
@@ -74,9 +78,10 @@ class BlobStorageProvider:
             if self._user_delegation_key is None or (
                 self._key_expiry is not None and datetime.now(UTC) >= self._key_expiry
             ):
-                self._user_delegation_key = await self._client.get_user_delegation_key(start, expiry)
-                self._key_valid_until = expiry
-                self._key_expiry = expiry - timedelta(minutes=5)
+                key_expiry = datetime.now(UTC) + _DELEGATION_KEY_LIFETIME
+                self._user_delegation_key = await self._client.get_user_delegation_key(start, key_expiry)
+                self._key_valid_until = key_expiry
+                self._key_expiry = key_expiry - _DELEGATION_REFRESH_MARGIN
             return self._user_delegation_key, self._key_valid_until
 
     # ------------------------------------------------------------------

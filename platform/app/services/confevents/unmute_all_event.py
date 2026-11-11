@@ -41,7 +41,7 @@ class UnmuteAllEvent(ConferenceEvent):
                 await asyncio.sleep(1.0)
         if self.stream_system_message and unmuted_count > 0:
             await self.conf_call.stream_system_message(SystemAudioMessages.STUDENT_IS_UNMUTED)
-        self.conf_call.state.action_history.append(ActionHistory(timestamp=datetime.now().isoformat(), action_type=ActionType.TEACHER_UNMUTE_ALL, metadata={"unmuted_count": unmuted_count, "total_students": len(students), "failed_phones": failed_phones}, owner=self.initiator_phone or self.conf_call.state.teacher_phone_number or ""))
+        self.conf_call.state.action_history.append(ActionHistory(timestamp=datetime.now().isoformat(), action_type=ActionType.LEADER_UNMUTE_ALL_VIA_DTMF if self.initiator_phone else ActionType.TEACHER_UNMUTE_ALL, metadata={"unmuted_count": unmuted_count, "total_students": len(students), "failed_phones": failed_phones}, owner=self.initiator_phone or self.conf_call.state.teacher_phone_number or ""))
         await self.conf_call.update_state()
 
     async def _unmute_student(self, phone_number: str) -> bool:

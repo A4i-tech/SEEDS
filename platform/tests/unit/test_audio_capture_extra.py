@@ -4,8 +4,8 @@ Extra coverage for audio_capture.py service.
 
 from __future__ import annotations
 
+import asyncio
 import tempfile
-import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -172,17 +172,17 @@ class _StubBlobClient:
     def get_container_client(self, container):
         return self
 
-    def get_container_properties(self):
+    async def get_container_properties(self):
         return None
 
     def get_blob_client(self, blob_name):
         return self
 
-    def upload_blob(self, fh, **kwargs):
+    async def upload_blob(self, fh, **kwargs):
         self.attempts += 1
         self._timeouts.append(kwargs.get("timeout"))
         try:
-            time.sleep(self._delay)
+            await asyncio.sleep(self._delay)
             if self.attempts <= self._failures:
                 raise RuntimeError("azure down")
         finally:
@@ -238,18 +238,16 @@ class TestAudioUploadSdkTimeout:
         assert stub.attempts == 2
 
     @pytest.mark.asyncio
-    async def test_upload_backstop_bounds_sdk_hang(self, tmp_path) -> None:
+    async def test_upload_hang_cancelled_and_retried(self, tmp_path) -> None:
         import time as time_module
 
         service = _upload_service(tmp_path, upload_timeout=0.05, upload_max_retries=2)
         stub = _StubBlobClient([], [], delay=2.0)
         service.blob_service_client = stub
 
-        with patch("app.services.audio.audio_capture._UPLOAD_BACKSTOP_SECONDS", 0.2), \
-             patch("asyncio.sleep", new=AsyncMock()):
-            started = time_module.monotonic()
-            result = await service._upload_to_azure()
-            elapsed = time_module.monotonic() - started
+        started = time_module.monotonic()
+        result = await service._upload_to_azure()
+        elapsed = time_module.monotonic() - started
 
         assert result is None
         assert stub.attempts == 2
