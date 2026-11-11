@@ -38,12 +38,6 @@ const REASONS = {
   write_failed: "The update failed",
 };
 
-const WARNINGS = {
-  version_not_recorded: "version history",
-  save_not_confirmed: "save",
-  audit_not_recorded: "audit entry",
-};
-
 const MAX_LISTED_ERRORS = 100;
 
 function TranslationImportDialog({ siteId, languages, defaultLang, onClose, onImported }) {
@@ -54,7 +48,7 @@ function TranslationImportDialog({ siteId, languages, defaultLang, onClose, onIm
   const [importState, setImportState] = useState("pending");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
-  const [failure, setFailure] = useState(null);
+  const [failure, setFailure] = useState("");
   const resultRef = useRef(null);
 
   useEffect(() => {
@@ -65,12 +59,12 @@ function TranslationImportDialog({ siteId, languages, defaultLang, onClose, onIm
 
   const parsed = table && !table.error;
   const target = useMemo(
-    () => (parsed && lang ? selectTargetColumn(table, lang) : null),
+    () => parsed && lang && selectTargetColumn(table, lang),
     [table, parsed, lang]
   );
   const tooManyRows = parsed && table.rows.length > MAX_IMPORT_ROWS;
   const { longRows, shortRows, importRows } = useMemo(() => {
-    const checked = { longRows: [], shortRows: [], importRows: null };
+    const checked = { longRows: [], shortRows: [], importRows: [] };
     if (parsed && !tooManyRows) {
       const hasTarget = target && target.index !== undefined;
       const required = hasTarget
@@ -86,22 +80,22 @@ function TranslationImportDialog({ siteId, languages, defaultLang, onClose, onIm
     }
     return checked;
   }, [table, parsed, target, tooManyRows]);
-  const questionMarks = importRows ? countQuestionMarkTranslations(importRows) : 0;
+  const questionMarks = countQuestionMarkTranslations(importRows);
   const problem =
-    table?.error ||
-    target?.error ||
+    (table && table.error) ||
+    (target && target.error) ||
     (tooManyRows && `The CSV has more than ${MAX_IMPORT_ROWS} rows.`) ||
     (longRows.length > 0 &&
       `Row${longRows.length === 1 ? "" : "s"} ${longRows.join(", ")} ${longRows.length === 1 ? "has" : "have"} more columns than the header. Fix the file and import again.`) ||
     (shortRows.length > 0 &&
       `Row${shortRows.length === 1 ? "" : "s"} ${shortRows.join(", ")} ${shortRows.length === 1 ? "has" : "have"} fewer columns than the header. Fix the file and import again.`) ||
     (questionMarks > 0 && questionMarkError(questionMarks));
-  const canImport = Boolean(importRows && importRows.length && !problem && !busy);
+  const canImport = Boolean(importRows.length && !problem && !busy);
 
   const chooseFile = async (event) => {
     const file = event.target.files[0];
     setResult(null);
-    setFailure(null);
+    setFailure("");
     setFileName(file ? file.name : "");
     if (!file) {
       setTable(null);
@@ -116,7 +110,7 @@ function TranslationImportDialog({ siteId, languages, defaultLang, onClose, onIm
 
   const runImport = async () => {
     setBusy(true);
-    setFailure(null);
+    setFailure("");
     try {
       const res = await translationService.importTranslations({
         siteId,
@@ -213,7 +207,7 @@ function TranslationImportDialog({ siteId, languages, defaultLang, onClose, onIm
             {problem}
           </p>
         )}
-        {target?.warning && <p className="status-message">{target.warning}</p>}
+        {target && target.warning && <p className="status-message">{target.warning}</p>}
         {failure && (
           <p className="error-message" role="alert">
             {failure}
@@ -225,11 +219,6 @@ function TranslationImportDialog({ siteId, languages, defaultLang, onClose, onIm
             <p className={result.failed ? "error-message" : "success-message"}>
               {`Updated ${result.updated}, created ${result.created}, unchanged ${result.unchanged}, skipped blank ${result.skipped_blank}, failed ${result.failed}`}
             </p>
-            {result.warnings.length > 0 && (
-              <p className="status-message">
-                {`These rows may not be fully saved — their ${[...new Set(result.warnings.map((w) => WARNINGS[w.reason]))].join(" and ")} could not be recorded: row ${[...new Set(result.warnings.map((w) => w.row))].join(", ")}.`}
-              </p>
-            )}
             {result.errors.length > 0 && (
               <div
                 className="table-wrapper import-dialog-errors"
@@ -257,8 +246,8 @@ function TranslationImportDialog({ siteId, languages, defaultLang, onClose, onIm
                         <td className="table-cell" title={err.key}>
                           {err.key}
                         </td>
-                        <td className="table-cell" title={err.detail || REASONS[err.reason]}>
-                          {err.detail || REASONS[err.reason]}
+                        <td className="table-cell" title={REASONS[err.reason]}>
+                          {REASONS[err.reason]}
                         </td>
                       </tr>
                     ))}

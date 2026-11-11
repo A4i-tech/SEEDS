@@ -19,9 +19,6 @@ ImportRowReason = Literal[
     "source_mismatch",
     "key_mismatch",
     "write_failed",
-    "version_not_recorded",
-    "save_not_confirmed",
-    "audit_not_recorded",
 ]
 
 
@@ -105,7 +102,6 @@ class ImportRowError(BaseModel):
     route: str
     key: str
     reason: ImportRowReason
-    detail: str | None = None
 
 
 class TranslationImportResponse(BaseModel):

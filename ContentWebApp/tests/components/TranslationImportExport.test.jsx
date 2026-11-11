@@ -427,24 +427,6 @@ describe("Import dialog", () => {
     expect(translationService.listForReview).toHaveBeenCalled();
   });
 
-  test("history warnings tell the user which rows may not be fully saved", async () => {
-    translationService.importTranslations.mockResolvedValue({
-      ...importOk,
-      warnings: [
-        { row: 4, route: "/", key: "k1", reason: "version_not_recorded" },
-        { row: 4, route: "/", key: "k1", reason: "audit_not_recorded" },
-      ],
-    });
-    const dialog = await openWithFile(`${HEADER}\n${ROW}\n`);
-    await within(dialog).findByText(/1 rows/);
-
-    await clickImport(dialog);
-
-    await within(dialog).findByText(
-      /may not be fully saved — their version history and audit entry could not be recorded: row 4\./
-    );
-  });
-
   test("an invalid-route failure states the whole route rule and shows the route", async () => {
     translationService.importTranslations.mockResolvedValue(
       failedWith({ row: 1, route: "/a?x=1", key: "k1", reason: "invalid_route" })
