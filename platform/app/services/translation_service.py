@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
@@ -28,6 +29,14 @@ from app.services.placeholder_protector import mask, unmask
 from app.services.quality_scorer import is_low_confidence, score_translation
 
 logger = logging.getLogger(__name__)
+
+_MATH_TOKEN = re.compile(r"\{m\d+\}")
+
+
+def _score_with_math_guard(source_text: str, translated: str, normalized: str, out: str, pmap: dict) -> tuple[float, bool]:
+    if _MATH_TOKEN.findall(source_text) != _MATH_TOKEN.findall(translated):
+        return 0.0, False
+    return score_translation(normalized, out, pmap), True
 
 
 class TranslationService:
@@ -232,9 +241,9 @@ class TranslationService:
                     outs = await self._provider.translate_batch(masked_texts, source_lang, lang)
                     for (doc, _m, pmap, _s, normalized), out in zip(chunk, outs, strict=True):
                         translated = unmask(out, pmap)
-                        quality = score_translation(normalized, out, pmap)
+                        quality, tokens_ok = _score_with_math_guard(doc["source_text"], translated, normalized, out, pmap)
                         await self._persist_translation(site_id, route, doc, lang, translated, type(self._provider).__name__, quality)
-                        result[doc["key"]] = translated if serve_pending else doc["source_text"]
+                        result[doc["key"]] = translated if (serve_pending and tokens_ok) else doc["source_text"]
                 except (TransientTranslationError, ValueError):
                     for doc, masked, pmap, _s, normalized in chunk:
                         try:
@@ -243,9 +252,9 @@ class TranslationService:
                             result[doc["key"]] = doc["source_text"]
                             continue
                         translated = unmask(out, pmap)
-                        quality = score_translation(normalized, out, pmap)
+                        quality, tokens_ok = _score_with_math_guard(doc["source_text"], translated, normalized, out, pmap)
                         await self._persist_translation(site_id, route, doc, lang, translated, type(self._provider).__name__, quality)
-                        result[doc["key"]] = translated if serve_pending else doc["source_text"]
+                        result[doc["key"]] = translated if (serve_pending and tokens_ok) else doc["source_text"]
 
     def _chunk(self, entries: list) -> list[list]:
         out: list[list] = []
@@ -270,9 +279,10 @@ class TranslationService:
         for doc in docs:
             existing = (doc.get("translations") or {}).get(lang)
             if existing and existing.get("text"):
+                tokens_ok = _MATH_TOKEN.findall(doc.get("source_text", "")) == _MATH_TOKEN.findall(existing["text"])
                 result[doc["key"]] = (
                     existing["text"]
-                    if (existing.get("status") == "approved" or first_party)
+                    if ((existing.get("status") == "approved" or first_party) and tokens_ok)
                     else doc["source_text"]
                 )
                 continue
@@ -288,6 +298,7 @@ class TranslationService:
                 provider_name = "TranslationMemory"
                 quality_score = 1.0
                 auto_approved = True
+                tokens_ok = True
             else:
                 masked_text, placeholder_map = mask(normalized_text)
                 try:
@@ -301,7 +312,9 @@ class TranslationService:
                     continue
                 translated = unmask(masked_translated, placeholder_map)
                 provider_name = type(self._provider).__name__
-                quality_score = score_translation(normalized_text, masked_translated, placeholder_map)
+                quality_score, tokens_ok = _score_with_math_guard(
+                    doc["source_text"], translated, normalized_text, masked_translated, placeholder_map
+                )
 
             actor = f"system:{provider_name}"
             await self._repo.save_translation(
@@ -325,7 +338,7 @@ class TranslationService:
                 lang=lang,
                 provider=provider_name,
             )
-            result[doc["key"]] = translated if (auto_approved or first_party) else doc["source_text"]
+            result[doc["key"]] = translated if ((auto_approved or first_party) and tokens_ok) else doc["source_text"]
 
         return result
 

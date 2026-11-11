@@ -613,3 +613,62 @@ def test_only_translation_repository_and_migration_021_write_translations_collec
     )
 
 
+async def test_math_token_dropped_by_provider_scores_zero(translation_repo, translation_service, monkeypatch):
+    await translation_repo.upsert_source("site1", "/home", "math", "en", "Bangles {m0} smooth")
+
+    async def _drop_token(text, source_lang, target_lang):
+        return "बांग्लेस चिकनी"
+
+    monkeypatch.setattr(translation_service._provider, "translate", _drop_token)
+
+    result = await translation_service.get_or_translate("site1", "/home", "hi")
+
+    assert result == {"math": "Bangles {m0} smooth"}
+    docs = await translation_repo.find_by_route("site1", "/home")
+    assert docs[0]["translations"]["hi"]["quality_score"] == 0.0
+
+
+async def test_review_generate_batch_keeps_token_and_serves_translation(translation_repo, translation_service):
+    await translation_repo.upsert_source("site1", "/home", "math", "en", "Bangles {m0} smooth")
+
+    result = await translation_service.generate_for_review("site1", TENANT, "/home", "hi")
+
+    assert result == {"math": "[hi] Bangles {m0} smooth"}
+    docs = await translation_repo.find_by_route("site1", "/home")
+    assert docs[0]["translations"]["hi"]["quality_score"] > 0.0
+
+
+async def test_review_generate_batch_dropped_token_serves_source(translation_repo, translation_service, monkeypatch):
+    await translation_repo.upsert_source("site1", "/home", "math", "en", "Bangles {m0} smooth")
+
+    async def _drop_token(text, source_lang, target_lang):
+        return "बांग्लेस चिकनी"
+
+    monkeypatch.setattr(translation_service._provider, "translate", _drop_token)
+
+    result = await translation_service.generate_for_review("site1", TENANT, "/home", "hi")
+
+    assert result == {"math": "Bangles {m0} smooth"}
+    docs = await translation_repo.find_by_route("site1", "/home")
+    assert docs[0]["translations"]["hi"]["quality_score"] == 0.0
+
+
+async def test_review_generate_per_item_fallback_dropped_token_serves_source(
+    translation_repo, translation_service, monkeypatch
+):
+    await translation_repo.upsert_source("site1", "/home", "math", "en", "Bangles {m0} smooth")
+
+    async def _raise_batch(texts, source_lang, target_lang):
+        raise ValueError("force the per-item fallback path")
+
+    async def _drop_token(text, source_lang, target_lang):
+        return "बांग्लेस चिकनी"
+
+    monkeypatch.setattr(translation_service._provider, "translate_batch", _raise_batch)
+    monkeypatch.setattr(translation_service._provider, "translate", _drop_token)
+
+    result = await translation_service.generate_for_review("site1", TENANT, "/home", "hi")
+
+    assert result == {"math": "Bangles {m0} smooth"}
+    docs = await translation_repo.find_by_route("site1", "/home")
+    assert docs[0]["translations"]["hi"]["quality_score"] == 0.0
