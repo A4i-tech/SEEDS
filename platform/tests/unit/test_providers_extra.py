@@ -387,3 +387,15 @@ class TestSmartphoneConnectionBoundedQueue:
         while not mgr._queue.empty():
             seen.append(json.loads(mgr._queue.get_nowait())["n"])
         assert seen == list(range(10, 60))
+
+    @pytest.mark.asyncio
+    async def test_disconnect_on_full_queue_drops_oldest(self) -> None:
+        from app.providers.smartphone_connection import SmartphoneConnectionManager
+
+        mgr = SmartphoneConnectionManager("conf_q")
+        for i in range(50):
+            await mgr.send_message_to_client(None, {"n": i})
+        await mgr.disconnect(None)
+        assert mgr._queue.qsize() == 50
+        items = [mgr._queue.get_nowait() for _ in range(50)]
+        assert items[-1] is None

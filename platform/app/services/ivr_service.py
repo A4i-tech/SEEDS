@@ -235,6 +235,7 @@ class IVRService:
         await ongoing_col.replace_one(
             {"_id": call_leg_id}, ivr_state.model_dump(by_alias=True), upsert=True
         )
+        _fsm_cache[latest_fsm.fsm_id] = latest_fsm
         logger.info(
             "IVR call started: phone=%s call_leg_id=%s conv_uuid=%s",
             phone_number, call_leg_id, conv_uuid,

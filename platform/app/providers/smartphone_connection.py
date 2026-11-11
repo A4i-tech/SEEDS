@@ -50,6 +50,8 @@ class SmartphoneConnectionManager:
         )
 
     async def disconnect(self, client: Any) -> dict:
+        if self._queue.full():
+            self._queue.get_nowait()
         self._queue.put_nowait(None)  # unblock the stream
         return {}
 

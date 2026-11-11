@@ -96,6 +96,8 @@ async def process_audio_message(
             ))
             await conf.update_state()
             logger.warning("HOLD DETECTED | Score: %.2f", detect_result["score"])
+        else:
+            conf.state.hold_detected = False
 
     except Exception as exc:
         logger.exception("audio_processor: error processing chunk — %s", exc)

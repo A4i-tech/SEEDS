@@ -137,6 +137,23 @@ class TestWebsocketAudioProcessor:
         assert conf.update_state.await_count == 2
 
     @pytest.mark.asyncio
+    async def test_hold_detected_resets_when_hold_ends(self) -> None:
+        from app.services.audio.websocket_audio_processor import process_audio_message
+
+        conf = MagicMock()
+        conf.state.hold_detected = True
+        conf.state.action_history = []
+        conf.update_state = AsyncMock()
+        transcriber = MagicMock()
+        transcriber.process_chunk = AsyncMock(return_value={"text": "hello", "segments": []})
+        detector = MagicMock()
+        detector.detect = AsyncMock(return_value={"is_hold": False, "score": 0.1})
+
+        await process_audio_message(b"audio", conf, transcriber, detector, "conf1", None)
+
+        assert conf.state.hold_detected is False
+
+    @pytest.mark.asyncio
     async def test_handle_incoming_disconnect_returns_false(self) -> None:
         from app.services.audio.websocket_audio_processor import handle_incoming_message
 
