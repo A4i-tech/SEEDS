@@ -85,7 +85,6 @@ async def test_import_writes_rows_and_returns_per_row_results(client, mock_db):
         "skipped_blank": 0,
         "failed": 1,
         "errors": [{"row": 2, "route": "/", "key": "tbad", "reason": "key_mismatch"}],
-        "warnings": [],
     }
     doc = (await repo.find_by_route("site1", "/"))[0]
     assert doc["translations"]["kn"]["text"] == "ಹಲೋ"

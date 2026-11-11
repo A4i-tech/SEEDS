@@ -8,13 +8,7 @@ from app.platform.settings import get_settings
 from app.services.quality_scorer import is_low_confidence
 
 ImportRowReason = Literal[
-    "missing_key",
-    "key_too_long",
-    "missing_route",
-    "invalid_route",
     "missing_source",
-    "source_too_long",
-    "text_too_long",
     "duplicate_row",
     "source_mismatch",
     "key_mismatch",
@@ -111,4 +105,3 @@ class TranslationImportResponse(BaseModel):
     skipped_blank: int = 0
     failed: int = 0
     errors: list[ImportRowError] = Field(default_factory=list)
-    warnings: list[ImportRowError] = Field(default_factory=list)

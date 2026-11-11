@@ -24,14 +24,7 @@ const STATE_OPTIONS = [
 ];
 
 const REASONS = {
-  missing_key: "Asset ID is missing",
-  missing_route: "Route is missing",
-  invalid_route:
-    "Route must start with / and use only plain ASCII page-path characters. No spaces, quotes, < > ^ ` { } \\ ? #, no . or .. segments, and at most 2048 characters.",
-  key_too_long: "Asset ID is too long",
   missing_source: "Source text is missing",
-  source_too_long: "Source text is too long",
-  text_too_long: "Translation is too long",
   duplicate_row: "Duplicate route and Asset ID in the file",
   source_mismatch: "Source text differs from the existing row",
   key_mismatch: "Asset ID does not match the source text",

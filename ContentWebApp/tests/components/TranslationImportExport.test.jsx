@@ -124,7 +124,6 @@ const importOk = {
   skipped_blank: 0,
   failed: 0,
   errors: [],
-  warnings: [],
 };
 const failedWith = (...errors) => ({ ...importOk, updated: 0, failed: errors.length, errors });
 const SUMMARY_OK = "Updated 1, created 0, unchanged 0, skipped blank 0, failed 0";
@@ -427,34 +426,18 @@ describe("Import dialog", () => {
     expect(translationService.listForReview).toHaveBeenCalled();
   });
 
-  test("an invalid-route failure states the whole route rule and shows the route", async () => {
-    translationService.importTranslations.mockResolvedValue(
-      failedWith({ row: 1, route: "/a?x=1", key: "k1", reason: "invalid_route" })
-    );
-    const dialog = await openWithFile(`${HEADER}\n"k1","/a?x=1","Hello","ಹಲೋ"\n`);
-    await within(dialog).findByText(/1 rows/);
-
-    await clickImport(dialog);
-
-    const message = await within(dialog).findByText(/Route must start with \//);
-    expect(message).toHaveTextContent(/plain ASCII page-path characters/);
-    expect(message).toHaveTextContent(/\.\. segments/);
-    expect(message).toHaveTextContent(/2048/);
-    expect(within(dialog).getByText("/a?x=1")).toBeInTheDocument();
-  });
-
   test("error cells keep their full text in a tooltip and show the route, key and row", async () => {
     translationService.importTranslations.mockResolvedValue(
-      failedWith({ row: 9, route: "/faq?page=2", key: "x".repeat(300), reason: "key_too_long" })
+      failedWith({ row: 9, route: "/faq?page=2", key: "tbad", reason: "key_mismatch" })
     );
     const dialog = await openWithFile(`${HEADER}\n${ROW}\n`);
     await within(dialog).findByText(/1 rows/);
 
     await clickImport(dialog);
 
-    expect(await within(dialog).findByText("Asset ID is too long")).toHaveAttribute(
+    expect(await within(dialog).findByText("Asset ID does not match the source text")).toHaveAttribute(
       "title",
-      "Asset ID is too long"
+      "Asset ID does not match the source text"
     );
     expect(within(dialog).getByText("/faq?page=2")).toHaveAttribute("title", "/faq?page=2");
     const errorRow = within(dialog).getByRole("row", { name: /\/faq\?page=2/ });

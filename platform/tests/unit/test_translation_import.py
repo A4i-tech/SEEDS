@@ -87,9 +87,7 @@ def _models(rows):
 
 async def _import(service, rows, lang="kn", **kwargs):
     result = await service.import_translations(SITE, TENANT, ACTOR, lang, _models(rows), **kwargs)
-    res = result.model_dump()
-    res["warnings"] = result.warnings
-    return res
+    return result.model_dump()
 
 
 @pytest.mark.parametrize(
@@ -136,7 +134,6 @@ async def test_import_updates_existing_row_as_pending_by_default(service, repo):
         "skipped_blank": 0,
         "failed": 0,
         "errors": [],
-        "warnings": [],
     }
     entry = (await _doc(repo, key))["translations"]["kn"]
     assert entry["text"] == "ಹಲೋ ವರ್ಲ್ಡ್"
@@ -461,7 +458,6 @@ async def test_import_zero_match_write_counts_driver_acked_rows(service, mock_db
     res = await _import(service, [_row("First", "one"), _row("Second", "two")])
 
     assert res["failed"] == 0 and res["updated"] == 2
-    assert res["warnings"] == []
     assert (await _doc(repo, sdk_rolling_hash("First")))["translations"]["kn"]["text"] == "one"
 
 
@@ -483,7 +479,6 @@ async def test_import_mixed_batch_zero_match_counts_driver_acked_rows(
     )
 
     assert res["failed"] == 0 and res["updated"] == 2
-    assert res["warnings"] == []
     assert (await _doc(repo, approved_key))["translations"]["kn"]["status"] == "approved"
 
 
@@ -916,12 +911,11 @@ async def test_history_write_failure_raises_despite_row_level_errors(service, re
         await _import(service, [_row("Hello World", "x"), {"route": "/", "key": "tbad", "source": "Nope", "text": "x"}])
 
 
-async def test_a_clean_import_has_no_warnings(service, repo, reader):
+async def test_a_clean_import_records_import_and_approval(service, repo, reader):
     await _seed(repo)
 
-    res = await _import(service, [_row("Hello World", "x")], state="approved")
+    await _import(service, [_row("Hello World", "x")], state="approved")
 
-    assert res["warnings"] == []
     assert len(await reader.get_audit_trail(SITE, TENANT)) == 2
 
 
