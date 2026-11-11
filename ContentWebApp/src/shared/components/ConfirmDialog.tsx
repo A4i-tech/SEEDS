@@ -1,0 +1,26 @@
+import { Text, Title } from '@mantine/core';
+import { modals } from '@mantine/modals';
+
+interface ConfirmOptions {
+  title: string;
+  body: string;
+  confirmLabel: string;
+  cancelLabel: string;
+  onConfirm: () => void;
+}
+
+export function openConfirmDialog({ title, body, confirmLabel, cancelLabel, onConfirm }: ConfirmOptions) {
+  modals.openConfirmModal({
+    centered: true,
+    size: 480,
+    radius: 'lg',
+    withCloseButton: false,
+    overlayProps: { backgroundOpacity: 0.55 },
+    cancelProps: { variant: 'subtle' },
+    title: <Title order={3}>{title}</Title>,
+    children: <Text size="sm">{body}</Text>,
+    labels: { confirm: confirmLabel, cancel: cancelLabel },
+    confirmProps: { variant: 'destructive' },
+    onConfirm,
+  });
+}
