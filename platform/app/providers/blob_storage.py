@@ -17,7 +17,6 @@ NCCO-building code path (``VonageStreamAction.get()`` / ``ActionAccumulator``).
 
 from __future__ import annotations
 
-import asyncio
 import logging
 import threading
 from collections.abc import AsyncIterator
@@ -370,12 +369,6 @@ class SASGenerator:
 
 
 _provider: BlobStorageProvider | None = None
-
-
-async def warm_delegation_key() -> None:
-    gen = SASGenerator()
-    if gen._azure_enabled and not gen._use_account_key:
-        await asyncio.to_thread(gen._get_delegation_key)
 
 
 def get_blob_storage_provider() -> BlobStorageProvider:
