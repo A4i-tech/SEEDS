@@ -416,7 +416,7 @@ async def test_import_keep_state_updates_text_and_preserves_status(service, repo
     assert (fresh["text"], fresh["status"]) == ("new f", "pending")
 
 
-async def test_import_partial_write_failure_reports_the_failed_rows(service, repo, reader, monkeypatch):
+async def test_import_partial_write_failure_raises(service, repo, monkeypatch):
     await _seed(repo, "First")
     await _seed(repo, "Second")
 
@@ -428,19 +428,11 @@ async def test_import_partial_write_failure_reports_the_failed_rows(service, rep
     real_write = service._repo.bulk_write
     monkeypatch.setattr(service._repo, "bulk_write", _boom)
 
-    res = await _import(service, [_row("First", "one"), _row("Second", "two")])
-
-    assert res["updated"] == 1 and res["failed"] == 1
-    assert res["errors"] == [
-        {"row": 2, "route": "/", "key": sdk_rolling_hash("Second"), "reason": "write_failed", "detail": None}
-    ]
-    assert (await _doc(repo, sdk_rolling_hash("First")))["translations"]["kn"]["text"] == "one"
-    assert (await _doc(repo, sdk_rolling_hash("Second")))["translations"] == {}
-    audit = await reader.get_audit_trail(SITE, TENANT)
-    assert [a["key"] for a in audit] == [sdk_rolling_hash("First")]
+    with pytest.raises(BulkWriteError):
+        await _import(service, [_row("First", "one"), _row("Second", "two")])
 
 
-async def test_import_unknown_bulk_write_outcome_is_not_reported_as_failed_or_confirmed(service, repo, monkeypatch):
+async def test_import_unknown_bulk_write_outcome_raises(service, repo, monkeypatch):
     await _seed(repo, "First")
     await _seed(repo, "Second")
 
@@ -451,18 +443,11 @@ async def test_import_unknown_bulk_write_outcome_is_not_reported_as_failed_or_co
     real_write = service._repo.bulk_write
     monkeypatch.setattr(service._repo, "bulk_write", _boom)
 
-    res = await _import(service, [_row("First", "one"), _row("Second", "two")])
-
-    assert res["failed"] == 0 and res["updated"] == 2
-    assert [(w.row, w.route, w.key, w.reason) for w in res["warnings"]] == [
-        (1, "/", sdk_rolling_hash("First"), "save_not_confirmed"),
-        (2, "/", sdk_rolling_hash("Second"), "save_not_confirmed"),
-    ]
-    assert (await _doc(repo, sdk_rolling_hash("First")))["translations"]["kn"]["text"] == "one"
-    assert (await _doc(repo, sdk_rolling_hash("Second")))["translations"]["kn"]["text"] == "two"
+    with pytest.raises(PyMongoError):
+        await _import(service, [_row("First", "one"), _row("Second", "two")])
 
 
-async def test_import_silent_zero_match_write_is_not_reported_as_confirmed(service, mock_db, repo, monkeypatch):
+async def test_import_zero_match_write_counts_driver_acked_rows(service, mock_db, repo, monkeypatch):
     await _seed(repo, "First")
     second_key = await _seed(repo, "Second")
 
@@ -476,14 +461,11 @@ async def test_import_silent_zero_match_write_is_not_reported_as_confirmed(servi
     res = await _import(service, [_row("First", "one"), _row("Second", "two")])
 
     assert res["failed"] == 0 and res["updated"] == 2
-    assert [(w.row, w.route, w.key, w.reason) for w in res["warnings"]] == [
-        (1, "/", sdk_rolling_hash("First"), "save_not_confirmed"),
-        (2, "/", second_key, "save_not_confirmed"),
-    ]
+    assert res["warnings"] == []
     assert (await _doc(repo, sdk_rolling_hash("First")))["translations"]["kn"]["text"] == "one"
 
 
-async def test_import_mixed_batch_missed_unguarded_write_is_not_reported_as_confirmed(
+async def test_import_mixed_batch_zero_match_counts_driver_acked_rows(
     service, mock_db, repo, monkeypatch
 ):
     approved_key = await _seed(repo, "First")
@@ -501,9 +483,7 @@ async def test_import_mixed_batch_missed_unguarded_write_is_not_reported_as_conf
     )
 
     assert res["failed"] == 0 and res["updated"] == 2
-    assert [(w.row, w.route, w.key, w.reason) for w in res["warnings"]] == [
-        (2, "/", cleared_key, "save_not_confirmed"),
-    ]
+    assert res["warnings"] == []
     assert (await _doc(repo, approved_key))["translations"]["kn"]["status"] == "approved"
 
 
@@ -857,7 +837,7 @@ async def test_import_reads_the_site_document_once(service, repo, monkeypatch):
     assert calls == [SITE]
 
 
-async def test_failed_version_write_does_not_turn_saved_rows_into_a_server_error(service, repo, reader, monkeypatch):
+async def test_failed_version_write_raises_and_rows_stay_saved(service, repo, monkeypatch):
     key = await _seed(repo, lang="kn", text="old")
 
     async def boom(_docs):
@@ -865,21 +845,18 @@ async def test_failed_version_write_does_not_turn_saved_rows_into_a_server_error
 
     monkeypatch.setattr(service._version_repo, "add_versions_bulk", boom)
 
-    res = await _import(service, [{**_row("Hello World", "new text"), "row": 4}], state="approved")
+    with pytest.raises(PyMongoError):
+        await _import(service, [{**_row("Hello World", "new text"), "row": 4}], state="approved")
 
-    assert res["updated"] == 1 and res["failed"] == 0 and res["errors"] == []
-    assert [(w.row, w.route, w.key, w.reason) for w in res["warnings"]] == [(4, "/", key, "version_not_recorded")]
     entry = (await _doc(repo, key))["translations"]["kn"]
     assert (entry["text"], entry["status"]) == ("new text", "approved")
-    assert sorted(a["action"] for a in await reader.get_audit_trail(SITE, TENANT)) == ["approved", "imported"]
 
 
-async def test_failed_version_guard_lookup_does_not_turn_saved_rows_into_a_server_error(service, repo, monkeypatch):
-    key = await _seed(repo, lang="kn", text="old")
+async def test_failed_version_guard_lookup_raises(service, repo, monkeypatch):
+    await _seed(repo, lang="kn", text="old")
 
     real = service._repo.find_by_route_keys
     calls = 0
-    version_calls = []
 
     async def boom(site_id, identities):
         nonlocal calls
@@ -888,25 +865,13 @@ async def test_failed_version_guard_lookup_does_not_turn_saved_rows_into_a_serve
             raise PyMongoError("lookup down")
         return await real(site_id, identities)
 
-    real_add_versions_bulk = service._version_repo.add_versions_bulk
-
-    async def spy_add_versions_bulk(docs):
-        version_calls.append(docs)
-        return await real_add_versions_bulk(docs)
-
     monkeypatch.setattr(service._repo, "find_by_route_keys", boom)
-    monkeypatch.setattr(service._version_repo, "add_versions_bulk", spy_add_versions_bulk)
 
-    res = await _import(service, [{**_row("Hello World", "new text"), "row": 4}], state="approved")
-
-    assert res["updated"] == 1 and res["failed"] == 0 and res["errors"] == []
-    assert [(w.row, w.route, w.key, w.reason) for w in res["warnings"]] == [(4, "/", key, "save_not_confirmed")]
-    entry = (await _doc(repo, key))["translations"]["kn"]
-    assert (entry["text"], entry["status"]) == ("new text", "approved")
-    assert version_calls == []
+    with pytest.raises(PyMongoError):
+        await _import(service, [{**_row("Hello World", "new text"), "row": 4}], state="approved")
 
 
-async def test_failed_audit_write_is_reported_as_a_warning_and_the_rows_stay_saved(service, repo, monkeypatch):
+async def test_failed_audit_write_raises_and_rows_stay_saved(service, repo, monkeypatch):
     await _seed(repo, "First")
     await _seed(repo, "Second")
 
@@ -915,15 +880,14 @@ async def test_failed_audit_write_is_reported_as_a_warning_and_the_rows_stay_sav
 
     monkeypatch.setattr(service._audit_repo, "record_bulk", boom)
 
-    res = await _import(service, [_row("First", "one"), _row("Second", "two")])
+    with pytest.raises(PyMongoError):
+        await _import(service, [_row("First", "one"), _row("Second", "two")])
 
-    assert res["updated"] == 2 and res["failed"] == 0
-    assert [(w.row, w.reason) for w in res["warnings"]] == [(1, "audit_not_recorded"), (2, "audit_not_recorded")]
     assert (await _doc(repo, sdk_rolling_hash("First")))["translations"]["kn"]["text"] == "one"
     assert (await _doc(repo, sdk_rolling_hash("Second")))["translations"]["kn"]["text"] == "two"
 
 
-async def test_failed_new_row_id_lookup_does_not_turn_saved_rows_into_a_server_error(service, repo, monkeypatch):
+async def test_failed_guard_lookup_for_new_rows_raises(service, repo, monkeypatch):
     real = service._repo.find_by_route_keys
     calls = 0
 
@@ -936,16 +900,11 @@ async def test_failed_new_row_id_lookup_does_not_turn_saved_rows_into_a_server_e
 
     monkeypatch.setattr(service._repo, "find_by_route_keys", boom)
 
-    res = await _import(service, [{**_row("Hello World", "new text"), "row": 4}], state="approved")
-
-    assert res["created"] == 1 and res["failed"] == 0
-    assert [(w.row, w.reason) for w in res["warnings"]] == [(4, "save_not_confirmed")]
-    key = sdk_rolling_hash("Hello World")
-    entry = (await _doc(repo, key))["translations"]["kn"]
-    assert (entry["text"], entry["status"]) == ("new text", "approved")
+    with pytest.raises(PyMongoError):
+        await _import(service, [{**_row("Hello World", "new text"), "row": 4}], state="approved")
 
 
-async def test_history_warnings_do_not_hide_row_level_errors(service, repo, monkeypatch):
+async def test_history_write_failure_raises_despite_row_level_errors(service, repo, monkeypatch):
     await _seed(repo)
 
     async def boom(_docs):
@@ -953,11 +912,8 @@ async def test_history_warnings_do_not_hide_row_level_errors(service, repo, monk
 
     monkeypatch.setattr(service._audit_repo, "record_bulk", boom)
 
-    res = await _import(service, [_row("Hello World", "x"), {"route": "/", "key": "tbad", "source": "Nope", "text": "x"}])
-
-    assert res["updated"] == 1 and res["failed"] == 1
-    assert res["errors"][0]["reason"] == "key_mismatch"
-    assert [w.reason for w in res["warnings"]] == ["audit_not_recorded"]
+    with pytest.raises(PyMongoError):
+        await _import(service, [_row("Hello World", "x"), {"route": "/", "key": "tbad", "source": "Nope", "text": "x"}])
 
 
 async def test_a_clean_import_has_no_warnings(service, repo, reader):

@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import logging
+from collections import defaultdict
 from collections.abc import Callable
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, TypedDict
 
 from fastapi import Depends
 from pymongo import UpdateOne
@@ -33,6 +34,41 @@ from app.services.quality_scorer import is_low_confidence, score_translation
 logger = logging.getLogger(__name__)
 
 
+class TranslationEntry(TypedDict, total=False):
+    text: str
+    provider: str
+    quality_score: float
+    status: str
+    created_by: str
+    created_at: datetime
+    approved_by: str
+    approved_at: datetime
+
+
+class AuditDoc(TypedDict):
+    site_id: str
+    route: str
+    key: str
+    lang: str
+    action: str
+    actor: str
+    provider: str | None
+    detail: str
+    at: datetime
+
+
+class VersionDoc(TypedDict):
+    version: int
+    translations: dict[str, TranslationEntry]
+    approved_by: str
+    approved_at: datetime
+    created_at: datetime
+
+
+class StoredVersionDoc(VersionDoc):
+    translation_id: str
+
+
 def _audit_doc(
     site_id: str,
     route: str,
@@ -43,7 +79,7 @@ def _audit_doc(
     provider: str | None,
     detail: str,
     at: datetime,
-) -> dict[str, Any]:
+) -> AuditDoc:
     return {
         "site_id": site_id,
         "route": route,
@@ -57,7 +93,7 @@ def _audit_doc(
     }
 
 
-def _version_doc(version: int, translations: dict[str, Any], approved_by: str, at: datetime) -> dict[str, Any]:
+def _version_doc(version: int, translations: dict[str, TranslationEntry], approved_by: str, at: datetime) -> VersionDoc:
     return {
         "version": version,
         "translations": translations,
@@ -67,8 +103,8 @@ def _version_doc(version: int, translations: dict[str, Any], approved_by: str, a
     }
 
 
-def ensure_lang_enabled(website: dict[str, Any] | None, lang: str) -> None:
-    codes = {entry["code"] for entry in (website or {}).get("languages") or [] if entry.get("enabled")}
+def ensure_lang_enabled(website: dict[str, Any], lang: str) -> None:
+    codes = {entry["code"] for entry in website["languages"] if entry["enabled"]}
     if lang not in codes:
         raise ValidationError(f"lang {lang!r} is not an enabled language for this site")
 
@@ -396,8 +432,8 @@ class TranslationService:
         ops: list[UpdateOne] = []
         op_translation_ids: list[str] = []
         op_lang_counts: list[int] = []
-        versions_by_translation: dict[str, list[dict[str, Any]]] = {}
-        audits_by_translation: dict[str, list[dict[str, Any]]] = {}
+        versions_by_translation: defaultdict[str, list[dict[str, Any]]] = defaultdict(list)
+        audits_by_translation: defaultdict[str, list[dict[str, Any]]] = defaultdict(list)
         approved = 0
         skipped = 0
 
@@ -417,7 +453,7 @@ class TranslationService:
                     continue
 
                 version += 1
-                versions_by_translation.setdefault(translation_id, []).append({
+                versions_by_translation[translation_id].append({
                     "translation_id": translation_id,
                     **_version_doc(version, translations_snapshot, approved_by, now),
                 })
@@ -433,7 +469,7 @@ class TranslationService:
                 audit_pushes.append(
                     {"action": "approved", "actor": approved_by, "detail": f"version={version}", "at": now}
                 )
-                audits_by_translation.setdefault(translation_id, []).append(
+                audits_by_translation[translation_id].append(
                     _audit_doc(
                         site_id, doc["route"], doc["key"], doc_lang, "approved", approved_by, None,
                         f"version={version}", now,
