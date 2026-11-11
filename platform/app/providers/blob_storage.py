@@ -25,6 +25,7 @@ from pathlib import Path
 from typing import IO
 from urllib.parse import unquote, urlparse
 
+from azure.core.exceptions import ClientAuthenticationError, HttpResponseError
 from azure.identity import DefaultAzureCredential
 from azure.identity.aio import DefaultAzureCredential as AsyncDefaultAzureCredential
 from azure.storage.blob import (
@@ -302,7 +303,10 @@ class SASGenerator:
                 account_url=f"https://{self._account_name}.blob.core.windows.net",
                 credential=DefaultAzureCredential(),
             )
-            udk = client.get_user_delegation_key(now - timedelta(minutes=5), expiry)
+            try:
+                udk = client.get_user_delegation_key(now - timedelta(minutes=5), expiry)
+            finally:
+                client.close()
             _delegation_key = (self._account_name, udk, expiry)
             return udk
 
@@ -345,10 +349,13 @@ class SASGenerator:
                     expiry=expiry,
                     start=start,
                 )
-        except Exception as exc:
+        except (ClientAuthenticationError, HttpResponseError) as exc:
             with _delegation_lock:
                 if _delegation_key and _delegation_key[0] == self._account_name:
                     _delegation_key = None
+            logger.error("SASGenerator: failed to generate SAS URL — %s", exc)
+            raise
+        except Exception as exc:
             logger.error("SASGenerator: failed to generate SAS URL — %s", exc)
             raise
 

@@ -15,6 +15,7 @@ import contextlib
 import logging
 import os
 import tempfile
+import threading
 import wave
 from datetime import datetime
 
@@ -53,6 +54,7 @@ class AudioCaptureService:
         self.blob_service_client = None
         self._wav_writer: wave.Wave_write | None = None
         self._file = None
+        self._write_lock = threading.Lock()
         self.file_path: str | None = None
 
         if not self.enabled:
@@ -78,21 +80,23 @@ class AudioCaptureService:
 
     def write_chunk(self, audio_data: bytes) -> None:
         """Write audio bytes to the WAV file.  SECURITY: bytes are NEVER logged."""
-        if not self.enabled or not audio_data or not self._wav_writer:
-            return
-        self._wav_writer.writeframes(audio_data)
-        self.total_bytes += len(audio_data)
+        with self._write_lock:
+            if not self.enabled or not audio_data or not self._wav_writer:
+                return
+            self._wav_writer.writeframes(audio_data)
+            self.total_bytes += len(audio_data)
 
     append_chunk = write_chunk
 
     def _close_file(self) -> None:
-        if self._wav_writer:
-            self._wav_writer.close()
-            self._wav_writer = None
-        if self._file and not self._file.closed:
-            self._file.flush()
-            os.fsync(self._file.fileno())
-            self._file.close()
+        with self._write_lock:
+            if self._wav_writer:
+                self._wav_writer.close()
+                self._wav_writer = None
+            if self._file and not self._file.closed:
+                self._file.flush()
+                os.fsync(self._file.fileno())
+                self._file.close()
 
     async def finalize(self) -> str | None:
         """Close WAV file, upload to Azure, optionally delete local copy."""

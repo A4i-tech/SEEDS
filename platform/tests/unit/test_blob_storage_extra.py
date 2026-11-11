@@ -99,6 +99,7 @@ class TestSASGenerator:
             [t.start() for t in threads]
             [t.join() for t in threads]
         assert client.return_value.get_user_delegation_key.call_count == 1
+        assert client.return_value.close.call_count == 1
 
     def test_delegation_key_refetched_near_expiry(self) -> None:
         from datetime import UTC, datetime, timedelta

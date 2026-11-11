@@ -10,6 +10,7 @@ SECURITY:
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import os
@@ -123,7 +124,7 @@ async def handle_incoming_message(
         # SECURITY: audio bytes are NEVER logged
         if capture_session:
             try:
-                capture_session.write_chunk(msg["bytes"])
+                await asyncio.to_thread(capture_session.write_chunk, msg["bytes"])
             except Exception as exc:
                 logger.exception("websocket: capture error — %s", exc)
         if transcriber and hold_detector:

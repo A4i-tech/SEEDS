@@ -247,7 +247,7 @@ class ConferenceCall:
                 audio_bytes = await self._remote_audio_queue.get()  # type: ignore[union-attr]
                 if self._capture_session:
                     try:
-                        self._capture_session.write_chunk(audio_bytes)
+                        await asyncio.to_thread(self._capture_session.write_chunk, audio_bytes)
                     except Exception as exc:
                         logger.exception("conference_service: capture write error — %s", exc)
                 if transcriber and hold_detector:
