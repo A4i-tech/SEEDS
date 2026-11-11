@@ -100,9 +100,11 @@ class TranslationImportService:
         seen: set[tuple[str, str]] = set()
         for row in rows:
             source = _canonical_source(row.source)
-            reason = "missing_source" if not source else "duplicate_row" if (row.route, row.key) in seen else None
-            if reason:
-                fail(row.row, row.route, row.key, reason)
+            if not source:
+                fail(row.row, row.route, row.key, "missing_source")
+                continue
+            if (row.route, row.key) in seen:
+                fail(row.row, row.route, row.key, "duplicate_row")
                 continue
             seen.add((row.route, row.key))
             parsed.append(ParsedRow(row.row, row.route, row.key, source, _normalize_newlines(row.text)))
@@ -177,7 +179,7 @@ class TranslationImportService:
             existing_translations: dict[str, TranslationEntry] = {} if is_new else doc["translations"]
             lang_entry = existing_translations.get(lang)
             version = (0 if is_new else doc.get("version", 0)) + 1
-            new_id = ObjectId() if is_new else None
+            new_id = ObjectId() if is_new else doc["_id"]
 
             set_fields: dict[str, Any] = {f"{base}.text": item.text, "updated_at": now}
             unset_fields: dict[str, str] = {}
@@ -245,7 +247,7 @@ class TranslationImportService:
                 }
                 stored_version = StoredVersionDoc(
                     **_version_doc(version, {**existing_translations, lang: approved_entry}, actor, now),
-                    translation_id=str(new_id) if is_new else str(doc["_id"]),
+                    translation_id=str(new_id),
                 )
             update["$push"] = {"audit_log": {"$each": log_entries}}
             ops.append(UpdateOne(query, update, upsert=is_new))

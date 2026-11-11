@@ -22,12 +22,12 @@ export default function LocalizationTab() {
     lang: "hi",
   });
   const [siteDocs, setSiteDocs] = useState([]);
-  const [pagesError, setPagesError] = useState(null);
+  const [pagesError, setPagesError] = useState("");
   const [docsVersion, setDocsVersion] = useState(0);
   useEffect(() => {
     let cancelled = false;
     setSiteDocs([]);
-    setPagesError(null);
+    setPagesError("");
     if (!scope.siteId || nav !== "workspace") return undefined;
     translationService
       .listTranslations({ siteId: scope.siteId })

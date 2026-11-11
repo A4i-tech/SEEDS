@@ -163,7 +163,7 @@ async def test_import_rejects_key_that_is_not_the_sdk_hash_of_source(service, re
     res = await _import(service, [_row("Brand new", "ಹೊಸ", key="tdeadbeef")])
 
     assert res["created"] == 0 and res["failed"] == 1
-    assert res["errors"] == [{"row": 1, "route": "/", "key": "tdeadbeef", "reason": "key_mismatch", "detail": None}]
+    assert res["errors"] == [{"row": 1, "route": "/", "key": "tdeadbeef", "reason": "key_mismatch"}]
     assert await repo.find_by_route(SITE, "/") == []
 
 
@@ -234,7 +234,7 @@ async def test_import_fails_duplicate_route_key_rows_and_keeps_the_first(service
     res = await _import(service, [_row("Hello World", "first"), _row("Hello World", "second")])
 
     assert res["updated"] == 1
-    assert res["errors"] == [{"row": 2, "route": "/", "key": key, "reason": "duplicate_row", "detail": None}]
+    assert res["errors"] == [{"row": 2, "route": "/", "key": key, "reason": "duplicate_row"}]
     assert (await _doc(repo, key))["translations"]["kn"]["text"] == "first"
 
 
@@ -554,7 +554,7 @@ async def test_import_new_row_key_follows_javascript_trim_not_python_strip(servi
 
     assert res["created"] == 2
     assert res["errors"] == [
-        {"row": 3, "route": "/", "key": sdk_rolling_hash(bom_source), "reason": "key_mismatch", "detail": None}
+        {"row": 3, "route": "/", "key": sdk_rolling_hash(bom_source), "reason": "key_mismatch"}
     ]
     assert (await _doc(repo, sdk_rolling_hash(edged)))["source_text"] == edged
     assert (await _doc(repo, sdk_rolling_hash("Bom text")))["source_text"] == "Bom text"
@@ -747,7 +747,7 @@ async def test_a_key_hashed_from_the_raw_untrimmed_crlf_source_is_rejected(servi
     res = await _import(service, [{"route": "/", "key": sdk_rolling_hash(messy), "source": messy, "text": "x"}])
 
     assert res["errors"] == [
-        {"row": 1, "route": "/", "key": sdk_rolling_hash(messy), "reason": "key_mismatch", "detail": None}
+        {"row": 1, "route": "/", "key": sdk_rolling_hash(messy), "reason": "key_mismatch"}
     ]
     assert await repo.find_by_route(SITE, "/") == []
 
@@ -944,7 +944,7 @@ async def test_approved_import_does_not_overwrite_a_row_approved_concurrently(se
 
     assert (res["updated"], res["failed"]) == (1, 1)
     assert res["errors"] == [
-        {"row": 2, "route": "/", "key": sdk_rolling_hash("First"), "reason": "write_failed", "detail": None}
+        {"row": 2, "route": "/", "key": sdk_rolling_hash("First"), "reason": "write_failed"}
     ]
     assert (await _doc(repo, sdk_rolling_hash("First")))["translations"]["kn"]["text"] == "old1"
     assert (await _doc(repo, sdk_rolling_hash("Second")))["translations"]["kn"]["text"] == "new2"

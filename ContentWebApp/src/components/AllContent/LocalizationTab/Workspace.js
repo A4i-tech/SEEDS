@@ -172,15 +172,15 @@ export function WorkspaceScreen({
   sites,
   onScope,
   pages,
-  pagesError = null,
+  pagesError = "",
   onDataChanged,
 }) {
   const { siteId, route, lang } = scope;
   const { toast } = useToast();
   const [docs, setDocs] = useState(null);
-  const [docsError, setDocsError] = useState(null);
+  const [docsError, setDocsError] = useState("");
   const [query, setQuery] = useState("");
-  const [savedAt, setSavedAt] = useState(null);
+  const [savedAt, setSavedAt] = useState(0);
   const [statusTab, setStatusTab] = useState("all");
   const rowsPerPage = 10;
   const [pageOffset, setPageOffset] = useState(0);
@@ -191,13 +191,13 @@ export function WorkspaceScreen({
     let cancelled = false;
     if (!siteId || !route) {
       setDocs([]);
-      setDocsError(null);
+      setDocsError("");
       return () => {
         cancelled = true;
       };
     }
     setDocs(null);
-    setDocsError(null);
+    setDocsError("");
     translationService
       .listForReview({ siteId, route, lang })
       .then((list) => {
@@ -255,7 +255,7 @@ export function WorkspaceScreen({
       ds
         ? ds.map((d) => {
             if (d.id !== id) return d;
-            const t = d.translations?.[lang] || {};
+            const t = d.translations[lang] || {};
             return { ...d, translations: { ...d.translations, [lang]: { ...t, status } } };
           })
         : ds

@@ -25,7 +25,7 @@ const unescapeFormula = (value) => (ESCAPED_FORMULA.test(value) ? value.slice(1)
 
 const localeFromHeader = (header) => {
   const code = header.split(",").pop().trim();
-  return LOCALE_CODE.test(code) ? code : null;
+  return LOCALE_CODE.test(code) && code;
 };
 
 export const buildTranslationCsv = ({ docs, lang, languageName }) => {
@@ -112,7 +112,7 @@ export const selectTargetColumn = (table, lang) => {
         }
       : {
           index: only.index,
-          code: null,
+          code: "",
           warning: `The CSV target column "${only.label}" has no language code. It will be imported as ${lang}.`,
         };
   }

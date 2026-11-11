@@ -84,7 +84,7 @@ async def test_import_writes_rows_and_returns_per_row_results(client, mock_db):
         "unchanged": 0,
         "skipped_blank": 0,
         "failed": 1,
-        "errors": [{"row": 2, "route": "/", "key": "tbad", "reason": "key_mismatch", "detail": None}],
+        "errors": [{"row": 2, "route": "/", "key": "tbad", "reason": "key_mismatch"}],
         "warnings": [],
     }
     doc = (await repo.find_by_route("site1", "/"))[0]
@@ -175,4 +175,4 @@ async def test_import_reports_the_csv_row_number_sent_by_the_client(client, mock
     resp = await client.post(URL, json=_body(rows=[row]), headers=_headers())
 
     assert resp.status_code == 200
-    assert resp.json()["errors"] == [{"row": 41, "route": "/", "key": "tbad", "reason": "key_mismatch", "detail": None}]
+    assert resp.json()["errors"] == [{"row": 41, "route": "/", "key": "tbad", "reason": "key_mismatch"}]

@@ -119,7 +119,7 @@ class TranslationService:
 
     async def _get_translation_owned_by_tenant(self, translation_id: str, tenant_id: str) -> dict[str, Any]:
         doc = await self._repo.find_by_id(translation_id)
-        if doc is None:
+        if not doc:
             raise NotFoundError("Translation", translation_id)
         await self._ensure_site_owned_by_tenant(doc["site_id"], tenant_id)
         return doc
@@ -362,7 +362,7 @@ class TranslationService:
         status: str | None = None,
         low_confidence_only: bool = False,
     ) -> list[dict[str, Any]]:
-        if tenant_id is not None:
+        if tenant_id:
             await self._ensure_site_owned_by_tenant(site_id, tenant_id)
         if route:
             docs = await self._repo.find_by_route(site_id, route)
