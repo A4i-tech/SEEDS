@@ -1,0 +1,11 @@
+.chip {
+  display: inline-block;
+  padding: 0 var(--mantine-spacing-xs);
+  border: 1px solid var(--seeds-border-default);
+  border-radius: var(--mantine-radius-xl);
+  background-color: var(--seeds-table-header-bg);
+  color: var(--seeds-text-primary);
+  font-size: var(--mantine-font-size-xs);
+  font-weight: 700;
+  user-select: none;
+}
