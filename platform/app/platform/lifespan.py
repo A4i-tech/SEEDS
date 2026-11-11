@@ -186,6 +186,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # ------------------------------------------------------------------
     await init_database()
 
+    from app.providers.blob_storage import warm_delegation_key  # noqa: PLC0415
+
+    await warm_delegation_key()
+
     from app.repositories.content_aggregator_sync_job_repository import (  # noqa: PLC0415
         ContentAggregatorSyncJobRepository,
     )
