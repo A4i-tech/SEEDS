@@ -151,7 +151,10 @@ def _make_consumer_tasks(conference_manager: Any) -> list[asyncio.Task]:  # type
         from app.consumers.textbook_remediation_consumer import (
             TextbookRemediationConsumer,  # noqa: PLC0415
         )
-        consumer_specs.append(("TextbookRemediationConsumer", TextbookRemediationConsumer(db)))
+        consumer_specs.extend(
+            (f"TextbookRemediationConsumer-{n}", TextbookRemediationConsumer(db))
+            for n in range(1, get_settings().remediation_workers + 1)
+        )
     except Exception as exc:  # noqa: BLE001
         logger.error("Failed to initialise TextbookRemediationConsumer: %s", exc)
 
@@ -196,12 +199,21 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         if reconciled:
             logger.info("Reconciled %d interrupted textbook remediation jobs", reconciled)
 
+    from app.repositories.integration_client_repository import (  # noqa: PLC0415
+        IntegrationClientRepository,
+    )
+    from app.repositories.integration_token_repository import (  # noqa: PLC0415
+        IntegrationTokenRepository,
+    )
     from app.repositories.translation_audit_repository import (  # noqa: PLC0415
         TranslationAuditRepository,
     )
     from app.repositories.translation_repository import TranslationRepository  # noqa: PLC0415
     from app.repositories.translation_version_repository import (  # noqa: PLC0415
         TranslationVersionRepository,
+    )
+    from app.repositories.user_refresh_token_repository import (  # noqa: PLC0415
+        UserRefreshTokenRepository,
     )
     from app.repositories.website_repository import WebsiteRepository  # noqa: PLC0415
 
@@ -212,6 +224,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await ContentAggregatorSyncJobRepository.ensure_indexes(get_database())
     await ContentJobRepository.ensure_indexes(get_database())
     await TextbookRemediationRepository.ensure_indexes(get_database())
+    await IntegrationClientRepository.ensure_indexes(get_database())
+    await UserRefreshTokenRepository.ensure_indexes(get_database())
+    await IntegrationTokenRepository.ensure_indexes(get_database())
 
     # Init conference manager (available in all modes)
     try:
@@ -220,15 +235,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.warning("Conference manager init failed (non-fatal in test mode): %s", exc)
         conf_mgr = None  # type: ignore[assignment]
 
+    from app.providers.service_bus import service_bus_provider  # noqa: PLC0415
+
+    await service_bus_provider.initialize()
+
     consumer_tasks: list[asyncio.Task] = []  # type: ignore[type-arg]
     if settings.app_mode in ("consumer", "all"):
         reconciled = await get_sync_job_service(get_database()).reconcile_interrupted_jobs()
         if reconciled:
             logger.info("Reconciled %d interrupted content aggregator sync jobs", reconciled)
         try:
-            from app.providers.service_bus import service_bus_provider  # noqa: PLC0415
-
-            await service_bus_provider.initialize()
             consumer_tasks = _make_consumer_tasks(conf_mgr)
         except Exception as exc:  # noqa: BLE001
             logger.error("Failed to start consumers: %s", exc)
@@ -271,6 +287,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             await ws_client.close()
         except Exception as exc:
             logger.warning("WebsocketClientProvider close failed: %s", exc)
+
+    await service_bus_provider.close()
 
     if conf_mgr is not None:
         try:

@@ -842,7 +842,7 @@ class TestAuthServiceTenant:
         await register_tenant(data, db)
 
         result = await login_unified("login@test.com", "loginpass", True, db)
-        assert "token" in result
+        assert "access_token" in result
 
     @pytest.mark.asyncio
     async def test_login_wrong_password_raises(self, db) -> None:
