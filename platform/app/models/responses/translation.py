@@ -19,7 +19,7 @@ ImportRowReason = Literal[
 class TranslationEntry(BaseModel):
     model_config = ConfigDict(extra="allow")
 
-    quality_score: float
+    quality_score: float = 1.0
     low_confidence: bool = False
 
 

@@ -542,6 +542,17 @@ def test_translation_response_low_confidence_false_when_all_ok():
     assert out.low_confidence is False
 
 
+def test_translation_response_defaults_missing_quality_score():
+    from app.models.responses.translation import TranslationResponse
+
+    doc = {
+        "_id": "abc", "site_id": "s1", "route": "/", "key": "t1", "source_text": "Hi",
+        "translations": {"hi": {"text": "x"}},
+    }
+    out = TranslationResponse.from_doc(doc)
+    assert out.translations["hi"].quality_score == 1.0
+
+
 async def test_list_translations_low_confidence_only_filters(translation_repo, translation_service):
     await translation_service.extract_items("s1", [
         {"key": "low", "text": "A", "route": "/r", "source_lang": "en"},
