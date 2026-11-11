@@ -8,7 +8,8 @@ import { translationService } from "../../src/services/translationService";
 jest.mock("../../src/services/translationService", () => ({
   translationService: {
     listTranslations: jest.fn(),
-    generateForReview: jest.fn(),
+    listTranslations: jest.fn(),
+    listForReview: jest.fn(),
     approveTranslation: jest.fn(),
     bulkApproveTranslations: jest.fn(),
     rejectTranslation: jest.fn(),
@@ -51,7 +52,6 @@ beforeEach(() => {
     .mockImplementation(function click() {
       downloads[downloads.length - 1].filename = this.download;
     });
-  translationService.generateForReview.mockResolvedValue({});
 });
 
 afterEach(() => {
@@ -117,15 +117,16 @@ const HEADER = "\"Asset ID\",\"Route\",\"English, en\",\"Kannada, kn\"";
 
 describe("Export", () => {
   test("Export downloads every route of the site for the selected language", async () => {
-    translationService.listTranslations.mockResolvedValue(docs);
+    translationService.listForReview.mockResolvedValue(docs);
+    translationService.listTranslations.mockImplementation(async ({ route }) => docs.filter((d) => d.route === route));
     renderWorkspace();
-    await waitFor(() => expect(translationService.listTranslations).toHaveBeenCalled());
-    translationService.listTranslations.mockClear();
+    await waitFor(() => expect(translationService.listForReview).toHaveBeenCalled());
 
     await userEvent.click(screen.getByRole("button", { name: "Export" }));
 
     await waitFor(() => expect(downloads).toHaveLength(1));
-    expect(translationService.listTranslations).toHaveBeenCalledWith({ siteId: "site-1" });
+    expect(translationService.listTranslations).toHaveBeenCalledWith({ siteId: "site-1", route: "/" });
+    expect(translationService.listTranslations).toHaveBeenCalledWith({ siteId: "site-1", route: "/about" });
     expect(downloads[0].filename).toBe("example-com-kn.csv");
     const bytes = await readBlob(downloads[0].blob);
     expect([...bytes.slice(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
@@ -139,14 +140,16 @@ describe("Export", () => {
   });
 
   test("exports the selected language column, not another one", async () => {
-    translationService.listTranslations.mockResolvedValue([
+    const teDocs = [
       {
         ...makeDoc("k1", "/", "Hello"),
         translations: { kn: { text: "ಹಲೋ" }, te: { text: "హలో" } },
       },
-    ]);
+    ];
+    translationService.listForReview.mockResolvedValue(teDocs);
+    translationService.listTranslations.mockImplementation(async ({ route }) => (route === "/" ? teDocs : []));
     renderWorkspace({ siteId: "site-1", route: "/", lang: "te" });
-    await waitFor(() => expect(translationService.listTranslations).toHaveBeenCalled());
+    await waitFor(() => expect(translationService.listForReview).toHaveBeenCalled());
 
     await userEvent.click(screen.getByRole("button", { name: "Export" }));
 
@@ -158,9 +161,10 @@ describe("Export", () => {
   });
 
   test("a site with nothing to export shows a message and downloads nothing", async () => {
+    translationService.listForReview.mockResolvedValue([]);
     translationService.listTranslations.mockResolvedValue([]);
     renderWorkspace();
-    await waitFor(() => expect(translationService.listTranslations).toHaveBeenCalled());
+    await waitFor(() => expect(translationService.listForReview).toHaveBeenCalled());
 
     await userEvent.click(screen.getByRole("button", { name: "Export" }));
 
@@ -169,9 +173,8 @@ describe("Export", () => {
   });
 
   test("an export failure is shown, not swallowed", async () => {
-    translationService.listTranslations
-      .mockResolvedValueOnce(docs)
-      .mockRejectedValue(new Error("List failed"));
+    translationService.listForReview.mockResolvedValue(docs);
+    translationService.listTranslations.mockRejectedValue(new Error("List failed"));
     renderWorkspace();
     await screen.findByText("Untranslated one");
 
@@ -184,7 +187,7 @@ describe("Export", () => {
 
 describe("Import dialog", () => {
   beforeEach(() => {
-    translationService.listTranslations.mockResolvedValue(docs);
+    translationService.listForReview.mockResolvedValue(docs);
   });
 
   test("defaults to the workspace language, overwrite blank OFF and pending review", async () => {
@@ -207,7 +210,6 @@ describe("Import dialog", () => {
       created: 1,
       unchanged: 0,
       skipped_blank: 0,
-      skippedBlank: 0,
       failed: 1,
       errors: [{ row: 3, route: "/new", key: "tbad", reason: "key_mismatch" }],
       warnings: [],
@@ -216,8 +218,8 @@ describe("Import dialog", () => {
       d.key === "k4" ? { ...d, translations: { kn: { text: "ಹೊಸ ಅನುವಾದ", status: "approved" } } } : d
     );
     let listCalls = 0;
-    translationService.listTranslations.mockImplementation(() =>
-      Promise.resolve(listCalls++ < 2 ? docs : docsAfterImport)
+    translationService.listForReview.mockImplementation(() =>
+      Promise.resolve(listCalls++ < 1 ? docs : docsAfterImport)
     );
     renderWorkspace(undefined, onDataChanged);
     await screen.findByText("Untranslated one");
@@ -293,7 +295,7 @@ describe("Import dialog", () => {
       updated: 1,
       created: 0,
       unchanged: 0,
-      skippedBlank: 0,
+      skipped_blank: 0,
       failed: 0,
       errors: [],
       warnings: [],
@@ -372,7 +374,7 @@ describe("Import dialog", () => {
   });
 
   test("Import is unavailable until a site is selected", async () => {
-    translationService.listTranslations.mockResolvedValue([]);
+    translationService.listForReview.mockResolvedValue([]);
     renderWorkspace({ siteId: "", route: "", lang: "kn" });
 
     expect(screen.getByRole("button", { name: "Import" })).toBeDisabled();
@@ -382,7 +384,7 @@ describe("Import dialog", () => {
 
 describe("Import safety", () => {
   beforeEach(() => {
-    translationService.listTranslations.mockResolvedValue(docs);
+    translationService.listForReview.mockResolvedValue(docs);
   });
 
   test("a file with replacement characters is blocked with CSV UTF-8 instructions", async () => {
@@ -435,7 +437,7 @@ describe("Import safety", () => {
       updated: 1,
       created: 0,
       unchanged: 0,
-      skippedBlank: 0,
+      skipped_blank: 0,
       failed: 0,
       errors: [],
       warnings: [],
@@ -463,7 +465,7 @@ describe("Import safety", () => {
       updated: 0,
       created: 0,
       unchanged: 0,
-      skippedBlank: 0,
+      skipped_blank: 0,
       failed: 1,
       errors: [{ row: 1, route: "/a?x=1", key: "k1", reason: "invalid_route" }],
       warnings: [],
@@ -484,16 +486,13 @@ describe("Import safety", () => {
   });
 });
 
-describe("Export safety and limits", () => {
-  const manyDocs = (count) =>
-    Array.from({ length: count }, (_, i) => makeDoc(`k${i}`, "/", `Source ${i}`, `T${i}`));
-
+describe("Export safety", () => {
   test("formula-like source text is neutralised in the downloaded file", async () => {
-    translationService.listTranslations.mockResolvedValue([
-      makeDoc("k1", "/", "=HYPERLINK(\"http://evil.example\",\"click\")", "-5% ಆಫರ್"),
-    ]);
+    const formulaDocs = [makeDoc("k1", "/", "=HYPERLINK(\"http://evil.example\",\"click\")", "-5% ಆಫರ್")];
+    translationService.listForReview.mockResolvedValue(formulaDocs);
+    translationService.listTranslations.mockImplementation(async ({ route }) => (route === "/" ? formulaDocs : []));
     renderWorkspace();
-    await waitFor(() => expect(translationService.listTranslations).toHaveBeenCalled());
+    await waitFor(() => expect(translationService.listForReview).toHaveBeenCalled());
 
     await userEvent.click(screen.getByRole("button", { name: "Export" }));
 
@@ -504,36 +503,6 @@ describe("Export safety and limits", () => {
     );
   });
 
-  test("an all-pages export that reaches the 20,000-row cap warns that it may be incomplete", async () => {
-    translationService.listTranslations
-      .mockResolvedValueOnce(docs)
-      .mockResolvedValueOnce(docs)
-      .mockResolvedValue(manyDocs(20000));
-    renderWorkspace();
-    await screen.findByText("Untranslated one");
-
-    await userEvent.click(screen.getByRole("button", { name: "Export" }));
-
-    await screen.findByText(
-      /20,000 is the most one export can hold, so this file may be incomplete/
-    );
-    expect(screen.queryByText("Exported 20000 rows")).not.toBeInTheDocument();
-    expect(downloads).toHaveLength(1);
-  });
-
-  test("an all-pages export just under the cap reports success", async () => {
-    translationService.listTranslations
-      .mockResolvedValueOnce(docs)
-      .mockResolvedValueOnce(docs)
-      .mockResolvedValue(manyDocs(19999));
-    renderWorkspace();
-    await screen.findByText("Untranslated one");
-
-    await userEvent.click(screen.getByRole("button", { name: "Export" }));
-
-    await screen.findByText("Exported 19999 rows");
-    expect(screen.queryByText(/may be incomplete/)).not.toBeInTheDocument();
-  });
 });
 
 describe("Import dialog layout on short viewports", () => {
@@ -546,12 +515,12 @@ describe("Import dialog layout on short viewports", () => {
     }));
 
   async function importWithErrors(count) {
-    translationService.listTranslations.mockResolvedValue(docs);
+    translationService.listForReview.mockResolvedValue(docs);
     translationService.importTranslations.mockResolvedValue({
       updated: 0,
       created: 0,
       unchanged: 0,
-      skippedBlank: 0,
+      skipped_blank: 0,
       failed: count,
       errors: manyErrors(count),
       warnings: [],
@@ -583,7 +552,7 @@ describe("Import dialog layout on short viewports", () => {
   });
 
   test("the footer is outside the scroll area before a result too", async () => {
-    translationService.listTranslations.mockResolvedValue(docs);
+    translationService.listForReview.mockResolvedValue(docs);
     renderWorkspace();
     await screen.findByText("Untranslated one");
     const dialog = await openImportDialog();
@@ -597,7 +566,7 @@ describe("Import dialog layout on short viewports", () => {
   });
 
   test("the form fields live inside the scroll area before the import", async () => {
-    translationService.listTranslations.mockResolvedValue(docs);
+    translationService.listForReview.mockResolvedValue(docs);
     renderWorkspace();
     await screen.findByText("Untranslated one");
     const dialog = await openImportDialog();
@@ -624,14 +593,14 @@ describe("Import review fixes", () => {
     updated: 1,
     created: 0,
     unchanged: 0,
-    skippedBlank: 0,
+    skipped_blank: 0,
     failed: 0,
     errors: [],
     warnings: [],
   };
 
   beforeEach(() => {
-    translationService.listTranslations.mockResolvedValue(docs);
+    translationService.listForReview.mockResolvedValue(docs);
   });
 
   async function openWithFile(content) {
@@ -648,7 +617,7 @@ describe("Import review fixes", () => {
     );
     await userEvent.click(within(dialog).getByLabelText("Overwrite blank values"));
 
-    await within(dialog).findByText(/not closed properly near row 3/);
+    await within(dialog).findByText(/could not be parsed.*\(row 3\)/);
     expect(within(dialog).getByRole("button", { name: "Import" })).toBeDisabled();
     expect(translationService.importTranslations).not.toHaveBeenCalled();
   });
@@ -668,12 +637,12 @@ describe("Import review fixes", () => {
     translationService.importTranslations.mockRejectedValue(new Error("Gateway timeout"));
     const dialog = await openWithFile(`${HEADER}\n"k1","/","Hello","ಹಲೋ"\n`);
     await within(dialog).findByText(/1 rows/);
-    translationService.listTranslations.mockClear();
+    translationService.listForReview.mockClear();
 
     await userEvent.click(within(dialog).getByRole("button", { name: "Import" }));
 
     await within(dialog).findByText(/Gateway timeout/);
-    await waitFor(() => expect(translationService.listTranslations).toHaveBeenCalled());
+    await waitFor(() => expect(translationService.listForReview).toHaveBeenCalled());
   });
 
   test("a partial import (some rows failed) reloads the list and keeps the row errors visible", async () => {
@@ -684,12 +653,12 @@ describe("Import review fixes", () => {
     });
     const dialog = await openWithFile(`${HEADER}\n"k1","/","Hello","ಹಲೋ"\n`);
     await within(dialog).findByText(/1 rows/);
-    translationService.listTranslations.mockClear();
+    translationService.listForReview.mockClear();
 
     await userEvent.click(within(dialog).getByRole("button", { name: "Import" }));
 
     await within(dialog).findByText("Asset ID does not match the source text");
-    expect(translationService.listTranslations).toHaveBeenCalled();
+    expect(translationService.listForReview).toHaveBeenCalled();
   });
 
   test("history warnings tell the user which rows may not be fully saved", async () => {

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.platform.error_handling import NotFoundError
+from app.platform.error_handling import NotFoundError, ValidationError
 from app.providers.translation_provider import (
     TransientTranslationError,
     TranslationProvider,
@@ -159,8 +159,8 @@ async def test_find_by_site_and_analytics_enforce_row_cap(
         ],
     )
 
-    docs = await translation_repo.find_by_site("site1")
-    assert len(docs) == 3
+    with pytest.raises(ValidationError):
+        await translation_repo.find_by_site("site1")
 
     analytics = await translation_repo.get_analytics("site1")
     assert analytics["total_translations"] == 5
@@ -417,25 +417,6 @@ async def bound_service(mock_db, fake_provider):
     return TranslationService(mock_db, lambda: fake_provider)
 
 
-async def test_extract_items_for_review_succeeds_with_no_origin_or_referer(bound_service):
-    await bound_service.extract_items_for_review(
-        "site1",
-        [{"key": "t1", "text": "Hello", "route": "/home", "source_lang": "en"}],
-    )
-    docs = await bound_service.get_stored_translations("site1", "/home", "hi")
-    assert docs == {"t1": "Hello"}
-
-
-async def test_extract_items_for_review_still_requires_active_site(bound_service, mock_db):
-
-    await mock_db["websites"].update_one({"site_id": "site1"}, {"$set": {"status": "Inactive"}})
-    with pytest.raises(NotFoundError):
-        await bound_service.extract_items_for_review(
-            "site1",
-            [{"key": "t1", "text": "Hello", "route": "/home", "source_lang": "en"}],
-        )
-
-
 async def test_runtime_translate_rejects_unknown_lang(bound_service):
     from app.platform.error_handling import ValidationError
 
@@ -544,8 +525,8 @@ def test_translation_response_exposes_low_confidence_flag():
     }
     out = TranslationResponse.from_doc(doc)
 
-    assert out.translations["hi"]["low_confidence"] is True
-    assert out.translations["ta"]["low_confidence"] is False
+    assert out.translations["hi"].low_confidence is True
+    assert out.translations["ta"].low_confidence is False
     assert out.low_confidence is True
 
 
@@ -557,7 +538,7 @@ def test_translation_response_low_confidence_false_when_all_ok():
         "translations": {"hi": {"text": "x", "quality_score": 0.95}},
     }
     out = TranslationResponse.from_doc(doc)
-    assert out.translations["hi"]["low_confidence"] is False
+    assert out.translations["hi"].low_confidence is False
     assert out.low_confidence is False
 
 

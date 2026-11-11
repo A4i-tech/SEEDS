@@ -6,8 +6,7 @@ import { WorkspaceScreen } from "../../src/components/AllContent/LocalizationTab
 
 jest.mock("../../src/services/translationService", () => ({
   translationService: {
-    listTranslations: jest.fn(),
-    generateForReview: jest.fn(),
+    listForReview: jest.fn(),
     approveTranslation: jest.fn(),
     bulkApproveTranslations: jest.fn(),
     rejectTranslation: jest.fn(),
@@ -82,13 +81,13 @@ describe("Translate & Review — live component verification", () => {
     Object.assign(navigator, { clipboard: { writeText: jest.fn().mockResolvedValue() } });
   });
 
-  test("PASS — Search filters rows by source/translation text, calls listTranslations", async () => {
-    translationService.listTranslations.mockResolvedValue([
+  test("PASS — Search filters rows by source/translation text, calls listForReview", async () => {
+    translationService.listForReview.mockResolvedValue([
       makeDoc("k1", "Hello World", { translated: "ಹಲೋ ವರ್ಲ್ಡ್", status: "approved" }),
       makeDoc("k2", "Good Morning", { translated: "ಶುಭೋದಯ" }),
     ]);
     renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
-    await waitFor(() => expect(translationService.listTranslations).toHaveBeenCalledWith({ siteId: "site-1", route: "/" }));
+    await waitFor(() => expect(translationService.listForReview).toHaveBeenCalledWith({ siteId: "site-1", route: "/", lang: "kn" }));
     await screen.findByText("Hello World");
     expect(screen.getByText("Good Morning")).toBeInTheDocument();
 
@@ -100,7 +99,7 @@ describe("Translate & Review — live component verification", () => {
   });
 
   test("PASS — Language filter switches Review Language and reloads translations for new lang", async () => {
-    translationService.listTranslations.mockResolvedValue([
+    translationService.listForReview.mockResolvedValue([
       makeDoc("k1", "Hello World", { translated: "ಹಲೋ ವರ್ಲ್ಡ್", status: "approved" }),
     ]);
     const scope = { siteId: "site-1", route: "/", lang: "kn" };
@@ -117,7 +116,7 @@ describe("Translate & Review — live component verification", () => {
 
   test("PASS — Pagination slices rows per page and page buttons switch pages", async () => {
     const docs = Array.from({ length: 15 }, (_, i) => makeDoc(`k${i}`, `Source ${i}`, { translated: `T${i}` }));
-    translationService.listTranslations.mockResolvedValue(docs);
+    translationService.listForReview.mockResolvedValue(docs);
     renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
     await screen.findByText("Source 0");
 
@@ -132,7 +131,7 @@ describe("Translate & Review — live component verification", () => {
   });
 
   test("PASS — Copy translation writes translated text to clipboard", async () => {
-    translationService.listTranslations.mockResolvedValue([
+    translationService.listForReview.mockResolvedValue([
       makeDoc("k1", "Hello World", { translated: "ಹಲೋ ವರ್ಲ್ಡ್" }),
     ]);
     renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
@@ -144,7 +143,7 @@ describe("Translate & Review — live component verification", () => {
   });
 
   test("PASS — Individual Approve calls approveTranslation and flips row to Approved", async () => {
-    translationService.listTranslations.mockResolvedValue([
+    translationService.listForReview.mockResolvedValue([
       makeDoc("k1", "Hello World", { translated: "ಹಲೋ ವರ್ಲ್ಡ್" }),
     ]);
     translationService.approveTranslation.mockResolvedValue({});
@@ -160,7 +159,7 @@ describe("Translate & Review — live component verification", () => {
   });
 
   test("PASS — Reject calls rejectTranslation and flips row to Rejected", async () => {
-    translationService.listTranslations.mockResolvedValue([
+    translationService.listForReview.mockResolvedValue([
       makeDoc("k1", "Hello World", { translated: "ಹಲೋ ವರ್ಲ್ಡ್" }),
     ]);
     translationService.rejectTranslation.mockResolvedValue({});
@@ -175,7 +174,7 @@ describe("Translate & Review — live component verification", () => {
   });
 
   test("PASS — Reject works on an already-approved row and flips it to Rejected", async () => {
-    translationService.listTranslations.mockResolvedValue([
+    translationService.listForReview.mockResolvedValue([
       makeDoc("k1", "Hello World", { translated: "ಹಲೋ ವರ್ಲ್ಡ್", status: "approved" }),
     ]);
     translationService.rejectTranslation.mockResolvedValue({});
@@ -191,7 +190,7 @@ describe("Translate & Review — live component verification", () => {
   });
 
   test("PASS — Approve/Reject can be toggled back and forth repeatedly on the same row", async () => {
-    translationService.listTranslations.mockResolvedValue([
+    translationService.listForReview.mockResolvedValue([
       makeDoc("k1", "Hello World", { translated: "ಹಲೋ ವರ್ಲ್ಡ್" }),
     ]);
     translationService.approveTranslation.mockResolvedValue({});
@@ -218,7 +217,7 @@ describe("Translate & Review — live component verification", () => {
   });
 
   test("PASS — an already-approved row hides Approve but keeps Reject and Copy", async () => {
-    translationService.listTranslations.mockResolvedValue([
+    translationService.listForReview.mockResolvedValue([
       makeDoc("k1", "Hello World", { translated: "ಹಲೋ ವರ್ಲ್ಡ್", status: "approved" }),
     ]);
     renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
@@ -232,7 +231,7 @@ describe("Translate & Review — live component verification", () => {
   });
 
   test("PASS — a rejected row hides Reject but keeps Approve and Copy", async () => {
-    translationService.listTranslations.mockResolvedValue([
+    translationService.listForReview.mockResolvedValue([
       makeDoc("k1", "Hello World", { translated: "ಹಲೋ ವರ್ಲ್ಡ್", status: "rejected" }),
     ]);
     renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
@@ -246,7 +245,7 @@ describe("Translate & Review — live component verification", () => {
   });
 
   test("PASS — unfiltered Approve All uses the bulk endpoint, shows its counts and reloads", async () => {
-    translationService.listTranslations.mockResolvedValue([
+    translationService.listForReview.mockResolvedValue([
       makeDoc("k1", "Hello World", { translated: "ಹಲೋ ವರ್ಲ್ಡ್" }),
       makeDoc("k2", "Good Morning", { translated: "ಶುಭೋದಯ" }),
       makeDoc("k3", "Already Approved", { translated: "X", status: "approved" }),
@@ -255,7 +254,7 @@ describe("Translate & Review — live component verification", () => {
     translationService.bulkApproveTranslations.mockResolvedValue({ approved: 2, skipped: 2 });
     renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
     await screen.findByText("Hello World");
-    translationService.listTranslations.mockClear();
+    translationService.listForReview.mockClear();
     await userEvent.click(screen.getByRole("button", { name: /Approve all/i }));
 
     await waitFor(() =>
@@ -263,26 +262,26 @@ describe("Translate & Review — live component verification", () => {
     );
     expect(translationService.approveTranslation).not.toHaveBeenCalled();
     expect(await screen.findByText("Approved 2, skipped 2")).toBeInTheDocument();
-    await waitFor(() => expect(translationService.listTranslations).toHaveBeenCalled());
+    await waitFor(() => expect(translationService.listForReview).toHaveBeenCalled());
   });
 
   test("PASS — a partial bulk approve failure shows the failed count and still reloads", async () => {
-    translationService.listTranslations.mockResolvedValue([
+    translationService.listForReview.mockResolvedValue([
       makeDoc("k1", "Hello World", { translated: "ಹಲೋ ವರ್ಲ್ಡ್" }),
       makeDoc("k2", "Good Morning", { translated: "ಶುಭೋದಯ" }),
     ]);
     translationService.bulkApproveTranslations.mockResolvedValue({ approved: 1, skipped: 0, failed: 1 });
     renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
     await screen.findByText("Hello World");
-    translationService.listTranslations.mockClear();
+    translationService.listForReview.mockClear();
     await userEvent.click(screen.getByRole("button", { name: /Approve all/i }));
 
     expect(await screen.findByText("Approved 1, skipped 0, 1 failed")).toBeInTheDocument();
-    await waitFor(() => expect(translationService.listTranslations).toHaveBeenCalled());
+    await waitFor(() => expect(translationService.listForReview).toHaveBeenCalled());
   });
 
   test("PASS — a failed bulk approve surfaces the error", async () => {
-    translationService.listTranslations.mockResolvedValue([
+    translationService.listForReview.mockResolvedValue([
       makeDoc("k1", "Hello World", { translated: "ಹಲೋ ವರ್ಲ್ಡ್" }),
       makeDoc("k2", "Good Morning", { translated: "ಶುಭೋದಯ" }),
       makeDoc("k3", "Already Approved", { translated: "X", status: "approved" }),
@@ -296,7 +295,7 @@ describe("Translate & Review — live component verification", () => {
   });
 
   test("PASS — search-filtered Approve All approves only the visible rows per id, excluding rejected", async () => {
-    translationService.listTranslations.mockResolvedValue([
+    translationService.listForReview.mockResolvedValue([
       makeDoc("k1", "Hello World", { translated: "ಹಲೋ ವರ್ಲ್ಡ್" }),
       makeDoc("k2", "Good Morning", { translated: "ಶುಭೋದಯ" }),
       makeDoc("k3", "Already Approved", { translated: "X", status: "approved" }),
@@ -317,7 +316,7 @@ describe("Translate & Review — live component verification", () => {
   });
 
   test("PASS — status-tab-filtered Approve All uses per-id approval, excluding rejected, not bulk", async () => {
-    translationService.listTranslations.mockResolvedValue([
+    translationService.listForReview.mockResolvedValue([
       makeDoc("k1", "Hello World", { translated: "ಹಲೋ ವರ್ಲ್ಡ್" }),
       makeDoc("k2", "Good Morning", { translated: "ಶುಭೋದಯ" }),
       makeDoc("k3", "Already Approved", { translated: "X", status: "approved" }),
@@ -337,7 +336,7 @@ describe("Translate & Review — live component verification", () => {
   });
 
   test("PASS — per-id Approve All reports partial failures", async () => {
-    translationService.listTranslations.mockResolvedValue([
+    translationService.listForReview.mockResolvedValue([
       makeDoc("k1", "Hello World", { translated: "ಹಲೋ ವರ್ಲ್ಡ್" }),
       makeDoc("k2", "Good Morning", { translated: "ಶುಭೋದಯ" }),
       makeDoc("k3", "Already Approved", { translated: "X", status: "approved" }),
@@ -356,7 +355,7 @@ describe("Translate & Review — live component verification", () => {
   });
 
   test("PASS — Edit translation commits on blur via updateTranslation", async () => {
-    translationService.listTranslations.mockResolvedValue([
+    translationService.listForReview.mockResolvedValue([
       makeDoc("k1", "Hello World", { translated: "ಹಲೋ ವರ್ಲ್ಡ್" }),
     ]);
     translationService.updateTranslation.mockResolvedValue({ translations: { kn: { text: "Edited text" } }, status: "" });
@@ -374,7 +373,7 @@ describe("Translate & Review — live component verification", () => {
     const LONG = "A very long source sentence ".repeat(20).trim();
     const LONG2 = "Another long source sentence ".repeat(20).trim();
     const seed = () =>
-      translationService.listTranslations.mockResolvedValue([
+      translationService.listForReview.mockResolvedValue([
         makeDoc("k1", LONG, { translated: "T1" }),
         makeDoc("k2", LONG2, { translated: "T2" }),
       ]);
@@ -390,7 +389,7 @@ describe("Translate & Review — live component verification", () => {
     });
 
     test("PASS — a row whose source text fits is never given a Show more toggle", async () => {
-      translationService.listTranslations.mockResolvedValue([makeDoc("k1", "Hello World", { translated: "T1" })]);
+      translationService.listForReview.mockResolvedValue([makeDoc("k1", "Hello World", { translated: "T1" })]);
       renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
       await screen.findByText("Hello World");
       expect(screen.queryByRole("button", { name: "Show full source text" })).not.toBeInTheDocument();
@@ -430,7 +429,7 @@ describe("Translate & Review — live component verification", () => {
   });
 
   test("PASS — a genuinely empty successful response shows the empty state, not an error", async () => {
-    translationService.listTranslations.mockResolvedValue([]);
+    translationService.listForReview.mockResolvedValue([]);
     renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
 
     await screen.findByText("This page hasn't been translated yet.");
@@ -439,17 +438,16 @@ describe("Translate & Review — live component verification", () => {
   });
 
   test("PASS — a 403 from /translations/list shows a permission error, not a fake empty list", async () => {
-    translationService.listTranslations.mockRejectedValue({ status: 403, message: "Forbidden" });
+    translationService.listForReview.mockRejectedValue({ status: 403, message: "Forbidden" });
     renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
 
     await screen.findByText("Permission denied");
     expect(screen.getByText("Your account doesn't have access to Translate & Review.")).toBeInTheDocument();
     expect(screen.queryByText("This page hasn't been translated yet.")).not.toBeInTheDocument();
-    expect(translationService.generateForReview).not.toHaveBeenCalled();
   });
 
   test("PASS — a non-403 failure shows a distinct load error, not a fake empty list", async () => {
-    translationService.listTranslations.mockRejectedValue({ message: "Network error" });
+    translationService.listForReview.mockRejectedValue({ message: "Network error" });
     renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
 
     await screen.findByText("Couldn't load translations");
@@ -458,11 +456,10 @@ describe("Translate & Review — live component verification", () => {
   });
 
   test("PASS — searching never crashes on a segment that has no translation draft yet", async () => {
-    translationService.listTranslations.mockResolvedValue([
+    translationService.listForReview.mockResolvedValue([
       makeDoc("k1", "Hello World", { translated: "ಹಲೋ ವರ್ಲ್ಡ್" }),
       makeDoc("k2", "Not drafted yet"),
     ]);
-    translationService.generateForReview.mockResolvedValue({});
     renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
     await screen.findByText("Not drafted yet");
 
@@ -471,19 +468,10 @@ describe("Translate & Review — live component verification", () => {
     expect(screen.getByText("No segments match your search.")).toBeInTheDocument();
   });
 
-  test("PASS — a failed on-demand generation is surfaced to the reviewer, not swallowed", async () => {
-    translationService.listTranslations.mockResolvedValue([makeDoc("k1", "Hello World")]);
-    translationService.generateForReview.mockRejectedValue(new Error("provider down"));
-    renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
-
-    await screen.findByText("provider down");
-    expect(screen.getByText("Hello World")).toBeInTheDocument();
-  });
-
   test("PASS — a stale slower request never overwrites a faster, more recent one", async () => {
     let resolveA;
     let resolveB;
-    translationService.listTranslations.mockImplementation(({ route }) => {
+    translationService.listForReview.mockImplementation(({ route }) => {
       if (route === "/route-a") return new Promise((res) => (resolveA = res));
       return new Promise((res) => (resolveB = res));
     });

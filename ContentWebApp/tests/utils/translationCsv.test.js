@@ -19,7 +19,7 @@ const doc = (key, route, sourceText, kn) => ({
   key,
   route,
   sourceText,
-  translations: kn === undefined ? {} : { kn: { text: kn, status: "pending" } },
+  translations: { kn: { text: kn, status: "pending" } },
 });
 
 describe("buildTranslationCsv", () => {
@@ -45,16 +45,15 @@ describe("buildTranslationCsv", () => {
     expect(csv).toContain("\"k3\",\"/\",\"Line one\nLine two\",\"ಸಾಲು ೧\nಸಾಲು ೨\"");
   });
 
-  test("includes untranslated rows with a blank target cell and uses the selected language only", () => {
+  test("includes blank-target rows and uses the selected language only", () => {
     const docs = [
       {
         ...doc("k1", "/", "Hello", "ಹಲೋ"),
         translations: { kn: { text: "ಹಲೋ" }, te: { text: "హలో" } },
       },
-      doc("k2", "/", "No translation yet"),
-      doc("k3", "/about", "Other language only"),
+      doc("k2", "/", "No translation yet", ""),
+      { ...doc("k3", "/about", "Other language only", ""), translations: { kn: { text: "" }, te: { text: "తెలుగు" } } },
     ];
-    docs[2].translations = { te: { text: "తెలుగు" } };
 
     const { data } = Papa.parse(
       buildTranslationCsv({ docs, lang: "kn", languageName: "Kannada" }).slice(1)
@@ -201,7 +200,7 @@ describe("parseTranslationCsv", () => {
         "\"k3\",\"/\",\"After\",\"ನಂತರ\"\n"
     );
 
-    expect(result.error).toMatch(/not closed properly near row 3/);
+    expect(result.error).toMatch(/could not be parsed.*\(row 3\)/);
     expect(result.rows).toBeUndefined();
   });
 
@@ -210,7 +209,7 @@ describe("parseTranslationCsv", () => {
       "\"Asset ID\",\"Route\",\"English, en\",\"Kannada, kn\"\n\"k1\",\"/\",\"Hel\"lo\",\"ಹಲೋ\"\n"
     );
 
-    expect(result.error).toMatch(/not closed properly/);
+    expect(result.error).toMatch(/could not be parsed/);
   });
 
   test("numbers rows as a spreadsheet would, counting comment rows and blank lines", () => {

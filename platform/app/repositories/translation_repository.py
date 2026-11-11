@@ -8,6 +8,7 @@ from pymongo import UpdateOne
 from pymongo.asynchronous.database import AsyncDatabase
 from pymongo.results import BulkWriteResult
 
+from app.platform.error_handling import ValidationError
 from app.repositories.base_repository import BaseRepository
 
 logger = logging.getLogger(__name__)
@@ -15,7 +16,6 @@ logger = logging.getLogger(__name__)
 MAX_TRANSLATION_ROWS = 20_000
 IMPORT_PROVIDER = "Import"
 TM_PROVIDER = "TranslationMemory"
-ROUTE_KEY_QUERY_BATCH = 500
 
 
 class TranslationRepository(BaseRepository):
@@ -63,20 +63,16 @@ class TranslationRepository(BaseRepository):
     async def find_by_route_keys(
         self, site_id: str, identities: list[tuple[str, str]]
     ) -> list[dict[str, Any]]:
-        docs: list[dict[str, Any]] = []
-        for start in range(0, len(identities), ROUTE_KEY_QUERY_BATCH):
-            batch = identities[start : start + ROUTE_KEY_QUERY_BATCH]
-            query = {"site_id": site_id, "$or": [{"route": route, "key": key} for route, key in batch]}
-            docs.extend(await self._col.find(query).to_list(length=None))
-        return docs
+        query = {"site_id": site_id, "$or": [{"route": route, "key": key} for route, key in identities]}
+        return await self._col.find(query).to_list(length=None)
 
     async def find_by_site(self, site_id: str, status: str | None = None) -> list[dict[str, Any]]:
         query: dict[str, Any] = {"site_id": site_id}
         if status:
             query["status"] = status
-        docs = await self._col.find(query).limit(MAX_TRANSLATION_ROWS).to_list(length=MAX_TRANSLATION_ROWS)
-        if len(docs) == MAX_TRANSLATION_ROWS:
-            logger.warning("find_by_site hit MAX_TRANSLATION_ROWS cap", extra={"site_id": site_id})
+        docs = await self._col.find(query).limit(MAX_TRANSLATION_ROWS + 1).to_list(length=MAX_TRANSLATION_ROWS + 1)
+        if len(docs) > MAX_TRANSLATION_ROWS:
+            raise ValidationError(f"Site has more than {MAX_TRANSLATION_ROWS} translations; narrow by route")
         return docs
 
     async def save_translation(

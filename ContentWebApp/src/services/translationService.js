@@ -10,7 +10,6 @@ import {
   toBulkApproveRequest,
   toTranslationImportRequest,
   fromTranslationResponse,
-  fromTranslationImportResponse,
 } from "../dto/LocalizationDto";
 
 const GENERATE_TIMEOUT_MS = 5 * 60 * 1000;
@@ -53,6 +52,13 @@ export const translationService = {
       headers: getAuthHeaders(),
     });
     return response.map(fromTranslationResponse);
+  },
+
+  async listForReview({ siteId, route, lang }) {
+    const docs = await this.listTranslations({ siteId, route });
+    if (!lang || docs.every((doc) => doc.translations[lang]?.text)) return docs;
+    await this.generateForReview({ siteId, route, lang });
+    return this.listTranslations({ siteId, route });
   },
 
   async getTranslation(id) {
@@ -113,6 +119,6 @@ export const translationService = {
       headers: getAuthHeaders(),
       body: JSON.stringify(toTranslationImportRequest({ lang, overwriteBlank, state, rows })),
     });
-    return fromTranslationImportResponse(response);
+    return response;
   },
 };

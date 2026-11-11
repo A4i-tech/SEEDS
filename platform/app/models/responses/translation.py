@@ -25,11 +25,18 @@ ImportRowReason = Literal[
 ]
 
 
+class TranslationEntry(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    quality_score: float
+    low_confidence: bool = False
+
+
 class TranslationResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
     id: str = Field(validation_alias="_id")
-    translations: dict[str, Any] | None = None
+    translations: dict[str, TranslationEntry]
     low_confidence: bool = False
 
     @field_validator("id", mode="before")
@@ -42,15 +49,9 @@ class TranslationResponse(BaseModel):
         instance = cls.model_validate(doc)
         threshold = get_settings().low_confidence_threshold
 
-        any_low = False
-        if isinstance(instance.translations, dict):
-            for entry in instance.translations.values():
-                if not isinstance(entry, dict):
-                    continue
-                low = is_low_confidence(entry.get("quality_score", 1.0), threshold)
-                entry["low_confidence"] = low
-                any_low = any_low or low
-        instance.low_confidence = any_low
+        for entry in instance.translations.values():
+            entry.low_confidence = is_low_confidence(entry.quality_score, threshold)
+        instance.low_confidence = any(entry.low_confidence for entry in instance.translations.values())
         return instance
 
 

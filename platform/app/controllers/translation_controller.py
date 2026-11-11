@@ -92,7 +92,7 @@ async def generate_translations(
 
 
 def _reviewer_id(user: dict[str, Any]) -> str:
-    return user.get("email") or user.get("sub", "")
+    return user["sub"]
 
 
 @router.get("/analytics/summary", summary="Get basic dashboard analytics")

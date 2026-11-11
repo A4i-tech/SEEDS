@@ -4,6 +4,7 @@ import asyncio
 from datetime import datetime
 
 import pytest
+from pydantic import ValidationError as PydanticValidationError
 from pymongo.errors import BulkWriteError, PyMongoError
 
 from app.models.requests.translation_requests import TranslationImportRow
@@ -207,21 +208,22 @@ async def test_import_newline_convention_only_change_stays_unchanged_and_approve
 
 
 @pytest.mark.parametrize(
-    ("row", "reason"),
+    ("row", "field"),
     [
-        ({"route": "/", "key": "", "source": "a", "text": "x"}, "missing_key"),
-        ({"route": "", "key": "t2p", "source": "a", "text": "x"}, "missing_route"),
-        ({"route": "about", "key": "t2p", "source": "a", "text": "x"}, "invalid_route"),
-        ({"route": "/", "key": "t2p", "source": "", "text": "x"}, "missing_source"),
-        ({"route": "/", "key": "t2p", "source": "a", "text": "x" * 5001}, "text_too_long"),
+        ({"route": "/", "key": "", "source": "a", "text": "x"}, "key"),
+        ({"route": "", "key": "t2p", "source": "a", "text": "x"}, "route"),
+        ({"route": "about", "key": "t2p", "source": "a", "text": "x"}, "route"),
+        ({"route": "/", "key": "t2p", "source": "", "text": "x"}, "source"),
+        ({"route": "/", "key": "t2p", "source": "a", "text": "x" * 5001}, "text"),
+        ({"route": "/", "key": "t2p", "source": "x" * 5001, "text": "x"}, "source"),
+        ({"route": "/", "key": "t" + "x" * 256, "source": "a", "text": "x"}, "key"),
     ],
 )
-async def test_import_reports_row_level_validation_errors(service, row, reason):
-    res = await _import(service, [row])
+def test_import_row_model_rejects_invalid_rows(row, field):
+    with pytest.raises(PydanticValidationError) as exc:
+        TranslationImportRow(row=1, **row)
 
-    assert res["failed"] == 1
-    assert res["errors"][0]["reason"] == reason
-    assert res["errors"][0]["row"] == 1
+    assert [e["loc"] for e in exc.value.errors()] == [(field,)]
 
 
 async def test_import_fails_duplicate_route_key_rows_and_keeps_the_first(service, repo):
@@ -514,12 +516,11 @@ async def test_import_mixed_rows_report_each_outcome(service, repo):
             _row("Brand new", "created", route="/n"),
             _row("Blank one", ""),
             _row("Nope", "x", key="tbad"),
-            {"route": "/", "key": "", "source": "x", "text": "x"},
         ],
     )
 
-    assert (res["updated"], res["created"], res["skipped_blank"], res["failed"]) == (1, 1, 1, 2)
-    assert [(e["row"], e["reason"]) for e in res["errors"]] == [(4, "key_mismatch"), (5, "missing_key")]
+    assert (res["updated"], res["created"], res["skipped_blank"], res["failed"]) == (1, 1, 1, 1)
+    assert [(e["row"], e["reason"]) for e in res["errors"]] == [(4, "key_mismatch")]
 
 
 async def test_imported_translations_are_not_counted_as_ai_generated(service, repo):
@@ -585,8 +586,6 @@ async def test_import_new_row_key_follows_javascript_trim_not_python_strip(servi
         "/a b",
         "/a\tb",
         "/a\nb",
-        " /about",
-        "/about ",
         "about",
         "/caf" + chr(0xE9),
         "/a{b}",
@@ -600,12 +599,13 @@ async def test_import_new_row_key_follows_javascript_trim_not_python_strip(servi
         "/" + "x" * 2048,
     ],
 )
-async def test_import_rejects_routes_that_window_location_pathname_can_never_return(service, repo, route):
-    res = await _import(service, [_row("Hello World", "x", route=route)])
+def test_import_row_model_rejects_routes_that_window_location_pathname_can_never_return(route):
+    with pytest.raises(PydanticValidationError):
+        TranslationImportRow(row=1, **_row("Hello World", "x", route=route))
 
-    assert res["created"] == 0 and res["failed"] == 1
-    assert res["errors"][0]["reason"] == "invalid_route"
-    assert await repo.find_by_keys(SITE, [sdk_rolling_hash("Hello World")]) == []
+
+def test_import_row_model_trims_surrounding_whitespace_from_the_route():
+    assert TranslationImportRow(row=1, **_row("Hello World", "x", route=" /about ")).route == "/about"
 
 
 @pytest.mark.parametrize(
@@ -635,29 +635,18 @@ async def test_import_treats_a_trailing_slash_as_a_different_route(service, repo
     assert (await _doc(repo, key, "/about/"))["translations"]["kn"]["text"] == "slash"
 
 
-async def test_import_does_not_silently_trim_the_route_to_make_it_valid(service, repo):
-    key = await _seed(repo, route="/about")
-
-    res = await _import(service, [_row("Hello World", "x", route=" /about")])
-
-    assert res["errors"][0]["reason"] == "invalid_route"
-    assert (await _doc(repo, key, "/about"))["translations"] == {}
-
-
-@pytest.mark.parametrize("source", ["", "   ", "\n\t ", chr(0xFEFF) + chr(0xA0)])
+@pytest.mark.parametrize("source", ["   ", "\n\t ", chr(0xFEFF) + chr(0xA0)])
 async def test_import_rejects_blank_or_whitespace_only_source(service, source):
     res = await _import(service, [{"route": "/", "key": "t0", "source": source, "text": "x"}])
 
     assert res["errors"][0]["reason"] == "missing_source"
 
 
-async def test_import_rejects_oversized_source_and_accepts_the_limit(service, repo):
-    too_long = "x" * 5001
+async def test_import_accepts_a_source_at_the_limit(service, repo):
     at_limit = "y" * 5000
 
-    res = await _import(service, [_row(too_long, "a"), _row(at_limit, "b")])
+    res = await _import(service, [_row(at_limit, "b")])
 
-    assert [(e["row"], e["reason"]) for e in res["errors"]] == [(1, "source_too_long")]
     assert res["created"] == 1
     assert (await _doc(repo, sdk_rolling_hash(at_limit)))["translations"]["kn"]["text"] == "b"
 
@@ -697,19 +686,6 @@ async def test_find_by_route_keys_returns_only_the_exact_route_and_key_pairs(rep
     docs = await repo.find_by_route_keys(SITE, [("/a", "k1"), ("/b", "k2")])
 
     assert sorted((d["route"], d["key"]) for d in docs) == [("/a", "k1"), ("/b", "k2")]
-    assert await repo.find_by_route_keys(SITE, []) == []
-
-
-async def test_find_by_route_keys_batches_large_identity_lists(repo, monkeypatch):
-    monkeypatch.setattr("app.repositories.translation_repository.ROUTE_KEY_QUERY_BATCH", 2)
-    identities = [(f"/p{i}", f"k{i}") for i in range(5)]
-    for route, key in identities:
-        await repo.upsert_source(SITE, route, key, "en", key)
-    await repo.upsert_source(SITE, "/p0", "k1", "en", "cross product that must not be returned")
-
-    docs = await repo.find_by_route_keys(SITE, identities)
-
-    assert sorted((d["route"], d["key"]) for d in docs) == sorted(identities)
 
 
 async def test_import_resolves_rows_by_exact_route_and_key_without_a_site_wide_key_lookup(
@@ -835,17 +811,6 @@ async def test_internal_whitespace_and_case_differences_are_still_a_source_misma
     assert (await _doc(repo, "tstored"))["translations"] == {}
 
 
-async def test_key_longer_than_the_limit_is_a_row_level_error_and_other_rows_still_import(service, repo):
-    await _seed(repo)
-
-    res = await _import(service, [_row("Hello World", "ok"), {"route": "/", "key": "t" + "x" * 256, "source": "Long", "text": "x"}])
-
-    assert res["updated"] == 1
-    assert res["errors"] == [
-        {"row": 2, "route": "/", "key": "t" + "x" * 256, "reason": "key_too_long", "detail": None}
-    ]
-
-
 async def test_a_key_at_the_length_limit_is_not_rejected_for_its_length(service):
     res = await _import(service, [{"route": "/", "key": "t" * 256, "source": "Anything", "text": "x"}])
 
@@ -858,7 +823,6 @@ async def test_errors_report_the_csv_row_numbers_sent_by_the_client(service, rep
         {**_row("Hello World", "ok"), "row": 7},
         {**_row("Hello World", "again"), "row": 9},
         {"route": "/", "key": "tbad", "source": "Nope", "text": "x", "row": 12},
-        {"route": "/a b", "key": "t2p", "source": "a", "text": "x", "row": 15},
     ]
 
     res = await _import(service, rows)
@@ -866,7 +830,6 @@ async def test_errors_report_the_csv_row_numbers_sent_by_the_client(service, rep
     assert [(e["row"], e["reason"]) for e in res["errors"]] == [
         (9, "duplicate_row"),
         (12, "key_mismatch"),
-        (15, "invalid_route"),
     ]
 
 

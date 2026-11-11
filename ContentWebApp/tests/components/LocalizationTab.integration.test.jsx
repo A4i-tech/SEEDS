@@ -10,7 +10,7 @@ jest.mock("../../src/services/onboardingService", () => ({
 }));
 jest.mock("../../src/services/languageService", () => ({ languageService: { listLanguages: jest.fn() } }));
 jest.mock("../../src/services/translationService", () => ({
-  translationService: { listTranslations: jest.fn(), generateForReview: jest.fn() },
+  translationService: { listTranslations: jest.fn(), listForReview: jest.fn() },
 }));
 jest.mock("../../src/components/AllContent/shared/MiddleEllipsis", () => ({
   __esModule: true,
@@ -63,6 +63,7 @@ beforeEach(() => {
   translationService.listTranslations.mockImplementation(async ({ route }) =>
     route ? docs.filter((d) => d.route === route) : docs
   );
+  translationService.listForReview.mockImplementation(async ({ route }) => docs.filter((d) => d.route === route));
 });
 
 const openWorkspace = async () => {
@@ -84,11 +85,10 @@ test("opening Translate & Review selects the first site and its newest page and 
   expect(screen.getByRole("button", { name: "Translate & Review" })).toHaveClass("active");
   await waitFor(() => expect(translationService.listTranslations).toHaveBeenCalledWith({ siteId: "site-1" }));
   await waitFor(() =>
-    expect(translationService.listTranslations).toHaveBeenCalledWith({ siteId: "site-1", route: "/about" })
+    expect(translationService.listForReview).toHaveBeenCalledWith({ siteId: "site-1", route: "/about", lang: "hi" })
   );
   expect(await screen.findByText("About us")).toBeInTheDocument();
   expect(screen.queryByText("Contact us")).not.toBeInTheDocument();
-  expect(translationService.generateForReview).not.toHaveBeenCalled();
 });
 
 test("a remembered route that no longer exists falls back to the newest page", async () => {
@@ -99,7 +99,9 @@ test("a remembered route that no longer exists falls back to the newest page", a
   render(<LocalizationTab />);
   await openWorkspace();
   await waitFor(() =>
-    expect(translationService.listTranslations).toHaveBeenCalledWith({ siteId: "site-1", route: "/about" })
+    expect(translationService.listForReview).toHaveBeenCalledWith(
+      expect.objectContaining({ siteId: "site-1", route: "/about" })
+    )
   );
 });
 
@@ -111,7 +113,9 @@ test("a remembered route that still exists is kept", async () => {
   render(<LocalizationTab />);
   await openWorkspace();
   expect(await screen.findByText("Contact us")).toBeInTheDocument();
-  expect(translationService.listTranslations).not.toHaveBeenCalledWith({ siteId: "site-1", route: "/about" });
+  expect(translationService.listForReview).not.toHaveBeenCalledWith(
+    expect.objectContaining({ siteId: "site-1", route: "/about" })
+  );
 });
 
 test("a 403 while listing pages shows a permission message", async () => {

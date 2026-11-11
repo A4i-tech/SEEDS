@@ -29,8 +29,10 @@ export const buildSdkSnippet = (site) =>
 
 export const fromTranslationResponse = (doc) => {
   return {
-    ...doc,
     id: doc.id,
+    key: doc.key,
+    route: doc.route,
+    translations: doc.translations,
     siteId: doc.site_id,
     sourceText: doc.source_text,
     lowConfidence: doc.low_confidence,
@@ -68,9 +70,4 @@ export const toTranslationImportRequest = ({ lang, overwriteBlank, state, rows }
   overwrite_blank: overwriteBlank,
   state,
   rows,
-});
-
-export const fromTranslationImportResponse = ({ skipped_blank: skippedBlank, ...rest }) => ({
-  ...rest,
-  skippedBlank,
 });

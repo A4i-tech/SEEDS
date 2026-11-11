@@ -136,19 +136,17 @@ async def test_import_accepts_exactly_the_maximum_number_of_rows(client, mock_db
     assert resp.json()["failed"] == 0
 
 
-async def test_import_reports_an_invalid_route_per_row_not_for_the_whole_request(client, mock_db):
+async def test_import_rejects_the_whole_request_when_any_row_has_an_invalid_route(client, mock_db):
     repo = await _seed_site(mock_db)
     body = _body()
     body["rows"].append({"route": "/about?x=1", "key": sdk_rolling_hash("Other"), "source": "Other", "text": "x", "row": 2})
 
     resp = await client.post(URL, json=body, headers=_headers())
 
-    assert resp.status_code == 200
-    assert resp.json()["updated"] == 1
-    assert resp.json()["errors"] == [
-        {"row": 2, "route": "/about?x=1", "key": sdk_rolling_hash("Other"), "reason": "invalid_route", "detail": None}
-    ]
-    assert len(await repo.find_by_route("site1", "/about?x=1")) == 0
+    assert resp.status_code == 422
+    assert resp.json()["details"]["validation_errors"][0]["loc"] == ["body", "rows", 1, "route"]
+    assert len(await repo.find_by_route("site1", "/")) == 1
+    assert (await repo.find_by_route("site1", "/"))[0]["translations"] == {}
 
 
 async def test_import_rejects_rows_with_missing_or_misspelled_fields_instead_of_guessing(client, mock_db):

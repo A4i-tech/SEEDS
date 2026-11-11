@@ -11,8 +11,6 @@ import {
   MAX_IMPORT_ROWS,
   buildImportRows,
   countQuestionMarkTranslations,
-  findLongRows,
-  findShortRows,
   parseTranslationCsv,
   questionMarkError,
   readFileText,
@@ -70,24 +68,23 @@ function TranslationImportDialog({ siteId, languages, defaultLang, onClose, onIm
     [table, lang]
   );
   const tooManyRows = table && !table.error && table.rows.length > MAX_IMPORT_ROWS;
-  const longRows = useMemo(
-    () => (table && !table.error && !tooManyRows ? findLongRows(table) : []),
-    [table, tooManyRows]
-  );
-  const shortRows = useMemo(
-    () =>
-      target && target.index !== undefined && !tooManyRows && !longRows.length
-        ? findShortRows(table, target.index)
-        : [],
-    [table, target, tooManyRows, longRows]
-  );
-  const importRows = useMemo(
-    () =>
-      target && target.index !== undefined && !tooManyRows && !longRows.length && !shortRows.length
-        ? buildImportRows(table, target.index)
-        : null,
-    [table, target, tooManyRows, longRows, shortRows]
-  );
+  const { longRows, shortRows, importRows } = useMemo(() => {
+    const checked = { longRows: [], shortRows: [], importRows: null };
+    if (table && !table.error && !tooManyRows) {
+      const hasTarget = target && target.index !== undefined;
+      const required = hasTarget
+        ? Math.max(table.routeIndex, table.assetIndex, table.sourceIndex, target.index)
+        : -1;
+      table.rows.forEach(({ cells, number }) => {
+        if (cells.length > table.headerLength) checked.longRows.push(number);
+        if (cells.length <= required) checked.shortRows.push(number);
+      });
+      if (hasTarget && !checked.longRows.length && !checked.shortRows.length) {
+        checked.importRows = buildImportRows(table, target.index);
+      }
+    }
+    return checked;
+  }, [table, target, tooManyRows]);
   const questionMarks = importRows ? countQuestionMarkTranslations(importRows) : 0;
   const problem =
     table?.error ||
@@ -226,7 +223,7 @@ function TranslationImportDialog({ siteId, languages, defaultLang, onClose, onIm
         {result && (
           <div role="status" ref={resultRef} tabIndex={-1}>
             <p className={result.failed ? "error-message" : "success-message"}>
-              {`Updated ${result.updated}, created ${result.created}, unchanged ${result.unchanged}, skipped blank ${result.skippedBlank}, failed ${result.failed}`}
+              {`Updated ${result.updated}, created ${result.created}, unchanged ${result.unchanged}, skipped blank ${result.skipped_blank}, failed ${result.failed}`}
             </p>
             {result.warnings.length > 0 && (
               <p className="status-message">

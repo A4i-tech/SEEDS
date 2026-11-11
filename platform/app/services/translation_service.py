@@ -89,7 +89,7 @@ def _canonical_source(value: str) -> str:
     return js_trim(_normalize_newlines(value))
 
 
-def _import_audit_doc(
+def _audit_doc(
     site_id: str,
     route: str,
     key: str,
@@ -262,17 +262,6 @@ class TranslationService:
         site_id: str,
         items: list[dict[str, Any]],
     ) -> None:
-        await self._ensure_site_active(site_id)
-        for item in items:
-            await self._repo.upsert_source(
-                site_id=site_id,
-                route=item["route"],
-                key=item["key"],
-                source_lang=item.get("source_lang", "en"),
-                text=item["text"],
-            )
-
-    async def extract_items_for_review(self, site_id: str, items: list[dict[str, Any]]) -> None:
         await self._ensure_site_active(site_id)
         for item in items:
             await self._repo.upsert_source(
@@ -559,7 +548,7 @@ class TranslationService:
                     {"action": "approved", "actor": approved_by, "detail": f"version={version}", "at": now}
                 )
                 audits_by_translation.setdefault(translation_id, []).append(
-                    _import_audit_doc(
+                    _audit_doc(
                         site_id, doc["route"], doc["key"], doc_lang, "approved", approved_by, None,
                         f"version={version}", now,
                     )
@@ -710,7 +699,7 @@ class TranslationService:
                             },
                         )
                     )
-                    cleared_audit = _import_audit_doc(site_id, route, key, lang, "cleared", actor, None, "", now)
+                    cleared_audit = _audit_doc(site_id, route, key, lang, "cleared", actor, None, "", now)
                     planned.append(
                         {"row": row_no, "route": route, "key": key, "kind": "updated", "audits": [cleared_audit]}
                     )
@@ -756,12 +745,14 @@ class TranslationService:
             else:
                 query = {"_id": doc["_id"]}
                 if approving:
-                    query["version"] = doc.get("version", {"$exists": False})
+                    query["version"] = {"$exists": False}
+                    if "version" in doc:
+                        query["version"] = doc["version"]
             kind = "created" if is_new else "updated"
 
             log_entries = [{"action": "imported", "actor": actor, "detail": f"lang={lang};state={state}", "at": now}]
             audits = [
-                _import_audit_doc(
+                _audit_doc(
                     site_id, route, key, lang, "imported", actor, IMPORT_PROVIDER, f"state={state}", now
                 )
             ]
@@ -769,7 +760,7 @@ class TranslationService:
             if approving:
                 log_entries.append({"action": "approved", "actor": actor, "detail": f"version={version}", "at": now})
                 audits.append(
-                    _import_audit_doc(site_id, route, key, lang, "approved", actor, None, f"version={version}", now)
+                    _audit_doc(site_id, route, key, lang, "approved", actor, None, f"version={version}", now)
                 )
                 version_doc = _version_doc(
                     version,
@@ -780,7 +771,7 @@ class TranslationService:
                             "text": text,
                             "provider": IMPORT_PROVIDER,
                             "quality_score": IMPORT_QUALITY_SCORE,
-                            "status": "pending",
+                            "status": "approved",
                         },
                     },
                     actor,

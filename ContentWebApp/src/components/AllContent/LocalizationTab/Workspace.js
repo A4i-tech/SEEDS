@@ -16,7 +16,7 @@ import { translationService } from "../../../services/translationService";
 import { toSegment } from "../../../utils/segments";
 import { useToast } from "./Toast";
 import TranslationImportDialog from "./TranslationImportDialog";
-import { MAX_EXPORT_ROWS, buildTranslationCsv } from "../../../utils/translationCsv";
+import { buildTranslationCsv } from "../../../utils/translationCsv";
 import { downloadCsv } from "../../../utils/exportHelpers";
 
 function EmptyState({ title, message, action }) {
@@ -36,7 +36,6 @@ const BADGE_STYLE = {
 };
 
 const ACTIONS_COLUMN_STYLE = { width: 380 };
-const EXPORT_TRUNCATED_TOAST_MS = 20000;
 
 let sourceCanvasCtx = null;
 
@@ -178,19 +177,8 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
     setDocs(null);
     setDocsError(null);
     translationService
-      .listTranslations({ siteId, route })
-      .then(async (d) => {
-        let list = d;
-        const missing = lang && list.some((doc) => !doc?.translations?.[lang]?.text);
-        if (missing) {
-          try {
-            await translationService.generateForReview({ siteId, route, lang });
-            if (cancelled) return;
-            list = await translationService.listTranslations({ siteId, route });
-          } catch (e) {
-            if (!cancelled) toast({ message: e.message, tone: "crit" });
-          }
-        }
+      .listForReview({ siteId, route, lang })
+      .then((list) => {
         if (!cancelled) setDocs(list);
       })
       .catch((e) => {
@@ -201,7 +189,7 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
     return () => {
       cancelled = true;
     };
-  }, [siteId, route, lang, toast]);
+  }, [siteId, route, lang]);
   const extraLoadCancelRef = useRef(null);
 
   const reload = useCallback(() => {
@@ -343,22 +331,17 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
 
   const exportCsv = async () => {
     try {
-      const exported = await translationService.listTranslations({ siteId });
+      const exported = [];
+      for (const { route: pageRoute } of pages) {
+        exported.push(...(await translationService.listTranslations({ siteId, route: pageRoute })));
+      }
       if (!exported.length) return toast({ message: "Nothing to export", tone: "info" });
       const site = sites.find((s) => s.siteId === siteId);
       if (!site) throw new Error("Site not found");
       const slug = (site.name || site.domain).replace(/[^a-z0-9]+/gi, "-");
       const languageName = languages.find((l) => l.code === lang)?.name;
       downloadCsv(buildTranslationCsv({ docs: exported, lang, languageName }), `${slug}-${lang}`);
-      if (exported.length >= MAX_EXPORT_ROWS) {
-        toast({
-          message: `Exported ${exported.length} rows, but ${MAX_EXPORT_ROWS.toLocaleString("en-US")} is the most one export can hold, so this file may be incomplete.`,
-          tone: "crit",
-          duration: EXPORT_TRUNCATED_TOAST_MS,
-        });
-      } else {
-        toast({ message: `Exported ${exported.length} rows`, tone: "good" });
-      }
+      toast({ message: `Exported ${exported.length} rows`, tone: "good" });
     } catch (e) {
       toast({ message: e.message, tone: "crit" });
     }

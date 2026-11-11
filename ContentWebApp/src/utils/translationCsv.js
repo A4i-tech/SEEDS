@@ -11,12 +11,11 @@ const QUESTION_MARKS_ONLY = /^\?{2,}$/;
 const FORMULA_START = /^'*[=+\-@\t\r]/;
 const ESCAPED_FORMULA = /^'+[=+\-@\t\r]/;
 
-const DELIMITERS = [",", ";", "\t"];
 const NON_LOCALE_HEADERS = new Set(["asset id", "route", "context", "notes"]);
 const LOCALE_CODE = /^[a-z]{2,3}(-[a-z0-9]+)*$/i;
 const SOURCE_HEADER = "English, en";
 
-const cell = (row, index) => row[index];
+const compare = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
 
 const escapeFormula = (value) => (FORMULA_START.test(value) ? `'${value}` : value);
 
@@ -29,11 +28,9 @@ const localeFromHeader = (header) => {
 
 export const buildTranslationCsv = ({ docs, lang, languageName }) => {
   const rows = [...docs]
-    .sort((a, b) => a.route.localeCompare(b.route) || a.key.localeCompare(b.key))
+    .sort((a, b) => compare(a.route, b.route) || compare(a.key, b.key))
     .map((doc) =>
-      [doc.key, doc.route, doc.sourceText ?? "", doc.translations?.[lang]?.text || ""].map(
-        escapeFormula
-      )
+      [doc.key, doc.route, doc.sourceText, doc.translations[lang]?.text ?? ""].map(escapeFormula)
     );
   const csv = Papa.unparse(
     {
@@ -53,10 +50,10 @@ export const readFileText = (file) =>
     reader.readAsText(file, "UTF-8");
   });
 
-const quotesError = (rowIndex) =>
-  `The CSV has a quoted value that is not closed properly near row ${
-    rowIndex + 1
-  }. Every opening quote needs a closing quote. Fix that row and import again.`;
+const parseError = (errors) =>
+  `The CSV could not be parsed: ${errors
+    .map(({ message, row }) => `${message} (row ${row + 1})`)
+    .join("; ")}. Fix the file and import again.`;
 
 const buildTable = (data, headerIndex) => {
   const header = data[headerIndex].map((value) => value.trim());
@@ -74,34 +71,33 @@ const buildTable = (data, headerIndex) => {
   const [source, ...rest] = locales;
   const targets = rest.map(({ label, index }) => ({ index, label, code: localeFromHeader(label) }));
   const coded = targets.filter(({ code }) => code);
+  const rows = data
+    .slice(headerIndex + 1)
+    .map((cells, offset) => ({ cells, number: headerIndex + offset + 2 }))
+    .filter(({ cells }) => cells.some((value) => value.trim() !== ""));
   return {
     assetIndex: lower.indexOf("asset id"),
     routeIndex,
     sourceIndex: source.index,
     targets: coded.length ? coded : targets,
     headerLength: header.length,
-    rows: data
-      .slice(headerIndex + 1)
-      .map((cells, offset) => ({ cells, number: headerIndex + offset + 2 }))
-      .filter(({ cells }) => cells.some((value) => value.trim() !== "")),
+    rows,
+    blankRows: data.length - headerIndex - 1 - rows.length,
   };
 };
 
 export const parseTranslationCsv = (text) => {
   if (ENCODING_PROBLEM.test(text)) return { error: ENCODING_ERROR };
   const content = text.replace(/^\uFEFF/, "");
-  for (const delimiter of DELIMITERS) {
-    const { data, errors } = Papa.parse(content, { delimiter });
-    const headerIndex = data.findIndex((row) => row[0].trim().toLowerCase() === "asset id");
-    if (headerIndex >= 0) {
-      const quoteError = errors.find((error) => error.type === "Quotes");
-      return quoteError ? { error: quotesError(quoteError.row) } : buildTable(data, headerIndex);
-    }
+  const { data, errors } = Papa.parse(content);
+  const headerIndex = data.findIndex((row) => row[0].trim().toLowerCase() === "asset id");
+  if (headerIndex < 0) {
+    return {
+      error:
+        "No \"Asset ID\" header row was found. Use a file exported from Localization or Localise.biz.",
+    };
   }
-  return {
-    error:
-      "No \"Asset ID\" header row was found. Use a file exported from Localization or Localise.biz.",
-  };
+  return errors.length ? { error: parseError(errors) } : buildTable(data, headerIndex);
 };
 
 export const selectTargetColumn = (table, lang) => {
@@ -139,10 +135,10 @@ export const buildImportRows = (table, targetIndex) => {
   if (short) throw new Error(`Row ${short.number} has fewer columns than the header.`);
   return table.rows.map(({ cells: row, number }) => ({
     row: number,
-    route: unescapeFormula(cell(row, table.routeIndex).trim()),
-    key: unescapeFormula(cell(row, table.assetIndex).trim()),
-    source: unescapeFormula(cell(row, table.sourceIndex)),
-    text: unescapeFormula(cell(row, targetIndex)),
+    route: unescapeFormula(row[table.routeIndex].trim()),
+    key: unescapeFormula(row[table.assetIndex].trim()),
+    source: unescapeFormula(row[table.sourceIndex]),
+    text: unescapeFormula(row[targetIndex]),
   }));
 };
 
