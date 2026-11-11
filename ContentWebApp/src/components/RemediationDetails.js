@@ -24,15 +24,6 @@ import "./RemediationDetails.css";
 const pageContent = (pages, index, fallback) =>
   pages.length ? pages[index]?.content ?? "" : fallback;
 
-const ARTIFACT_LABELS = {
-  docx: "Download Word",
-  pdf: "Download PDF",
-  tex: "Download LaTeX",
-  translated_docx: "Download translated Word",
-  translated_pdf: "Download translated PDF",
-  translated_tex: "Download translated LaTeX",
-};
-
 const OriginalScan = ({ hasPageImages, sourcePageUrl, sourcePdfUrl, bookPageNum }) => {
   if (hasPageImages) {
     if (!sourcePageUrl) return <p className="card-description">Loading scan…</p>;
@@ -72,6 +63,7 @@ const RemediationDetails = () => {
   const hasSeededDraftRef = useRef(false);
   const [showOcrText, setShowOcrText] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
+  const [brailleBusy, setBrailleBusy] = useState(false);
   const [pendingNav, setPendingNav] = useState(null);
 
   const rawPages = useMemo(() => splitIntoPages(documents.raw), [documents.raw]);
@@ -267,6 +259,27 @@ const RemediationDetails = () => {
     }
   };
 
+  const handleGenerateBraille = async () => {
+    setBrailleBusy(true);
+    try {
+      setActionMessage("Generating Braille files...");
+      const updated = await textbookRemediationService.brailleJob(jobId);
+      setJob(updated);
+      const warnings = updated.counts.braille_warnings;
+      setActionMessage(
+        warnings
+          ? `Braille files ready. ${warnings} item(s) need manual review. Open the Braille report.`
+          : "Braille files ready."
+      );
+      setTimeout(() => setActionMessage(null), 4000);
+    } catch (bErr) {
+      setError(bErr.message);
+      setActionMessage(null);
+    } finally {
+      setBrailleBusy(false);
+    }
+  };
+
   const loadingDocs = !documents.raw && !documents.corrected && job && isRemediationDone(job.status);
 
   return (
@@ -359,6 +372,17 @@ const RemediationDetails = () => {
                   </span>
                 )}
 
+                {job.status === JOB_STATUS.VERIFIED && (
+                  <button
+                    type="button"
+                    className="action-ghost-button"
+                    disabled={brailleBusy}
+                    onClick={handleGenerateBraille}
+                  >
+                    {job.artifacts.brf ? "Regenerate Braille" : "Generate Braille"}
+                  </button>
+                )}
+
                 {ARTIFACT_DOWNLOADS.some((entry) => job.artifacts[entry.key]) && (
                   <button
                     type="button"
@@ -394,7 +418,7 @@ const RemediationDetails = () => {
                           )
                         }
                       >
-                        {ARTIFACT_LABELS[entry.key]}
+                        {entry.downloadLabel}
                       </button>
                     );
                   }

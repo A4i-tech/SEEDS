@@ -28,6 +28,7 @@ from app.models.responses.remediation import (
 from app.platform.error_handling import NotFoundError, ValidationError
 from app.platform.settings import get_settings
 from app.providers.blob_storage import BlobStorageProvider
+from app.remediation.braille import build_braille
 from app.remediation.render import compile_docx_tex_pdf
 from app.remediation.translate import run_translation
 from app.repositories.textbook_remediation_repository import TextbookRemediationRepository
@@ -173,6 +174,10 @@ async def findings_page(
     ).model_dump(mode="json")
 
 
+def _blob_path(job_id: str, name: ArtifactName, folder: str = "") -> str:
+    return "/".join(part for part in ("textbook-remediation", str(job_id), folder, artifact_filename(name)) if part)
+
+
 async def save_draft(
     repo: TextbookRemediationRepository,
     blob_provider: BlobStorageProvider,
@@ -181,7 +186,7 @@ async def save_draft(
 ) -> RemediationJob:
     url = await blob_provider.upload_file(
         get_settings().azure_storage_container,
-        f"textbook-remediation/{job.job_id}/{artifact_filename(ArtifactName.DRAFT)}",
+        _blob_path(job.job_id, ArtifactName.DRAFT),
         draft_md.encode("utf-8"),
         "text/markdown",
     )
@@ -233,7 +238,7 @@ async def verify_job(
                     with out_path.open("rb") as fh:
                         verified[name] = await blob_provider.upload_file(
                             container,
-                            f"textbook-remediation/{job.job_id}/verified/{ARTIFACTS[name][0]}",
+                            _blob_path(job.job_id, name, "verified"),
                             fh,
                             ARTIFACTS[name][1],
                         )
@@ -274,6 +279,37 @@ async def translate_job(
         raise
     updated = await repo.record_artifacts(job.job_id, translated_urls, {})
     await repo.set_translation_error(job.job_id, None)
+    if updated is None:
+        raise NotFoundError("Remediation job", job.job_id)
+    return updated
+
+
+async def braille_job(
+    repo: TextbookRemediationRepository,
+    blob_provider: BlobStorageProvider,
+    job: RemediationJob,
+    language: str,
+) -> RemediationJob:
+    if job.draft_remediated_md:
+        markdown = job.draft_remediated_md
+    else:
+        remediated_bytes, _ = await artifact_bytes(job, ArtifactName.REMEDIATED, blob_provider)
+        markdown = remediated_bytes.decode("utf-8")
+    try:
+        brf, report = await asyncio.to_thread(build_braille, markdown, language)
+    except Exception as exc:
+        logger.error("Could not build Braille for job %s: %s", job.job_id, exc)
+        raise ValidationError(f"Could not build the Braille files: {exc}") from exc
+    container = get_settings().azure_storage_container
+    urls: dict[ArtifactName, str] = {}
+    for name, payload in (
+        (ArtifactName.BRF, brf.encode("utf-8")),
+        (ArtifactName.BRAILLE_REPORT, report.model_dump_json(indent=2).encode("utf-8")),
+    ):
+        urls[name] = await blob_provider.upload_file(
+            container, _blob_path(job.job_id, name, "braille"), payload, ARTIFACTS[name][1]
+        )
+    updated = await repo.record_artifacts(job.job_id, urls, {"braille_warnings": len(report.warnings)})
     if updated is None:
         raise NotFoundError("Remediation job", job.job_id)
     return updated
