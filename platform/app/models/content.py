@@ -63,6 +63,7 @@ class Content(BaseModel):
     is_pull_model: bool = False
     is_teacher_app: bool = False
     braille_grade: int | None = None
+    text_file_url: str | None = None
     is_processed: bool = False
     is_deleted: bool = False
     creation_time: int = -1

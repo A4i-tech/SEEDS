@@ -190,6 +190,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         ContentAggregatorSyncJobRepository,
     )
     from app.repositories.content_job_repository import ContentJobRepository  # noqa: PLC0415
+    from app.repositories.device_push_repository import DevicePushRepository  # noqa: PLC0415
     from app.repositories.textbook_remediation_repository import (  # noqa: PLC0415
         TextbookRemediationRepository,
     )
@@ -223,6 +224,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await TranslationAuditRepository.ensure_indexes(get_database())
     await ContentAggregatorSyncJobRepository.ensure_indexes(get_database())
     await ContentJobRepository.ensure_indexes(get_database())
+    await DevicePushRepository.ensure_indexes(get_database())
     await TextbookRemediationRepository.ensure_indexes(get_database())
     await IntegrationClientRepository.ensure_indexes(get_database())
     await UserRefreshTokenRepository.ensure_indexes(get_database())

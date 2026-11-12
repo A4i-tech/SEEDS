@@ -21,6 +21,7 @@ from app.controllers import (
     content_aggregator_content_controller,
     content_aggregator_controller,
     content_controller,
+    device_push_controller,
     glossary_controller,
     ivr_controller,
     # Other
@@ -70,6 +71,7 @@ api_router.include_router(class_controller.router)
 
 # Content
 api_router.include_router(content_controller.router)
+api_router.include_router(device_push_controller.router)
 api_router.include_router(audit_controller.router)
 api_router.include_router(content_aggregator_controller.router)
 api_router.include_router(content_aggregator_content_controller.router)
