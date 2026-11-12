@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pytest
-from bson import ObjectId
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
@@ -67,16 +66,20 @@ async def _create(client, db, client_id: str = "c-1") -> tuple[str, str]:
     return job["content_id"], job_id
 
 
-async def test_create_stores_in_contents_v3_and_enqueues_one_job(client, db):
-    response = await client.post("/v1/content", json=BODY, headers=_headers())
+async def test_create_stores_in_content_aggregators_and_enqueues_one_job(client, db):
+    response = await client.post("/v1/content", json=BODY, headers=_headers("hexis-adapter"))
 
     assert response.status_code == 200
     assert list(response.json()["jobs"]) == [TENANT]
-    doc = await db["contentsV3"].find_one({})
+    doc = await db["contentAggregators"].find_one({})
     assert doc["title"]["english"] == "My Story"
+    assert doc["tenant_id"] == TENANT
     assert doc["is_processed"] is False
-    assert await db["content_jobs"].count_documents({}) == 1
-    assert await db["contentAggregators"].count_documents({}) == 0
+    job = await db["content_jobs"].find_one({})
+    assert job["content_id"] == doc["content_id"]
+    assert job["tenant_id"] == TENANT
+    assert job["source"] == "hexis-adapter"
+    assert await db["contentsV3"].count_documents({}) == 0
 
 
 async def test_create_fans_out_one_item_and_job_per_tenant(client, db):
@@ -85,7 +88,7 @@ async def test_create_fans_out_one_item_and_job_per_tenant(client, db):
     response = await client.post("/v1/content", json=BODY, headers=headers)
 
     assert set(response.json()["jobs"]) == {TENANT, OTHER_TENANT}
-    assert await db["contentsV3"].count_documents({}) == 2
+    assert await db["contentAggregators"].count_documents({}) == 2
     assert await db["content_jobs"].count_documents({}) == 2
 
 
@@ -102,7 +105,7 @@ async def test_create_rejects_invalid_body_at_the_request(client, db, override):
     response = await client.post("/v1/content", json={**BODY, **override}, headers=_headers())
 
     assert response.status_code == 422
-    assert await db["contentsV3"].count_documents({}) == 0
+    assert await db["contentAggregators"].count_documents({}) == 0
 
 
 async def test_wrong_tenant_header_is_forbidden(client):
@@ -142,7 +145,7 @@ async def test_get_returns_item_and_404_for_unknown(client, db):
 
     assert found.status_code == 200
     assert found.json()["title"]["english"] == "My Story"
-    assert (await client.get(f"/v1/content/{'a' * 24}", headers=_headers())).status_code == 404
+    assert (await client.get("/v1/content/unknown", headers=_headers())).status_code == 404
 
 
 async def test_get_hides_other_tenants_content(client, db):
@@ -155,17 +158,55 @@ async def test_get_hides_other_tenants_content(client, db):
 async def test_list_paginates_and_filters_by_ids(client, db):
     ids = [(await _create(client, db))[0] for _ in range(3)]
     for offset, content_id in enumerate(ids):
-        await db["contentsV3"].update_one({"_id": ObjectId(content_id)}, {"$set": {"creation_time": 100 - offset}})
+        await db["contentAggregators"].update_one({"content_id": content_id}, {"$set": {"creation_time": 100 - offset}})
 
     first = await client.get("/v1/content?limit=2", headers=_headers())
-    assert len(first.json()["data"]) == 2
+    assert [item["content_id"] for item in first.json()["data"]] == ids[:2]
     assert first.json()["pagination"]["has_more"] is True
     cursor = first.json()["pagination"]["next_cursor"]
     second = await client.get(f"/v1/content?limit=2&cursor={cursor}", headers=_headers())
+    assert [item["content_id"] for item in second.json()["data"]] == ids[2:]
     assert second.json()["pagination"]["has_more"] is False
 
     picked = await client.get(f"/v1/content?ids={ids[0]}&ids={ids[2]}", headers=_headers())
-    assert {item["id"] for item in picked.json()["data"]} == {ids[0], ids[2]}
+    assert {item["content_id"] for item in picked.json()["data"]} == {ids[0], ids[2]}
+
+
+async def test_list_cursor_moves_past_items_from_the_same_second(client, db):
+    ids = [(await _create(client, db))[0] for _ in range(3)]
+    await db["contentAggregators"].update_many({}, {"$set": {"creation_time": 100}})
+
+    first = await client.get("/v1/content?limit=2", headers=_headers())
+    cursor = first.json()["pagination"]["next_cursor"]
+    second = await client.get(f"/v1/content?limit=2&cursor={cursor}", headers=_headers())
+
+    seen = [item["content_id"] for item in first.json()["data"] + second.json()["data"]]
+    assert sorted(seen) == sorted(ids)
+    assert second.json()["pagination"]["has_more"] is False
+
+
+async def test_list_filters_by_language_theme_and_type(client, db):
+    await _create(client, db)
+    await db["contentAggregators"].insert_one(
+        {"tenant_id": TENANT, "content_id": "other", "type": "audio", "language": "kn", "title": {"english": "T"},
+         "theme": {"english": "Other"}, "is_deleted": False, "creation_time": 1}
+    )
+
+    kn = await client.get("/v1/content?language=kn", headers=_headers())
+    assert [item["content_id"] for item in kn.json()["data"]] == ["other"]
+    theme = await client.get("/v1/content?theme=Families&exp_name=Story", headers=_headers())
+    assert len(theme.json()["data"]) == 1
+    assert (await client.get("/v1/content?cursor=garbage", headers=_headers())).status_code == 422
+
+
+async def test_list_hides_other_tenants_and_deleted_items(client, db):
+    content_id, _ = await _create(client, db)
+    await _create(client, db)
+    await db["contentAggregators"].update_one({"content_id": content_id}, {"$set": {"is_deleted": True}})
+    other = _headers(tenant_ids=(OTHER_TENANT,), sent=OTHER_TENANT)
+
+    assert len((await client.get("/v1/content", headers=_headers())).json()["data"]) == 1
+    assert (await client.get("/v1/content", headers=other)).json()["data"] == []
 
 
 async def test_patch_updates_fields_without_a_job(client, db):
@@ -186,6 +227,8 @@ async def test_patch_with_audio_uploaded_marks_unprocessed_and_enqueues_job(clie
 
     assert response.status_code == 200
     assert response.json()["job_id"]
+    doc = await db["contentAggregators"].find_one({"content_id": content_id})
+    assert doc["is_processed"] is False
     assert await db["content_jobs"].count_documents({"content_id": content_id}) == 2
 
 

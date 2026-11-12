@@ -7,14 +7,19 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Header, Query, Request
 from fastapi.security import OAuth2PasswordBearer
 
+from app.models.content import Content
 from app.models.requests.content_aggregator_content_requests import (
     PartnerContentCreate,
     PartnerContentListQuery,
     PartnerContentUpdate,
     TenantIdsHeader,
 )
-from app.models.responses.content import ContentItem, ContentPageResponse
-from app.models.responses.content_aggregator import PartnerJobsResponse, PartnerJobStatusResponse
+from app.models.responses.content_aggregator import (
+    PartnerContentPageResponse,
+    PartnerContentUpdateResponse,
+    PartnerJobsResponse,
+    PartnerJobStatusResponse,
+)
 from app.models.responses.job import DeleteMatchedResponse
 from app.platform.error_handling import AppError, UnauthorizedError
 from app.platform.security import limiter
@@ -91,7 +96,7 @@ async def create_content(
     tenant_ids: list[str] = Depends(get_tenant_ids),
     service: PartnerContentService = Depends(get_partner_content_service),
 ) -> PartnerJobsResponse:
-    return await service.create(tenant_ids, body)
+    return await service.create(tenant_ids, claims["client_name"], body)
 
 
 @router.get("/job/{job_id}", summary="Get ingestion status for a job")
@@ -110,7 +115,7 @@ async def get_content(
     claims: AccessTokenClaims = Depends(require_scope(PartnerScope.CONTENT_READ)),
     tenant_id: str = Depends(get_tenant_id),
     service: PartnerContentService = Depends(get_partner_content_service),
-) -> ContentItem:
+) -> Content:
     return await service.get(tenant_id, content_id)
 
 
@@ -120,7 +125,7 @@ async def list_content(
     claims: AccessTokenClaims = Depends(require_scope(PartnerScope.CONTENT_READ)),
     tenant_id: str = Depends(get_tenant_id),
     service: PartnerContentService = Depends(get_partner_content_service),
-) -> ContentPageResponse:
+) -> PartnerContentPageResponse:
     return await service.list(tenant_id, query)
 
 
@@ -132,8 +137,8 @@ async def update_content(
     claims: AccessTokenClaims = Depends(require_scope(PartnerScope.CONTENT_WRITE)),
     tenant_id: str = Depends(get_tenant_id),
     service: PartnerContentService = Depends(get_partner_content_service),
-) -> ContentItem:
-    return await service.update(tenant_id, content_id, body, is_audio_uploaded)
+) -> PartnerContentUpdateResponse:
+    return await service.update(tenant_id, claims["client_name"], content_id, body, is_audio_uploaded)
 
 
 @router.delete("/{content_id}", summary="Soft-delete a content item")

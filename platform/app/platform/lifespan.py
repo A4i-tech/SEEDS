@@ -305,6 +305,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logger.warning("Subodha client close failed: %s", exc)
 
     await get_vembi_client().close()
+    get_vembi_client.cache_clear()
 
     await close_database()
     logger.info("SEEDS Platform shut down.")

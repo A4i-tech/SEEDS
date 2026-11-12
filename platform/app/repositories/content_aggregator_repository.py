@@ -8,6 +8,7 @@ DTO<->dict conversion happens only here (CanonicalNode.to_doc()/from_doc())
 """
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import ClassVar
 
 from pymongo import UpdateOne
@@ -15,6 +16,7 @@ from pymongo.asynchronous.database import AsyncDatabase
 from pymongo.errors import BulkWriteError
 
 from app.aggregators.models import CanonicalNode
+from app.platform.error_handling import NotFoundError
 
 _DUPLICATE_KEY_ERROR_CODE = 11000
 
@@ -99,3 +101,43 @@ class ContentAggregatorRepository:
     async def delete_tree(self, tenant_id: str, source_type: str, root_id: str) -> int:
         result = await self._col.delete_many({"tenant_id": tenant_id, "source_type": source_type, "root_id": root_id})
         return result.deleted_count
+
+    async def insert_partner_content(self, doc: dict) -> None:
+        await self._col.insert_one(doc)
+
+    async def find_partner_content(self, tenant_id: str, content_id: str) -> dict:
+        doc = await self._col.find_one({"tenant_id": tenant_id, "content_id": content_id, "is_deleted": False})
+        if not doc:
+            raise NotFoundError("Content", content_id)
+        return doc
+
+    async def update_partner_content(self, tenant_id: str, content_id: str, updates: dict) -> dict:
+        doc = await self._col.find_one_and_update(
+            {"tenant_id": tenant_id, "content_id": content_id, "is_deleted": False},
+            {"$set": updates | {"updated_at": datetime.now(UTC)}},
+            return_document=True,
+        )
+        if not doc:
+            raise NotFoundError("Content", content_id)
+        return doc
+
+    async def soft_delete_partner_content(self, tenant_id: str, content_id: str) -> int:
+        result = await self._col.update_one(
+            {"tenant_id": tenant_id, "content_id": content_id, "is_deleted": False},
+            {"$set": {"is_deleted": True, "updated_at": datetime.now(UTC)}},
+        )
+        if not result.matched_count:
+            raise NotFoundError("Content", content_id)
+        return result.matched_count
+
+    async def search_partner_content(
+        self, tenant_id: str, filters: dict[str, object], cursor: str, limit: int
+    ) -> list[dict]:
+        query = {"tenant_id": tenant_id, "is_deleted": False} | {k: v for k, v in filters.items() if v}
+        creation_time, _, content_id = cursor.partition("_")
+        if cursor:
+            query["$or"] = [
+                {"creation_time": {"$lt": int(creation_time)}},
+                {"creation_time": int(creation_time), "content_id": {"$lt": content_id}},
+            ]
+        return await self._col.find(query).sort([("creation_time", -1), ("content_id", -1)]).to_list(length=limit)

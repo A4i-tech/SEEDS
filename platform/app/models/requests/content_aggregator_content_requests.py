@@ -88,4 +88,4 @@ class PartnerContentListQuery(BaseModel):
     ids: list[str] = Field(default_factory=list)
     only_teacher_app: bool = False
     limit: int = Field(15, ge=1, le=200)
-    cursor: str = ""
+    cursor: str = Field("", pattern=r"^(\d+_.+)?$")

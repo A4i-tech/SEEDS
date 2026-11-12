@@ -61,6 +61,7 @@ class Content(BaseModel):
     created_by: str = ""
     is_pull_model: bool = False
     is_teacher_app: bool = False
+    content_id: str = ""
     text_file_url: str = ""
     is_processed: bool = False
     is_deleted: bool = False
