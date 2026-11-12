@@ -20,10 +20,6 @@ class DevicePushRecord(BaseModel):
     synced_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
-class TokenUser(BaseModel):
-    tenant_id: str
-
-
 class VembiPushReply(BaseModel):
     source_id: str
 
