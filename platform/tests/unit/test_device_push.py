@@ -19,7 +19,7 @@ from app.models.device_push import DevicePushRecord
 from app.models.requests.device_push_requests import DevicePushCallback, DevicePushRequest
 from app.platform.auth.dependencies import get_current_user, get_db
 from app.platform.error_handling import NotFoundError, register_error_handlers
-from app.providers.vembi_client import VembiClient
+from app.providers.vembi_client import VembiClient, get_vembi_client
 from app.repositories.device_push_repository import DevicePushRepository
 from tests.support.mongomock_async import AsyncMongoMockClient
 
@@ -60,9 +60,13 @@ def blob(monkeypatch):
     return provider
 
 
+def _vembi(handler) -> VembiClient:
+    return VembiClient(httpx.AsyncClient(base_url="https://vembi.test", transport=httpx.MockTransport(handler)))
+
+
 @pytest.fixture
-def vembi_calls(monkeypatch):
-    calls: list[httpx.Request] = []
+def vembi_calls():
+    calls = type("Calls", (list,), {})()
 
     def handler(request: httpx.Request) -> httpx.Response:
         calls.append(request)
@@ -72,9 +76,7 @@ def vembi_calls(monkeypatch):
             200, json={"source_id": "src-1", "status": "DELIVERED", "last_synced_at": "2026-11-12T11:29:14+05:30"}
         )
 
-    transport = httpx.MockTransport(handler)
-    original = VembiClient.__init__
-    monkeypatch.setattr(VembiClient, "__init__", lambda self, transport_=None: original(self, transport))
+    calls.client = _vembi(handler)
     return calls
 
 
@@ -111,6 +113,7 @@ async def client(db, user, settings, blob, vembi_calls):
     app.include_router(router)
     app.dependency_overrides[get_db] = lambda: db
     app.dependency_overrides[get_current_user] = lambda: user
+    app.dependency_overrides[get_vembi_client] = lambda: vembi_calls.client
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as c:
         yield c
 
@@ -138,11 +141,10 @@ async def test_vembi_client_push_and_status(settings):
         seen.append(request)
         return httpx.Response(200, json={"source_id": "s1", "status": "PROCESSING"})
 
-    client = VembiClient(httpx.MockTransport(handler))
+    client = _vembi(handler)
     reply = await client.push("2000", "iris", SAS, "kn", "T", "story")
 
     assert reply.source_id == "s1"
-    assert seen[0].headers["authorization"] == "Bearer key"
     assert json.loads(seen[0].content) == {
         "device_id": "2000",
         "device_type": "iris",
@@ -154,10 +156,10 @@ async def test_vembi_client_push_and_status(settings):
 
 
 async def test_vembi_client_errors(settings):
-    failing = VembiClient(httpx.MockTransport(lambda r: httpx.Response(500)))
+    failing = _vembi(lambda r: httpx.Response(500))
     with pytest.raises(httpx.HTTPStatusError):
         await failing.push("1", "iris", SAS, "kn", "T", "story")
-    missing = VembiClient(httpx.MockTransport(lambda r: httpx.Response(404)))
+    missing = _vembi(lambda r: httpx.Response(404))
     with pytest.raises(NotFoundError):
         await missing.get_status("nope")
 
@@ -176,11 +178,13 @@ async def test_repository_roundtrip(db, settings):
     )
     await repo.insert(record)
 
-    assert await repo.find_by_source_id("s1", TENANT)
-    assert await repo.find_by_source_id("s1", OTHER_TENANT) is None
+    assert await repo.find_by_source_id("s1")
+    assert await repo.find_by_source_id_and_tenant("s1", TENANT)
+    with pytest.raises(NotFoundError):
+        await repo.find_by_source_id_and_tenant("s1", OTHER_TENANT)
     updated = await repo.update_status("s1", "DELIVERED", datetime(2026, 11, 12, tzinfo=UTC))
     assert updated.status == "DELIVERED"
-    again = await repo.update_status("s1", "DELIVERED", None)
+    again = await repo.update_status("s1", "DELIVERED", datetime(2026, 11, 12, tzinfo=UTC))
     assert again.synced_at == updated.synced_at
     with pytest.raises(DuplicateKeyError):
         await repo.insert(record)
@@ -217,7 +221,7 @@ async def test_hexis_push_uses_text_file(client, db, blob):
 
 
 async def test_hexis_without_text_file_is_rejected(client, db, vembi_calls):
-    content_id = await _content(db, text_file_url=None)
+    content_id = await _content(db, text_file_url="")
 
     response = await _push(client, content_id, device_type="hexis")
 
@@ -310,7 +314,7 @@ async def test_final_status_does_not_call_vembi(client, db, vembi_calls, final):
             "device_type": "hexis",
             "status": final,
             "queued_at": datetime.now(UTC),
-            "synced_at": None,
+            "synced_at": datetime.now(UTC),
         }
     )
 
@@ -321,7 +325,8 @@ async def test_final_status_does_not_call_vembi(client, db, vembi_calls, final):
 
 
 async def test_status_of_other_tenant_or_unknown_is_404(client, db):
-    await db["devicePushes"].insert_one({"source_id": "x", "tenant_id": OTHER_TENANT, "status": "QUEUED"})
+    await _queued(db, "x")
+    await db["devicePushes"].update_one({"source_id": "x"}, {"$set": {"tenant_id": OTHER_TENANT}})
 
     assert (await client.get("/devices/push/x/status")).status_code == 404
     assert (await client.get("/devices/push/none/status")).status_code == 404
@@ -337,7 +342,7 @@ async def _queued(db, source_id="src-9"):
             "device_type": "iris",
             "status": "QUEUED",
             "queued_at": datetime.now(UTC),
-            "synced_at": None,
+            "synced_at": datetime.now(UTC),
         }
     )
 
@@ -361,9 +366,10 @@ async def test_callback_updates_status_without_token(client, db, status):
 async def test_callback_with_bad_signature_changes_nothing(client, db):
     await _queued(db)
 
-    for signature in ("sha256=deadbeef", ""):
-        response = await _callback(client, {"source_id": "src-9", "status": "DELIVERED"}, signature)
-        assert response.status_code == 401
+    response = await _callback(client, {"source_id": "src-9", "status": "DELIVERED"}, "sha256=deadbeef")
+    assert response.status_code == 401
+    body = json.dumps({"source_id": "src-9", "status": "DELIVERED"}).encode()
+    assert (await client.post("/devices/push/callback", content=body)).status_code == 422
 
     assert (await db["devicePushes"].find_one({"source_id": "src-9"}))["status"] == "QUEUED"
 

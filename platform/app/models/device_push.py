@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 DeviceType = Literal["hexis", "iris"]
 PushStatus = Literal["QUEUED", "DELIVERED", "FAILED"]
@@ -17,12 +17,11 @@ class DevicePushRecord(BaseModel):
     device_type: DeviceType
     status: PushStatus
     queued_at: datetime
-    synced_at: datetime | None = None
+    synced_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
 
 
 class TokenUser(BaseModel):
     tenant_id: str
-    role: str
 
 
 class VembiPushReply(BaseModel):
@@ -32,4 +31,4 @@ class VembiPushReply(BaseModel):
 class VembiStatusReply(BaseModel):
     source_id: str
     status: PushStatus
-    last_synced_at: datetime | None = None
+    last_synced_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

@@ -8,14 +8,8 @@ from app.platform.settings import get_settings
 
 
 class VembiClient:
-    def __init__(self, transport: httpx.AsyncBaseTransport | None = None) -> None:
-        settings = get_settings()
-        self._client = httpx.AsyncClient(
-            base_url=settings.vembi_base_url,
-            headers={"Authorization": f"Bearer {settings.vembi_api_key}"},
-            timeout=settings.vembi_timeout_seconds,
-            transport=transport,
-        )
+    def __init__(self, client: httpx.AsyncClient) -> None:
+        self._client = client
 
     async def push(
         self,
@@ -46,3 +40,14 @@ class VembiClient:
             raise NotFoundError("Device push", source_id)
         response.raise_for_status()
         return VembiStatusReply.model_validate(response.json())
+
+
+def get_vembi_client() -> VembiClient:
+    settings = get_settings()
+    return VembiClient(
+        httpx.AsyncClient(
+            base_url=settings.vembi_base_url,
+            headers={"Authorization": f"Bearer {settings.vembi_api_key}"},
+            timeout=settings.vembi_timeout_seconds,
+        )
+    )

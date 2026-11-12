@@ -1,52 +1,65 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
+import pycountry
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, ValidationInfo, field_validator
+from typing_extensions import TypedDict
 
-from app.models.content import AudioContent, TextContent
+from app.models.content import TextContent
 from app.platform.error_handling import AppError
-from app.services.language_registry import SUPPORTED_LANGUAGES
 
-_SUPPORTED_LANGUAGE_CODES = {lang["code"] for lang in SUPPORTED_LANGUAGES}
+PartnerContentType = Literal["story", "audio"]
 
 
-def _check_language(language: str | None) -> str | None:
-    if language is not None and language not in _SUPPORTED_LANGUAGE_CODES:
-        raise AppError("UNSUPPORTED_LANGUAGE", f"Unsupported language '{language}'", 400)
+def _iso_639_1(language: str) -> str:
+    if pycountry.languages.get(alpha_2=language) is None:
+        raise ValueError(f"'{language}' is not an ISO 639-1 language code")
     return language
+
+
+def _mp3_only(audio_url: str) -> str:
+    if not audio_url.lower().endswith(".mp3"):
+        raise ValueError("Only .mp3 audio files are allowed.")
+    return audio_url
+
+
+Iso639Language = Annotated[str, AfterValidator(_iso_639_1)]
+Mp3Url = Annotated[str, AfterValidator(_mp3_only)]
+
+
+class PartnerAudioContent(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    audio_url: Mp3Url
+    description: str = ""
+    duration_seconds: float = 0
 
 
 class PartnerContentCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    type: str
-    language: str
-
-    _validate_language = field_validator("language")(_check_language)
-    title: TextContent | None = None
-    theme: TextContent | None = None
+    type: PartnerContentType
+    language: Iso639Language
+    title: TextContent
+    theme: TextContent
     description: str = ""
-    audio_content: list[AudioContent] = Field(default_factory=list)
+    audio_content: list[PartnerAudioContent] = Field(default_factory=list)
     is_pull_model: bool = False
     is_teacher_app: bool = False
-    braille_grade: int | None = None
 
 
-class PartnerContentUpdate(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+class PartnerContentUpdate(TypedDict, total=False):
+    __pydantic_config__ = ConfigDict(extra="forbid")
 
-    type: str | None = None
-    language: str | None = None
-
-    _validate_language = field_validator("language")(_check_language)
-    title: TextContent | None = None
-    theme: TextContent | None = None
-    description: str | None = None
-    audio_content: list[AudioContent] | None = None
-    is_pull_model: bool | None = None
-    is_teacher_app: bool | None = None
-    braille_grade: int | None = None
+    type: PartnerContentType
+    language: Iso639Language
+    title: TextContent
+    theme: TextContent
+    description: str
+    audio_content: list[PartnerAudioContent]
+    is_pull_model: bool
+    is_teacher_app: bool
 
 
 class TenantIdsHeader(BaseModel):
@@ -54,8 +67,8 @@ class TenantIdsHeader(BaseModel):
 
     @field_validator("ids", mode="before")
     @classmethod
-    def _split(cls, raw: object) -> object:
-        return [t.strip() for t in raw.split(",") if t.strip()] if isinstance(raw, str) else raw
+    def _split(cls, raw: str) -> list[str]:
+        return [t.strip() for t in raw.split(",") if t.strip()]
 
     @field_validator("ids")
     @classmethod
@@ -71,16 +84,10 @@ class TenantIdsHeader(BaseModel):
 
 
 class PartnerContentListQuery(BaseModel):
-    language: str | None = None
-    theme: str | None = None
-    exp_name: str | None = None
-    ids: list[str] = []
+    language: str = ""
+    theme: str = ""
+    exp_name: str = ""
+    ids: list[str] = Field(default_factory=list)
     only_teacher_app: bool = False
     limit: int = Field(15, ge=1, le=200)
-    cursor: str | None = None
-
-
-@dataclass(frozen=True)
-class Cursor:
-    creation_time: int
-    key: str
+    cursor: str = ""

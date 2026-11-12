@@ -5,6 +5,7 @@ from datetime import datetime
 from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.device_push import DevicePushRecord, PushStatus
+from app.platform.error_handling import NotFoundError
 from app.platform.settings import get_settings
 
 
@@ -19,18 +20,22 @@ class DevicePushRepository:
     async def insert(self, record: DevicePushRecord) -> None:
         await self._col.insert_one(record.model_dump())
 
-    async def find_by_source_id(self, source_id: str, tenant_id: str | None = None) -> DevicePushRecord | None:
-        query = {"source_id": source_id}
-        if tenant_id is not None:
-            query["tenant_id"] = tenant_id
-        doc = await self._col.find_one(query)
-        return DevicePushRecord.model_validate(doc) if doc else None
+    async def find_by_source_id(self, source_id: str) -> DevicePushRecord:
+        doc = await self._col.find_one({"source_id": source_id})
+        if doc is None:
+            raise NotFoundError("Device push", source_id)
+        return DevicePushRecord.model_validate(doc)
+
+    async def find_by_source_id_and_tenant(self, source_id: str, tenant_id: str) -> DevicePushRecord:
+        doc = await self._col.find_one({"source_id": source_id, "tenant_id": tenant_id})
+        if doc is None:
+            raise NotFoundError("Device push", source_id)
+        return DevicePushRecord.model_validate(doc)
 
     async def update_status(
-        self, source_id: str, status: PushStatus, synced_at: datetime | None
-    ) -> DevicePushRecord | None:
-        fields: dict[str, str | datetime] = {"status": status}
-        if synced_at is not None:
-            fields["synced_at"] = synced_at
-        await self._col.update_one({"source_id": source_id}, {"$set": fields})
+        self, source_id: str, status: PushStatus, synced_at: datetime
+    ) -> DevicePushRecord:
+        await self._col.update_one(
+            {"source_id": source_id}, {"$set": {"status": status, "synced_at": synced_at}}
+        )
         return await self.find_by_source_id(source_id)

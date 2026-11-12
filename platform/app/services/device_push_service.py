@@ -27,7 +27,7 @@ from app.platform.error_handling import (
 )
 from app.platform.settings import get_settings
 from app.providers.blob_storage import get_blob_storage_provider
-from app.providers.vembi_client import VembiClient
+from app.providers.vembi_client import VembiClient, get_vembi_client
 from app.repositories.content_repository import ContentRepository
 from app.repositories.device_push_repository import DevicePushRepository
 
@@ -49,16 +49,12 @@ _FILE_PICKERS: dict[DeviceType, Callable[[Content], str]] = {"iris": _iris_file,
 
 
 class DevicePushService:
-    def __init__(self, db: AsyncDatabase, vembi: VembiClient | None = None) -> None:
+    def __init__(self, db: AsyncDatabase, vembi: VembiClient) -> None:
         self._content_repo = ContentRepository(db)
         self._push_repo = DevicePushRepository(db)
         self._vembi = vembi
 
-    def _vembi_client(self) -> VembiClient:
-        return self._vembi or VembiClient()
-
     async def push(self, tenant_id: str, body: DevicePushRequest) -> DevicePushResponse:
-        vembi = self._vembi_client()
         doc = await self._content_repo.find_by_id_and_tenant(body.content_id, tenant_id)
         if not doc:
             raise NotFoundError("Content", body.content_id)
@@ -67,7 +63,7 @@ class DevicePushService:
             raise AppError("CONTENT_NOT_PROCESSED", "Content is not processed yet", 409)
         blob_url = _FILE_PICKERS[body.device_type](content)
         file_url = await get_blob_storage_provider().get_sas_url_from_blob_url(blob_url, expiry_hours=1)
-        reply = await vembi.push(
+        reply = await self._vembi.push(
             body.device_id,
             body.device_type,
             file_url,
@@ -89,11 +85,9 @@ class DevicePushService:
         return DevicePushResponse(source_id=reply.source_id, status="QUEUED")
 
     async def get_status(self, tenant_id: str, source_id: str) -> DevicePushStatusResponse:
-        record = await self._push_repo.find_by_source_id(source_id, tenant_id)
-        if not record:
-            raise NotFoundError("Device push", source_id)
+        record = await self._push_repo.find_by_source_id_and_tenant(source_id, tenant_id)
         if record.status == "QUEUED":
-            reply = await self._vembi_client().get_status(source_id)
+            reply = await self._vembi.get_status(source_id)
             record = await self._push_repo.update_status(source_id, reply.status, reply.last_synced_at)
         return DevicePushStatusResponse(
             source_id=record.source_id,
@@ -120,10 +114,10 @@ class DevicePushService:
         except PydanticValidationError as exc:
             raise RequestValidationError(exc.errors()) from exc
         record = await self._push_repo.update_status(callback.source_id, callback.status, callback.synced_at)
-        if not record:
-            raise NotFoundError("Device push", callback.source_id)
         return DevicePushResponse(source_id=record.source_id, status=record.status)
 
 
-def get_device_push_service(db: AsyncDatabase = Depends(get_db)) -> DevicePushService:
-    return DevicePushService(db)
+def get_device_push_service(
+    db: AsyncDatabase = Depends(get_db), vembi: VembiClient = Depends(get_vembi_client)
+) -> DevicePushService:
+    return DevicePushService(db, vembi)

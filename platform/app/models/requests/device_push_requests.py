@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 from pydantic import BaseModel, Field
 
@@ -16,4 +16,4 @@ class DevicePushRequest(BaseModel):
 class DevicePushCallback(BaseModel):
     source_id: str = Field(min_length=1)
     status: PushStatus
-    synced_at: datetime | None = None
+    synced_at: datetime = Field(default_factory=lambda: datetime.now(UTC))

@@ -17,11 +17,11 @@ class DevicePushDevice(BaseModel):
     device_id: str
     status: PushStatus
     queued_at: datetime
-    synced_at: datetime | None = None
+    synced_at: datetime
 
 
 class DevicePushStatusResponse(BaseModel):
     source_id: str
     status: PushStatus
-    last_synced_at: datetime | None = None
+    last_synced_at: datetime
     devices: list[DevicePushDevice]
