@@ -5,10 +5,8 @@
 import '@testing-library/jest-dom';
 
 // Mock environment variables for all tests
-window.__ENV__ = {
-    REACT_APP_API_BASE_URL: 'http://localhost:3001',
-    REACT_APP_STORAGE_ACCOUNT_NAME: 'testaccount',
-};
+process.env.REACT_APP_API_BASE_URL = 'http://localhost:3001';
+process.env.REACT_APP_STORAGE_ACCOUNT_NAME = 'testaccount';
 
 // Mock EventSource globally
 global.EventSource = jest.fn(() => ({

@@ -11,25 +11,23 @@
 - Select the appropriate branch for deployment (e.g., `main` or `a4i/main`)
 
 ## 3. Runtime Configuration
-The image holds no environment values. Mount a file at `/etc/app-config/env.js` when the container starts.
-
-The file has this content:
-```js
-window.__ENV__ = {
-  REACT_APP_API_BASE_URL: "<your-backend-api-url>",
-  REACT_APP_STORAGE_ACCOUNT_NAME: "<azure-storage-account-name>",
-};
+The image holds no environment values. Set these as container environment variables when the container starts:
+```
+REACT_APP_API_BASE_URL=<value>
+REACT_APP_STORAGE_ACCOUNT_NAME=<value>
 ```
 
-If the file is missing, `/env.js` returns 404. The page shows "Could not load /env.js. Check the mount at /etc/app-config/env.js, then restart." Fix the mount and restart.
+The build puts a placeholder in the bundle for each variable. The start script `runtime-env.sh` replaces each placeholder with the variable value, then starts nginx.
 
-If a key is missing from the file, the app throws an error that names the key.
+If a variable is missing or empty, the container exits with an error that names the variable. Set it and restart.
 
-Every browser can read `env.js`. Never put a secret in it. Make sure the nginx user (UID 101) can read the file.
+A value must not contain `"`, `\`, `<`, `&`, `|`, or a control character.
+
+Every browser can read these values. Never put a secret in them.
 
 Set each value in every environment before the first deploy of this image. Take the value from the old GitHub variable or secret in this table.
 
-| Key in `env.js` | Old GitHub variable or secret (value source) |
+| Variable | Old GitHub variable or secret (value source) |
 |---|---|
 | `REACT_APP_API_BASE_URL` | TEACHER_WEBAPP_API_BASE_URL (prod), TEACHER_WEBAPP_API_BASE_URL_STAGING (staging) |
 | `REACT_APP_STORAGE_ACCOUNT_NAME` | TEACHER_WEBAPP_STORAGE_ACCOUNT_NAME |

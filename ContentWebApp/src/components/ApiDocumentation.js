@@ -11,7 +11,7 @@ const swaggerDocument = {
   },
   servers: [
     {
-      url: window.__ENV__.REACT_APP_API_BASE_URL,
+      url: process.env.REACT_APP_API_BASE_URL,
       description: "Development server",
     },
   ],
