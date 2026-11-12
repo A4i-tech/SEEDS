@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from functools import cache
+
 import httpx
 
 from app.models.device_push import VembiPushReply, VembiStatusReply
@@ -10,6 +12,9 @@ from app.platform.settings import get_settings
 class VembiClient:
     def __init__(self, client: httpx.AsyncClient) -> None:
         self._client = client
+
+    async def close(self) -> None:
+        await self._client.aclose()
 
     async def push(
         self,
@@ -42,6 +47,7 @@ class VembiClient:
         return VembiStatusReply.model_validate(response.json())
 
 
+@cache
 def get_vembi_client() -> VembiClient:
     settings = get_settings()
     return VembiClient(

@@ -22,6 +22,7 @@ from fastapi import FastAPI
 from app.platform.database import close_database, get_database, init_database
 from app.platform.settings import get_settings
 from app.providers.subodha_client import close_subodha_client
+from app.providers.vembi_client import get_vembi_client
 from app.services.content_aggregator_sync_jobs import get_sync_job_service
 
 if TYPE_CHECKING:
@@ -302,6 +303,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await close_subodha_client()
     except Exception as exc:
         logger.warning("Subodha client close failed: %s", exc)
+
+    await get_vembi_client().close()
 
     await close_database()
     logger.info("SEEDS Platform shut down.")

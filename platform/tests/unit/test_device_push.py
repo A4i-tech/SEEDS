@@ -391,3 +391,11 @@ async def test_repeat_callback_is_safe(client, db):
 
     assert first.status_code == second.status_code == 200
     assert await db["devicePushes"].count_documents({"source_id": "src-9"}) == 1
+
+
+async def test_vembi_client_is_shared_and_closes(settings):
+    shared = get_vembi_client()
+
+    assert get_vembi_client() is shared
+    await shared.close()
+    get_vembi_client.cache_clear()

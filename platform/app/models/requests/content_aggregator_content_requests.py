@@ -68,14 +68,12 @@ class TenantIdsHeader(BaseModel):
     @field_validator("ids", mode="before")
     @classmethod
     def _split(cls, raw: str) -> list[str]:
-        return [t.strip() for t in raw.split(",") if t.strip()]
+        return [t.strip() for t in raw.split(",")]
 
     @field_validator("ids")
     @classmethod
     def _check(cls, ids: list[str], info: ValidationInfo) -> list[str]:
         ctx = info.context
-        if not ids:
-            raise AppError("TENANT_NOT_ALLOWED", "x-tenant-ids is required", 403)
         if any(t not in set(ctx["allowed"]) for t in ids):
             raise AppError("TENANT_NOT_ALLOWED", "tenant not allowed for this client", 403)
         if ctx["single"] and len(ids) != 1:

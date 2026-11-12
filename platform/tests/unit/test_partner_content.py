@@ -112,6 +112,14 @@ async def test_wrong_tenant_header_is_forbidden(client):
     assert response.json()["code"] == "TENANT_NOT_ALLOWED"
 
 
+@pytest.mark.parametrize("sent", [f"{TENANT},,", ",", f"{TENANT}, "])
+async def test_empty_tenant_segments_are_forbidden(client, sent):
+    response = await client.post("/v1/content", json=BODY, headers=_headers(sent=sent))
+
+    assert response.status_code == 403
+    assert response.json()["code"] == "TENANT_NOT_ALLOWED"
+
+
 async def test_missing_scope_is_forbidden(client):
     response = await client.post("/v1/content", json=BODY, headers=_headers(scopes=("content:read",)))
 
