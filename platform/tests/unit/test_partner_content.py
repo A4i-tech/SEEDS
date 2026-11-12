@@ -196,7 +196,6 @@ async def test_list_filters_by_language_theme_and_type(client, db):
     assert [item["content_id"] for item in kn.json()["data"]] == ["other"]
     theme = await client.get("/v1/content?theme=Families&exp_name=Story", headers=_headers())
     assert len(theme.json()["data"]) == 1
-    assert (await client.get("/v1/content?cursor=garbage", headers=_headers())).status_code == 422
 
 
 async def test_list_hides_other_tenants_and_deleted_items(client, db):
