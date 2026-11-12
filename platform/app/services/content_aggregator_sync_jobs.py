@@ -3,26 +3,13 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import uuid
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator
 
 from fastapi import Depends
 from pymongo.asynchronous.database import AsyncDatabase
 
-from app.aggregators.models import SourceType
-from app.aggregators.sync_job_models import (
-    SyncItemResult,
-    SyncJob,
-    SyncJobStatus,
-    SyncOptions,
-    SyncScope,
-    SyncStats,
-)
-from app.models.responses.content_aggregator import (
-    SyncJobResponse,
-    SyncStreamEvent,
-)
+from app.aggregators.sync_job_models import SyncItemResult, SyncJob, SyncStats
 from app.platform.auth.dependencies import get_db
-from app.platform.error_handling import NotFoundError
 from app.repositories.content_aggregator_sync_job_item_repository import (
     ContentAggregatorSyncJobItemRepository,
     get_content_aggregator_sync_job_item_repo,
@@ -34,24 +21,23 @@ from app.repositories.content_aggregator_sync_job_repository import (
 
 _subscribers: dict[str, list[asyncio.Queue]] = {}
 POLL_INTERVAL_SECONDS = 1.0
-TERMINAL_STATUSES = frozenset({SyncJobStatus.COMPLETED, SyncJobStatus.FAILED})
+TERMINAL_STATUSES = {"completed", "failed"}
 
 
-def serialize_job(job: SyncJob, stats: SyncStats) -> SyncJobResponse:
+def serialize_job(job: SyncJob, stats: SyncStats) -> dict[str, object]:
     processed = job.finished_total if job.status in TERMINAL_STATUSES and job.finished_total is not None else stats.total()
-    return SyncJobResponse(
-        job_id=job.job_id,
-        source=job.source_type,
-        scope=job.scope,
-        course_id=job.source_id,
-        status=job.status,
-        started_at=job.started_at,
-        finished_at=job.finished_at,
-        total_courses=job.total_items,
-        processed=processed,
-        stats=stats,
-        error=job.error,
-    )
+    return {
+        "job_id": job.job_id,
+        "scope": job.scope,
+        "course_id": job.source_id,
+        "status": job.status,
+        "started_at": job.started_at,
+        "finished_at": job.finished_at,
+        "total_courses": job.total_items,
+        "processed": processed,
+        "stats": stats.to_doc(),
+        "error": job.error,
+    }
 
 
 def notify(job_id: str) -> None:
@@ -73,15 +59,15 @@ class SyncJobService:
         self,
         *,
         tenant_id: str,
-        source_type: SourceType,
-        scope: SyncScope,
-        source_id: str,
+        source_type: str,
+        scope: str,
+        source_id: str | None,
         total_items: int,
-        options: SyncOptions,
+        options: dict[str, object] | None = None,
     ) -> SyncJob:
         return await self._job_repo.create_job(
             str(uuid.uuid4()), tenant_id=tenant_id, source_type=source_type, scope=scope,
-            source_id=source_id, total_items=total_items, options=options,
+            source_id=source_id, total_items=total_items, options=options or {},
         )
 
     async def set_total(self, tenant_id: str, job_id: str, total: int) -> None:
@@ -94,68 +80,59 @@ class SyncJobService:
     async def list_items(self, tenant_id: str, job_id: str) -> list[SyncItemResult]:
         return await self._item_repo.list_by_job(tenant_id, job_id)
 
-    async def _has_active(self, tenant_id: str, source_type: SourceType, predicate: Callable[[SyncJob], bool]) -> bool:
+    async def has_active_all_sync(self, tenant_id: str, source_type: str) -> bool:
         active_jobs = await self._job_repo.get_active_jobs(tenant_id, source_type=source_type)
-        return any(predicate(j) for j in active_jobs)
+        return any(j.scope == "all" for j in active_jobs)
 
-    async def has_active_all_sync(self, tenant_id: str, source_type: SourceType) -> bool:
-        return await self._has_active(tenant_id, source_type, lambda j: j.scope == SyncScope.ALL)
+    async def has_active_course_sync(self, tenant_id: str, source_type: str, course_id: str) -> bool:
+        active_jobs = await self._job_repo.get_active_jobs(tenant_id, source_type=source_type)
+        return any(j.scope == "course" and j.source_id == course_id for j in active_jobs)
 
-    async def has_active_course_sync(self, tenant_id: str, source_type: SourceType, course_id: str) -> bool:
-        return await self._has_active(
-            tenant_id, source_type, lambda j: j.scope == SyncScope.COURSE and j.source_id == course_id
-        )
-
-    async def _get_job(self, tenant_id: str, job_id: str) -> SyncJob:
+    async def get_job_status(self, tenant_id: str, job_id: str) -> dict[str, object] | None:
         job = await self._job_repo.get_job(tenant_id, job_id)
         if job is None:
-            raise NotFoundError("Job", job_id)
-        return job
-
-    async def get_job_status(self, tenant_id: str, job_id: str) -> SyncJobResponse:
-        job = await self._get_job(tenant_id, job_id)
+            return None
         stats = await self._item_repo.get_stats(tenant_id, job_id)
         return serialize_job(job, stats)
 
     async def get_job_items_page(
-        self, tenant_id: str, job_id: str, *, limit: int, after: str
-    ) -> tuple[list[SyncItemResult], str, int]:
-        await self._get_job(tenant_id, job_id)
+        self, tenant_id: str, job_id: str, *, limit: int, after: str | None
+    ) -> tuple[list[SyncItemResult], str | None, int] | None:
+        job = await self._job_repo.get_job(tenant_id, job_id)
+        if job is None:
+            return None
         return await self._item_repo.list_by_job_page(tenant_id, job_id, limit=limit, after=after)
 
-    async def _with_stats(self, tenant_id: str, jobs: list[SyncJob]) -> list[SyncJobResponse]:
+    async def list_jobs_with_stats(
+        self, tenant_id: str, source_type: str, *, limit: int, scope: str | None = None, source_id: str | None = None,
+    ) -> list[dict[str, object]]:
+        job_list = await self._job_repo.list_jobs(tenant_id, source_type, limit=limit, scope=scope, source_id=source_id)
+        return [serialize_job(j, await self._item_repo.get_stats(tenant_id, j.job_id)) for j in job_list]
+
+    async def get_active_jobs_with_stats(self, tenant_id: str, source_type: str) -> list[dict[str, object]]:
+        jobs = await self._job_repo.get_active_jobs(tenant_id, source_type)
         return [serialize_job(j, await self._item_repo.get_stats(tenant_id, j.job_id)) for j in jobs]
 
-    async def list_jobs_with_stats(
-        self, tenant_id: str, source_type: SourceType | None, *, limit: int, scope: SyncScope | None = None, source_id: str = "",
-    ) -> list[SyncJobResponse]:
-        job_list = await self._job_repo.list_jobs(tenant_id, source_type, limit=limit, scope=scope, source_id=source_id)
-        return await self._with_stats(tenant_id, job_list)
-
-    async def get_active_jobs_with_stats(self, tenant_id: str, source_type: SourceType | None) -> list[SyncJobResponse]:
-        jobs = await self._job_repo.get_active_jobs(tenant_id, source_type)
-        return await self._with_stats(tenant_id, jobs)
-
-    async def finish_job(self, tenant_id: str, job_id: str, status: SyncJobStatus, *, error: str = "") -> None:
+    async def finish_job(self, tenant_id: str, job_id: str, status: str, *, error: str | None = None) -> None:
         stats = await self._item_repo.get_stats(tenant_id, job_id)
         await self._job_repo.set_job_status(tenant_id, job_id, status, error=error, finished_total=stats.total())
         notify(job_id)
 
-    async def claim_next_pending_job(self, source_type: SourceType) -> SyncJob | None:
+    async def claim_next_pending_job(self, source_type: str) -> SyncJob | None:
         return await self._job_repo.claim_next_pending(source_type)
 
     async def reconcile_interrupted_jobs(self) -> int:
         return await self._job_repo.reconcile_interrupted_jobs()
 
-    async def subscribe(self, tenant_id: str, job_id: str) -> AsyncIterator[SyncStreamEvent]:
+    async def subscribe(self, tenant_id: str, job_id: str) -> AsyncIterator[dict[str, object]]:
         current = await self._job_repo.get_job(tenant_id, job_id)
         if current is None:
             return
         stats = await self._item_repo.get_stats(tenant_id, job_id)
         if current.status in TERMINAL_STATUSES:
-            yield SyncStreamEvent(event="done", job=serialize_job(current, stats))
+            yield {"event": "done", "job": serialize_job(current, stats)}
             return
-        yield SyncStreamEvent(event="progress", job=serialize_job(current, stats))
+        yield {"event": "progress", "job": serialize_job(current, stats)}
 
         queue: asyncio.Queue = asyncio.Queue()
         _subscribers.setdefault(job_id, []).append(queue)
@@ -169,11 +146,11 @@ class SyncJobService:
                     return
                 stats = await self._item_repo.get_stats(tenant_id, job_id)
                 if current.status in TERMINAL_STATUSES:
-                    yield SyncStreamEvent(event="done", job=serialize_job(current, stats))
+                    yield {"event": "done", "job": serialize_job(current, stats)}
                     return
                 if stats.total() != last_processed:
                     last_processed = stats.total()
-                    yield SyncStreamEvent(event="progress", job=serialize_job(current, stats))
+                    yield {"event": "progress", "job": serialize_job(current, stats)}
         finally:
             _subscribers[job_id].remove(queue)
             if not _subscribers[job_id]:

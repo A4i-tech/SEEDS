@@ -16,7 +16,6 @@ class ContentAggregatorRegisterRequest(BaseModel):
     name: str = Field(min_length=1)
     tenant_ids: list[str] = Field(min_length=1)
     scopes: list[str] = Field(default_factory=lambda: ["content:read"])
-    source_type: str = ""
 
     @field_validator("name")
     @classmethod
@@ -47,4 +46,3 @@ class ContentAggregatorRegisterResponse(BaseModel):
     client_secret: str
     tenant_ids: list[str]
     allowed_scopes: list[str]
-    source_type: str = ""

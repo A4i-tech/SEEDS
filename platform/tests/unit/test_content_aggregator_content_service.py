@@ -44,13 +44,13 @@ def _create(content_id="c1", **overrides) -> PartnerContentCreate:
 async def test_create_item_rejects_unsupported_language(setup):
     _, service = setup
     with pytest.raises(AppError) as exc:
-        await service.create_item(TENANT, CLIENT, "c1", _create(language="xx"), "hexis")
+        await service.create_item(TENANT, CLIENT, "c1", _create(language="xx"))
     assert exc.value.code == "UNSUPPORTED_LANGUAGE"
 
 
 async def test_create_item_stores_contentsv3_shaped_doc_in_content_aggregators(setup):
     db, service = setup
-    await service.create_item(TENANT, CLIENT, "c1", _create(), "hexis")
+    await service.create_item(TENANT, CLIENT, "c1", _create())
 
     doc = await db["contentAggregators"].find_one({"tenant_id": TENANT, "content_id": "c1"})
     assert doc is not None
@@ -66,8 +66,8 @@ async def test_create_item_stores_contentsv3_shaped_doc_in_content_aggregators(s
 
 async def test_create_item_is_idempotent_on_same_content_id(setup):
     db, service = setup
-    _, first_created = await service.create_item(TENANT, CLIENT, "c1", _create(description="v1"), "hexis")
-    doc, second_created = await service.create_item(TENANT, CLIENT, "c1", _create(description="v2"), "hexis")
+    _, first_created = await service.create_item(TENANT, CLIENT, "c1", _create(description="v1"))
+    doc, second_created = await service.create_item(TENANT, CLIENT, "c1", _create(description="v2"))
 
     assert (first_created, second_created) == (True, False)
     assert doc["description"] == "v1"
@@ -76,7 +76,7 @@ async def test_create_item_is_idempotent_on_same_content_id(setup):
 
 async def test_get_item_reads_partner_doc(setup):
     _, service = setup
-    await service.create_item(TENANT, CLIENT, "c1", _create(), "hexis")
+    await service.create_item(TENANT, CLIENT, "c1", _create())
     assert (await service.get_item(TENANT, "c1"))["content_id"] == "c1"
 
 
@@ -95,37 +95,37 @@ async def test_get_item_not_found_raises(setup):
 
 async def test_update_item_updates_fields(setup):
     _, service = setup
-    await service.create_item(TENANT, CLIENT, "c1", _create(), "hexis")
-    doc = await service.update_item(TENANT, "c1", PartnerContentUpdate(description="updated"), "hexis", is_audio_uploaded=False)
+    await service.create_item(TENANT, CLIENT, "c1", _create())
+    doc = await service.update_item(TENANT, "c1", PartnerContentUpdate(description="updated"), is_audio_uploaded=False)
     assert doc["description"] == "updated"
     assert (await service.get_item(TENANT, "c1"))["description"] == "updated"
 
 
 async def test_update_item_sets_is_processed_false_when_audio_uploaded(setup):
     _, service = setup
-    await service.create_item(TENANT, CLIENT, "c1", _create(), "hexis")
-    doc = await service.update_item(TENANT, "c1", PartnerContentUpdate(), "hexis", is_audio_uploaded=True)
+    await service.create_item(TENANT, CLIENT, "c1", _create())
+    doc = await service.update_item(TENANT, "c1", PartnerContentUpdate(), is_audio_uploaded=True)
     assert doc["is_processed"] is False
 
 
 async def test_update_item_rejects_unsupported_language(setup):
     _, service = setup
-    await service.create_item(TENANT, CLIENT, "c1", _create(), "hexis")
+    await service.create_item(TENANT, CLIENT, "c1", _create())
     with pytest.raises(AppError) as exc:
-        await service.update_item(TENANT, "c1", PartnerContentUpdate(language="xx"), "hexis", is_audio_uploaded=False)
+        await service.update_item(TENANT, "c1", PartnerContentUpdate(language="xx"), is_audio_uploaded=False)
     assert exc.value.code == "UNSUPPORTED_LANGUAGE"
 
 
 async def test_update_item_not_found_raises(setup):
     _, service = setup
     with pytest.raises(NotFoundError):
-        await service.update_item(TENANT, "missing", PartnerContentUpdate(description="x"), "hexis", is_audio_uploaded=False)
+        await service.update_item(TENANT, "missing", PartnerContentUpdate(description="x"), is_audio_uploaded=False)
 
 
 async def test_delete_item_soft_deletes(setup):
     _, service = setup
-    await service.create_item(TENANT, CLIENT, "c1", _create(), "hexis")
-    acknowledged, matched, modified = await service.delete_item(TENANT, "c1", "hexis")
+    await service.create_item(TENANT, CLIENT, "c1", _create())
+    acknowledged, matched, modified = await service.delete_item(TENANT, "c1")
     assert (acknowledged, matched, modified) == (True, 1, 1)
     with pytest.raises(NotFoundError):
         await service.get_item(TENANT, "c1")
@@ -134,7 +134,7 @@ async def test_delete_item_soft_deletes(setup):
 async def test_delete_item_not_found_raises(setup):
     _, service = setup
     with pytest.raises(NotFoundError):
-        await service.delete_item(TENANT, "missing", "hexis")
+        await service.delete_item(TENANT, "missing")
 
 
 async def test_list_items_merges_both_and_prefers_partner(setup):
@@ -143,10 +143,10 @@ async def test_list_items_merges_both_and_prefers_partner(setup):
         {"tenant_id": ObjectId(TENANT), "content_id": "own-1", "type": "song", "language": "en", "creation_time": 3},
         {"tenant_id": ObjectId(TENANT), "content_id": "c1", "type": "song", "language": "en", "creation_time": 2},
     ])
-    await service._partner_repo.upsert_partner_content(
+    await service._partner_repo.insert_partner_content_if_absent(
         TENANT, {"tenant_id": TENANT, "content_id": "c1", "type": "story", "language": "en", "creation_time": 10, "is_deleted": False}
     )
-    await service._partner_repo.upsert_partner_content(
+    await service._partner_repo.insert_partner_content_if_absent(
         TENANT, {"tenant_id": TENANT, "content_id": "c2", "type": "poem", "language": "en", "creation_time": 1, "is_deleted": False}
     )
 
@@ -160,7 +160,7 @@ async def test_list_items_merges_both_and_prefers_partner(setup):
 async def test_list_items_paginates(setup):
     _, service = setup
     for i in range(3):
-        await service._partner_repo.upsert_partner_content(
+        await service._partner_repo.insert_partner_content_if_absent(
             TENANT,
             {"tenant_id": TENANT, "content_id": f"c{i}", "type": "story", "language": "en", "creation_time": 10 - i, "is_deleted": False},
         )
@@ -186,7 +186,7 @@ async def test_list_items_malformed_cursor_raises(setup, cursor):
 
 async def _status_with_job(setup, **job_fields):
     db, service = setup
-    await service.create_item(TENANT, CLIENT, "c1", _create(), "hexis")
+    await service.create_item(TENANT, CLIENT, "c1", _create())
     job_id = await service.enqueue_content_job(TENANT, "c1")
     await db["content_jobs"].update_one({"_id": job_id}, {"$set": job_fields})
     return await service.get_status(TENANT, "c1")
@@ -221,7 +221,7 @@ async def test_status_unknown_content_raises_not_found(setup):
 
 async def test_status_other_tenants_job_not_visible(setup):
     db, service = setup
-    await service.create_item(TENANT, CLIENT, "c1", _create(), "hexis")
+    await service.create_item(TENANT, CLIENT, "c1", _create())
     await service.enqueue_content_job("other-tenant", "c1")
     with pytest.raises(NotFoundError):
         await service.get_status(TENANT, "c1")
@@ -230,11 +230,11 @@ async def test_status_other_tenants_job_not_visible(setup):
 @pytest.mark.parametrize("status", ["pending", "claimed", "running"])
 async def test_update_in_flight_item_raises_409_and_leaves_doc_unchanged(setup, status):
     db, service = setup
-    await service.create_item(TENANT, CLIENT, "c1", _create(description="v1"), "hexis")
+    await service.create_item(TENANT, CLIENT, "c1", _create(description="v1"))
     job_id = await service.enqueue_content_job(TENANT, "c1")
     await db["content_jobs"].update_one({"_id": job_id}, {"$set": {"status": status}})
     with pytest.raises(AppError) as exc:
-        await service.update_item(TENANT, "c1", PartnerContentUpdate(description="v2"), "hexis", is_audio_uploaded=False)
+        await service.update_item(TENANT, "c1", PartnerContentUpdate(description="v2"), is_audio_uploaded=False)
     assert (exc.value.code, exc.value.status_code) == ("CONTENT_PROCESSING", 409)
     assert (await service.get_item(TENANT, "c1"))["description"] == "v1"
 
@@ -242,16 +242,16 @@ async def test_update_in_flight_item_raises_409_and_leaves_doc_unchanged(setup, 
 @pytest.mark.parametrize("status", ["completed", "failed"])
 async def test_update_finished_item_is_allowed(setup, status):
     db, service = setup
-    await service.create_item(TENANT, CLIENT, "c1", _create(), "hexis")
+    await service.create_item(TENANT, CLIENT, "c1", _create())
     job_id = await service.enqueue_content_job(TENANT, "c1")
     await db["content_jobs"].update_one({"_id": job_id}, {"$set": {"status": status}})
-    doc = await service.update_item(TENANT, "c1", PartnerContentUpdate(description="v2"), "hexis", is_audio_uploaded=False)
+    doc = await service.update_item(TENANT, "c1", PartnerContentUpdate(description="v2"), is_audio_uploaded=False)
     assert doc["description"] == "v2"
 
 
 async def test_update_without_audio_flag_keeps_is_processed(setup):
     db, service = setup
-    await service.create_item(TENANT, CLIENT, "c1", _create(), "hexis")
+    await service.create_item(TENANT, CLIENT, "c1", _create())
     await db["contentAggregators"].update_one({"content_id": "c1"}, {"$set": {"is_processed": True}})
-    doc = await service.update_item(TENANT, "c1", PartnerContentUpdate(description="v2"), "hexis", is_audio_uploaded=False)
+    doc = await service.update_item(TENANT, "c1", PartnerContentUpdate(description="v2"), is_audio_uploaded=False)
     assert doc["is_processed"] is True

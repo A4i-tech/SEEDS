@@ -9,7 +9,6 @@ from fastapi import APIRouter, Depends, Header, Query, Request
 from fastapi.security import OAuth2PasswordBearer
 from pymongo.asynchronous.database import AsyncDatabase
 
-from app.aggregators.models import SourceType
 from app.models.content import Content
 from app.models.requests.content_aggregator_content_requests import (
     PartnerContentCreate,
@@ -41,16 +40,13 @@ _partner_oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/v1/auth/token")
 
 _SUPPORTED_CONTENT_TYPES = {"story", "audio", "quiz"}
 
-_PUSH_SOURCES = frozenset({SourceType.HEXIS, SourceType.IRIS})
-
-
 class PartnerScope(StrEnum):
     CONTENT_READ = "content:read"
     CONTENT_WRITE = "content:write"
     CONTENT_DELETE = "content:delete"
 
 
-_REQUIRED_CLAIMS = ("sub", "tenant_ids", "scopes", "client_name", "source")
+_REQUIRED_CLAIMS = ("sub", "tenant_ids", "scopes", "client_name")
 
 
 async def verify_client_token(
@@ -72,8 +68,6 @@ def require_scope(scope: PartnerScope) -> Callable[..., Awaitable[AccessTokenCla
     async def _check(claims: AccessTokenClaims = Depends(verify_client_token)) -> AccessTokenClaims:
         if scope not in claims["scopes"]:
             raise AppError("SCOPE_INSUFFICIENT", f"scope '{scope}' required", 403)
-        if scope in (PartnerScope.CONTENT_WRITE, PartnerScope.CONTENT_DELETE) and claims["source"] not in _PUSH_SOURCES:
-            raise AppError("SOURCE_NOT_ALLOWED", f"source '{claims['source']}' cannot mutate partner content", 403)
         return claims
 
     return _check
@@ -110,24 +104,18 @@ def get_partner_content_service(db: AsyncDatabase = Depends(get_db)) -> PartnerC
 async def create_content(
     request: Request,
     body: PartnerContentCreate,
-    idempotency_key: Annotated[str, Header(alias="Idempotency-Key")] = "",
     claims: AccessTokenClaims = Depends(require_scope(PartnerScope.CONTENT_WRITE)),
     tenant_ids: list[str] = Depends(get_tenant_ids),
     service: PartnerContentService = Depends(get_partner_content_service),
 ) -> PartnerJobsResponse:
     if body.type not in _SUPPORTED_CONTENT_TYPES:
         raise AppError("UNSUPPORTED_CONTENT_TYPE", f"Unsupported content type: {body.type}", 400)
-    content_id = idempotency_key or str(uuid.uuid4())
+    content_id = str(uuid.uuid4())
     jobs: dict[str, str] = {}
     for tenant_id in tenant_ids:
-        doc, created = await service.create_item(tenant_id, claims["sub"], content_id, body, claims["source"])
-        if created:
-            job_id = await service.enqueue_content_job(tenant_id, content_id)
-            await service.record_job(tenant_id, content_id, job_id)
-        elif not doc.get("job_id"):
-            raise AppError("INGEST_IN_PROGRESS", "ingest for this Idempotency-Key is still being scheduled", 409)
-        else:
-            job_id = doc["job_id"]
+        await service.create_item(tenant_id, claims["sub"], content_id, body)
+        job_id = await service.enqueue_content_job(tenant_id, content_id)
+        await service.record_job(tenant_id, content_id, job_id)
         jobs[tenant_id] = job_id
     return PartnerJobsResponse(jobs=jobs)
 
@@ -176,7 +164,7 @@ async def update_content(
     tenant_id: str = Depends(get_tenant_id),
     service: PartnerContentService = Depends(get_partner_content_service),
 ) -> PartnerContentUpdateResponse:
-    doc = await service.update_item(tenant_id, content_id, body, claims["source"], is_audio_uploaded=is_audio_uploaded)
+    doc = await service.update_item(tenant_id, content_id, body, is_audio_uploaded=is_audio_uploaded)
     job_id = await service.enqueue_content_job(tenant_id, content_id) if is_audio_uploaded else ""
     return PartnerContentUpdateResponse(
         **Content.from_mongo(doc).model_dump(),
@@ -192,5 +180,5 @@ async def delete_content(
     tenant_id: str = Depends(get_tenant_id),
     service: PartnerContentService = Depends(get_partner_content_service),
 ) -> PartnerDeleteResponse:
-    acknowledged, matched, modified = await service.delete_item(tenant_id, content_id, claims["source"])
+    acknowledged, matched, modified = await service.delete_item(tenant_id, content_id)
     return PartnerDeleteResponse(acknowledged=acknowledged, matched_count=matched, modified_count=modified)

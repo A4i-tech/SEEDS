@@ -34,35 +34,22 @@ async def client(db):
         yield c
 
 
-def _headers(client_id: str, key: str | None = None, source: str = "hexis") -> dict[str, str]:
+def _headers(client_id: str) -> dict[str, str]:
     token, _ = encode_access_token(
         client_id=client_id,
         tenant_ids=[TENANT],
         scopes=["content:read", "content:write"],
         client_name=client_id,
-        source=source,
         secret_key=get_settings().secret_key,
         expires_in="15m",
     )
     headers = {"Authorization": f"Bearer {token}", "x-tenant-ids": TENANT}
-    if key:
-        headers["Idempotency-Key"] = key
     return headers
 
 
-async def test_create_same_idempotency_key_returns_same_job_id(client):
-    first = await client.post("/v1/content", json=BODY, headers=_headers("c-same", "k1"))
-    second = await client.post("/v1/content", json=BODY, headers=_headers("c-same", "k1"))
-
-    assert first.status_code == second.status_code == 200
-    assert first.json()["jobs"][TENANT] == second.json()["jobs"][TENANT]
-
-
-async def test_create_same_idempotency_key_enqueues_once(client, db):
-    await client.post("/v1/content", json=BODY, headers=_headers("c-once", "k2"))
-    await client.post("/v1/content", json=BODY, headers=_headers("c-once", "k2"))
-
-    assert await db["content_jobs"].count_documents({"content_id": "k2"}) == 1
+async def _content_id(db, response) -> str:
+    job_id = response.json()["jobs"][TENANT]
+    return (await db["content_jobs"].find_one({"_id": job_id}))["content_id"]
 
 
 async def test_eleventh_ingest_in_minute_returns_429(client):
@@ -92,25 +79,26 @@ async def test_unsupported_type_returns_400(client):
 @pytest.mark.parametrize("content_type", ["story", "audio", "quiz"])
 async def test_supported_types_enqueue_one_job(client, db, content_type):
     response = await client.post(
-        "/v1/content", json={"type": content_type, "language": "en"}, headers=_headers("c-types", f"k-{content_type}")
+        "/v1/content", json={"type": content_type, "language": "en"}, headers=_headers("c-types")
     )
 
     assert response.status_code == 200
-    assert await db["content_jobs"].count_documents({"content_id": f"k-{content_type}"}) == 1
+    assert await db["content_jobs"].count_documents({"content_id": await _content_id(db, response)}) == 1
 
 
 async def test_status_endpoint_reflects_job_state(client, db):
-    created = await client.post("/v1/content", json=BODY, headers=_headers("c-status", "k3"))
+    created = await client.post("/v1/content", json=BODY, headers=_headers("c-status"))
+    content_id = await _content_id(db, created)
     job_id = created.json()["jobs"][TENANT]
     headers = _headers("c-status")
 
-    pending = await client.get("/v1/content-status/k3", headers=headers)
+    pending = await client.get(f"/v1/content-status/{content_id}", headers=headers)
     assert pending.json()["status"] == "pending"
 
     await db["content_jobs"].update_one(
         {"_id": job_id}, {"$set": {"status": "failed", "reason": "boom"}}
     )
-    failed = await client.get("/v1/content-status/k3", headers=headers)
+    failed = await client.get(f"/v1/content-status/{content_id}", headers=headers)
     assert failed.json()["status"] == "failed"
     assert failed.json()["error"] == "boom"
 
@@ -120,65 +108,18 @@ async def test_status_endpoint_unknown_returns_404(client):
     assert response.status_code == 404
 
 
-async def test_update_while_pending_returns_409(client):
-    await client.post("/v1/content", json=BODY, headers=_headers("c-409", "k5"))
-    response = await client.patch("/v1/content/k5", json={"description": "x"}, headers=_headers("c-409"))
+async def test_update_while_pending_returns_409(client, db):
+    created = await client.post("/v1/content", json=BODY, headers=_headers("c-409"))
+    response = await client.patch(f"/v1/content/{await _content_id(db, created)}", json={"description": "x"}, headers=_headers("c-409"))
     assert response.status_code == 409
     assert response.json()["code"] == "CONTENT_PROCESSING"
 
 
 async def test_update_after_completion_reports_updated_fields(client, db):
-    created = await client.post("/v1/content", json=BODY, headers=_headers("c-done", "k6"))
+    created = await client.post("/v1/content", json=BODY, headers=_headers("c-done"))
     await db["content_jobs"].update_one(
         {"_id": created.json()["jobs"][TENANT]}, {"$set": {"status": "completed"}}
     )
-    response = await client.patch("/v1/content/k6", json={"description": "x"}, headers=_headers("c-done"))
+    response = await client.patch(f"/v1/content/{await _content_id(db, created)}", json={"description": "x"}, headers=_headers("c-done"))
     assert response.status_code == 200
     assert response.json()["updated_fields"] == ["description"]
-
-
-async def test_create_stamps_native_source_type(client, db):
-    await client.post("/v1/content", json=BODY, headers=_headers("c-stamp", "k-stamp", source="iris"))
-
-    doc = await db["contentAggregators"].find_one({"tenant_id": TENANT, "content_id": "k-stamp"})
-
-    assert doc["source_type"] == "iris"
-
-
-def _legacy_headers(client_id: str) -> dict[str, str]:
-    from datetime import UTC, datetime, timedelta
-
-    from jose import jwt
-
-    now = datetime.now(UTC)
-    token = jwt.encode(
-        {
-            "sub": client_id, "iss": "content-aggregator", "iat": now, "exp": now + timedelta(minutes=15),
-            "jti": "legacy", "scopes": ["content:read", "content:write"], "tenant_ids": [TENANT],
-            "client_name": client_id,
-        },
-        get_settings().secret_key, algorithm="HS256",
-    )
-    return {"Authorization": f"Bearer {token}", "x-tenant-ids": TENANT}
-
-
-async def test_legacy_token_without_source_is_rejected(client):
-    response = await client.post("/v1/content", json=BODY, headers=_legacy_headers("c-legacy"))
-
-    assert response.status_code == 401
-
-
-async def test_cross_source_update_is_refused(client):
-    await client.post("/v1/content", json=BODY, headers=_headers("c-hex", "k-x", source="hexis"))
-
-    response = await client.patch("/v1/content/k-x", json={"description": "x"}, headers=_headers("c-iris", source="iris"))
-
-    assert response.status_code == 403
-
-
-async def test_cross_source_delete_is_refused(client):
-    await client.post("/v1/content", json=BODY, headers=_headers("c-hex", "k-y", source="hexis"))
-
-    response = await client.delete("/v1/content/k-y", headers=_headers("c-iris", source="iris"))
-
-    assert response.status_code == 403

@@ -54,14 +54,13 @@ class PartnerContentService:
         return await self._job_repo.create(content_id, tenant_id=tenant_id, source="partner")
 
     async def create_item(
-        self, tenant_id: str, client_id: str, content_id: str, body: PartnerContentCreate, source: str
+        self, tenant_id: str, client_id: str, content_id: str, body: PartnerContentCreate
     ) -> tuple[dict, bool]:
         now = datetime.now(UTC)
         doc = body.model_dump(exclude_none=True)
         doc.update(
             content_id=content_id,
             created_by=client_id,
-            source_type=source,
             creation_time=int(now.timestamp()),
             is_deleted=False,
             is_processed=False,
@@ -79,11 +78,9 @@ class PartnerContentService:
         tenant_id: str,
         content_id: str,
         body: PartnerContentUpdate,
-        source: str,
         *,
         is_audio_uploaded: bool,
     ) -> dict:
-        await self._check_source(tenant_id, content_id, source)
         updates = body.model_dump(exclude_unset=True, exclude_none=True)
         job = await self._job_repo.find_latest_by_content_id(tenant_id, content_id)
         if job and job["status"] in _IN_FLIGHT_JOB_STATUSES:
@@ -108,16 +105,11 @@ class PartnerContentService:
             error=job.get("reason"),
         )
 
-    async def delete_item(self, tenant_id: str, content_id: str, source: str) -> tuple[bool, int, int]:
-        await self._check_source(tenant_id, content_id, source)
+    async def delete_item(self, tenant_id: str, content_id: str) -> tuple[bool, int, int]:
+        await self._partner_repo.find_partner_content(tenant_id, content_id)
         return await self._partner_repo.soft_delete_partner_content(
             tenant_id, content_id, datetime.now(UTC).isoformat()
         )
-
-    async def _check_source(self, tenant_id: str, content_id: str, source: str) -> None:
-        doc = await self._partner_repo.find_partner_content(tenant_id, content_id)
-        if doc["source_type"] != source:
-            raise AppError("SOURCE_NOT_ALLOWED", f"content {content_id} belongs to '{doc['source_type']}'", 403)
 
     async def get_item(self, tenant_id: str, content_id: str) -> dict:
         try:

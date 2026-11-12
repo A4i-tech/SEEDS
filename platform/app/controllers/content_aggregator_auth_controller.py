@@ -73,12 +73,10 @@ async def register_client(
         tenant_ids=body.tenant_ids,
         scopes=body.scopes,
         created_by="",
-        source_type=body.source_type,
     )
     return ContentAggregatorRegisterResponse(
         client_id=client_id,
         client_secret=client_secret,
         tenant_ids=body.tenant_ids,
         allowed_scopes=body.scopes,
-        source_type=body.source_type,
     )
