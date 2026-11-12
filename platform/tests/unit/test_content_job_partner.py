@@ -16,7 +16,7 @@ def _repos(doc):
 
 async def test_partner_job_uses_aggregator_repo():
     job_repo, content_repo, partner_repo = _repos({"content_id": "c1", "audio_content": []})
-    job = {"_id": "j1", "content_id": "c1", "tenant_id": "t1", "source": "partner"}
+    job = {"_id": "j1", "content_id": "c1", "tenant_id": "t1"}
     await _process_audio_content_job(job, job_repo, content_repo, MagicMock(), partner_repo)
     partner_repo.find_partner_content.assert_awaited_once_with("t1", "c1")
     partner_repo.update_partner_content.assert_awaited_once()

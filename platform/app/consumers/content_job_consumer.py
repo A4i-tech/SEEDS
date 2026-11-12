@@ -363,7 +363,7 @@ async def _process_audio_content_job(
     job_id = job_doc.get("_id")
     content_id = job_doc.get("content_id")
     tenant_id = job_doc.get("tenant_id")
-    is_partner = job_doc.get("source") == "partner"
+    is_partner = tenant_id is not None
 
     await job_repo.mark_running(job_id)
 

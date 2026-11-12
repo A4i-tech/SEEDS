@@ -51,7 +51,7 @@ class PartnerContentService:
         self._job_repo = job_repo
 
     async def enqueue_content_job(self, tenant_id: str, content_id: str) -> str:
-        return await self._job_repo.create(content_id, tenant_id=tenant_id, source="partner")
+        return await self._job_repo.create(content_id, tenant_id=tenant_id)
 
     async def create_item(
         self, tenant_id: str, client_id: str, content_id: str, body: PartnerContentCreate
