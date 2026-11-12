@@ -20,7 +20,9 @@ jobs:
           app-id: ${{ vars.PROMOTIONS_BOT_APP_ID }}
           private-key: ${{ secrets.PROMOTIONS_BOT_PRIVATE_KEY }}
           owner: ${{ github.repository_owner }}
-          repositories: ${{ github.event.repository.name }}
+          repositories: |
+            ${{ github.event.repository.name }}
+            .github
           permission-contents: read
           permission-pull-requests: write
           permission-issues: read
