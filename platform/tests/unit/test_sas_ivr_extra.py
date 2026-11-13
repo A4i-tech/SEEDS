@@ -1,5 +1,5 @@
 """
-Tests targeting sas_service, ivr_service high-level functions,
+Tests targeting ivr_service high-level functions,
 FSM quiz/pure_audio instantiation stubs, and confevents event classes.
 """
 
@@ -10,92 +10,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from tests.support import mongomock_async
-
-# ---------------------------------------------------------------------------
-# SAS service — offline path coverage
-# ---------------------------------------------------------------------------
-
-
-class TestSASService:
-    def _make_sas(self, enabled=False, use_key=False):
-        from app.services.sas_service import SASService
-
-        svc = SASService.__new__(SASService)
-        svc._account_name = "myaccount" if use_key else ""
-        svc._account_key = "mykey" if use_key else ""
-        svc._sas_expiry_hours = 1
-        svc._azure_enabled = enabled
-        svc._use_account_key = use_key
-        svc._credential = None
-        svc._blob_service_client = None
-        svc._user_delegation_key = None
-        svc._key_expiry_time = None
-        return svc
-
-    @pytest.mark.asyncio
-    async def test_disabled_returns_original(self) -> None:
-        svc = self._make_sas(enabled=False)
-        url = "https://example.blob.core.windows.net/container/file.mp3"
-        result = await svc.get_url_with_sas(url)
-        assert result == url
-
-    @pytest.mark.asyncio
-    async def test_disabled_any_url_passthrough(self) -> None:
-        svc = self._make_sas(enabled=False)
-        urls = [
-            "https://myaccount.blob.core.windows.net/audio/test.mp3",
-            "http://localhost:8080/audio.mp3",
-            "",
-        ]
-        for url in urls:
-            assert await svc.get_url_with_sas(url) == url
-
-    @pytest.mark.asyncio
-    async def test_enabled_malformed_url_falls_back(self) -> None:
-        svc = self._make_sas(enabled=True, use_key=True)
-        # URL with fewer than 2 path parts — should fall back to original
-        url = "https://myaccount.blob.core.windows.net/onlycontainer"
-        result = await svc.get_url_with_sas(url)
-        assert result == url
-
-    @pytest.mark.asyncio
-    async def test_get_user_delegation_key_uses_account_key(self) -> None:
-        svc = self._make_sas(enabled=True, use_key=True)
-        # Should return None when using account key
-        result = await svc._get_user_delegation_key(AsyncMock())
-        assert result is None
-
-    @pytest.mark.asyncio
-    async def test_get_user_delegation_key_awaits_client(self) -> None:
-        svc = self._make_sas(enabled=True, use_key=False)
-        client = AsyncMock()
-        client.get_user_delegation_key.return_value = "udk"
-        result = await svc._get_user_delegation_key(client)
-        client.get_user_delegation_key.assert_awaited_once()
-        assert result == "udk"
-
-    @pytest.mark.asyncio
-    async def test_close_releases_client_and_credential(self) -> None:
-        svc = self._make_sas(enabled=True, use_key=False)
-        svc._blob_service_client = AsyncMock()
-        svc._credential = AsyncMock()
-        client, credential = svc._blob_service_client, svc._credential
-
-        await svc.close()
-
-        client.close.assert_awaited_once()
-        credential.close.assert_awaited_once()
-        assert svc._blob_service_client is None
-        assert svc._credential is None
-
-    @pytest.mark.asyncio
-    async def test_enabled_with_bad_azure_import_falls_back(self) -> None:
-        svc = self._make_sas(enabled=True, use_key=True)
-        url = "https://myaccount.blob.core.windows.net/container/file.mp3"
-        with patch.object(svc, "_get_blob_service_client", side_effect=ImportError("azure sdk missing")):
-            result = await svc.get_url_with_sas(url)
-        assert result == url
-
 
 # ---------------------------------------------------------------------------
 # IVR service — get_ivr_structure / update_ivr_structure

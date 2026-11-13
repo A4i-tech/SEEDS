@@ -34,5 +34,5 @@ runs:
     - name: Install dependencies
       env:
         DIRECTORY: ${{ inputs.directory }}
-      run: cd "$DIRECTORY" && poetry install --with test
+      run: cd "$DIRECTORY" && poetry install --with test --extras azure
       shell: bash
