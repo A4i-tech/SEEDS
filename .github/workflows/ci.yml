@@ -12,6 +12,7 @@ on:
 
 jobs:
   test:
+    name: test (${{ matrix.service.name }}, ${{ matrix.service.context }}, ${{ matrix.service.lang }})
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -19,6 +20,7 @@ jobs:
           - name: platform
             context: platform
             lang: python
+            coverage_threshold: "80"
 
           - name: content-webapp
             context: ContentWebApp
@@ -67,6 +69,7 @@ jobs:
         uses: ./.github/actions/run-python-tests
         with:
           directory: ${{ matrix.service.context }}
+          coverage_threshold: ${{ matrix.service.coverage_threshold }}
 
       - name: Test (Node.js)
         if: matrix.service.lang == 'node'

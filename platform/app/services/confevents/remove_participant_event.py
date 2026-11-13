@@ -1,6 +1,7 @@
 """Remove participant event."""
 from __future__ import annotations
 
+import logging
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -10,6 +11,7 @@ from app.services.confevents.base_event import ConferenceEvent
 
 if TYPE_CHECKING:
     from app.services.conference_service import ConferenceCall
+logger = logging.getLogger(__name__)
 
 class RemoveParticipantEvent(ConferenceEvent):
     def __init__(self, phone_number: str, conf_call: ConferenceCall) -> None:
@@ -18,6 +20,10 @@ class RemoveParticipantEvent(ConferenceEvent):
 
     async def execute_event(self) -> None:
         if self.phone_number not in self.conf_call.state.participants:
+            logger.info(
+                "RemoveParticipantEvent: unknown participant phone_number=<redacted>, no-op conf_id=%s",
+                self.conf_call.conf_id,
+            )
             return
         participant = self.conf_call.state.participants[self.phone_number]
         remaining = [n for n, p in self.conf_call.state.participants.items() if n != self.phone_number and p.call_status == CallStatus.CONNECTED]
