@@ -18,8 +18,10 @@ from app.controllers import (
     conference_controller,
     # Content
     content_aggregator_auth_controller,
+    content_aggregator_content_controller,
     content_aggregator_controller,
     content_controller,
+    device_push_controller,
     glossary_controller,
     ivr_controller,
     # Other
@@ -69,8 +71,10 @@ api_router.include_router(class_controller.router)
 
 # Content
 api_router.include_router(content_controller.router)
+api_router.include_router(device_push_controller.router)
 api_router.include_router(audit_controller.router)
 api_router.include_router(content_aggregator_controller.router)
+api_router.include_router(content_aggregator_content_controller.router)
 api_router.include_router(textbook_remediation_controller.router)
 api_router.include_router(translation_controller.router)
 api_router.include_router(onboarding_controller.router)

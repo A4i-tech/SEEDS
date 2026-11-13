@@ -260,11 +260,12 @@ async def test_content_job_consumer_process_audio(mock_db):
              new=AsyncMock(side_effect=lambda inp, out: open(out, "wb").write(b"fake_wav_data") or None),
          ):
         from app.consumers.content_job_consumer import _process_audio_content_job
+        from app.repositories.content_aggregator_repository import ContentAggregatorRepository
         from app.repositories.content_job_repository import ContentJobRepository
         from app.repositories.content_repository import ContentRepository
 
         job_doc = await mock_db["content_jobs"].find_one({"_id": job_id})
-        await _process_audio_content_job(job_doc, ContentJobRepository(mock_db), ContentRepository(mock_db), mock_blob)
+        await _process_audio_content_job(job_doc, ContentJobRepository(mock_db), ContentRepository(mock_db), ContentAggregatorRepository(mock_db), mock_blob)
 
     # Verify job marked complete
     updated_job = await mock_db["content_jobs"].find_one({"_id": job_id})
@@ -316,13 +317,14 @@ async def test_content_job_dead_letter_on_failure(mock_db):
     mock_blob.download_from_url = AsyncMock(side_effect=RuntimeError("Corrupt input: download failed"))
 
     from app.consumers.content_job_consumer import _process_audio_content_job
+    from app.repositories.content_aggregator_repository import ContentAggregatorRepository
     from app.repositories.content_job_repository import ContentJobRepository
     from app.repositories.content_repository import ContentRepository
 
     job_doc = await mock_db["content_jobs"].find_one({"_id": job_id})
 
     with pytest.raises(RuntimeError):
-        await _process_audio_content_job(job_doc, ContentJobRepository(mock_db), ContentRepository(mock_db), mock_blob)
+        await _process_audio_content_job(job_doc, ContentJobRepository(mock_db), ContentRepository(mock_db), ContentAggregatorRepository(mock_db), mock_blob)
 
     # Verify job dead-lettered
     failed_job = await mock_db["content_jobs"].find_one({"_id": job_id})

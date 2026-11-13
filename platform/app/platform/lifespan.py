@@ -22,6 +22,7 @@ from fastapi import FastAPI
 from app.platform.database import close_database, get_database, init_database
 from app.platform.settings import get_settings
 from app.providers.subodha_client import close_subodha_client
+from app.providers.vembi_client import get_vembi_client
 from app.services.content_aggregator_sync_jobs import get_sync_job_service
 
 if TYPE_CHECKING:
@@ -190,6 +191,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         ContentAggregatorSyncJobRepository,
     )
     from app.repositories.content_job_repository import ContentJobRepository  # noqa: PLC0415
+    from app.repositories.device_push_repository import DevicePushRepository  # noqa: PLC0415
     from app.repositories.textbook_remediation_repository import (  # noqa: PLC0415
         TextbookRemediationRepository,
     )
@@ -223,6 +225,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await TranslationAuditRepository.ensure_indexes(get_database())
     await ContentAggregatorSyncJobRepository.ensure_indexes(get_database())
     await ContentJobRepository.ensure_indexes(get_database())
+    await DevicePushRepository.ensure_indexes(get_database())
     await TextbookRemediationRepository.ensure_indexes(get_database())
     await IntegrationClientRepository.ensure_indexes(get_database())
     await UserRefreshTokenRepository.ensure_indexes(get_database())
@@ -300,6 +303,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         await close_subodha_client()
     except Exception as exc:
         logger.warning("Subodha client close failed: %s", exc)
+
+    await get_vembi_client().close()
+    get_vembi_client.cache_clear()
 
     await close_database()
     logger.info("SEEDS Platform shut down.")

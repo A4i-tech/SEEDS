@@ -672,6 +672,7 @@ class TestContentJobConsumerDeadLetter:
         from bson import ObjectId
 
         from app.consumers.content_job_consumer import _process_audio_content_job
+        from app.repositories.content_aggregator_repository import ContentAggregatorRepository
         from app.repositories.content_job_repository import ContentJobRepository
         from app.repositories.content_repository import ContentRepository
 
@@ -682,7 +683,7 @@ class TestContentJobConsumerDeadLetter:
         # content_col returns None => RuntimeError (permanent)
         blob_mock = MagicMock()
         with pytest.raises(RuntimeError):
-            await _process_audio_content_job(job_doc, ContentJobRepository(db), ContentRepository(db), blob_mock)
+            await _process_audio_content_job(job_doc, ContentJobRepository(db), ContentRepository(db), ContentAggregatorRepository(db), blob_mock)
 
         updated = await db["content_jobs"].find_one({"_id": job_id})
         assert updated["status"] == "failed"
