@@ -63,7 +63,7 @@ wss.on("connection", (ws, req) => {
 
   connectionManager.addConnection(id, {
     ws,
-    state: { id, playing: false, position: 0, isClosed: false, correlationId },
+    state: { id, playing: false, position: 0, isClosed: false, speed: websocketService.getSessionSpeed(id), correlationId },
   });
   log.info(`Client WebSocket connection opened for ID: ${id}`, { eventType: "connection_open" });
 
