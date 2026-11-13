@@ -75,7 +75,7 @@ class SchoolService:
         if await self._user_repo.find_by_email_and_role(email, UserRole.SCHOOL_ADMIN.value) is not None:
             raise ConflictError(f"School with email {email}")
 
-        hashed = hash_password(plain_password)
+        hashed = await hash_password(plain_password)
 
         school = await self._user_repo.create(
             UserCreate(
@@ -105,7 +105,7 @@ class SchoolService:
         if body.email:
             updates["email"] = body.email.strip()
         if body.password:
-            updates["hashed_password"] = hash_password(body.password)
+            updates["hashed_password"] = await hash_password(body.password)
 
         updated = await self._user_repo.update(school_id, updates)
         if updated is None:

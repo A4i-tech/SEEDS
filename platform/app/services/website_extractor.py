@@ -11,6 +11,7 @@ from bs4 import BeautifulSoup, Comment, NavigableString
 
 from app.models.responses.content import WebsiteExtractResponse
 from app.platform.error_handling import ValidationError
+from app.platform.settings import get_settings
 
 _ALLOWED_SCHEMES = {"http", "https"}
 _MAX_REDIRECTS = 5
@@ -102,6 +103,22 @@ class _PinnedTransport(httpx.AsyncHTTPTransport):
         return await super().handle_async_request(request)
 
 
+def _parse_html(html: str) -> tuple[str, list[str]]:
+    soup = BeautifulSoup(html, "html.parser")
+
+    title = soup.title.get_text(strip=True) if soup.title else ""
+
+    root = soup.body or soup
+    content: list[str] = []
+    seen: set[str] = set()
+    for text in _sdk_text_nodes(root):
+        if text not in seen:
+            seen.add(text)
+            content.append(text)
+
+    return title, content
+
+
 class WebsiteExtractor:
     async def extract(self, url: str) -> WebsiteExtractResponse:
         await _validate_url(url)
@@ -115,34 +132,41 @@ class WebsiteExtractor:
             )
         }
 
+        max_bytes = get_settings().website_extract_max_bytes
         current_url = url
+        body = b""
         async with httpx.AsyncClient(timeout=30, transport=_PinnedTransport()) as client:
             for _ in range(_MAX_REDIRECTS + 1):
-                response = await client.get(current_url, headers=headers, follow_redirects=False)
+                async with client.stream(
+                    "GET", current_url, headers=headers, follow_redirects=False
+                ) as response:
+                    if response.is_redirect:
+                        next_url = response.headers.get("location")
+                        if not next_url:
+                            response.raise_for_status()
+                            body = b""
+                            break
+                        current_url = str(client.build_request("GET", next_url, headers=headers).url)
+                        continue
 
-                if response.is_redirect:
-                    next_url = response.headers.get("location")
-                    if not next_url:
-                        break
-                    current_url = str(client.build_request("GET", next_url, headers=headers).url)
-                    continue
+                    response.raise_for_status()
 
-                break
+                    chunks: list[bytes] = []
+                    total = 0
+                    async for chunk in response.aiter_bytes():
+                        total += len(chunk)
+                        if total > max_bytes:
+                            raise ValidationError(
+                                f"Website response body exceeds {max_bytes} byte cap"
+                            )
+                        chunks.append(chunk)
+                    body = b"".join(chunks)
+                    break
             else:
                 raise ValidationError("Too many redirects")
 
-        response.raise_for_status()
-
-        soup = BeautifulSoup(response.text, "html.parser")
-
-        title = soup.title.get_text(strip=True) if soup.title else ""
-
-        root = soup.body or soup
-        content: list[str] = []
-        seen: set[str] = set()
-        for text in _sdk_text_nodes(root):
-            if text not in seen:
-                seen.add(text)
-                content.append(text)
+        title, content = await asyncio.to_thread(
+            _parse_html, body.decode("utf-8", errors="replace")
+        )
 
         return WebsiteExtractResponse(url=url, title=title, content=content)
