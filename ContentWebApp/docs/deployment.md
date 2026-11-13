@@ -4,14 +4,31 @@
 
 Staging runs on kube-dev, not Render/Fly.io. A push to `a4i/staging` runs `.github/workflows/build-staging-images.yml`, which builds the `content-webapp` Docker image and pushes `ghcr.io/a4i-tech/seeds/content-webapp:staging`. ArgoCD Image Updater on kube-dev watches that tag and rolls the new digest out automatically, no manual deploy step.
 
-## 2. Environment Variables
+## 2. Runtime Configuration
+The image holds no environment values. Set these as container environment variables when the container starts:
+```
+REACT_APP_API_BASE_URL=<value>
+REACT_APP_STORAGE_ACCOUNT_NAME=<value>
+REACT_APP_GOOGLE_SITE_VERIFICATION=<value>
+```
 
-Build-time args come from GitHub Actions repo variables/secrets, not a platform dashboard:
-- `REACT_APP_STORAGE_ACCOUNT_NAME` ← repo variable `CONTENT_WEBAPP_STORAGE_ACCOUNT_NAME`
-- `REACT_APP_API_BASE_URL` ← repo secret `CONTENT_WEBAPP_REACT_APP_API_BASE_URL_STAGING`
-- `REACT_APP_GOOGLE_SITE_VERIFICATION` ← repo variable `CONTENT_WEBAPP_REACT_APP_GOOGLE_SITE_VERIFICATION`
+The build puts a placeholder in the bundle for each variable. The start script `runtime-env.sh` replaces each placeholder with the variable value, then starts nginx.
 
-To change one, update the repo variable/secret and re-run the workflow, there's no separate dashboard to configure.
+If a variable is missing or empty, the container exits with an error that names the variable. Set it and restart.
+
+A value must not contain `"`, `\`, `<`, `&`, `|`, or a control character.
+
+Every browser can read these values. Never put a secret in them.
+
+Set each value in every environment before the first deploy of this image. Take the value from the old GitHub variable or secret in this table.
+
+| Variable | Old GitHub variable or secret (value source) |
+|---|---|
+| `REACT_APP_API_BASE_URL` | CONTENT_WEBAPP_REACT_APP_API_BASE_URL (prod), CONTENT_WEBAPP_REACT_APP_API_BASE_URL_STAGING (staging) |
+| `REACT_APP_STORAGE_ACCOUNT_NAME` | CONTENT_WEBAPP_STORAGE_ACCOUNT_NAME |
+| `REACT_APP_GOOGLE_SITE_VERIFICATION` | CONTENT_WEBAPP_REACT_APP_GOOGLE_SITE_VERIFICATION |
+
+To change one, update the value where the container runs (the kube-dev secret or the Azure App Setting) and restart the container.
 
 ## 3. Testing Endpoints
 

@@ -10,11 +10,27 @@
 - Connect your GitHub repository to the chosen platform
 - Select the appropriate branch for deployment (e.g., `main` or `a4i/main`)
 
-## 3. Environment Variables
-Set these in the platform dashboard (do NOT commit secrets):
+## 3. Runtime Configuration
+The image holds no environment values. Set these as container environment variables when the container starts:
 ```
-REACT_APP_API_BASE_URL = <your-backend-api-url>
+REACT_APP_API_BASE_URL=<value>
+REACT_APP_STORAGE_ACCOUNT_NAME=<value>
 ```
+
+The build puts a placeholder in the bundle for each variable. The start script `runtime-env.sh` replaces each placeholder with the variable value, then starts nginx.
+
+If a variable is missing or empty, the container exits with an error that names the variable. Set it and restart.
+
+A value must not contain `"`, `\`, `<`, `&`, `|`, or a control character.
+
+Every browser can read these values. Never put a secret in them.
+
+Set each value in every environment before the first deploy of this image. Take the value from the old GitHub variable or secret in this table.
+
+| Variable | Old GitHub variable or secret (value source) |
+|---|---|
+| `REACT_APP_API_BASE_URL` | TEACHER_WEBAPP_API_BASE_URL (prod), TEACHER_WEBAPP_API_BASE_URL_STAGING (staging) |
+| `REACT_APP_STORAGE_ACCOUNT_NAME` | TEACHER_WEBAPP_STORAGE_ACCOUNT_NAME |
 
 > **Note:** Only include variables relevant to your service. Do not commit secrets to version control.
 

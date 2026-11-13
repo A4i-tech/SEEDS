@@ -17,9 +17,6 @@ inputs:
     environment_tag:
         description: "Environment tag (e.g., prod, staging)"
         required: true
-    build_args:
-        description: "Docker build arguments as newline-separated KEY=VALUE pairs"
-        required: true
 runs:
     using: composite
     steps:
@@ -52,5 +49,3 @@ runs:
               push: true
               tags: ${{ steps.meta.outputs.tags }}
               labels: ${{ steps.meta.outputs.labels }}
-              build-args: |
-                  ${{ inputs.build_args }}

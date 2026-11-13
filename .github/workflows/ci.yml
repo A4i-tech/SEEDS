@@ -89,3 +89,31 @@ jobs:
           coverage_gist_token: ${{ secrets.COVERAGE_GIST_TOKEN }}
           coverage_gist_id: ${{ vars.COVERAGE_GIST_ID }}
           directory: ${{ matrix.service.context }}
+
+  image-config:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        context: [ContentWebApp, teacher-webapp]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Test runtime-env.sh
+        run: sh .github/scripts/test-runtime-env.sh ${{ matrix.context }}
+
+      - name: Build image
+        run: docker build -t app ${{ matrix.context }}
+
+      - name: Image takes its config at start
+        run: |
+          set -euo pipefail
+          vars=$(sed -n 's/^VARS="\(.*\)"$/\1/p' ${{ matrix.context }}/runtime-env.sh)
+          envs=""
+          for v in $vars; do envs="$envs -e $v=ci-marker-$v"; done
+          if docker run --rm app; then echo "container started without config"; exit 1; fi
+          CID=$(docker run -d -p 8080:8080 $envs app)
+          curl -fsS --retry 10 --retry-delay 1 --retry-all-errors -o /dev/null localhost:8080/ || { docker logs "$CID"; exit 1; }
+          docker exec "$CID" sh -c "grep -rq ci-marker-REACT_APP_API_BASE_URL /usr/share/nginx/html"
+          ! docker exec "$CID" sh -c "grep -rq __REACT_APP /usr/share/nginx/html"
