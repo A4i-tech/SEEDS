@@ -77,9 +77,9 @@ async def test_mute_all_batches_calls_and_writes_state_once() -> None:
     with patch("asyncio.sleep", new=AsyncMock()) as sleep_mock:
         await MuteAllEvent(conf_call=conf).execute_event()
 
-    assert in_flight["max"] <= 3
+    assert in_flight["max"] <= 15
     throttle_sleeps = [c for c in sleep_mock.await_args_list if c.args == (1.0,)]
-    assert len(throttle_sleeps) == 9
+    assert len(throttle_sleeps) == 1
     conf.update_state.assert_called_once()
     conf.stream_system_message.assert_called_once()
     assert calls and len(calls) == 29
@@ -102,9 +102,9 @@ async def test_unmute_all_batches_calls_and_writes_state_once() -> None:
     with patch("asyncio.sleep", new=AsyncMock()) as sleep_mock:
         await UnmuteAllEvent(conf_call=conf).execute_event()
 
-    assert in_flight["max"] <= 3
+    assert in_flight["max"] <= 15
     throttle_sleeps = [c for c in sleep_mock.await_args_list if c.args == (1.0,)]
-    assert len(throttle_sleeps) == 9
+    assert len(throttle_sleeps) == 1
     conf.update_state.assert_called_once()
     assert len(calls) == 30
     assert all(not conf.state.participants[p].is_muted for p in phones)
@@ -127,3 +127,24 @@ async def test_unmute_all_with_initiator_logs_leader_action() -> None:
     entry = conf.state.action_history[-1]
     assert entry.action_type == ActionType.LEADER_UNMUTE_ALL_VIA_DTMF
     assert entry.metadata["unmuted_count"] == 2
+
+
+@pytest.mark.asyncio
+async def test_mute_all_of_50_students_finishes_inside_queue_timeout() -> None:
+    from app.services.conference_service import ConferenceCall
+    from app.services.confevents.mute_all_event import MuteAllEvent
+
+    phones = [f"+5{i:03d}" for i in range(50)]
+    conf = _make_conf(student_phones=phones, muted=False)
+    conf.communication_api.mute_participant = AsyncMock()
+    queue: asyncio.Queue = asyncio.Queue()
+    await queue.put(MuteAllEvent(conf_call=conf))
+    runner = MagicMock(event_queue=queue)
+
+    task = asyncio.create_task(ConferenceCall._process_conf_events_queue(runner, 15.0))
+    await queue.join()
+    task.cancel()
+
+    assert all(conf.state.participants[p].is_muted for p in phones)
+    conf.update_state.assert_called_once()
+    assert conf.state.action_history[-1].metadata["muted_count"] == 50

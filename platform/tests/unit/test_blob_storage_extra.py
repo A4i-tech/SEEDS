@@ -216,3 +216,57 @@ class TestBlobStorageProvider:
             expiries = [c.kwargs["expiry"] for c in mock_sas.call_args_list]
             assert timedelta(minutes=55) <= expiries[0] - before <= timedelta(minutes=65)
             assert timedelta(hours=1, minutes=55) <= expiries[1] - before <= timedelta(hours=2, minutes=5)
+
+    @pytest.mark.asyncio
+    async def test_user_delegation_sas_expiry_is_capped_at_key_window(self) -> None:
+        from datetime import UTC, datetime, timedelta
+        from unittest.mock import AsyncMock
+
+        from app.providers.blob_storage import BlobStorageProvider
+
+        mock_settings = self._make_mock_settings()
+        mock_settings.azure_storage_connection_string = None
+
+        with patch("app.providers.blob_storage.get_settings", return_value=mock_settings), \
+             patch("app.providers.blob_storage.BlobServiceClient"), \
+             patch("app.providers.blob_storage.AsyncDefaultAzureCredential"), \
+             patch("app.providers.blob_storage.generate_blob_sas", return_value="sas_token") as mock_sas:
+            provider = BlobStorageProvider()
+            provider._client.get_user_delegation_key = AsyncMock()
+            key_valid_until = datetime.now(UTC) + timedelta(minutes=30)
+            provider._user_delegation_key = object()
+            provider._key_valid_until = key_valid_until
+            provider._key_expiry = key_valid_until - timedelta(minutes=5)
+
+            await provider.generate_sas_url("c", "b1.wav", expiry_hours=2)
+
+            assert mock_sas.call_args.kwargs["expiry"] == key_valid_until
+            provider._client.get_user_delegation_key.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_user_delegation_key_refreshes_after_refresh_margin(self) -> None:
+        from datetime import UTC, datetime, timedelta
+        from unittest.mock import AsyncMock
+
+        from app.providers.blob_storage import BlobStorageProvider
+
+        mock_settings = self._make_mock_settings()
+        mock_settings.azure_storage_connection_string = None
+
+        with patch("app.providers.blob_storage.get_settings", return_value=mock_settings), \
+             patch("app.providers.blob_storage.BlobServiceClient"), \
+             patch("app.providers.blob_storage.AsyncDefaultAzureCredential"), \
+             patch("app.providers.blob_storage.generate_blob_sas", return_value="sas_token") as mock_sas:
+            provider = BlobStorageProvider()
+            fresh_key = object()
+            provider._client.get_user_delegation_key = AsyncMock(return_value=fresh_key)
+            provider._user_delegation_key = object()
+            provider._key_valid_until = datetime.now(UTC) + timedelta(minutes=1)
+            provider._key_expiry = datetime.now(UTC) - timedelta(minutes=1)
+
+            await provider.generate_sas_url("c", "b1.wav", expiry_hours=1)
+
+            provider._client.get_user_delegation_key.assert_awaited_once()
+            assert mock_sas.call_args.kwargs["user_delegation_key"] is fresh_key
+            assert mock_sas.call_args.kwargs["expiry"] - datetime.now(UTC) > timedelta(minutes=55)
+

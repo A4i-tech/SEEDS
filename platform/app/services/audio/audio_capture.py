@@ -106,9 +106,11 @@ class AudioCaptureService:
             return None
         blob_url = None
         if self.upload_to_azure and self.blob_service_client:
-            blob_url = await self._upload_to_azure()
-            with contextlib.suppress(Exception):
-                await self.blob_service_client.close()
+            try:
+                blob_url = await self._upload_to_azure()
+            finally:
+                with contextlib.suppress(Exception):
+                    await self.blob_service_client.close()
         if self.delete_local and blob_url:
             self._cleanup_local()
         return blob_url

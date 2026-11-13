@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING
 
 from app.models.action_history import ActionHistory, ActionType
 from app.models.system_audio_messages import SystemAudioMessages
-from app.providers.vonage_api import _VONAGE_RATE_LIMIT
+from app.providers.vonage_api import _VONAGE_REST_RATE_LIMIT
 from app.services.confevents.base_event import ConferenceEvent
 
 if TYPE_CHECKING:
@@ -29,15 +29,15 @@ class MuteAllEvent(ConferenceEvent):
         targets = [s.phone_number for s in students if not s.is_muted]
         muted_count = 0
         failed_phones: list[str] = []
-        for i in range(0, len(targets), _VONAGE_RATE_LIMIT):
-            batch = targets[i:i + _VONAGE_RATE_LIMIT]
+        for i in range(0, len(targets), _VONAGE_REST_RATE_LIMIT):
+            batch = targets[i:i + _VONAGE_REST_RATE_LIMIT]
             results = await asyncio.gather(*(self._mute_student(p) for p in batch), return_exceptions=True)
             for phone, res in zip(batch, results, strict=True):
                 if isinstance(res, Exception):
                     failed_phones.append(phone)
                 elif res:
                     muted_count += 1
-            if i + _VONAGE_RATE_LIMIT < len(targets):
+            if i + _VONAGE_REST_RATE_LIMIT < len(targets):
                 await asyncio.sleep(1.0)
         if self.stream_system_message and muted_count > 0:
             await self.conf_call.stream_system_message(SystemAudioMessages.STUDENT_IS_MUTED)

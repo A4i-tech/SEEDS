@@ -272,3 +272,28 @@ class TestAudioCaptureFlushUpload:
         result = await service.flush_and_upload()
         # No upload configured — returns None
         assert result is None
+
+
+@pytest.mark.asyncio
+async def test_finalize_closes_client_when_cancelled_during_upload(tmp_path) -> None:
+    from app.services.audio.audio_capture import AudioCaptureService
+
+    mock_settings = MagicMock()
+    mock_settings.audio_capture_enabled = True
+    mock_settings.audio_capture_upload_to_azure = False
+    mock_settings.audio_capture_container = "test-container"
+    mock_settings.audio_capture_delete_local_after_upload = False
+    mock_settings.azure_storage_connection_string = ""
+    mock_settings.audio_capture_dir = str(tmp_path)
+
+    service = AudioCaptureService(conference_id="test_conf_cancel_close", settings=mock_settings)
+    service.write_chunk(b"\x00\x01" * 500)
+    service.upload_to_azure = True
+    service.blob_service_client = AsyncMock()
+    service._upload_to_azure = AsyncMock(side_effect=asyncio.CancelledError)
+
+    with pytest.raises(asyncio.CancelledError):
+        await service.finalize()
+
+    service.blob_service_client.close.assert_awaited_once()
+
