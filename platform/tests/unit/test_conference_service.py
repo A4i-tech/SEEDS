@@ -30,6 +30,7 @@ def _make_conf_call(conf_id: str = "conf1") -> Any:
     comm_api.transfer_participant = AsyncMock()
 
     conn_mgr = MagicMock()
+    conn_mgr.disconnect = AsyncMock()
     storage_mgr = MagicMock()
     storage_mgr.update_conference_state = AsyncMock()
 
@@ -139,6 +140,7 @@ def _make_manager():
     storage.save_state = AsyncMock()
 
     conn_factory.create.return_value.send_message_to_client = AsyncMock()
+    conn_factory.create.return_value.disconnect = AsyncMock()
 
     # Mock redis store to avoid network calls
     redis_mock = MagicMock()
@@ -486,6 +488,101 @@ class TestConfeventExecution:
 
         await asyncio.sleep(0)
         assert not conf.is_queue_processing()
+
+    @pytest.mark.asyncio
+    async def test_end_event_evicts_when_end_conf_raises(self) -> None:
+        from app.services.confevents.end_conf_event import EndConferenceEvent
+
+        mgr = _make_manager()
+        conf = await mgr.create_conference(teacher_phone="+780", student_phones=[])
+        conf.start_processing_conf_events_from_queue()
+        conf.communication_api.end_conf = AsyncMock(side_effect=RuntimeError("redis down"))
+
+        evt = EndConferenceEvent(conf_call=conf, on_end_callback=lambda: mgr.delete_conference(conf.conf_id))
+        with pytest.raises(RuntimeError):
+            await evt.execute_event()
+
+        import asyncio
+
+        await asyncio.sleep(0)
+        assert mgr.get_conference(conf.conf_id) is None
+        assert not conf.is_queue_processing()
+
+    @pytest.mark.asyncio
+    async def test_end_event_evicts_when_update_state_raises(self) -> None:
+        from app.services.confevents.end_conf_event import EndConferenceEvent
+
+        mgr = _make_manager()
+        conf = await mgr.create_conference(teacher_phone="+781", student_phones=[])
+        conf.update_state = AsyncMock(side_effect=RuntimeError("db down"))
+
+        fake_ws = MagicMock()
+        fake_ws.send_message = AsyncMock()
+        with patch("app.providers.websocket_client.WebsocketClientProvider", return_value=fake_ws):
+            evt = EndConferenceEvent(conf_call=conf, on_end_callback=lambda: mgr.delete_conference(conf.conf_id))
+            with pytest.raises(RuntimeError):
+                await evt.execute_event()
+
+        assert mgr.get_conference(conf.conf_id) is None
+
+    @pytest.mark.asyncio
+    async def test_end_event_evicts_on_queue_timeout(self) -> None:
+        import asyncio
+
+        from app.services.confevents.end_conf_event import EndConferenceEvent
+
+        mgr = _make_manager()
+        conf = await mgr.create_conference(teacher_phone="+782", student_phones=[])
+
+        async def hang() -> None:
+            await asyncio.sleep(10)
+
+        conf.communication_api.end_conf = hang
+        await conf.event_queue.put(
+            EndConferenceEvent(conf_call=conf, on_end_callback=lambda: mgr.delete_conference(conf.conf_id))
+        )
+        task = asyncio.create_task(conf._process_conf_events_queue(timeout=0.05))
+        await asyncio.wait_for(conf.event_queue.join(), timeout=2)
+        task.cancel()
+
+        assert mgr.get_conference(conf.conf_id) is None
+
+    @pytest.mark.asyncio
+    async def test_end_event_closes_teacher_sse_stream(self) -> None:
+        from app.services.confevents.end_conf_event import EndConferenceEvent
+
+        mgr = _make_manager()
+        conf = await mgr.create_conference(teacher_phone="+783", student_phones=[])
+        conf.connection_manager.send_message_to_client = AsyncMock()
+
+        fake_ws = MagicMock()
+        fake_ws.send_message = AsyncMock()
+        with patch("app.providers.websocket_client.WebsocketClientProvider", return_value=fake_ws):
+            await EndConferenceEvent(conf_call=conf).execute_event()
+
+        conf.connection_manager.disconnect.assert_awaited_once_with(conf.state.get_teacher())
+
+    @pytest.mark.asyncio
+    async def test_delete_conference_keeps_redis_task_reference_until_done(self) -> None:
+        import asyncio
+
+        from app.services import conference_service
+
+        mgr = _make_manager()
+        conf = await mgr.create_conference(teacher_phone="+784", student_phones=[])
+        gate = asyncio.Event()
+
+        async def slow_delete(_key: str) -> None:
+            await gate.wait()
+
+        mgr._redis_store.delete = slow_delete
+        mgr.delete_conference(conf.conf_id)
+        assert len(conference_service._redis_delete_tasks) == 1
+
+        gate.set()
+        await asyncio.sleep(0)
+        await asyncio.sleep(0)
+        assert not conference_service._redis_delete_tasks
 
 
 # ---------------------------------------------------------------------------

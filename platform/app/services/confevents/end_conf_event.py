@@ -20,6 +20,20 @@ class EndConferenceEvent(ConferenceEvent):
         self.on_end_callback = on_end_callback
 
     async def execute_event(self) -> None:
+        try:
+            await self._end_conference()
+        finally:
+            try:
+                if self.conf_call.connection_manager:
+                    await self.conf_call.connection_manager.disconnect(self.conf_call.state.get_teacher())
+            finally:
+                try:
+                    if self.on_end_callback:
+                        self.on_end_callback()
+                finally:
+                    self.conf_call.end_processing_conf_events_from_queue()
+
+    async def _end_conference(self) -> None:
         self.conf_call.state.is_running = False
         await self.conf_call.communication_api.end_conf()
         self.conf_call.state.action_history.append(ActionHistory(timestamp=datetime.now().isoformat(), action_type=ActionType.CONFERENCE_END, metadata={}, owner=self.conf_call.state.teacher_phone_number or ""))
@@ -33,8 +47,3 @@ class EndConferenceEvent(ConferenceEvent):
         except Exception as exc:
             logger.warning("end_conf_event: websocket disconnect failed — %s", exc)
         await self.conf_call.update_state()
-        try:
-            if self.on_end_callback:
-                self.on_end_callback()
-        finally:
-            self.conf_call.end_processing_conf_events_from_queue()

@@ -38,6 +38,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+_redis_delete_tasks: set[asyncio.Task] = set()
+
 
 # ---------------------------------------------------------------------------
 # ConferenceCall — runtime object for a single conference
@@ -493,7 +495,9 @@ class ConferenceCallManager:
     def delete_conference(self, conf_id: str) -> None:
         self._conferences.pop(conf_id, None)
         caller_state_service.delete_conference(conf_id)
-        asyncio.create_task(self._get_redis().delete(conf_id))
+        task = asyncio.create_task(self._get_redis().delete(conf_id))
+        _redis_delete_tasks.add(task)
+        task.add_done_callback(_redis_delete_tasks.discard)
 
     def get_conference_from_phone_number(self, phone_number: str) -> ConferenceCall | None:
         for conf in self._conferences.values():
