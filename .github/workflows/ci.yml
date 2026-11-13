@@ -109,7 +109,7 @@ jobs:
       - name: Image takes its config at start
         run: |
           set -euo pipefail
-          vars=$(sed -n 's/^VARS="\(.*\)"$//p' ${{ matrix.context }}/runtime-env.sh)
+          vars=$(sed -n 's/^VARS="\(.*\)"$/\1/p' ${{ matrix.context }}/runtime-env.sh)
           envs=""
           for v in $vars; do envs="$envs -e $v=ci-marker-$v"; done
           if docker run --rm app; then echo "container started without config"; exit 1; fi

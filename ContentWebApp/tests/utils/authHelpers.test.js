@@ -1,12 +1,12 @@
 import {
   getAuthHeaders,
-  isAuthenticated,
   getTokenPayload,
   setAuth,
   getRole,
   getSchoolId,
   clearAuth,
 } from "../../src/utils/authHelpers";
+import { getAccessToken, setAccessToken, clearAccessToken } from "../../src/utils/tokenStore";
 
 // base64url-encode a JSON payload into a fake JWT (header.payload.signature).
 function makeToken(payload) {
@@ -19,11 +19,14 @@ function makeToken(payload) {
 }
 
 describe("authHelpers", () => {
-  beforeEach(() => localStorage.clear());
+  beforeEach(() => {
+    localStorage.clear();
+    clearAccessToken();
+  });
 
   describe("getAuthHeaders", () => {
     it("returns headers with bearer token", () => {
-      localStorage.setItem("authToken", "abc");
+      setAccessToken("abc");
       expect(getAuthHeaders()).toEqual({
         "Content-Type": "application/json",
         Authorization: "Bearer abc",
@@ -34,30 +37,22 @@ describe("authHelpers", () => {
     });
   });
 
-  describe("isAuthenticated", () => {
-    it("true when token present", () => {
-      localStorage.setItem("authToken", "abc");
-      expect(isAuthenticated()).toBe(true);
-    });
-    it("false when absent", () => {
-      expect(isAuthenticated()).toBe(false);
-    });
-  });
-
   describe("getTokenPayload", () => {
     it("returns {} when no token", () => {
       expect(getTokenPayload()).toEqual({});
     });
     it("decodes a valid token", () => {
-      localStorage.setItem("authToken", makeToken({ role: "tenant", id: "t1" }));
+      setAccessToken(makeToken({ role: "tenant", id: "t1" }));
       expect(getTokenPayload()).toMatchObject({ role: "tenant", id: "t1" });
     });
     it("returns {} for malformed token", () => {
-      localStorage.setItem("authToken", "not-a-jwt");
+      const consoleError = jest.spyOn(console, "error").mockImplementation(() => {});
+      setAccessToken("not-a-jwt");
       expect(getTokenPayload()).toEqual({});
+      consoleError.mockRestore();
     });
     it("returns {} when payload segment missing", () => {
-      localStorage.setItem("authToken", "onlyonesegment");
+      setAccessToken("onlyonesegment");
       expect(getTokenPayload()).toEqual({});
     });
   });
@@ -65,7 +60,7 @@ describe("authHelpers", () => {
   describe("setAuth / getRole / getSchoolId / clearAuth", () => {
     it("persists token, role, schoolId", () => {
       setAuth("tok", "school_admin", "s1");
-      expect(localStorage.getItem("authToken")).toBe("tok");
+      expect(getAccessToken()).toBe("tok");
       expect(localStorage.getItem("userRole")).toBe("school_admin");
       expect(getSchoolId()).toBe("s1");
     });
@@ -82,17 +77,17 @@ describe("authHelpers", () => {
       setAuth(makeToken({ role: "content_creator" }), "tenant");
       expect(getRole()).toBe("content_creator");
     });
-    it("getRole falls back to issuer then stored role", () => {
+    it("getRole ignores issuer and falls back to stored role", () => {
       setAuth(makeToken({ iss: "school_admin" }), "tenant");
-      expect(getRole()).toBe("school_admin");
-      localStorage.setItem("authToken", "plain");
+      expect(getRole()).toBe("tenant");
+      setAccessToken("plain");
       localStorage.setItem("userRole", "teacher");
       expect(getRole()).toBe("teacher");
     });
     it("clearAuth removes everything", () => {
       setAuth("tok", "tenant", "s1");
       clearAuth();
-      expect(localStorage.getItem("authToken")).toBeNull();
+      expect(getAccessToken()).toBe("");
       expect(localStorage.getItem("userRole")).toBeNull();
       expect(localStorage.getItem("schoolId")).toBeNull();
     });

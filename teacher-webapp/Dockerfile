@@ -28,4 +28,5 @@ USER 101
 
 EXPOSE 8080
 
+# nosemgrep: dockerfile.security.missing-user.missing-user -- base image already runs as non-root
 CMD ["sh", "-c", "runtime-env.sh && exec nginx -g 'daemon off;'"]

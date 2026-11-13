@@ -1,4 +1,4 @@
-name: Deploy Staging Services
+name: Build Staging Images
 
 on:
     workflow_call:
@@ -24,6 +24,10 @@ jobs:
                     - name: teacher-webapp-service
                       context: teacher-webapp
                       image: teacher-webapp
+
+                    - name: websocket-service
+                      context: websocket-service
+                      image: websocket-service
         steps:
             - name: Checkout repository
               uses: actions/checkout@v4

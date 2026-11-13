@@ -1,5 +1,5 @@
 import { Navigate } from "react-router-dom";
-import { isAuthenticated } from "../utils/authHelpers";
+import { useAuthContext } from "../contexts/AuthContext";
 
 /**
  * ProtectedRoute component that prevents unauthenticated users from accessing protected routes.
@@ -9,7 +9,8 @@ import { isAuthenticated } from "../utils/authHelpers";
  * @returns {JSX.Element} The protected component or redirect to login
  */
 const ProtectedRoute = ({ element }) => {
-  return isAuthenticated() ? element : <Navigate to="/" replace />;
+  const { isAuthenticated } = useAuthContext();
+  return isAuthenticated ? element : <Navigate to="/" replace />;
 };
 
 export default ProtectedRoute;
