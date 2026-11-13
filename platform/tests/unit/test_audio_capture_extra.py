@@ -4,8 +4,9 @@ Extra coverage for audio_capture.py service.
 
 from __future__ import annotations
 
+import asyncio
 import tempfile
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -156,6 +157,103 @@ class TestAudioCaptureServiceEnabled:
         service._cleanup_local()  # No file_path — should not crash
 
 
+class _StubBlobClient:
+    """Stands in for the container/blob client pair; records SDK kwargs."""
+
+    url = "https://acct.blob.core.windows.net/audio-recording/conf.wav"
+
+    def __init__(self, timeouts: list, finished: list, delay: float = 0.0, failures: int = 0):
+        self._timeouts = timeouts
+        self._finished = finished
+        self._delay = delay
+        self._failures = failures
+        self.attempts = 0
+
+    def get_container_client(self, container):
+        return self
+
+    async def get_container_properties(self):
+        return None
+
+    def get_blob_client(self, blob_name):
+        return self
+
+    async def upload_blob(self, fh, **kwargs):
+        self.attempts += 1
+        self._timeouts.append(kwargs.get("timeout"))
+        try:
+            await asyncio.sleep(self._delay)
+            if self.attempts <= self._failures:
+                raise RuntimeError("azure down")
+        finally:
+            self._finished.append(True)
+        return {}
+
+
+def _upload_service(tmp_path, **overrides):
+    from app.services.audio.audio_capture import AudioCaptureService
+
+    mock_settings = MagicMock()
+    mock_settings.audio_capture_enabled = True
+    mock_settings.audio_capture_upload_to_azure = False
+    mock_settings.audio_capture_container = "test-container"
+    mock_settings.audio_capture_delete_local_after_upload = False
+    mock_settings.azure_storage_connection_string = ""
+    mock_settings.audio_capture_dir = str(tmp_path)
+
+    service = AudioCaptureService(conference_id="test_conf_up", settings=mock_settings)
+    wav = tmp_path / "clip.wav"
+    wav.write_bytes(b"\x00" * 64)
+    service.file_path = str(wav)
+    service.upload_to_azure = True
+    for key, value in overrides.items():
+        setattr(service, key, value)
+    return service
+
+
+class TestAudioUploadSdkTimeout:
+    @pytest.mark.asyncio
+    async def test_upload_passes_sdk_timeout_and_leaves_no_thread(self, tmp_path) -> None:
+        service = _upload_service(tmp_path, upload_timeout=5.0, upload_max_retries=1)
+        timeouts: list = []
+        finished: list = []
+        service.blob_service_client = _StubBlobClient(timeouts, finished, delay=0.2)
+
+        result = await service._upload_to_azure()
+
+        assert result == _StubBlobClient.url
+        assert timeouts == [5.0]
+        assert len(finished) == len(timeouts)
+
+    @pytest.mark.asyncio
+    async def test_upload_retries_bounded_on_error(self, tmp_path) -> None:
+        service = _upload_service(tmp_path, upload_timeout=5.0, upload_max_retries=2)
+        stub = _StubBlobClient([], [], failures=10)
+        service.blob_service_client = stub
+
+        with patch("asyncio.sleep", new=AsyncMock()):
+            result = await service._upload_to_azure()
+
+        assert result is None
+        assert stub.attempts == 2
+
+    @pytest.mark.asyncio
+    async def test_upload_hang_cancelled_and_retried(self, tmp_path) -> None:
+        import time as time_module
+
+        service = _upload_service(tmp_path, upload_timeout=0.05, upload_max_retries=2)
+        stub = _StubBlobClient([], [], delay=2.0)
+        service.blob_service_client = stub
+
+        started = time_module.monotonic()
+        result = await service._upload_to_azure()
+        elapsed = time_module.monotonic() - started
+
+        assert result is None
+        assert stub.attempts == 2
+        assert elapsed < 2.0
+
+
 class TestAudioCaptureFlushUpload:
     @pytest.mark.asyncio
     async def test_flush_and_upload_no_upload(self, tmp_path) -> None:
@@ -174,3 +272,28 @@ class TestAudioCaptureFlushUpload:
         result = await service.flush_and_upload()
         # No upload configured — returns None
         assert result is None
+
+
+@pytest.mark.asyncio
+async def test_finalize_closes_client_when_cancelled_during_upload(tmp_path) -> None:
+    from app.services.audio.audio_capture import AudioCaptureService
+
+    mock_settings = MagicMock()
+    mock_settings.audio_capture_enabled = True
+    mock_settings.audio_capture_upload_to_azure = False
+    mock_settings.audio_capture_container = "test-container"
+    mock_settings.audio_capture_delete_local_after_upload = False
+    mock_settings.azure_storage_connection_string = ""
+    mock_settings.audio_capture_dir = str(tmp_path)
+
+    service = AudioCaptureService(conference_id="test_conf_cancel_close", settings=mock_settings)
+    service.write_chunk(b"\x00\x01" * 500)
+    service.upload_to_azure = True
+    service.blob_service_client = AsyncMock()
+    service._upload_to_azure = AsyncMock(side_effect=asyncio.CancelledError)
+
+    with pytest.raises(asyncio.CancelledError):
+        await service.finalize()
+
+    service.blob_service_client.close.assert_awaited_once()
+

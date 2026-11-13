@@ -17,6 +17,7 @@ NCCO-building code path (``VonageStreamAction.get()`` / ``ActionAccumulator``).
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
@@ -33,6 +34,10 @@ from azure.storage.blob.aio import BlobServiceClient, ContainerClient, StorageSt
 from app.platform.settings import get_settings
 
 logger = logging.getLogger(__name__)
+
+
+_DELEGATION_KEY_LIFETIME = timedelta(hours=24)
+_DELEGATION_REFRESH_MARGIN = timedelta(hours=2)
 
 
 class BlobStorageProvider:
@@ -65,6 +70,21 @@ class BlobStorageProvider:
                 account_url=f"https://{self._account_name}.blob.core.windows.net",
                 credential=credential,
             )
+        self._user_delegation_key = None
+        self._key_expiry: datetime | None = None
+        self._key_valid_until: datetime | None = None
+        self._key_lock = asyncio.Lock()
+
+    async def _get_user_delegation_key(self, start: datetime, expiry: datetime):
+        async with self._key_lock:
+            if self._user_delegation_key is None or (
+                self._key_expiry is not None and datetime.now(UTC) >= self._key_expiry
+            ):
+                key_expiry = datetime.now(UTC) + _DELEGATION_KEY_LIFETIME
+                self._user_delegation_key = await self._client.get_user_delegation_key(start, key_expiry)
+                self._key_valid_until = key_expiry
+                self._key_expiry = key_expiry - _DELEGATION_REFRESH_MARGIN
+            return self._user_delegation_key, self._key_valid_until
 
     # ------------------------------------------------------------------
     # Container helpers
@@ -201,14 +221,14 @@ class BlobStorageProvider:
             )
         else:
             # User delegation SAS via managed identity
-            user_delegation_key = await self._client.get_user_delegation_key(start, expiry)
+            user_delegation_key, key_valid_until = await self._get_user_delegation_key(start, expiry)
             sas_token = generate_blob_sas(
                 account_name=self._account_name,
                 container_name=container,
                 blob_name=blob_name,
                 user_delegation_key=user_delegation_key,
                 permission=permissions,
-                expiry=expiry,
+                expiry=min(expiry, key_valid_until),
                 start=start,
             )
 
