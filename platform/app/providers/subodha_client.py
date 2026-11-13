@@ -10,8 +10,9 @@ import asyncio
 import json
 import logging
 import re
+import tempfile
 from datetime import UTC, datetime, timedelta
-from typing import Any, NotRequired, TypedDict
+from typing import IO, Any, NotRequired, TypedDict
 
 import httpx
 from bs4 import BeautifulSoup
@@ -20,6 +21,7 @@ from app.platform.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
+_MAX_ASSET_BYTES = 100 * 1024 * 1024
 _CONTENT_TYPES_FOR_XBLOCK = {"html", "video", "problem", "drag-and-drop-v2"}
 _STAFF_DEBUG_SELECTOR = ".wrap-instructor-info, .xqa-modal, .staff-modal, .history-modal"
 _MATHTYPE_ANNOTATION_RE = re.compile(r"MathType@MTEF@.*?@[0-9A-Fa-f]{4}@", re.S)
@@ -257,11 +259,26 @@ class SubodhaClient:
     # Assets
     # ------------------------------------------------------------------
 
-    async def fetch_asset(self, relative_url: str, session_cookie: str) -> bytes:
-        res = await self._http.get(f"{self._base_url}{relative_url}", headers={"Cookie": session_cookie})
-        res.raise_for_status()
-        logger.info("[subodha-asset] fetched url=%s status=%d bytes=%d", relative_url, res.status_code, len(res.content))
-        return res.content
+    async def fetch_asset(self, relative_url: str, session_cookie: str) -> IO[bytes]:
+        handle = tempfile.TemporaryFile()  # noqa: SIM115
+        try:
+            async with self._http.stream(
+                "GET", f"{self._base_url}{relative_url}", headers={"Cookie": session_cookie}
+            ) as res:
+                res.raise_for_status()
+                size = 0
+                async for chunk in res.aiter_bytes():
+                    size += len(chunk)
+                    if size > _MAX_ASSET_BYTES:
+                        raise ValueError(f"asset too large: {relative_url}")
+                    await asyncio.to_thread(handle.write, chunk)
+                status = res.status_code
+            handle.seek(0)
+        except BaseException:
+            handle.close()
+            raise
+        logger.info("[subodha-asset] fetched url=%s status=%d bytes=%d", relative_url, status, size)
+        return handle
 
 
 _client: SubodhaClient | None = None

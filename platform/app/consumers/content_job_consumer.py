@@ -223,19 +223,12 @@ async def _process_audio_item(
     try:
         # Download input
         logger.info("content_job: downloading audio %s", audio_url)
-        audio_bytes = await blob_provider.download_from_url(audio_url)
-        if not audio_bytes:
-            raise RuntimeError(f"Downloaded empty buffer from {audio_url}")
-
-        with open(input_path, "wb") as fh:
-            fh.write(audio_bytes)
+        await blob_provider.download_from_url_to_file(audio_url, Path(input_path))
+        if not os.path.getsize(input_path):
+            raise RuntimeError(f"Downloaded empty blob from {audio_url}")
 
         # Transcode
         await _transcode_to_wav(input_path, output_path)
-
-        # Read transcoded data
-        with open(output_path, "rb") as fh:
-            transcoded = fh.read()
 
         # Extract duration (best-effort)
         duration: float | None = None
@@ -247,7 +240,8 @@ async def _process_audio_item(
         # Upload to output-container as .wav
         container, blob_path = _parse_blob_url_simple(audio_url)
         wav_blob_name = blob_path.rsplit(".", 1)[0] + ".wav" if "." in blob_path else blob_path + ".wav"
-        new_url = await blob_provider.upload_file("output-container", wav_blob_name, transcoded, "audio/wav")
+        with open(output_path, "rb") as fh:
+            new_url = await blob_provider.upload_file("output-container", wav_blob_name, fh, "audio/wav")
 
         return new_url, duration
 

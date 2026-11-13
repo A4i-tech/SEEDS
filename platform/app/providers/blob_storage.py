@@ -52,11 +52,15 @@ class BlobStorageProvider:
 
         conn_str = settings.azure_storage_connection_string
         if conn_str:
-            self._client = BlobServiceClient.from_connection_string(conn_str)
+            self._client = BlobServiceClient.from_connection_string(
+                conn_str, max_single_put_size=4 * 1024 * 1024, max_single_get_size=4 * 1024 * 1024
+            )
         elif self._account_name and self._account_key:
             self._client = BlobServiceClient(
                 account_url=f"https://{self._account_name}.blob.core.windows.net",
                 credential=self._account_key,
+                max_single_put_size=4 * 1024 * 1024,
+                max_single_get_size=4 * 1024 * 1024,
             )
         else:
             credential = AsyncDefaultAzureCredential()
@@ -64,6 +68,8 @@ class BlobStorageProvider:
             self._client = BlobServiceClient(
                 account_url=f"https://{self._account_name}.blob.core.windows.net",
                 credential=credential,
+                max_single_put_size=4 * 1024 * 1024,
+                max_single_get_size=4 * 1024 * 1024,
             )
 
     # ------------------------------------------------------------------
