@@ -39,6 +39,11 @@ class SubodhaCourse(TypedDict):
     language: NotRequired[str]
 
 
+def _release(soup: BeautifulSoup) -> None:
+    for node in soup.find_all(True, recursive=False):
+        node.decompose()
+
+
 def _strip_staff_debug(html: str) -> str:
     """Remove staff-only debug/QA panels the LMS nests inside the xblock's own
     content div (not as trailing page siblings, but as siblings within the div
@@ -46,7 +51,9 @@ def _strip_staff_debug(html: str) -> str:
     soup = BeautifulSoup(html, "html.parser")
     for tag in soup.select(_STAFF_DEBUG_SELECTOR):
         tag.decompose()
-    return str(soup)
+    cleaned = str(soup)
+    _release(soup)
+    return cleaned
 
 
 def _extract_html(raw: str) -> str:
@@ -60,16 +67,20 @@ def _extract_html(raw: str) -> str:
     for script in soup.find_all("script", class_="xblock-json-init-args"):
         script.decompose()
     xblock_div = soup.find("div", class_=lambda c: c == "xblock")
-    return xblock_div.decode_contents().strip()
+    content = xblock_div.decode_contents().strip()
+    _release(soup)
+    return content
 
 
 def _extract_video_data(raw: str) -> dict[str, object] | None:
     soup = BeautifulSoup(raw, "html.parser")
     tag = soup.find(attrs={"data-metadata": True})
-    if tag is None:
+    metadata = tag["data-metadata"] if tag else None
+    _release(soup)
+    if metadata is None:
         return None
     try:
-        meta = json.loads(tag["data-metadata"])
+        meta = json.loads(metadata)
     except (ValueError, TypeError):
         return None
     return {
