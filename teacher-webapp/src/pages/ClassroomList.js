@@ -98,8 +98,14 @@ const ClassroomList = () => {
     setClassroomToDelete(null);
   };
 
-  const handleLogout = () => {
-    logout();
+  const handleLogout = async () => {
+    setErrorMsg("");
+    try {
+      await logout();
+    } catch (error) {
+      console.error("Logout failed:", error);
+      setErrorMsg("Logout failed. You are still signed in — please try again.");
+    }
   };
 
   const formatTimestamp = (timestamp) => {

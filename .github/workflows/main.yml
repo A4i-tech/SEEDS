@@ -27,20 +27,14 @@ jobs:
       upload_coverage: true
     secrets: inherit  # nosemgrep: yaml.github-actions.security.secrets-inherit.secrets-inherit -- reusable workflow needs full secret set
 
-  deploy-websocket-service-staging-workflow:
+  build-staging-images-workflow:
     needs: ci-workflow
     if: github.ref == 'refs/heads/a4i/staging'
-    uses: ./.github/workflows/deploy-websocket-service-staging.yml
-    secrets: inherit  # nosemgrep: yaml.github-actions.security.secrets-inherit.secrets-inherit -- reusable workflow needs full secret set
-
-  deploy-staging-workflow:
-    needs: ci-workflow
-    if: github.ref == 'refs/heads/a4i/staging'
-    uses: ./.github/workflows/deploy-staging.yml
+    uses: ./.github/workflows/build-staging-images.yml
     secrets: inherit  # nosemgrep: yaml.github-actions.security.secrets-inherit.secrets-inherit -- reusable workflow needs full secret set
 
   contentwebapp-e2e-workflow:
-    needs: [deploy-staging-workflow, detect-contentwebapp-changes]
+    needs: [build-staging-images-workflow, detect-contentwebapp-changes]
     if: github.ref == 'refs/heads/a4i/staging' && needs.detect-contentwebapp-changes.outputs.changed == 'true'
     uses: ./.github/workflows/contentwebapp-e2e.yml
     secrets: inherit  # nosemgrep: yaml.github-actions.security.secrets-inherit.secrets-inherit -- reusable workflow needs full secret set
@@ -73,8 +67,7 @@ jobs:
     if: always()
     needs:
       - ci-workflow
-      - deploy-websocket-service-staging-workflow
-      - deploy-staging-workflow
+      - build-staging-images-workflow
       - contentwebapp-e2e-workflow
       - deploy-main-workflow
       - run-android-tests
@@ -93,8 +86,7 @@ jobs:
         run: |
           JOB_MAPPING='{
             "ci-workflow": "CI",
-            "deploy-websocket-service-staging-workflow": "Websocket",
-            "deploy-staging-workflow": "Backend Staging",
+            "build-staging-images-workflow": "Backend Staging",
             "contentwebapp-e2e-workflow": "E2E",
             "deploy-main-workflow": "Backend",
             "deploy-android": "Android"
