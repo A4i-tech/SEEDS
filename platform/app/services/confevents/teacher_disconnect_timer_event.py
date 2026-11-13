@@ -85,8 +85,10 @@ class AutoEndTimerExpiredEvent(ConferenceEvent):
         self.conf_call.state.auto_end_state.started_at = None
         self.conf_call.state.auto_end_state.expires_at = None
         await self.conf_call.update_state()
+        from app.platform.lifespan import get_conference_manager  # noqa: PLC0415
         from app.services.confevents.end_conf_event import EndConferenceEvent  # noqa: PLC0415
-        await self.conf_call.queue_event(EndConferenceEvent(self.conf_call))
+        conf_id = self.conf_call.conf_id
+        await self.conf_call.queue_event(EndConferenceEvent(self.conf_call, on_end_callback=lambda: get_conference_manager().delete_conference(conf_id)))
 
 
 class AutoEndTimerFailedEvent(ConferenceEvent):

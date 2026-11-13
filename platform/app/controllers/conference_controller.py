@@ -84,8 +84,12 @@ async def end_conference(
 ) -> EventQueuedResponse:
     from app.services.confevents.end_conf_event import EndConferenceEvent  # noqa: PLC0415
 
+    mgr = get_conference_manager()
     conf = get_conf_or_404(conference_id)
-    await conf.queue_event(EndConferenceEvent(conf_call=conf))
+    await conf.queue_event(EndConferenceEvent(
+        conf_call=conf,
+        on_end_callback=lambda: mgr.delete_conference(conference_id),
+    ))
     return EventQueuedResponse(message="Event Queued for execution")
 
 

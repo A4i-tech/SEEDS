@@ -108,10 +108,50 @@ class TestWebsocketAudioProcessor:
 
         conf = MagicMock()
         del conf._hold_transcript_window
-
         _remember_transcript(conf, "first text")
         result = _remember_transcript(conf, "second text")
         assert "first text" in result and "second text" in result
+
+    @pytest.mark.asyncio
+    async def test_hold_frame_writes_once_per_episode(self) -> None:
+        from app.services.audio.websocket_audio_processor import process_audio_message
+
+        conf = MagicMock()
+        conf.state.hold_detected = False
+        conf.state.action_history = []
+        conf.update_state = AsyncMock()
+        transcriber = MagicMock()
+        transcriber.process_chunk = AsyncMock(return_value={"text": "please hold", "segments": []})
+        detector = MagicMock()
+        detector.detect = AsyncMock(return_value={"is_hold": True, "score": 0.9})
+
+        for _ in range(5):
+            await process_audio_message(b"audio", conf, transcriber, detector, "conf1", None)
+
+        assert len(conf.state.action_history) == 1
+        assert conf.update_state.await_count == 1
+
+        conf.state.hold_detected = False
+        await process_audio_message(b"audio", conf, transcriber, detector, "conf1", None)
+        assert len(conf.state.action_history) == 2
+        assert conf.update_state.await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_hold_detected_resets_when_hold_ends(self) -> None:
+        from app.services.audio.websocket_audio_processor import process_audio_message
+
+        conf = MagicMock()
+        conf.state.hold_detected = True
+        conf.state.action_history = []
+        conf.update_state = AsyncMock()
+        transcriber = MagicMock()
+        transcriber.process_chunk = AsyncMock(return_value={"text": "hello", "segments": []})
+        detector = MagicMock()
+        detector.detect = AsyncMock(return_value={"is_hold": False, "score": 0.1})
+
+        await process_audio_message(b"audio", conf, transcriber, detector, "conf1", None)
+
+        assert conf.state.hold_detected is False
 
     @pytest.mark.asyncio
     async def test_handle_incoming_disconnect_returns_false(self) -> None:

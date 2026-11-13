@@ -246,6 +246,41 @@ class TestIVRStartCallFlow:
             ivr_service._latest_fsm_id = original
 
     @pytest.mark.asyncio
+    async def test_start_call_flow_repins_fsm_evicted_during_vonage_call(self, db) -> None:
+        from unittest.mock import MagicMock, patch
+
+        from app.services import ivr_service
+        from app.services.ivr_service import IVRService
+
+        fsm = MagicMock()
+        fsm.fsm_id = "fsm_a"
+        fsm.init_state_id = "s0"
+        fsm.get_start_fsm_actions.return_value = []
+        factory = MagicMock()
+        accumulator = MagicMock()
+        accumulator.combine.return_value = []
+
+        async def vonage_evicts(*_args):
+            ivr_service._fsm_cache.pop("fsm_a")
+            return {"conversation_uuid": "c1", "uuid": "leg1"}
+
+        old_cache = dict(ivr_service._fsm_cache)
+        old_latest = ivr_service._latest_fsm_id
+        ivr_service._fsm_cache.clear()
+        ivr_service._fsm_cache["fsm_a"] = fsm
+        ivr_service._latest_fsm_id = "fsm_a"
+        try:
+            with patch.object(ivr_service, "_make_vonage_call", vonage_evicts), \
+                 patch.object(ivr_service, "_get_factory_and_accumulator", return_value=(factory, accumulator)):
+                result = await IVRService(db).start_call_flow("+91999999999", "t1")
+            assert result["status_code"] == 200
+            assert ivr_service._fsm_cache["fsm_a"] is fsm
+        finally:
+            ivr_service._fsm_cache.clear()
+            ivr_service._fsm_cache.update(old_cache)
+            ivr_service._latest_fsm_id = old_latest
+
+    @pytest.mark.asyncio
     @pytest.mark.parametrize(
         ("doc", "phone", "status", "left"),
         [

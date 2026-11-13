@@ -50,6 +50,10 @@ class CallerStateService:
         version = self._versions.get(conference_id, 0)
         return state, version
 
+    def delete_conference(self, conference_id: str) -> None:
+        self._states.pop(conference_id, None)
+        self._versions.pop(conference_id, None)
+
 
 # Module-level singleton — matches ConferenceV2's caller_state_manager pattern
 caller_state_service = CallerStateService()

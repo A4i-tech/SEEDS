@@ -150,6 +150,26 @@ class TestAutoEndTimerExpiredEvent:
         await event.execute_event()
         conf.update_state.assert_called_once()
 
+    @pytest.mark.asyncio
+    async def test_expired_end_event_evicts_conference(self) -> None:
+        from unittest.mock import patch
+
+        from app.services.confevents.teacher_disconnect_timer_event import AutoEndTimerExpiredEvent
+
+        conf = MagicMock()
+        conf.conf_id = "conf1"
+        conf.state.auto_end_state.is_active = True
+        conf.state.action_history = []
+        conf.update_state = AsyncMock()
+        conf.queue_event = AsyncMock()
+
+        mgr = MagicMock()
+        with patch("app.platform.lifespan.get_conference_manager", return_value=mgr):
+            await AutoEndTimerExpiredEvent(conf_call=conf, timeout_minutes=5).execute_event()
+            conf.queue_event.await_args.args[0].on_end_callback()
+
+        mgr.delete_conference.assert_called_once_with("conf1")
+
 
 class TestAutoEndTimerFailedEvent:
     @pytest.mark.asyncio

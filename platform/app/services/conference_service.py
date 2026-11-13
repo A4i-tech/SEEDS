@@ -30,12 +30,15 @@ from app.models.conference_state import ConferenceCallState
 from app.models.participant import CallStatus, Participant, Role
 from app.platform.auth.dependencies import get_db
 from app.platform.settings import get_settings
+from app.services.caller_state_service import caller_state_service
 from app.services.confevents.base_event import ConferenceEvent
 
 if TYPE_CHECKING:
     pass
 
 logger = logging.getLogger(__name__)
+
+_redis_delete_tasks: set[asyncio.Task] = set()
 
 
 # ---------------------------------------------------------------------------
@@ -491,7 +494,10 @@ class ConferenceCallManager:
 
     def delete_conference(self, conf_id: str) -> None:
         self._conferences.pop(conf_id, None)
-        asyncio.create_task(self._get_redis().delete(conf_id))
+        caller_state_service.delete_conference(conf_id)
+        task = asyncio.create_task(self._get_redis().delete(conf_id))
+        _redis_delete_tasks.add(task)
+        task.add_done_callback(_redis_delete_tasks.discard)
 
     def get_conference_from_phone_number(self, phone_number: str) -> ConferenceCall | None:
         for conf in self._conferences.values():

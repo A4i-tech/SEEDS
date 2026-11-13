@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -14,10 +15,25 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 class EndConferenceEvent(ConferenceEvent):
-    def __init__(self, conf_call: ConferenceCall) -> None:
+    def __init__(self, conf_call: ConferenceCall, on_end_callback: Callable[[], None] | None = None) -> None:
         self.conf_call = conf_call
+        self.on_end_callback = on_end_callback
 
     async def execute_event(self) -> None:
+        try:
+            await self._end_conference()
+        finally:
+            try:
+                if self.conf_call.connection_manager:
+                    await self.conf_call.connection_manager.disconnect(self.conf_call.state.get_teacher())
+            finally:
+                try:
+                    if self.on_end_callback:
+                        self.on_end_callback()
+                finally:
+                    self.conf_call.end_processing_conf_events_from_queue()
+
+    async def _end_conference(self) -> None:
         self.conf_call.state.is_running = False
         await self.conf_call.communication_api.end_conf()
         self.conf_call.state.action_history.append(ActionHistory(timestamp=datetime.now().isoformat(), action_type=ActionType.CONFERENCE_END, metadata={}, owner=self.conf_call.state.teacher_phone_number or ""))
