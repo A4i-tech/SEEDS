@@ -182,7 +182,7 @@ class IVRService:
                 announcement = get_daily_limit_announcement(settings.default_welcome_language)
                 vonage_lang = get_vonage_language_code(settings.default_welcome_language)
                 factory, accumulator = _get_factory_and_accumulator()
-                limit_ncco = accumulator.combine([
+                limit_ncco = await accumulator.combine_async([
                     factory.get_action_implementation(
                         TalkAction(
                             text=announcement, level=1.0, bargeIn=False, loop=1,
@@ -205,7 +205,7 @@ class IVRService:
 
         latest_fsm = _fsm_cache[_latest_fsm_id]
         factory, accumulator = _get_factory_and_accumulator()
-        ncco_actions = accumulator.combine(
+        ncco_actions = await accumulator.combine_async(
             [factory.get_action_implementation(x) for x in latest_fsm.get_start_fsm_actions()]
         )
 
@@ -270,7 +270,7 @@ class IVRService:
 
         if ivr_state is None:
             logger.warning("No IVR state for call_leg_id=%s", call_leg_id)
-            error_ncco = accumulator.combine([
+            error_ncco = await accumulator.combine_async([
                 factory.get_action_implementation(
                     TalkAction(text="Server error. Please try again later. Bye bye.")
                 )
@@ -279,7 +279,7 @@ class IVRService:
 
         if ivr_state.fsm_id not in _fsm_cache:
             logger.error("FSM %s not in cache", ivr_state.fsm_id)
-            error_ncco = accumulator.combine([
+            error_ncco = await accumulator.combine_async([
                 factory.get_action_implementation(
                     TalkAction(text="Server error. Please try again later. Bye bye.")
                 )
@@ -393,15 +393,15 @@ class IVRService:
                     )
                 )
 
+        is_terminal = not any(isinstance(a, InputAction) for a in (next_actions or []))
+        ncco = await accumulator.combine_async([factory.get_action_implementation(x) for x in (next_actions or [])])
+
         if not await repo.save_ongoing_call(ivr_state):
             logger.info(
                 "dtmf: stale write for call_leg_id=%s during state transition, skipping push",
                 call_leg_id,
             )
             return None, False
-
-        is_terminal = not any(isinstance(a, InputAction) for a in (next_actions or []))
-        ncco = accumulator.combine([factory.get_action_implementation(x) for x in (next_actions or [])])
 
         return ncco, is_terminal
 
