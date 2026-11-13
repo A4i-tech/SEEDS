@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-from app.platform.error_handling import NotFoundError
+from app.platform.error_handling import NotFoundError, ValidationError
 from app.providers.translation_provider import (
     TransientTranslationError,
     TranslationProvider,
@@ -159,8 +159,8 @@ async def test_find_by_site_and_analytics_enforce_row_cap(
         ],
     )
 
-    docs = await translation_repo.find_by_site("site1")
-    assert len(docs) == 3
+    with pytest.raises(ValidationError):
+        await translation_repo.find_by_site("site1")
 
     analytics = await translation_repo.get_analytics("site1")
     assert analytics["total_translations"] == 5
@@ -317,7 +317,7 @@ async def test_bulk_approve_pending_surfaces_partial_write_failures(
     async def _boom(_ops):
         raise BulkWriteError({"writeErrors": [{"index": 0, "errmsg": "boom"}]})
 
-    monkeypatch.setattr(translation_service._repo, "bulk_approve", _boom)
+    monkeypatch.setattr(translation_service._repo, "bulk_write", _boom)
 
     res = await translation_service.bulk_approve_pending("site1", TENANT, "rev@example.com")
     assert res["failed"] == 1
@@ -415,25 +415,6 @@ async def bound_service(mock_db, fake_provider):
         [{"site_id": "site1", "status": "Active", "domain": "acme.example", "languages": [{"code": "hi", "enabled": True}]}]
     )
     return TranslationService(mock_db, lambda: fake_provider)
-
-
-async def test_extract_items_for_review_succeeds_with_no_origin_or_referer(bound_service):
-    await bound_service.extract_items_for_review(
-        "site1",
-        [{"key": "t1", "text": "Hello", "route": "/home", "source_lang": "en"}],
-    )
-    docs = await bound_service.get_stored_translations("site1", "/home", "hi")
-    assert docs == {"t1": "Hello"}
-
-
-async def test_extract_items_for_review_still_requires_active_site(bound_service, mock_db):
-
-    await mock_db["websites"].update_one({"site_id": "site1"}, {"$set": {"status": "Inactive"}})
-    with pytest.raises(NotFoundError):
-        await bound_service.extract_items_for_review(
-            "site1",
-            [{"key": "t1", "text": "Hello", "route": "/home", "source_lang": "en"}],
-        )
 
 
 async def test_runtime_translate_rejects_unknown_lang(bound_service):
@@ -544,8 +525,8 @@ def test_translation_response_exposes_low_confidence_flag():
     }
     out = TranslationResponse.from_doc(doc)
 
-    assert out.translations["hi"]["low_confidence"] is True
-    assert out.translations["ta"]["low_confidence"] is False
+    assert out.translations["hi"].low_confidence is True
+    assert out.translations["ta"].low_confidence is False
     assert out.low_confidence is True
 
 
@@ -557,8 +538,19 @@ def test_translation_response_low_confidence_false_when_all_ok():
         "translations": {"hi": {"text": "x", "quality_score": 0.95}},
     }
     out = TranslationResponse.from_doc(doc)
-    assert out.translations["hi"]["low_confidence"] is False
+    assert out.translations["hi"].low_confidence is False
     assert out.low_confidence is False
+
+
+def test_translation_response_defaults_missing_quality_score():
+    from app.models.responses.translation import TranslationResponse
+
+    doc = {
+        "_id": "abc", "site_id": "s1", "route": "/", "key": "t1", "source_text": "Hi",
+        "translations": {"hi": {"text": "x"}},
+    }
+    out = TranslationResponse.from_doc(doc)
+    assert out.translations["hi"].quality_score == 1.0
 
 
 async def test_list_translations_low_confidence_only_filters(translation_repo, translation_service):

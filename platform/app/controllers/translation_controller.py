@@ -5,20 +5,28 @@ from fastapi import APIRouter, Depends, Query, Request
 from pydantic import BaseModel, Field
 
 from app.models.requests.translation_requests import (
+    ROUTE_MAX_LENGTH,
+    TEXT_MAX_LENGTH,
     BulkApproveRequest,
     TranslationApproveRequest,
+    TranslationImportRequest,
     TranslationRejectRequest,
     TranslationUpdateRequest,
 )
 from app.models.responses.common import StatusResponse
 from app.models.responses.translation import (
     AuditEntryResponse,
+    TranslationImportResponse,
     TranslationResponse,
     TranslationVersionResponse,
 )
 from app.platform.auth.dependencies import require_tenant, require_translation_reviewer
 from app.platform.security import limiter
 from app.services.analytics_service import AnalyticsService, get_analytics_service
+from app.services.translation_import_service import (
+    TranslationImportService,
+    get_translation_import_service,
+)
 from app.services.translation_service import TranslationService, get_translation_service
 
 logger = logging.getLogger(__name__)
@@ -26,14 +34,14 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/translations", tags=["Translations"])
 
 
-def _tenant_id(user: dict[str, Any]) -> str:
+def _user_id(user: dict[str, Any]) -> str:
     return user["sub"]
 
 
 class ExtractItem(BaseModel):
     key: str
-    text: str = Field(max_length=5000)
-    route: str = Field(max_length=2048)
+    text: str = Field(max_length=TEXT_MAX_LENGTH)
+    route: str = Field(max_length=ROUTE_MAX_LENGTH)
     source_lang: str = "en"
 
 
@@ -64,7 +72,7 @@ async def extract(
 async def get_translations(
     request: Request,
     site_id: str,
-    route: str = Query(max_length=2048),
+    route: str = Query(max_length=ROUTE_MAX_LENGTH),
     lang: str = Query(max_length=32),
     service: TranslationService = Depends(get_translation_service),
 ) -> dict[str, str]:
@@ -77,16 +85,12 @@ async def get_translations(
 )
 async def generate_translations(
     site_id: str,
-    route: str = Query(max_length=2048),
+    route: str = Query(max_length=ROUTE_MAX_LENGTH),
     lang: str = Query(max_length=32),
     service: TranslationService = Depends(get_translation_service),
     user: dict[str, Any] = Depends(require_tenant),
 ) -> dict[str, str]:
-    return await service.generate_for_review(site_id, _tenant_id(user), route, lang)
-
-
-def _reviewer_id(user: dict[str, Any]) -> str:
-    return user.get("email") or user.get("sub", "")
+    return await service.generate_for_review(site_id, _user_id(user), route, lang)
 
 
 @router.get("/analytics/summary", summary="Get basic dashboard analytics")
@@ -95,7 +99,7 @@ async def get_analytics_summary(
     service: AnalyticsService = Depends(get_analytics_service),
     user: dict[str, Any] = Depends(require_tenant),
 ) -> dict[str, int]:
-    return await service.get_summary(site_id, _tenant_id(user))
+    return await service.get_summary(site_id, _user_id(user))
 
 
 @router.get(
@@ -112,9 +116,33 @@ async def list_translations(
     user: dict[str, Any] = Depends(require_translation_reviewer),
 ) -> list[TranslationResponse]:
     docs = await service.list_translations(
-        site_id, _tenant_id(user), route, status, low_confidence_only=low_confidence
+        site_id, _user_id(user), route, status, low_confidence_only=low_confidence
     )
     return [TranslationResponse.from_doc(doc) for doc in docs]
+
+
+@router.post(
+    "/import",
+    summary="Bulk import translations for one language into a site (CSV rows parsed client-side)",
+    response_model=TranslationImportResponse,
+)
+@limiter.limit("100/minute")
+async def import_translations(
+    request: Request,
+    site_id: str,
+    body: TranslationImportRequest,
+    service: TranslationImportService = Depends(get_translation_import_service),
+    user: dict[str, Any] = Depends(require_translation_reviewer),
+) -> TranslationImportResponse:
+    return await service.import_translations(
+        site_id,
+        _user_id(user),
+        _user_id(user),
+        body.lang,
+        body.rows,
+        overwrite_blank=body.overwrite_blank,
+        state=body.state,
+    )
 
 
 @router.post(
@@ -128,7 +156,7 @@ async def bulk_approve_translations(
     user: dict[str, Any] = Depends(require_translation_reviewer),
 ) -> dict[str, int]:
     return await service.bulk_approve_pending(
-        site_id, _tenant_id(user), _reviewer_id(user), route=body.route, lang=body.lang
+        site_id, _user_id(user), _user_id(user), route=body.route, lang=body.lang
     )
 
 
@@ -147,7 +175,7 @@ async def get_audit_trail(
     user: dict[str, Any] = Depends(require_translation_reviewer),
 ) -> list[AuditEntryResponse]:
     entries = await service.get_audit_trail(
-        site_id, _tenant_id(user), route=route, key=key, action=action, limit=limit
+        site_id, _user_id(user), route=route, key=key, action=action, limit=limit
     )
     return [AuditEntryResponse.from_doc(entry) for entry in entries]
 
@@ -162,7 +190,7 @@ async def get_version_history(
     service: TranslationService = Depends(get_translation_service),
     user: dict[str, Any] = Depends(require_translation_reviewer),
 ) -> list[TranslationVersionResponse]:
-    history = await service.get_version_history(translation_id, _tenant_id(user))
+    history = await service.get_version_history(translation_id, _user_id(user))
     return [TranslationVersionResponse.from_doc(doc) for doc in history]
 
 
@@ -176,7 +204,7 @@ async def get_translation(
     service: TranslationService = Depends(get_translation_service),
     user: dict[str, Any] = Depends(require_translation_reviewer),
 ) -> TranslationResponse:
-    doc = await service.get_translation(translation_id, _tenant_id(user))
+    doc = await service.get_translation(translation_id, _user_id(user))
     return TranslationResponse.from_doc(doc)
 
 
@@ -192,7 +220,7 @@ async def update_translation(
     user: dict[str, Any] = Depends(require_translation_reviewer),
 ) -> TranslationResponse:
     doc = await service.update_translation(
-        translation_id, _tenant_id(user), body.lang, body.text, editor=_reviewer_id(user)
+        translation_id, _user_id(user), body.lang, body.text, editor=_user_id(user)
     )
     return TranslationResponse.from_doc(doc)
 
@@ -208,7 +236,7 @@ async def approve_translation(
     service: TranslationService = Depends(get_translation_service),
     user: dict[str, Any] = Depends(require_translation_reviewer),
 ) -> TranslationResponse:
-    doc = await service.approve_translation(translation_id, _tenant_id(user), body.lang, _reviewer_id(user))
+    doc = await service.approve_translation(translation_id, _user_id(user), body.lang, _user_id(user))
     return TranslationResponse.from_doc(doc)
 
 
@@ -224,6 +252,6 @@ async def reject_translation(
     user: dict[str, Any] = Depends(require_translation_reviewer),
 ) -> TranslationResponse:
     doc = await service.reject_translation(
-        translation_id, _tenant_id(user), body.lang, _reviewer_id(user), body.reason
+        translation_id, _user_id(user), body.lang, _user_id(user), body.reason
     )
     return TranslationResponse.from_doc(doc)

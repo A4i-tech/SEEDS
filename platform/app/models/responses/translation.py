@@ -1,18 +1,32 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.platform.settings import get_settings
 from app.services.quality_scorer import is_low_confidence
 
+ImportRowReason = Literal[
+    "missing_source",
+    "duplicate_row",
+    "source_mismatch",
+    "write_failed",
+]
+
+
+class TranslationEntry(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    quality_score: float = 1.0
+    low_confidence: bool = False
+
 
 class TranslationResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
     id: str = Field(validation_alias="_id")
-    translations: dict[str, Any] | None = None
+    translations: dict[str, TranslationEntry]
     low_confidence: bool = False
 
     @field_validator("id", mode="before")
@@ -25,15 +39,9 @@ class TranslationResponse(BaseModel):
         instance = cls.model_validate(doc)
         threshold = get_settings().low_confidence_threshold
 
-        any_low = False
-        if isinstance(instance.translations, dict):
-            for entry in instance.translations.values():
-                if not isinstance(entry, dict):
-                    continue
-                low = is_low_confidence(entry.get("quality_score", 1.0), threshold)
-                entry["low_confidence"] = low
-                any_low = any_low or low
-        instance.low_confidence = any_low
+        for entry in instance.translations.values():
+            entry.low_confidence = is_low_confidence(entry.quality_score, threshold)
+        instance.low_confidence = any(entry.low_confidence for entry in instance.translations.values())
         return instance
 
 
@@ -80,3 +88,19 @@ class TranslationVersionResponse(BaseModel):
     @classmethod
     def from_doc(cls, doc: dict) -> TranslationVersionResponse:
         return cls.model_validate(doc)
+
+
+class ImportRowError(BaseModel):
+    row: int
+    route: str
+    key: str
+    reason: ImportRowReason
+
+
+class TranslationImportResponse(BaseModel):
+    updated: int = 0
+    created: int = 0
+    unchanged: int = 0
+    skipped_blank: int = 0
+    failed: int = 0
+    errors: list[ImportRowError] = Field(default_factory=list)
