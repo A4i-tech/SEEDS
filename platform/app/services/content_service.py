@@ -18,7 +18,7 @@ from app.models.requests.content_requests import (
 )
 from app.models.responses.content import AudioContent, QuizContent, WebsiteExtractResponse
 from app.platform.auth.dependencies import get_db
-from app.repositories.content_job_repository import ContentJobRepository
+from app.repositories.content_job_repository import ContentJobRepository, ContentJobType
 from app.repositories.content_repository import ContentRepository
 from app.repositories.quiz_repository import QuizRepository
 from app.services.website_extractor import WebsiteExtractor
@@ -46,8 +46,8 @@ class ContentService:
         self._job_repo = ContentJobRepository(db)
         self._website_extractor = WebsiteExtractor()
 
-    async def enqueue_content_job(self, content_id: str) -> str:
-        return await self._job_repo.create(content_id)
+    async def enqueue_content_job(self, content_id: str, content_type: ContentJobType) -> str:
+        return await self._job_repo.create(content_id, content_type)
 
     async def get_job(self, job_id: str) -> dict[str, Any] | None:
         return await self._job_repo.find_by_id(job_id)

@@ -43,6 +43,7 @@ from app.platform.error_handling import ForbiddenError, NotFoundError
 from app.platform.settings import get_settings
 from app.providers.blob_storage import get_blob_storage_provider
 from app.providers.translation_provider import get_translation_provider
+from app.repositories.content_job_repository import ContentJobType
 from app.services.content_service import ContentService, get_content_service
 from app.services.sdk_hash import sdk_hash_text
 from app.services.translation_service import TranslationService, get_translation_service
@@ -334,7 +335,7 @@ async def create_content(
         logger.error("create_content failed", extra={"tenant_id": tenant_id, "user_id": user_id, "err": str(exc)})
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    job_id = await service.enqueue_content_job(content_id)
+    job_id = await service.enqueue_content_job(content_id, ContentJobType.CONTENT)
     logger.info("content_controller: created content_id=%s job_id=%s", content_id, job_id)
     return JobScheduledResponse(message="Processing New Content job scheduled!", job_id=job_id)
 
@@ -366,7 +367,7 @@ async def update_content(
         raise NotFoundError("Content", str(body.id))
 
     if is_audio_uploaded and isinstance(result, AudioContent):
-        result.job_id = await service.enqueue_content_job(result.id)
+        result.job_id = await service.enqueue_content_job(result.id, ContentJobType.CONTENT)
     return result
 
 
@@ -406,7 +407,7 @@ async def create_quiz(
     school_id = _write_school_id(user)
 
     quiz_id = await service.create_quiz(body, tenant_id, user_id, school_id)
-    job_id = await service.enqueue_content_job(quiz_id)
+    job_id = await service.enqueue_content_job(quiz_id, ContentJobType.QUIZ)
     return JobScheduledResponse(message="Processing New Content job scheduled!", job_id=job_id)
 
 
