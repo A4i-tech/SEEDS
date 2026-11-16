@@ -9,9 +9,6 @@ const INSTANCES = {
   local: {
     baseURL: 'http://localhost:3000',
   },
-  onrender: {
-    baseURL: 'https://contentwebapp.onrender.com',
-  },
   dev: {
     baseURL: 'https://content-webapp-dev.a4i-lab.in',
   },
@@ -36,7 +33,7 @@ const PERSONAS = {
   // TC-SYNC-004, so mutating tenant2's password here would just relocate the
   // documented cross-file race (see playwright.config.js's workers:1 comment) onto
   // a different persona instead of removing it. Requires a real account provisioned
-  // with this email/password on every backend instance (local/onrender/dev) —
+  // with this email/password on every backend instance (local/dev) —
   // this alone doesn't create it.
   tenantPasswordTest: { identifier: 'e2e-password-test@iiitb.ac.in', password: 'Test@123' },
 };

@@ -164,14 +164,6 @@
 .remediation-verified-badge {
   padding: 6px 12px;
 }
-.remediation-pdf-unavailable {
-  background: var(--color-warning-bg);
-  color: var(--color-warning-fg);
-  border-radius: 999px;
-  padding: 4px 10px;
-  font-size: 12px;
-  font-weight: 600;
-}
 .remediation-error-card {
   border-color: var(--color-danger-bg);
   background: color-mix(in srgb, var(--color-danger-bg) 35%, var(--color-on-accent));
@@ -190,15 +182,62 @@
   font-size: 14px;
   font-weight: 500;
 }
-.remediation-draft-editor {
+.remediation-block-page {
+  display: flex;
+  flex-direction: column;
+}
+.remediation-block {
+  display: block;
   width: 100%;
-  min-height: 440px;
+  min-height: auto;
+  min-width: auto;
+  text-align: left;
+  border-radius: 6px;
+  cursor: text;
+  padding: 2px 6px;
+  margin: 0 -6px;
+}
+.remediation-block:hover {
+  background: var(--color-surface-subtle);
+}
+.remediation-block:focus-visible {
+  outline: 2px solid var(--color-stat-orange);
+  outline-offset: 2px;
+}
+.remediation-block-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.remediation-block-textarea {
+  width: 100%;
+  font-size: 14px;
+  line-height: 1.6;
+  padding: 8px;
+  border-radius: 6px;
+  border: 1px solid var(--color-stat-orange);
+  outline: none;
+  box-sizing: border-box;
+  resize: none;
+  font-family: inherit;
+}
+.remediation-block-textarea-raw {
   font-family: monospace;
   font-size: 13px;
-  line-height: 1.5;
-  padding: 12px;
+}
+.remediation-block-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+}
+.remediation-block-field input {
+  font-size: 14px;
+  font-weight: 400;
+  padding: 6px 8px;
   border-radius: 6px;
-  border: 1px solid #cbd5e1;
-  outline: none;
+  border: 1px solid var(--color-stat-orange);
   box-sizing: border-box;
 }

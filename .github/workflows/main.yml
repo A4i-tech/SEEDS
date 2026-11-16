@@ -25,56 +25,49 @@ jobs:
     uses: ./.github/workflows/ci.yml
     with:
       upload_coverage: true
-    secrets: inherit
+    secrets: inherit  # nosemgrep: yaml.github-actions.security.secrets-inherit.secrets-inherit -- reusable workflow needs full secret set
 
-  deploy-websocket-service-staging-workflow:
+  build-staging-images-workflow:
     needs: ci-workflow
     if: github.ref == 'refs/heads/a4i/staging'
-    uses: ./.github/workflows/deploy-websocket-service-staging.yml
-    secrets: inherit
-
-  deploy-staging-workflow:
-    needs: ci-workflow
-    if: github.ref == 'refs/heads/a4i/staging'
-    uses: ./.github/workflows/deploy-staging.yml
-    secrets: inherit
+    uses: ./.github/workflows/build-staging-images.yml
+    secrets: inherit  # nosemgrep: yaml.github-actions.security.secrets-inherit.secrets-inherit -- reusable workflow needs full secret set
 
   contentwebapp-e2e-workflow:
-    needs: [deploy-staging-workflow, detect-contentwebapp-changes]
+    needs: [build-staging-images-workflow, detect-contentwebapp-changes]
     if: github.ref == 'refs/heads/a4i/staging' && needs.detect-contentwebapp-changes.outputs.changed == 'true'
     uses: ./.github/workflows/contentwebapp-e2e.yml
-    secrets: inherit
+    secrets: inherit  # nosemgrep: yaml.github-actions.security.secrets-inherit.secrets-inherit -- reusable workflow needs full secret set
 
   deploy-main-workflow:
     needs: ci-workflow
     if: github.ref == 'refs/heads/a4i/main'
     uses: ./.github/workflows/deploy-main.yml
-    secrets: inherit
+    secrets: inherit  # nosemgrep: yaml.github-actions.security.secrets-inherit.secrets-inherit -- reusable workflow needs full secret set
 
   run-android-tests:
     if: github.ref == 'refs/heads/a4i/staging' || github.ref == 'refs/heads/a4i/main'
     uses: ./.github/workflows/android-tests.yml
-    secrets: inherit
+    secrets: inherit  # nosemgrep: yaml.github-actions.security.secrets-inherit.secrets-inherit -- reusable workflow needs full secret set
 
   deploy-android:
     needs: run-android-tests
     if: github.ref == 'refs/heads/a4i/staging' || github.ref == 'refs/heads/a4i/main'
     uses: ./.github/workflows/android-deploy.yml
-    secrets: inherit
+    secrets: inherit  # nosemgrep: yaml.github-actions.security.secrets-inherit.secrets-inherit -- reusable workflow needs full secret set
 
   run-coverage-summary:
     needs: ci-workflow
     if: github.ref == 'refs/heads/a4i/main'
     uses: ./.github/workflows/coverage-summary.yml
-    secrets: inherit
+    secrets: inherit  # nosemgrep: yaml.github-actions.security.secrets-inherit.secrets-inherit -- reusable workflow needs full secret set
 
   notify-teams:
     runs-on: ubuntu-latest
     if: always()
     needs:
       - ci-workflow
-      - deploy-websocket-service-staging-workflow
-      - deploy-staging-workflow
+      - build-staging-images-workflow
       - contentwebapp-e2e-workflow
       - deploy-main-workflow
       - run-android-tests
@@ -93,8 +86,7 @@ jobs:
         run: |
           JOB_MAPPING='{
             "ci-workflow": "CI",
-            "deploy-websocket-service-staging-workflow": "Websocket",
-            "deploy-staging-workflow": "Backend Staging",
+            "build-staging-images-workflow": "Backend Staging",
             "contentwebapp-e2e-workflow": "E2E",
             "deploy-main-workflow": "Backend",
             "deploy-android": "Android"

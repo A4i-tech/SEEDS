@@ -76,6 +76,7 @@
   font-family: inherit;
   color: #0f172a;
   text-align: left;
+  overflow-wrap: anywhere;
   cursor: pointer;
 }
 
@@ -91,4 +92,8 @@
 
 .custom-select-option.selected svg {
   flex-shrink: 0;
+}
+
+.custom-select-search {
+  margin-bottom: 4px;
 }

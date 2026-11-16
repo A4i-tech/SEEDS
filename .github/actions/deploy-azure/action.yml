@@ -22,5 +22,7 @@ runs:
         images: ${{ inputs.image }}
     - name: Azure deployment confirmation
       shell: bash
+      env:
+        APP_NAME: ${{ inputs.app_name }}
       run: |
-        echo "Deployment to Azure Web App '${{ inputs.app_name }}' triggered."
+        echo "Deployment to Azure Web App '$APP_NAME' triggered."

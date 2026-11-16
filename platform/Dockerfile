@@ -19,16 +19,15 @@ RUN groupadd --gid 1001 appgroup && \
 
 WORKDIR /app
 
-COPY --from=builder /app/.venv .venv
-COPY app/ app/
-
-RUN chown -R appuser:appgroup /app
+COPY --from=builder --chown=appuser:appgroup /app/.venv .venv
+COPY --chown=appuser:appgroup app/ app/
 
 USER appuser
 
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    MALLOC_ARENA_MAX=2
 
 EXPOSE 4000
 

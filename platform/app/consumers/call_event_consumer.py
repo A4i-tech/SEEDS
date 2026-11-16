@@ -23,21 +23,10 @@ class CallEventConsumer(BaseConsumer):
     name = "call_event_consumer"
 
     POLL_BATCH = 10
-    POLL_WAIT_SECONDS = 5
+    POLL_WAIT_SECONDS = 1
 
     async def _run_loop(self) -> None:
         db = get_database()
-
-        # Ensure service bus is initialized
-        if not service_bus_provider._initialized:
-            try:
-                await service_bus_provider.initialize()
-            except Exception as exc:
-                logger.warning(
-                    "call_event_consumer: service bus init failed (%s) — retrying in 30s", exc
-                )
-                await asyncio.sleep(30)
-                return
 
         while True:
             try:

@@ -17,6 +17,8 @@ os.environ.setdefault("AUTH_TYPE", "jwt")
 os.environ.setdefault("TTS_MODEL", "tts-1")
 os.environ.setdefault("TTS_VOICE", "alloy")
 os.environ.setdefault("TTS_API_KEY", "test-key")
+os.environ.setdefault("AZURE_SERVICE_BUS_CONNECTION_STRING", "Endpoint=sb://test/;SharedAccessKeyName=k;SharedAccessKey=v")
+os.environ.setdefault("TRANSLATION_MODEL", "test-model")
 os.environ.setdefault(
     "APPLICATIONINSIGHTS_CONNECTION_STRING",
     "InstrumentationKey=00000000-0000-0000-0000-000000000000;IngestionEndpoint=https://fake.example.com/",

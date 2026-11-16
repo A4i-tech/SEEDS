@@ -1,4 +1,6 @@
 // Global test setup
+jest.mock('dotenv', () => ({ config: jest.fn() }));
+
 global.console = {
     ...console,
     // Mock console methods to avoid noise during tests unless explicitly testing them

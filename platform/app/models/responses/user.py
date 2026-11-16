@@ -18,6 +18,11 @@ from pydantic import BaseModel, ConfigDict
 from app.models.user import User
 
 
+class TenantNameResponse(BaseModel):
+    id: str
+    name: str
+
+
 class UserPublicResponse(BaseModel):
     """Safe user representation for login, profile, register, and update responses."""
 

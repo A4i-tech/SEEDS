@@ -28,6 +28,7 @@ AUTO_LANGUAGES: tuple[str, ...] = ("auto", "detecting")
 
 
 class ArtifactName(StrEnum):
+    SOURCE = "source"
     RAW = "raw"
     CORRECTED = "corrected"
     FINDINGS = "findings"
@@ -57,6 +58,7 @@ IMAGE_CONTENT_TYPES: dict[str, str] = {
 }
 
 ARTIFACTS: dict[ArtifactName, tuple[str, str]] = {
+    ArtifactName.SOURCE: ("source.pdf", "application/pdf"),
     ArtifactName.RAW: ("raw.md", "text/markdown"),
     ArtifactName.CORRECTED: ("raw.corrected.md", "text/markdown"),
     ArtifactName.FINDINGS: ("raw.findings.jsonl", _JSONL_TYPE),
@@ -97,6 +99,14 @@ class JobMetrics(BaseModel):
     flagged_items_count: int | None = None
 
 
+class JobModels(BaseModel):
+    ocr: str | None = None
+    verify: str | None = None
+    block_tree: str | None = None
+    alt_text: str | None = None
+    translation: str | None = None
+
+
 class RemediationJob(BaseModel):
     model_config = ConfigDict(use_enum_values=True, populate_by_name=True)
 
@@ -111,6 +121,7 @@ class RemediationJob(BaseModel):
     artifacts: dict[ArtifactName, str] = Field(default_factory=dict)
     counts: dict[str, int] = Field(default_factory=dict)
     metrics: JobMetrics = Field(default_factory=JobMetrics)
+    models: JobModels = Field(default_factory=JobModels)
     progress: JobProgress = Field(default_factory=JobProgress)
     draft_remediated_md: str | None = None
     verified_at: str | None = None
@@ -122,6 +133,7 @@ class RemediationJob(BaseModel):
     target_language: str | None = None
     translation_error: str | None = None
     deleted_at: str | None = None
+    source_page_count: int | None = None
 
     def to_doc(self) -> dict[str, object]:
         return self.model_dump(mode="json", by_alias=True)

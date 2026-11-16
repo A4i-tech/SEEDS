@@ -253,7 +253,7 @@ class WebsocketClientProvider:
                 try:
                     hb = WebsocketServiceMessage(
                         websocket_id=self.connection_id,
-                        type="heartbeat",
+                        type=MessageType.HEARTBEAT,
                     )
                     await self.send_message(hb)
                 except Exception as exc:
