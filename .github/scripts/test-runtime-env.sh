@@ -24,7 +24,7 @@ grep -q 'value-2' "$tmp/html/main.js" || { echo "FAIL: restart kept old value"; 
 
 for v in $vars; do
   rejects "ERROR: $v is required" $(good | sed "s/$v=value-1 //")
-  for bad in 'a"b' 'a\b' 'a<b' 'a&b' 'a|b' "a$(printf '\t')b"; do
+  for bad in ' ' 'a b' 'a"b' 'a\b' 'a<b' 'a&b' 'a|b' "a$(printf '\t')b"; do
     rejects "ERROR: $v contains" $(good | sed "s/$v=value-1 //") "$v=$bad"
   done
 done

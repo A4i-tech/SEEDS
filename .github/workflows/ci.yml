@@ -117,3 +117,5 @@ jobs:
           curl -fsS --retry 10 --retry-delay 1 --retry-all-errors -o /dev/null localhost:8080/ || { docker logs "$CID"; exit 1; }
           docker exec "$CID" sh -c "grep -rq ci-marker-REACT_APP_API_BASE_URL /usr/share/nginx/html"
           ! docker exec "$CID" sh -c "grep -rq __REACT_APP /usr/share/nginx/html"
+          js=$(docker exec "$CID" sh -c "cd /usr/share/nginx/html && ls static/js/main.*.js | head -1")
+          for path in index.html "$js"; do curl -sI "localhost:8080/$path" | grep -qi "^cache-control: no-cache" || { echo "no-cache missing on $path"; exit 1; }; done

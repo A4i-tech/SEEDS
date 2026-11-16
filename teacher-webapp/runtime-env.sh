@@ -11,8 +11,8 @@ for v in $VARS; do
     exit 1
   fi
   case $val in
-    *'"'*|*'\'*|*'<'*|*'&'*|*'|'*|*[[:cntrl:]]*)
-      echo "ERROR: $v contains a forbidden character (\" \ < & | or a control character). Remove it and restart." >&2
+    *'"'*|*'\'*|*'<'*|*'&'*|*'|'*|*[[:space:]]*|*[[:cntrl:]]*)
+      echo "ERROR: $v contains a forbidden character (a space, \" \ < & | or a control character). Remove it and restart." >&2
       exit 1 ;;
   esac
   set -- "$@" -e "s|__${v}__|$val|g"

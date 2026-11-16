@@ -21,7 +21,7 @@ The build puts a placeholder in the bundle for each variable. The start script `
 
 If a variable is missing or empty, the container exits with an error that names the variable. Set it and restart.
 
-A value must not contain `"`, `\`, `<`, `&`, `|`, or a control character.
+A value must not contain a space, `"`, `\`, `<`, `&`, `|`, or a control character.
 
 Every browser can read these values. Never put a secret in them.
 
