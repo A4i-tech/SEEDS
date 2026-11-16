@@ -11,6 +11,10 @@ jest.mock("@azure/storage-blob", () => ({
   BlockBlobClient: jest.fn(),
 }));
 
+jest.mock("../../src/hooks/useAuth", () => ({
+  useAuth: () => ({ getCurrentUser: jest.fn() }),
+}));
+
 const content = {
   id: "story1",
   type: "Story",
