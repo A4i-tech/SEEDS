@@ -22,8 +22,8 @@ async function createClassroomWithStudents(page, count) {
     if (!label) break;
     studentNames.push(label.split(' - ')[0]);
   }
-  if (studentNames.length === 0) {
-    throw new Error('No students registered for the E2E teacher account; seed at least one student fixture');
+  if (studentNames.length < count) {
+    throw new Error(`Only ${studentNames.length} of ${count} students available for the E2E teacher account; seed more student fixtures`);
   }
 
   registerClassroomForCleanup(name);

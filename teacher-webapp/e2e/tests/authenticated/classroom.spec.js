@@ -135,9 +135,6 @@ test('TC-TCLS-008 remove student from classroom via edit updates the student cou
   const classroomListPage = new ClassroomListPage(page);
   const classroomFormPage = new ClassroomFormPage(page);
   const { name, studentNames } = await createClassroomWithStudents(page, 2);
-  if (studentNames.length < 2) {
-    throw new Error('Seed at least two student fixtures for the E2E teacher account to run TC-TCLS-008');
-  }
   await expect(classroomListPage.classroomCard(name).getByText('2 Students')).toBeVisible();
 
   await classroomListPage.editClassroom(name);
