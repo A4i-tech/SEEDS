@@ -119,8 +119,8 @@ class AzureTtsProvider(TtsProvider):
 
 class OpenAITtsProvider(TtsProvider):
     def __init__(self, base_url: str, api_key: str, model: str, voice: str) -> None:
-        if not model or not voice:
-            raise ValueError("OpenAI speech requires TTS_MODEL and TTS_VOICE. Set both in the environment.")
+        if not api_key or not model or not voice:
+            raise ValueError("OpenAI speech requires TTS_API_KEY, TTS_MODEL and TTS_VOICE. Set all three in the environment.")
         self._base_url = (base_url or _OPENAI_DEFAULT_BASE_URL).rstrip("/")
         self._api_key = api_key
         self._model = model

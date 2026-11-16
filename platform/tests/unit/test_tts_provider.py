@@ -11,7 +11,7 @@ from app.providers.tts_provider import AzureTtsProvider, OpenAITtsProvider, get_
 
 MOCK_URL = "http://localhost:8000/v1"
 _ENV = (
-    "TTS_PROVIDER", "TTS_MODEL", "TTS_VOICE", "TTS_BASE_URL", "TTS_API_KEY",
+    "TTS_PROVIDER", "TTS_MODEL", "TTS_VOICE", "TTS_BASE_URL", "TTS_API_KEY", "OPENAI_API_KEY",
     "AZURE_SPEECH_KEY", "AZURE_SPEECH_REGION", "TTS_SUBSCRIPTION_KEY", "TTS_REGION",
 )
 
@@ -101,11 +101,11 @@ class TestOpenAIRequest:
 
 class TestSelector:
     def test_default_is_openai(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        s = _settings(monkeypatch, TTS_MODEL="m", TTS_VOICE="v")
+        s = _settings(monkeypatch, TTS_MODEL="m", TTS_VOICE="v", TTS_API_KEY="k")
         assert isinstance(get_tts_provider(s), OpenAITtsProvider)
 
     def test_openai(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        s = _settings(monkeypatch, TTS_PROVIDER="openai", TTS_MODEL="m", TTS_VOICE="v")
+        s = _settings(monkeypatch, TTS_PROVIDER="openai", TTS_MODEL="m", TTS_VOICE="v", TTS_API_KEY="k")
         assert isinstance(get_tts_provider(s), OpenAITtsProvider)
 
     def test_azure(self, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -115,8 +115,8 @@ class TestSelector:
     @pytest.mark.parametrize(
         ("raw", "extra"),
         [
-            (" openai ", {"TTS_MODEL": "m", "TTS_VOICE": "v"}),
-            ("OPENAI", {"TTS_MODEL": "m", "TTS_VOICE": "v"}),
+            (" openai ", {"TTS_MODEL": "m", "TTS_VOICE": "v", "TTS_API_KEY": "k"}),
+            ("OPENAI", {"TTS_MODEL": "m", "TTS_VOICE": "v", "TTS_API_KEY": "k"}),
             ("AzURE", {"AZURE_SPEECH_KEY": "k", "AZURE_SPEECH_REGION": "r"}),
         ],
     )
@@ -125,19 +125,22 @@ class TestSelector:
         assert s.tts_provider == raw.strip().lower()
 
     def test_api_key_falls_back_to_openai_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        monkeypatch.setenv("OPENAI_API_KEY", "oa")
-        s = _settings(monkeypatch, TTS_MODEL="m", TTS_VOICE="v")
+        s = _settings(monkeypatch, TTS_MODEL="m", TTS_VOICE="v", OPENAI_API_KEY="oa")
         assert get_tts_provider(s)._api_key == "oa"
 
 
 class TestConfigValidation:
     def test_unknown_provider(self, monkeypatch: pytest.MonkeyPatch) -> None:
         with pytest.raises(ValidationError, match="'azure' or 'openai'"):
-            _settings(monkeypatch, TTS_PROVIDER="polly", TTS_MODEL="m", TTS_VOICE="v")
+            _settings(monkeypatch, TTS_PROVIDER="polly", TTS_MODEL="m", TTS_VOICE="v", TTS_API_KEY="k")
 
     def test_openai_requires_model_and_voice(self, monkeypatch: pytest.MonkeyPatch) -> None:
         with pytest.raises(ValidationError, match="TTS_MODEL and TTS_VOICE"):
             _settings(monkeypatch, TTS_PROVIDER="openai")
+
+    def test_openai_requires_api_key(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        with pytest.raises(ValidationError, match="TTS_API_KEY"):
+            _settings(monkeypatch, TTS_MODEL="m", TTS_VOICE="v")
 
     def test_azure_requires_key_and_region(self, monkeypatch: pytest.MonkeyPatch) -> None:
         with pytest.raises(ValidationError, match="AZURE_SPEECH_KEY"):
@@ -147,11 +150,11 @@ class TestConfigValidation:
 class TestSpeechKeyPrecedence:
     def test_azure_settings_win(self, monkeypatch: pytest.MonkeyPatch) -> None:
         s = _settings(
-            monkeypatch, TTS_MODEL="m", TTS_VOICE="v", AZURE_SPEECH_KEY="new", AZURE_SPEECH_REGION="newr",
+            monkeypatch, TTS_MODEL="m", TTS_VOICE="v", TTS_API_KEY="k", AZURE_SPEECH_KEY="new", AZURE_SPEECH_REGION="newr",
             TTS_SUBSCRIPTION_KEY="old", TTS_REGION="oldr",
         )
         assert (s.speech_key, s.speech_region) == ("new", "newr")
 
     def test_legacy_settings_used_when_new_empty(self, monkeypatch: pytest.MonkeyPatch) -> None:
-        s = _settings(monkeypatch, TTS_MODEL="m", TTS_VOICE="v", TTS_SUBSCRIPTION_KEY="old", TTS_REGION="oldr")
+        s = _settings(monkeypatch, TTS_MODEL="m", TTS_VOICE="v", TTS_API_KEY="k", TTS_SUBSCRIPTION_KEY="old", TTS_REGION="oldr")
         assert (s.speech_key, s.speech_region) == ("old", "oldr")

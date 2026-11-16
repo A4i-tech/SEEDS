@@ -173,7 +173,12 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def _check_tts_config(self) -> Settings:
         if self.tts_provider == "openai":
-            missing = [n for n, val in (("TTS_MODEL", self.tts_model), ("TTS_VOICE", self.tts_voice)) if not val]
+            fields = (
+                ("TTS_MODEL", self.tts_model),
+                ("TTS_VOICE", self.tts_voice),
+                ("TTS_API_KEY (or OPENAI_API_KEY)", self.tts_api_key or self.openai_api_key),
+            )
+            missing = [n for n, val in fields if not val]
             if missing:
                 raise ValueError(
                     f"TTS_PROVIDER=openai requires {' and '.join(missing)}. "
