@@ -809,7 +809,7 @@ async def test_braille_job_reads_the_remediated_artifact_when_there_is_no_draft(
     job = await repo.mark_verified(created.job_id, verified_by="reviewer@seeds.org", title="Title")
     blob = _StubBlob({"https://blob/r.md": b"# From artifact"})
 
-    with pytest.raises(ValidationError, match="Could not build the Braille files: table missing"):
+    with pytest.raises(RuntimeError, match="table missing"):
         await remediation_service.braille_job(repo, blob, job, "kn")
 
     assert seen["markdown"] == "# From artifact"

@@ -295,11 +295,7 @@ async def braille_job(
     else:
         remediated_bytes, _ = await artifact_bytes(job, ArtifactName.REMEDIATED, blob_provider)
         markdown = remediated_bytes.decode("utf-8")
-    try:
-        brf, report = await asyncio.to_thread(build_braille, markdown, language)
-    except Exception as exc:
-        logger.error("Could not build Braille for job %s: %s", job.job_id, exc)
-        raise ValidationError(f"Could not build the Braille files: {exc}") from exc
+    brf, report = await asyncio.to_thread(build_braille, markdown, language)
     container = get_settings().azure_storage_container
     urls: dict[ArtifactName, str] = {}
     for name, payload in (

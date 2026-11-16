@@ -74,9 +74,8 @@ def test_html_table_with_header_rows_footer_and_caption_is_flattened_and_counted
     assert counts.tables == 1
     assert "table" in _types(warnings)
     assert "Marks" in text
-    assert "Name: (all); Score: (out of 10)" in text
-    assert "Name: Ravi; Score: 9" in text
-    assert "Name: Total; Score: 9" in text
+    assert "Name (all): Ravi; Score (out of 10): 9" in text
+    assert "Name (all): Total; Score (out of 10): 9" in text
 
 
 def test_grid_table_is_counted():
@@ -121,3 +120,14 @@ def test_unmapped_characters_warn_and_count_as_one_cell_when_wrapping():
     assert "character" in _types(report.warnings)
     assert report.needs_review is True
     assert all(len(re.sub(r"\\X[0-9A-F]{4}", "?", line)) <= 40 for line in _cell_lines(brf))
+
+
+def test_grouped_header_names_every_column_under_its_group():
+    html = (
+        "<table><thead><tr><th colspan='2'>Marks</th></tr><tr><th>Maths</th><th>Science</th></tr></thead>"
+        "<tbody><tr><td>9</td><td>8</td></tr></tbody></table>"
+    )
+
+    text, _, _ = markdown_to_braille_text(html)
+
+    assert "Marks Maths: 9; Marks Science: 8" in text
