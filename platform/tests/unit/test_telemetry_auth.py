@@ -17,8 +17,8 @@ import app.platform.telemetry as tel_mod
 from app.platform.auth.dependencies import require_teacher, require_tenant
 from app.platform.auth.hashing import hash_password, verify_password
 from app.platform.auth.jwt import (
-    _parse_expires_delta,
     create_access_token,
+    parse_expires_delta,
     verify_token,
 )
 from app.platform.error_handling import ForbiddenError, UnauthorizedError
@@ -194,11 +194,11 @@ class TestJWT:
             verify_token(bad_token)
 
     def test_parse_expires_delta_formats(self) -> None:
-        """_parse_expires_delta handles d/h/s/plain integer formats."""
-        assert _parse_expires_delta("7d") == timedelta(days=7)
-        assert _parse_expires_delta("24h") == timedelta(hours=24)
-        assert _parse_expires_delta("3600") == timedelta(seconds=3600)
-        assert _parse_expires_delta("30m") == timedelta(minutes=30)
+        """parse_expires_delta handles d/h/s/plain integer formats."""
+        assert parse_expires_delta("7d") == timedelta(days=7)
+        assert parse_expires_delta("24h") == timedelta(hours=24)
+        assert parse_expires_delta("3600") == timedelta(seconds=3600)
+        assert parse_expires_delta("30m") == timedelta(minutes=30)
 
 
 # ===========================================================================

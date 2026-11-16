@@ -9,11 +9,8 @@ const INSTANCES = {
   local: {
     baseURL: 'http://localhost:3000',
   },
-  onrender: {
-    baseURL: 'https://teacher-webapp.onrender.com',
-  },
   dev: {
-    baseURL: null,
+    baseURL: 'https://teacher-webapp-dev.a4i-lab.in',
   },
 };
 
@@ -25,9 +22,6 @@ function getInstance(name) {
   if (process.env.E2E_BASE_URL) {
     console.log(`E2E_BASE_URL override: running "${name}" against ${process.env.E2E_BASE_URL}`);
     return { ...instance, baseURL: process.env.E2E_BASE_URL };
-  }
-  if (!instance.baseURL) {
-    throw new Error(`No confirmed baseURL for E2E_INSTANCE "${name}". Set E2E_BASE_URL to run against it.`);
   }
   return instance;
 }

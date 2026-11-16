@@ -6,16 +6,15 @@ on:
       e2e_instance:
         description: "E2E_INSTANCE to run against"
         type: string
-        default: onrender
+        default: dev
   workflow_dispatch:
     inputs:
       e2e_instance:
         description: "E2E_INSTANCE to run against (local is omitted; it isn't reachable from a GitHub-hosted runner)"
         type: choice
         options:
-          - onrender
           - dev
-        default: onrender
+        default: dev
 
 permissions:
   contents: read
@@ -46,6 +45,29 @@ jobs:
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
+
+      - name: Wait for this commit's build to be live
+        if: github.event_name != 'workflow_dispatch'
+        timeout-minutes: 17
+        env:
+          IMAGE: ghcr.io/a4i-tech/seeds/teacher-webapp:staging-${{ github.sha }}
+          URL: https://teacher-webapp-dev.a4i-lab.in/
+        run: |
+          tmp=$(mktemp -d)
+          trap 'rm -rf "$tmp"' EXIT
+          docker run --rm --entrypoint cat "$IMAGE" /usr/share/nginx/html/index.html > "$tmp/expected.html"
+          test -s "$tmp/expected.html" || { echo "::error::$IMAGE has no index.html"; exit 1; }
+          deadline=$((SECONDS + 900))
+          while [ "$SECONDS" -lt "$deadline" ]; do
+            if curl -fsS --max-time 10 -H 'Cache-Control: no-cache' -o "$tmp/live.html" "$URL" &&
+              cmp -s "$tmp/live.html" "$tmp/expected.html"; then
+              echo "$URL is serving staging-$GITHUB_SHA"
+              exit 0
+            fi
+            sleep 15
+          done
+          echo "::error::$URL did not serve staging-$GITHUB_SHA within 15 minutes"
+          exit 1
 
       - name: Run Playwright E2E tests
         env:
