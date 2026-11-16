@@ -24,11 +24,13 @@ class ContentJobRepository(BaseRepository):
     async def ensure_indexes(cls, db: AsyncDatabase) -> None:
         await db[cls.COLLECTION].create_index("status")
 
-    async def create(self, content_id: str) -> str:
+    async def create(self, content_id: str, tenant_id: str = "", source: str = "") -> str:
         """Insert a pending job for *content_id* and return its string _id."""
         job_doc: dict[str, Any] = {
             "_id": str(uuid.uuid4()),
             "content_id": content_id,
+            "tenant_id": tenant_id,
+            "source": source,
             "status": "pending",
             "created_at": datetime.now(UTC),
         }

@@ -161,6 +161,24 @@ class ContentRepository(BaseRepository):
     # Writes
     # ------------------------------------------------------------------
 
+    async def insert_partner_content(self, doc: dict) -> str:
+        """Insert a partner content document as stamped by the caller; return its string _id."""
+        await self._col.insert_one(doc)
+        return str(doc["_id"])
+
+    async def list_partner_content(
+        self, tenant_id: str, filters: dict[str, object], cursor: str, limit: int
+    ) -> list[dict]:
+        """Tenant-scoped partner list with a creation_time plus _id cursor."""
+        query: dict = {**self._tenant_query(tenant_id, None), **{k: v for k, v in filters.items() if v}}
+        creation_time, _, last_id = cursor.partition("_")
+        if cursor:
+            query["$or"] = [
+                {"creation_time": {"$lt": int(creation_time)}},
+                {"creation_time": int(creation_time), "_id": {"$lt": ObjectId(last_id)}},
+            ]
+        return await self._col.find(query).sort([("creation_time", -1), ("_id", -1)]).to_list(length=limit)
+
     async def insert_raw(self, doc: dict) -> str:
         """Insert a raw content document, coercing tenant_id/school_id/created_by to ObjectId."""
         if doc.get("tenant_id"):

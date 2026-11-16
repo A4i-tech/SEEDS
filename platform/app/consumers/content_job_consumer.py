@@ -360,13 +360,17 @@ async def _process_audio_content_job(
     """
     job_id = job_doc.get("_id")
     content_id = job_doc.get("content_id")
+    is_aggregator = bool(job_doc.get("source"))
 
     await job_repo.mark_running(job_id)
 
     last_exc: Exception | None = None
     for attempt in range(1, MAX_RETRIES + 1):
         try:
-            content_doc = await content_repo.find_raw_by_id(content_id)
+            if is_aggregator:
+                content_doc = await content_repo.find_by_id_and_tenant(content_id, job_doc["tenant_id"])
+            else:
+                content_doc = await content_repo.find_raw_by_id(content_id)
             if not content_doc:
                 raise RuntimeError(f"Content document not found: {content_id}")
 
