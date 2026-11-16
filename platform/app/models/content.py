@@ -75,3 +75,11 @@ class Content(BaseModel):
         return cls.model_validate(d)
 
 
+class TtsAudioUrls(BaseModel):
+    title_audio_url: str | None = Field(None, serialization_alias="title.audio_url")
+    theme_audio_url: str | None = Field(None, serialization_alias="theme.audio_url")
+
+
+class ProcessedContentUpdate(TtsAudioUrls):
+    audio_content: list[dict]
+    is_processed: bool = True

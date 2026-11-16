@@ -75,6 +75,7 @@ from pathlib import Path
 
 from pymongo.asynchronous.database import AsyncDatabase
 
+from app.models.content import ProcessedContentUpdate, TtsAudioUrls
 from app.repositories.content_job_repository import ContentJobRepository
 from app.repositories.content_repository import ContentRepository
 
@@ -290,13 +291,14 @@ async def _extract_duration(wav_path: str) -> float | None:
 # TTS processing helpers
 # ---------------------------------------------------------------------------
 
-async def _process_tts_for_content(content_doc: dict, blob_provider) -> None:
+async def _process_tts_for_content(content_doc: dict, blob_provider) -> TtsAudioUrls:
     """Generate and upload TTS audio for title and theme of *content_doc*.
 
-    Mutates *content_doc* in-place with updated audio_url fields.
+    Returns the uploaded or reused title and theme audio URLs.
     """
     from app.services import tts_service  # noqa: PLC0415
 
+    result = TtsAudioUrls()
     language = content_doc.get("language", "")
     content_id = str(content_doc.get("_id", ""))
 
@@ -307,10 +309,9 @@ async def _process_tts_for_content(content_doc: dict, blob_provider) -> None:
         tts_text = tts_service.add_for_in_option_audio(language, title_text)
         logger.info("content_job: synthesising title TTS content_id=%s", content_id)
         audio_bytes = await tts_service.synthesize(tts_text, language)
-        url = await blob_provider.upload_file(
+        result.title_audio_url = await blob_provider.upload_file(
             "experience-titles", f"{content_id}/1.0.mp3", audio_bytes, "audio/mpeg"
         )
-        content_doc["title"] = {**title, "audio_url": url}
 
     # Theme TTS
     theme = content_doc.get("theme", {})
@@ -318,24 +319,25 @@ async def _process_tts_for_content(content_doc: dict, blob_provider) -> None:
     theme_local = (theme.get("local") or "").strip()
 
     if theme_english:
-        theme_blob_name = f"{theme_english}/{language}/1.0.mp3"
+        theme_blob_name = f"{theme_english}/1.0.mp3"
         # Check if theme audio already exists
         try:
             container_client = blob_provider.get_container_client("theme-titles")
             blob_client = container_client.get_blob_client(theme_blob_name)
             await blob_client.get_blob_properties()
             # Exists — reuse
-            content_doc["theme"] = {**theme, "audio_url": blob_client.url}
+            result.theme_audio_url = blob_client.url
             logger.info("content_job: reusing existing theme audio theme=%s", theme_english)
         except Exception:  # noqa: BLE001
             # Does not exist — generate
             if theme_local:
                 tts_text = tts_service.add_for_in_option_audio(language, theme_local)
                 audio_bytes = await tts_service.synthesize(tts_text, language)
-                url = await blob_provider.upload_file(
+                result.theme_audio_url = await blob_provider.upload_file(
                     "theme-titles", theme_blob_name, audio_bytes, "audio/mpeg"
                 )
-                content_doc["theme"] = {**theme, "audio_url": url}
+
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -390,21 +392,28 @@ async def _process_audio_content_job(
                     updated_item["duration_seconds"] = duration
                 updated_audio.append(updated_item)
 
-            content_doc["audio_content"] = updated_audio
-
-            # Save updated content
-            update_fields: dict = {
-                "audio_content": content_doc["audio_content"],
-                "is_processed": True,
-            }
+            tts = TtsAudioUrls()
+            match: dict = {}
             # TTS for pull-model content
             if content_doc.get("is_pull_model"):
-                await _process_tts_for_content(content_doc, blob_provider)
-                for field in ("title", "theme"):
-                    if audio_url := content_doc.get(field, {}).get("audio_url"):
-                        update_fields[f"{field}.audio_url"] = audio_url
+                tts = await _process_tts_for_content(content_doc, blob_provider)
+                match = {"title": content_doc.get("title"), "theme": content_doc.get("theme")}
 
-            await content_repo.save_processed(content_id, update_fields)
+            # Save updated content
+            update = ProcessedContentUpdate(audio_content=updated_audio, **tts.model_dump())
+            if not await content_repo.save_processed(content_id, update, match):
+                if await content_repo.find_raw_by_id(content_id):
+                    logger.warning(
+                        "content_job: title/theme changed during TTS, discarding stale result "
+                        "job_id=%s content_id=%s",
+                        job_id, content_id,
+                    )
+                else:
+                    logger.warning(
+                        "content_job: content document removed during processing, nothing saved "
+                        "job_id=%s content_id=%s",
+                        job_id, content_id,
+                    )
             await job_repo.mark_completed(job_id)
             logger.info(
                 "content_job: completed job_id=%s content_id=%s (attempt %d)",

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { BlockBlobClient } from "@azure/storage-blob";
 import { useNavigate } from "react-router-dom";
 import { v4 as uuidv4 } from "uuid";
@@ -144,11 +144,8 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
     getContent();
   }, []);
 
-  const hydratedContentIdRef = useRef(null);
-
   useEffect(() => {
-    if (content && hydratedContentIdRef.current !== content.id) {
-      hydratedContentIdRef.current = content.id;
+    if (content) {
       const languageLower = content.language.toLowerCase();
       const quizMetadata = {
         id: content.id,
@@ -182,11 +179,12 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
         setAnswerAudioSrc(`${AUDIO_BASE_URL}/${content.id}/answer.mp3`);
       }
     }
-  }, [content, contentType]);
+  }, [content?.id, contentType]);
 
   useEffect(() => {
-    if (!content) return;
-    fetchTitlesUnderTheme(content.language, content.theme.english);
+    if (content) {
+      fetchTitlesUnderTheme(content.language, content.theme.english);
+    }
   }, [content, fetchTitlesUnderTheme]);
 
   const [file, setFile] = useState();

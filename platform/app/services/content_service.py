@@ -9,6 +9,7 @@ from typing import Any
 from fastapi import Depends
 from pymongo.asynchronous.database import AsyncDatabase
 
+from app.models.content import ProcessedContentUpdate
 from app.models.requests.content_requests import (
     ContentCreate,
     ContentCreateRequest,
@@ -239,8 +240,10 @@ class ContentService:
     async def get_raw_content_by_id(self, content_id: str) -> dict[str, Any] | None:
         return await self._content_repo.find_raw_by_id(content_id)
 
-    async def save_processed(self, content_id: str, fields: dict[str, Any]) -> None:
-        await self._content_repo.save_processed(content_id, fields)
+    async def save_processed(
+        self, content_id: str, update: ProcessedContentUpdate, match: dict[str, Any]
+    ) -> bool:
+        return await self._content_repo.save_processed(content_id, update, match)
 
     async def extract_website(self, url: str) -> WebsiteExtractResponse:
         return await self._website_extractor.extract(url)
