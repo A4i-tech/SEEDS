@@ -1,0 +1,4 @@
+.finding {
+  border-left: 2px solid var(--seeds-badge-hard-text);
+  padding-left: var(--mantine-spacing-sm);
+}

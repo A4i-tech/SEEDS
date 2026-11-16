@@ -1,0 +1,28 @@
+.lineNo {
+  display: inline-block;
+  width: 32px;
+  color: var(--seeds-text-secondary);
+  user-select: none;
+}
+
+.removed {
+  background-color: var(--seeds-badge-hard-bg);
+  color: var(--seeds-badge-hard-text);
+}
+
+.added {
+  background-color: var(--seeds-badge-easy-bg);
+  color: var(--seeds-badge-easy-text);
+}
+
+.same {
+  color: var(--seeds-text-primary);
+}
+
+.removedSwatch.removedSwatch {
+  border: 1px solid var(--seeds-badge-hard-text);
+}
+
+.addedSwatch.addedSwatch {
+  border: 1px solid var(--seeds-badge-easy-text);
+}
