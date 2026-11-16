@@ -1,0 +1,5 @@
+.avatar.avatar {
+  background-color: var(--seeds-avatar-bg);
+  color: var(--seeds-avatar-text);
+  font-weight: 700;
+}
