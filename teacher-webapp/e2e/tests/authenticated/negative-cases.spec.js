@@ -98,25 +98,29 @@ test('TC-TNEG-005 a student already assigned to a classroom cannot be re-added a
 test('TC-TNEG-006 content library pagination does not issue an extra fetch past the last page', async ({ page }) => {
   const contentDrawerPage = new ContentDrawerPage(page);
 
+  const isContentList = (req) => req.method() === 'GET' && new URL(req.url()).pathname.endsWith('/content');
   const listRequests = [];
   page.on('request', (req) => {
-    if (req.method() === 'GET' && new URL(req.url()).pathname.endsWith('/content')) listRequests.push(req.url());
+    if (isContentList(req)) listRequests.push(req.url());
   });
 
+  const firstResponse = page.waitForResponse((res) => isContentList(res.request()));
   await openLibraryOrSkip(page);
+  let { pagination } = await (await firstResponse).json();
+  test.skip(!pagination.has_more, 'Content Library has only a single page for this tenant; no pagination to verify');
 
-  let clicks = 0;
-  while ((await contentDrawerPage.loadMoreButton.isVisible()) && clicks < 20) {
-    const listResponse = page.waitForResponse(
-      (res) => res.url().includes('/content') && res.request().method() === 'GET'
-    );
+  let pages = 1;
+  while (pagination.has_more) {
+    expect(pages, 'Content Library exceeded 20 pages').toBeLessThan(20);
+    const listResponse = page.waitForResponse((res) => isContentList(res.request()));
     await contentDrawerPage.loadMoreButton.click();
-    await listResponse;
-    clicks += 1;
+    const response = await listResponse;
+    expect(new URL(response.url()).searchParams.get('cursor')).toBe(pagination.next_cursor);
+    ({ pagination } = await response.json());
+    pages += 1;
   }
-  test.skip(clicks === 0, 'Content Library has only a single page for this tenant; no pagination to verify');
 
   await expect(contentDrawerPage.loadMoreButton).toBeHidden();
   await page.waitForLoadState('networkidle');
-  expect(listRequests).toHaveLength(clicks + 1);
+  expect(listRequests).toHaveLength(pages);
 });

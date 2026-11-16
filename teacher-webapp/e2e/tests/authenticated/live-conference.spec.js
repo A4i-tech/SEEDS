@@ -61,9 +61,16 @@ test('TC-TCONF-START starting a conference against the real backend reaches the 
   await classroomDetailPage.editButton.waitFor();
 
   await classroomDetailPage.toggleStudent(studentNames[0]);
-  await classroomDetailPage.startConference();
+  const createResponse = page.waitForResponse(
+    (res) => res.request().method() === 'POST' && new URL(res.url()).pathname.endsWith('/conference/create')
+  );
 
   try {
+    await classroomDetailPage.startConference();
+    const response = await createResponse;
+    expect(response.ok(), `POST /conference/create returned ${response.status()}`).toBe(true);
+    const conference = await response.json();
+    expect(conference.id, 'conference id missing').toMatch(/\S/);
     await expect(classroomDetailPage.callScreenHeading).toBeVisible({ timeout: 15000 });
     await expect(classroomDetailPage.endConferenceButton).toBeVisible();
   } finally {

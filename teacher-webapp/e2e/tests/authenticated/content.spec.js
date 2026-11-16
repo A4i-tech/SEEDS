@@ -5,6 +5,16 @@ const { ContentDrawerPage } = require('../../pages/ContentDrawerPage');
 const { ContentDetailsPage } = require('../../pages/ContentDetailsPage');
 const { openLibraryOrSkip } = require('../../fixtures/classroomHelpers');
 
+const readCards = (page) =>
+  page
+    .locator('[role="presentation"] div:has(> .MuiTypography-body2):has(> div > .MuiTypography-caption)')
+    .evaluateAll((els) => els.map((el) => ({
+      title: el.querySelector(':scope > .MuiTypography-body2').innerText.trim(),
+      local: el.querySelector(':scope > .MuiTypography-caption')?.innerText.trim() ?? '',
+      type: el.querySelector('.MuiChip-label')?.innerText.trim() ?? '',
+    })));
+const readTitles = async (page) => (await readCards(page)).map((card) => card.title);
+
 test('TC-TCONT-001 Content Library opens from classrooms page and lists content', async ({ page }) => {
   const classroomListPage = new ClassroomListPage(page);
   const contentDrawerPage = new ContentDrawerPage(page);
@@ -26,14 +36,18 @@ test('TC-TCONT-002 filtering the Content Library by type shows only matching con
   test.skip(!hasTypeTab, 'Only a single content type is available for this tenant; no type filter to test');
   const filterTab = typeTabs.first();
 
-  const typeLabel = (await filterTab.innerText()).trim();
+  const typeLabel = (await filterTab.innerText()).trim().toUpperCase();
+  const expectedTitles = (await readCards(page)).filter((card) => card.type === typeLabel).map((card) => card.title);
+  expect(expectedTitles.length, `no loaded card has type ${typeLabel}`).toBeGreaterThan(0);
+
   await filterTab.click();
 
   const itemCards = contentDrawerPage.itemCards;
   await expect(itemCards.first()).toBeVisible({ timeout: 10000 });
   const cardCount = await itemCards.count();
-  const typeChips = itemCards.filter({ has: page.locator(`.MuiChip-label:text-is("${typeLabel.toUpperCase()}")`) });
+  const typeChips = itemCards.filter({ has: page.locator(`.MuiChip-label:text-is("${typeLabel}")`) });
   await expect(typeChips).toHaveCount(cardCount, { timeout: 10000 });
+  await expect.poll(() => readTitles(page), { timeout: 10000 }).toEqual(expectedTitles);
 });
 
 test('TC-TCONT-003 selecting the "All" filter resets the content list', async ({ page }) => {
@@ -41,17 +55,21 @@ test('TC-TCONT-003 selecting the "All" filter resets the content list', async ({
 
   await openLibraryOrSkip(page);
 
-  const items = page.locator('[role="presentation"] .MuiTypography-body2');
-  const initialCount = await items.count();
-
   const typeTabs = contentDrawerPage.filterGroup.getByRole('button').filter({ hasNotText: 'All' });
   const hasTypeTab = (await typeTabs.count()) > 0;
   test.skip(!hasTypeTab, 'No type filter tabs available for this tenant');
 
-  await typeTabs.first().click();
+  const filterTab = typeTabs.first();
+  const typeLabel = (await filterTab.innerText()).trim().toUpperCase();
+  const initialCards = await readCards(page);
+  const initialTitles = initialCards.map((card) => card.title);
+  const filteredTitles = initialCards.filter((card) => card.type === typeLabel).map((card) => card.title);
+
+  await filterTab.click();
+  await expect.poll(() => readTitles(page), { timeout: 10000 }).toEqual(filteredTitles);
   await contentDrawerPage.allFilterTab.click();
 
-  await expect(items).toHaveCount(initialCount, { timeout: 10000 });
+  await expect.poll(() => readTitles(page), { timeout: 10000 }).toEqual(initialTitles);
 });
 
 test('TC-TCONT-004 searching the Content Library narrows the list to matching items', async ({ page }) => {
@@ -64,12 +82,12 @@ test('TC-TCONT-004 searching the Content Library narrows the list to matching it
 
   await contentDrawerPage.search(searchTerm);
 
-  const items = page.locator('[role="presentation"] .MuiTypography-body2');
-  await expect(items.first()).toBeVisible({ timeout: 10000 });
-  const texts = await items.allInnerTexts();
-  for (const text of texts) {
-    expect(text.toLowerCase()).toContain(searchTerm.toLowerCase());
-  }
+  const term = searchTerm.toLowerCase();
+  const nonMatching = async () => (await readCards(page))
+    .filter((card) => !`${card.title}\n${card.local}`.toLowerCase().includes(term))
+    .map((card) => card.title);
+  await expect.poll(nonMatching, { timeout: 10000 }).toEqual([]);
+  expect(await readTitles(page)).toContain(title);
 });
 
 test('TC-TCONT-005 searching the Content Library with no matches shows an empty state', async ({ page }) => {
