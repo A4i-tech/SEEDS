@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     )
 
     app_mode: Literal["api", "consumer", "all"] = "all"
+    remediation_workers: int = Field(default=1, ge=1)
     env: Literal["development", "staging", "production"] = "development"
     version: str = "0.1.0"
     port: int = 8000
