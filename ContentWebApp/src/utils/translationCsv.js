@@ -103,7 +103,7 @@ export const parseTranslationCsv = (text) => {
 
 export const selectTargetColumn = (table, lang) => {
   const matching = table.targets.find((target) => target.code === lang);
-  if (matching) return { index: matching.index, code: matching.code };
+  if (matching) return { index: matching.index };
   if (table.targets.length === 1) {
     const [only] = table.targets;
     return only.code
@@ -112,7 +112,6 @@ export const selectTargetColumn = (table, lang) => {
         }
       : {
           index: only.index,
-          code: "",
           warning: `The CSV target column "${only.label}" has no language code. It will be imported as ${lang}.`,
         };
   }

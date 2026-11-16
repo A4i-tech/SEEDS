@@ -241,7 +241,7 @@ describe("parseTranslationCsv", () => {
 
     expect(table.error).toBeUndefined();
     expect(table.targets).toHaveLength(1);
-    expect(selectTargetColumn(table, "kn")).toEqual({ index: 3, code: "kn" });
+    expect(selectTargetColumn(table, "kn")).toEqual({ index: 3 });
   });
 
   test("Context and Notes columns do not change which column is the target", () => {
@@ -249,7 +249,7 @@ describe("parseTranslationCsv", () => {
       `${Q}Asset ID${Q},${Q}Route${Q},${Q}English, en${Q},${Q}Kannada, kn${Q},${Q}Context${Q},${Q}Notes${Q}\n${Q}k1${Q},${Q}/${Q},${Q}Hello${Q},${Q}ಹಲೋ${Q},${Q}ctx${Q},${Q}note${Q}\n`
     );
 
-    expect(selectTargetColumn(table, "kn")).toEqual({ index: 3, code: "kn" });
+    expect(selectTargetColumn(table, "kn")).toEqual({ index: 3 });
     expect(buildImportRows(table, 3)).toEqual([
       { route: "/", key: "k1", source: "Hello", text: "ಹಲೋ" },
     ]);
@@ -261,7 +261,7 @@ describe("parseTranslationCsv", () => {
     );
 
     expect(table.targets).toHaveLength(1);
-    expect(selectTargetColumn(table, "kn")).toEqual({ index: 4, code: "kn" });
+    expect(selectTargetColumn(table, "kn")).toEqual({ index: 4 });
   });
 });
 
@@ -272,10 +272,7 @@ describe("selectTargetColumn", () => {
     );
 
   test("accepts the column whose locale code matches the selected language", () => {
-    expect(selectTargetColumn(table(["English, en", "Kannada, kn"]), "kn")).toEqual({
-      index: 3,
-      code: "kn",
-    });
+    expect(selectTargetColumn(table(["English, en", "Kannada, kn"]), "kn")).toEqual({ index: 3 });
   });
 
   test("blocks a column that is for a different language", () => {
@@ -295,7 +292,7 @@ describe("selectTargetColumn", () => {
   test("picks the matching column from a multi-language Loco file and ignores the others", () => {
     const multi = table(["English, en", "Kannada, kn", "Telugu, te"]);
 
-    expect(selectTargetColumn(multi, "te")).toEqual({ index: 4, code: "te" });
+    expect(selectTargetColumn(multi, "te")).toEqual({ index: 4 });
     expect(selectTargetColumn(multi, "hi").error).toMatch(/no target column for "hi"/);
   });
 });
