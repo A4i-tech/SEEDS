@@ -6,7 +6,7 @@ import asyncio
 import importlib
 import logging
 from collections.abc import Callable
-from unittest.mock import AsyncMock, MagicMock, create_autospec, patch
+from unittest.mock import AsyncMock, MagicMock, call, create_autospec, patch
 
 import pytest
 from fastapi import FastAPI
@@ -149,15 +149,18 @@ class TestMakeConsumerTasks:
         sentinel_db = MagicMock()
         sentinel_mgr = MagicMock()
         monkeypatch.setattr("app.platform.database.get_database", lambda: sentinel_db)
+        monkeypatch.setattr(lifespan_module, "get_settings", lambda: _fake_settings(remediation_workers=2))
 
         tasks = lifespan_module._make_consumer_tasks(conference_manager=sentinel_mgr)
         try:
-            assert len(tasks) == 8
-            names = {t.get_name() for t in tasks}
-            assert names == {class_name for _, class_name in CONSUMER_SPECS}
+            names = [t.get_name() for t in tasks]
+            assert sorted(names) == sorted(
+                [class_name for _, class_name in CONSUMER_SPECS if class_name != "TextbookRemediationConsumer"]
+                + ["TextbookRemediationConsumer-1", "TextbookRemediationConsumer-2"]
+            )
             mocks["AudioAnalysisConsumer"].assert_called_once_with(conference_manager=sentinel_mgr)
             mocks["ContentJobConsumer"].assert_called_once_with(sentinel_db)
-            mocks["TextbookRemediationConsumer"].assert_called_once_with(sentinel_db)
+            assert mocks["TextbookRemediationConsumer"].call_args_list == [call(sentinel_db), call(sentinel_db)]
             mocks["SyncJobConsumer"].assert_called_once_with(sentinel_db)
         finally:
             await self._cleanup(tasks)

@@ -61,6 +61,7 @@ class TestSinkConferenceEvent:
             await event.execute_event()
 
         assert "teacher_phone_number missing" in caplog.text
+        assert conf.state.action_history[0].owner == ""
         assert conf.state.is_running is False
         conf.update_state.assert_awaited_once()
         conf.end_processing_conf_events_from_queue.assert_called_once()
