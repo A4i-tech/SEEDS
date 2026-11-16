@@ -1,0 +1,22 @@
+.dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--mantine-spacing-md);
+  padding: var(--mantine-spacing-xl) var(--mantine-spacing-md);
+  border: 1px dashed var(--seeds-border-default);
+  border-radius: var(--mantine-radius-md);
+  background-color: var(--seeds-bg-surface);
+  cursor: pointer;
+  text-align: center;
+}
+
+.dragging {
+  border-color: var(--seeds-btn-secondary-border);
+}
+
+@media (min-width: 48em) {
+  .dropzone {
+    padding: var(--mantine-spacing-xl);
+  }
+}
