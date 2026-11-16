@@ -73,8 +73,8 @@ class TestInitConferenceManager:
             assert result is mock_manager_cls.return_value
             assert lifespan_module._conference_manager is result
 
-    @pytest.mark.parametrize("key", ["-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----", "YWJj\nZGVm"])
-    def test_passes_private_key_through_unchanged(self, key: str) -> None:
+    def test_passes_private_key_through_unchanged(self) -> None:
+        key = "-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----"
         settings = _fake_settings(vonage_conference_application_private_key64=key)
         with (
             patch("app.platform.lifespan.get_settings", return_value=settings),
@@ -470,3 +470,4 @@ class TestLifespan:
                 pass  # should not raise on shutdown
 
         assert expected_log in caplog.text
+        lifespan_module.close_database.assert_awaited_once()

@@ -276,11 +276,13 @@ class TestConsumeFrame:
         voiced = _frame(t.frame_bytes, amplitude=1000)
         silent = _frame(t.frame_bytes, amplitude=0)
 
-        await t.process_chunk(voiced)
-        await t.process_chunk(voiced)  # activates, speech_frames=2 -> 40ms
-        result = await t.process_chunk(silent)  # end_silence_frames=2, 1 silent frame so far
-        assert result is None
-        result = await t.process_chunk(silent)  # second consecutive silent frame -> finalize
+        with patch.object(t, "_transcribe_segment", wraps=t._transcribe_segment) as spy:
+            await t.process_chunk(voiced)
+            await t.process_chunk(voiced)  # activates, speech_frames=2 -> 40ms
+            result = await t.process_chunk(silent)  # end_silence_frames=2, 1 silent frame so far
+            assert result is None
+            result = await t.process_chunk(silent)  # second consecutive silent frame -> finalize
+        spy.assert_awaited_once_with(voiced * 2 + silent * 2)
         assert result["text"] == "ok"
         assert result["duration"] == 1.0
         assert t.segment_active is False
@@ -312,10 +314,12 @@ class TestConsumeFrame:
         t.client.audio.transcriptions.create = AsyncMock(return_value=SimpleNamespace(text="", duration=0))
 
         voiced = _frame(t.frame_bytes, amplitude=1000)
-        await t.process_chunk(voiced)  # streak 1, inactive
-        await t.process_chunk(voiced)  # streak 2 -> activates, returns None
-        result = await t.process_chunk(voiced)  # buffer now exceeds max_segment_bytes -> finalizes
+        with patch.object(t, "_transcribe_segment", wraps=t._transcribe_segment) as spy:
+            await t.process_chunk(voiced)  # streak 1, inactive
+            await t.process_chunk(voiced)  # streak 2 -> activates, returns None
+            result = await t.process_chunk(voiced)  # buffer now exceeds max_segment_bytes -> finalizes
 
+        spy.assert_awaited_once_with(voiced * 3)
         t.client.audio.transcriptions.create.assert_awaited_once()
         assert result is None
         assert t.segment_active is False

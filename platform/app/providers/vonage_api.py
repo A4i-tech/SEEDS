@@ -79,8 +79,9 @@ class VonageAPIProvider:
 
         # Decode base64-encoded PEM key to a string if needed.
         # SDK accepts the PEM string directly — no temp file required.
+        private_key = private_key.strip()
         if not private_key.startswith("-----"):
-            private_key = base64.b64decode(private_key).decode("utf-8")
+            private_key = base64.b64decode("".join(private_key.split()), validate=True).decode("utf-8")
 
         self._client = vonage.Client(
             application_id=application_id,

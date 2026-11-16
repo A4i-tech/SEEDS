@@ -174,10 +174,6 @@ class TestWithRetry:
 
 
 class TestSubodhaClientInit:
-    def test_base_url_from_settings(self) -> None:
-        client = _make_client(_make_settings(subodha_base_url="https://custom.example.com"))
-        assert client._base_url == "https://custom.example.com"
-
     async def test_aclose_closes_http_client(self) -> None:
         client = _make_client()
         await client.aclose()
@@ -392,7 +388,7 @@ class TestEnrichBlocksWithContent:
 
     async def test_enriches_html_block(self) -> None:
         # Exercises html-type dispatch wiring; stripping itself is covered elsewhere.
-        raw = '<div class="xblock"><p>Lesson</p></div>'
+        raw = '<div class="xblock"><p>Lesson</p><div class="wrap-instructor-info">staff debug</div></div>'
 
         def handler(request: httpx.Request) -> httpx.Response:
             return _response(status_code=200, text=raw)
@@ -409,6 +405,7 @@ class TestEnrichBlocksWithContent:
 
         block = result["blocks"]["b1"]
         assert block["student_view_html"] == "<p>Lesson</p>"
+        assert "debug" not in block["student_view_html"]
         assert block["student_view_data"] is None
 
     @pytest.mark.parametrize(

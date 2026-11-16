@@ -27,9 +27,14 @@ def set_auth_type(monkeypatch: pytest.MonkeyPatch, auth_type: str) -> None:
 class TestEnsureInitialized:
     def test_already_initialized_returns_immediately(self, monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.setattr(mod, "_initialized", True)
-        with patch("app.platform.settings.get_settings") as mock_get_settings:
+        fake_firebase_admin = MagicMock()
+        with (
+            patch("app.platform.settings.get_settings") as mock_get_settings,
+            patch.dict("sys.modules", {"firebase_admin": fake_firebase_admin}),
+        ):
             mod._ensure_initialized()
         mock_get_settings.assert_not_called()
+        fake_firebase_admin.initialize_app.assert_not_called()
 
     def test_raises_when_auth_type_not_firebase(
         self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture,
