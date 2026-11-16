@@ -54,7 +54,7 @@ jobs:
     uses: ./.github/workflows/teacher-webapp-e2e.yml
     with:
       e2e_instance: onrender
-    secrets: inherit
+    secrets: inherit  # nosemgrep: yaml.github-actions.security.secrets-inherit.secrets-inherit -- reusable workflow needs full secret set
 
   deploy-main-workflow:
     needs: ci-workflow

@@ -21,8 +21,6 @@ test('TC-TCONT-002 filtering the Content Library by type shows only matching con
 
   await openLibraryOrSkip(page);
 
-  // Filter tabs are rendered as Chips in the labelled filter group: "All"
-  // plus one chip per distinct content type present in the fetched content.
   const typeTabs = contentDrawerPage.filterGroup.getByRole('button').filter({ hasNotText: 'All' });
   const hasTypeTab = (await typeTabs.count()) > 0;
   test.skip(!hasTypeTab, 'Only a single content type is available for this tenant; no type filter to test');
@@ -31,7 +29,6 @@ test('TC-TCONT-002 filtering the Content Library by type shows only matching con
   const typeLabel = (await filterTab.innerText()).trim();
   await filterTab.click();
 
-  // Each content card renders a Chip with the item's type (uppercased).
   const itemCards = contentDrawerPage.itemCards;
   await expect(itemCards.first()).toBeVisible({ timeout: 10000 });
   const cardCount = await itemCards.count();
@@ -127,7 +124,6 @@ test('TC-TCONT-007 opening a content item plays it with the correct title and du
   await expect(contentDrawerPage.nowPlayingTitle).toHaveText(title, { timeout: 15000 });
   await expect(contentDrawerPage.playPauseButton).toBeVisible();
 
-  // Verify the audio element actually loads a duration (metadata loaded).
   await expect.poll(
     async () => contentDrawerPage.audio.evaluate((el) => el.duration).catch(() => NaN),
     { timeout: 15000 }
@@ -143,14 +139,13 @@ test('TC-TCONT-008 pausing and resuming playback keeps position', async ({ page 
   await contentDrawerPage.playContent(title);
   await expect(contentDrawerPage.nowPlayingLabel).toBeVisible({ timeout: 15000 });
 
-  // Ensure playback has actually started.
   await expect.poll(
     async () => contentDrawerPage.audio.evaluate((el) => !el.paused).catch(() => false),
     { timeout: 15000 }
   ).toBe(true);
 
   await expect(contentDrawerPage.playPauseButton).toHaveAccessibleName('Pause');
-  await contentDrawerPage.playPauseButton.click(); // Pause
+  await contentDrawerPage.playPauseButton.click();
 
   await expect.poll(
     async () => contentDrawerPage.audio.evaluate((el) => el.paused).catch(() => false),
@@ -159,7 +154,7 @@ test('TC-TCONT-008 pausing and resuming playback keeps position', async ({ page 
   const pausedAt = await contentDrawerPage.getCurrentTime();
 
   await expect(contentDrawerPage.playPauseButton).toHaveAccessibleName('Play');
-  await contentDrawerPage.playPauseButton.click(); // Resume
+  await contentDrawerPage.playPauseButton.click();
 
   await expect.poll(
     async () => contentDrawerPage.audio.evaluate((el) => !el.paused).catch(() => false),
@@ -179,7 +174,6 @@ test('TC-TCONT-009 rewind control moves playback position back', async ({ page }
   await contentDrawerPage.playContent(title);
   await expect(contentDrawerPage.nowPlayingLabel).toBeVisible({ timeout: 15000 });
 
-  // Let playback advance briefly so there is something to rewind.
   await expect.poll(
     async () => contentDrawerPage.audio.evaluate((el) => el.currentTime).catch(() => 0),
     { timeout: 15000 }

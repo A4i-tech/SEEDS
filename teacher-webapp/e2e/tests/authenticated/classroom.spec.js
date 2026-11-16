@@ -98,15 +98,8 @@ test('TC-TCLS-005 removing and re-adding a student updates the detail view and c
 test('TC-TCLS-006 edit classroom name updates it in the dashboard', async ({ page }) => {
   const classroomListPage = new ClassroomListPage(page);
   const classroomFormPage = new ClassroomFormPage(page);
-  const originalName = uniqueClassroomName();
+  const { name: originalName } = await createClassroomWithStudents(page, 1);
   const renamedName = `${originalName} Renamed`;
-
-  await classroomListPage.goto();
-  await classroomListPage.openCreate();
-  await classroomFormPage.fillName(originalName);
-  await classroomFormPage.submit();
-  registerClassroomForCleanup(originalName);
-  await classroomListPage.heading.waitFor();
 
   await classroomListPage.editClassroom(originalName);
   await classroomFormPage.nameInput.waitFor();
@@ -122,73 +115,45 @@ test('TC-TCLS-006 edit classroom name updates it in the dashboard', async ({ pag
 test('TC-TCLS-007 add student to existing classroom updates the student count', async ({ page }) => {
   const classroomListPage = new ClassroomListPage(page);
   const classroomFormPage = new ClassroomFormPage(page);
-  const name = uniqueClassroomName();
-
-  await classroomListPage.goto();
-  await classroomListPage.openCreate();
-  await classroomFormPage.fillName(name);
-  await classroomFormPage.submit();
-  registerClassroomForCleanup(name);
-  await classroomListPage.heading.waitFor();
+  const { name } = await createClassroomWithStudents(page, 1);
 
   await classroomListPage.editClassroom(name);
   await classroomFormPage.nameInput.waitFor();
 
   const addedLabel = await classroomFormPage.addFirstAvailableStudent();
   if (!addedLabel) {
-    throw new Error('No students registered for the E2E teacher account; seed at least one student fixture to run TC-TCLS-007');
+    throw new Error('Seed at least two student fixtures for the E2E teacher account to run TC-TCLS-007');
   }
 
   await classroomFormPage.submit();
   await classroomListPage.heading.waitFor();
 
-  await expect(classroomListPage.classroomCard(name).getByText('1 Students')).toBeVisible();
+  await expect(classroomListPage.classroomCard(name).getByText('2 Students')).toBeVisible();
 });
 
 test('TC-TCLS-008 remove student from classroom via edit updates the student count', async ({ page }) => {
   const classroomListPage = new ClassroomListPage(page);
   const classroomFormPage = new ClassroomFormPage(page);
-  const name = uniqueClassroomName();
-
-  await classroomListPage.goto();
-  await classroomListPage.openCreate();
-  await classroomFormPage.fillName(name);
-  await classroomFormPage.submit();
-  registerClassroomForCleanup(name);
-  await classroomListPage.heading.waitFor();
+  const { name, studentNames } = await createClassroomWithStudents(page, 2);
+  if (studentNames.length < 2) {
+    throw new Error('Seed at least two student fixtures for the E2E teacher account to run TC-TCLS-008');
+  }
+  await expect(classroomListPage.classroomCard(name).getByText('2 Students')).toBeVisible();
 
   await classroomListPage.editClassroom(name);
   await classroomFormPage.nameInput.waitFor();
-  const addedLabel = await classroomFormPage.addFirstAvailableStudent();
-  if (!addedLabel) {
-    throw new Error('No students registered for the E2E teacher account; seed at least one student fixture to run TC-TCLS-008');
-  }
+  await classroomFormPage.removeStudent(studentNames[0]);
   await classroomFormPage.submit();
+
   await classroomListPage.heading.waitFor();
   await expect(classroomListPage.classroomCard(name).getByText('1 Students')).toBeVisible();
-
-  await classroomListPage.editClassroom(name);
-  await classroomFormPage.nameInput.waitFor();
-  const studentName = addedLabel.split(' - ')[0];
-  await classroomFormPage.removeStudent(studentName);
-  await classroomFormPage.submit();
-
-  await classroomListPage.heading.waitFor();
-  await expect(classroomListPage.classroomCard(name).getByText('0 Students')).toBeVisible();
 });
 
 test('TC-TCLS-009 edit changes can be cancelled without persisting', async ({ page }) => {
   const classroomListPage = new ClassroomListPage(page);
   const classroomFormPage = new ClassroomFormPage(page);
-  const originalName = uniqueClassroomName();
+  const { name: originalName } = await createClassroomWithStudents(page, 1);
   const attemptedName = `${originalName} Unsaved`;
-
-  await classroomListPage.goto();
-  await classroomListPage.openCreate();
-  await classroomFormPage.fillName(originalName);
-  await classroomFormPage.submit();
-  registerClassroomForCleanup(originalName);
-  await classroomListPage.heading.waitFor();
 
   await classroomListPage.editClassroom(originalName);
   await classroomFormPage.nameInput.waitFor();
@@ -202,15 +167,7 @@ test('TC-TCLS-009 edit changes can be cancelled without persisting', async ({ pa
 
 test('TC-TCLS-010 delete classroom confirmation dialog names the classroom', async ({ page }) => {
   const classroomListPage = new ClassroomListPage(page);
-  const classroomFormPage = new ClassroomFormPage(page);
-  const name = uniqueClassroomName();
-
-  await classroomListPage.goto();
-  await classroomListPage.openCreate();
-  await classroomFormPage.fillName(name);
-  await classroomFormPage.submit();
-  registerClassroomForCleanup(name);
-  await classroomListPage.heading.waitFor();
+  const { name } = await createClassroomWithStudents(page, 1);
 
   await classroomListPage.classroomCard(name).getByRole('button', { name: 'Delete' }).click();
 
@@ -221,21 +178,12 @@ test('TC-TCLS-010 delete classroom confirmation dialog names the classroom', asy
   await expect(dialog.getByRole('button', { name: 'Cancel' })).toBeVisible();
   await expect(dialog.getByRole('button', { name: 'Delete' })).toBeVisible();
 
-  // Leave the dialog open state clean for subsequent tests by cancelling.
   await dialog.getByRole('button', { name: 'Cancel' }).click();
 });
 
 test('TC-TCLS-011 cancel classroom deletion leaves the classroom in the list', async ({ page }) => {
   const classroomListPage = new ClassroomListPage(page);
-  const classroomFormPage = new ClassroomFormPage(page);
-  const name = uniqueClassroomName();
-
-  await classroomListPage.goto();
-  await classroomListPage.openCreate();
-  await classroomFormPage.fillName(name);
-  await classroomFormPage.submit();
-  registerClassroomForCleanup(name);
-  await classroomListPage.heading.waitFor();
+  const { name } = await createClassroomWithStudents(page, 1);
 
   await classroomListPage.classroomCard(name).getByRole('button', { name: 'Delete' }).click();
   const dialog = page.getByRole('dialog');
@@ -247,14 +195,7 @@ test('TC-TCLS-011 cancel classroom deletion leaves the classroom in the list', a
 
 test('TC-TCLS-012 confirming delete removes the classroom from the dashboard', async ({ page }) => {
   const classroomListPage = new ClassroomListPage(page);
-  const classroomFormPage = new ClassroomFormPage(page);
-  const name = uniqueClassroomName();
-
-  await classroomListPage.goto();
-  await classroomListPage.openCreate();
-  await classroomFormPage.fillName(name);
-  await classroomFormPage.submit();
-  await classroomListPage.heading.waitFor();
+  const { name } = await createClassroomWithStudents(page, 1);
 
   await classroomListPage.deleteClassroom(name);
 

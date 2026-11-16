@@ -18,17 +18,6 @@ class ClassroomFormPage {
     await this.nameInput.fill(name);
   }
 
-  async addStudent(queryText, optionText) {
-    await this.studentSearchInput.fill(queryText);
-    await this.page.getByRole('option', { name: optionText }).click();
-  }
-
-  /**
-   * Opens the student Autocomplete without typing a query and selects the
-   * first available option. Returns the selected option's visible label
-   * ("name - phone_number"), or null if no students are available for this
-   * teacher account.
-   */
   async addFirstAvailableStudent() {
     await this.studentSearchInput.click();
     await this.studentSearchInput.press('ArrowDown');

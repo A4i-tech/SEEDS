@@ -106,7 +106,7 @@ test('TC-TNEG-006 content library pagination does not issue an extra fetch past 
   await openLibraryOrSkip(page);
 
   let clicks = 0;
-  while ((await contentDrawerPage.loadMoreButton.isVisible().catch(() => false)) && clicks < 20) {
+  while ((await contentDrawerPage.loadMoreButton.isVisible()) && clicks < 20) {
     const listResponse = page.waitForResponse(
       (res) => res.url().includes('/content') && res.request().method() === 'GET'
     );
@@ -117,8 +117,6 @@ test('TC-TNEG-006 content library pagination does not issue an extra fetch past 
   test.skip(clicks === 0, 'Content Library has only a single page for this tenant; no pagination to verify');
 
   await expect(contentDrawerPage.loadMoreButton).toBeHidden();
-  await page.waitForTimeout(1000);
-  const countAtLastPage = listRequests.length;
-  await page.waitForTimeout(1000);
-  expect(listRequests.length).toBe(countAtLastPage);
+  await page.waitForLoadState('networkidle');
+  expect(listRequests).toHaveLength(clicks + 1);
 });

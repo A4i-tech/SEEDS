@@ -12,7 +12,6 @@ const INSTANCES = {
   onrender: {
     baseURL: 'https://teacher-webapp.onrender.com',
   },
-  // No confirmed teacher-webapp dev URL exists in-repo; set E2E_BASE_URL to run against dev.
   dev: {
     baseURL: null,
   },
@@ -33,7 +32,6 @@ function getInstance(name) {
   return instance;
 }
 
-// Teacher-webapp logs in with a phone number, so these are E2E_TEACHER_PHONE / E2E_TEACHER_PASSWORD, not *_EMAIL.
 const PERSONAS = {
   get teacher() {
     const identifier = process.env.E2E_TEACHER_PHONE;

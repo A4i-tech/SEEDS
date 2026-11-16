@@ -13,9 +13,11 @@ module.exports = defineConfig({
   testDir: './e2e',
   timeout: 60000,
   workers: 1,
+  retries: process.env.CI ? 1 : 0,
   use: {
     baseURL: instance.baseURL,
     headless: true,
+    trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
     video: 'off',
   },

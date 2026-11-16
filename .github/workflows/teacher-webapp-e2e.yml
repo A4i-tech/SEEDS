@@ -17,6 +17,9 @@ on:
           - dev
         default: onrender
 
+permissions:
+  contents: read
+
 concurrency:
   group: teacher-webapp-e2e-${{ github.ref }}-${{ github.event_name }}-${{ inputs.e2e_instance }}
   cancel-in-progress: true
@@ -56,8 +59,11 @@ jobs:
         run: |
           node -e "
             const r = require('./e2e-results.json');
-            const ran = r.suites && r.stats && (r.stats.expected + r.stats.unexpected + r.stats.flaky) > 0;
-            if (!ran) { console.error('Authenticated tests were skipped; nothing actually ran.'); process.exit(1); }
+            const tests = [];
+            const walk = (s) => { (s.specs || []).forEach((sp) => tests.push(...sp.tests)); (s.suites || []).forEach(walk); };
+            r.suites.forEach(walk);
+            const ran = tests.filter((t) => t.projectName === 'chromium-teacher-authenticated' && t.status !== 'skipped').length;
+            if (!ran) { console.error('No authenticated tests ran.'); process.exit(1); }
           "
 
       - name: Upload Playwright report

@@ -67,6 +67,8 @@ test('TC-TCONF-START starting a conference against the real backend reaches the 
     await expect(classroomDetailPage.callScreenHeading).toBeVisible({ timeout: 15000 });
     await expect(classroomDetailPage.endConferenceButton).toBeVisible();
   } finally {
-    await classroomDetailPage.endConferenceButton.click();
+    if (await classroomDetailPage.endConferenceButton.isVisible()) {
+      await classroomDetailPage.endConferenceButton.click();
+    }
   }
 });
