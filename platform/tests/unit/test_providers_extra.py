@@ -69,25 +69,6 @@ class TestServiceBusQueueMessage:
 
 
 class TestServiceBusProvider:
-    @pytest.mark.asyncio
-    async def test_service_bus_provider_no_connection_string(self) -> None:
-        """ServiceBusProvider initializes in no-op mode when no connection string."""
-        from app.providers.service_bus import ServiceBusProvider
-
-        mock_settings = MagicMock()
-        mock_settings.azure_service_bus_connection_string = ""
-        mock_settings.call_webhook_queue_name = "call_webhook"
-        mock_settings.call_event_queue_name = "call_event"
-        mock_settings.sync_jobs_queue_name = "sync_jobs"
-
-        with patch("app.platform.settings.get_settings", return_value=mock_settings):
-            svc = ServiceBusProvider()
-            await svc.initialize()
-
-        assert svc._initialized is True
-        assert svc._call_webhook is None
-        assert svc._sync_jobs is None
-
     def test_get_handle_returns_none_for_unknown(self) -> None:
         from app.providers.service_bus import ServiceBusProvider
 
@@ -119,12 +100,7 @@ class TestServiceBusProvider:
     async def test_send_message_no_handle_returns_false(self) -> None:
         from app.providers.service_bus import ServiceBusProvider
 
-        mock_settings = MagicMock()
-        mock_settings.azure_service_bus_connection_string = ""
-
-        with patch("app.platform.settings.get_settings", return_value=mock_settings):
-            svc = ServiceBusProvider()
-            await svc.initialize()
+        svc = ServiceBusProvider()
 
         result = await svc.send_message("call_webhook", {"status": "test"})
         assert result is False

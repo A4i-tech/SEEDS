@@ -2,9 +2,11 @@ import React, { useEffect, useRef, useState } from "react";
 import { ReactComponent as ChevronDownIcon } from "../../../assets/icons/chevron-down.svg";
 import { ReactComponent as CheckmarkIcon } from "../../../assets/icons/checkmark.svg";
 import "./Select.css";
+import "./utilities.css";
 
 const Select = ({ id, value, onChange, options, placeholder }) => {
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
   const rootRef = useRef(null);
 
   useEffect(() => {
@@ -23,7 +25,13 @@ const Select = ({ id, value, onChange, options, placeholder }) => {
     };
   }, [open]);
 
+  useEffect(() => {
+    if (!open) setQuery("");
+  }, [open]);
+
   const selected = options.find((opt) => opt.value === value);
+  const needle = query.trim().toLowerCase();
+  const visible = options.filter((opt) => opt.label.toLowerCase().includes(needle));
 
   return (
     <div className="custom-select" ref={rootRef}>
@@ -42,7 +50,18 @@ const Select = ({ id, value, onChange, options, placeholder }) => {
       </button>
       {open && (
         <ul className="custom-select-list" role="listbox">
-          {options.map((opt) => (
+          <li>
+            <input
+              autoFocus
+              className="input-field custom-select-search"
+              placeholder="Search..."
+              aria-label="Search options"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+            />
+          </li>
+          {visible.length === 0 && <li className="custom-select-option">No results</li>}
+          {visible.map((opt) => (
             <li key={opt.value}>
               <button
                 type="button"

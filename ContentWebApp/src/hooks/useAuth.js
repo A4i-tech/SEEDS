@@ -1,9 +1,10 @@
 import { useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { SEEDS_URL } from "../Constants";
-import { getAuthHeaders, isAuthenticated, clearAuth } from "../utils/authHelpers";
+import { getAuthHeaders, getTokenPayload } from "../utils/authHelpers";
 import { apiFetch } from "../services/api";
 import { TeacherDto } from "../dto/TeacherDto";
+import { useAuthContext } from "../contexts/AuthContext";
 
 let cachedUserProfile = null;
 let cachedUserPromise = null;
@@ -13,38 +14,19 @@ export const resetUserCache = () => {
   cachedUserPromise = null;
 };
 
-const getTokenPayload = () => {
-  const token = localStorage.getItem("authToken");
-  if (!token) {
-    return {};
-  }
-
-  try {
-    const [, payload] = token.split(".");
-    if (!payload) {
-      return {};
-    }
-
-    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
-    const padded = normalized.padEnd(normalized.length + ((4 - normalized.length % 4) % 4), "=");
-    return JSON.parse(atob(padded));
-  } catch (_error) {
-    return {};
-  }
-};
-
 export const useAuth = () => {
   const navigate = useNavigate();
+  const { logout: contextLogout, isAuthenticated } = useAuthContext();
 
   const getHeaders = useCallback(() => {
     return getAuthHeaders();
   }, []);
 
-  const logout = useCallback(() => {
-    clearAuth();
+  const logout = useCallback(async () => {
+    await contextLogout();
     resetUserCache();
     navigate("/");
-  }, [navigate]);
+  }, [contextLogout, navigate]);
 
   const getCurrentUser = useCallback(async () => {
     if (cachedUserProfile) {
@@ -105,6 +87,6 @@ export const useAuth = () => {
     logout,
     getCurrentUser,
     getCurrentUserName,
-    isAuthenticated: isAuthenticated(),
+    isAuthenticated,
   };
 };

@@ -83,6 +83,11 @@ class ValidationError(AppError):
         super().__init__("VALIDATION_ERROR", message, 422)
 
 
+class ServiceUnavailableError(AppError):
+    def __init__(self, message: str) -> None:
+        super().__init__("SERVICE_UNAVAILABLE", message, 503)
+
+
 class ConfigurationError(AppError):
     def __init__(self, message: str) -> None:
         super().__init__("CONFIGURATION_ERROR", message, 500)

@@ -24,8 +24,10 @@ runs:
     - name: Extract coverage percentage
       id: coverage
       shell: bash
+      env:
+        DIRECTORY: ${{ inputs.directory }}
       run: |
-        cd ${{ inputs.directory }}
+        cd "$DIRECTORY"
         COVERAGE=$(node -e "
         try {
           const fs = require('fs');

@@ -32,5 +32,7 @@ runs:
         key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
 
     - name: Install dependencies
-      run: cd ${{ inputs.directory }} && poetry install --with test
+      env:
+        DIRECTORY: ${{ inputs.directory }}
+      run: cd "$DIRECTORY" && poetry install --with test
       shell: bash

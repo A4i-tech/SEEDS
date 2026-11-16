@@ -1,5 +1,5 @@
 import { Navigate } from "react-router-dom";
-import { isAuthenticated } from "../utils/authHelpers";
+import { useAuthContext } from "../contexts/AuthContext";
 import { ROUTES } from "../constants/routes";
 
 /**
@@ -10,7 +10,8 @@ import { ROUTES } from "../constants/routes";
  * @returns {JSX.Element} The public component or redirect to classrooms
  */
 const PublicRoute = ({ element }) => {
-  return isAuthenticated() ? <Navigate to={ROUTES.CLASSROOMS} replace /> : element;
+  const { isAuthenticated } = useAuthContext();
+  return isAuthenticated ? <Navigate to={ROUTES.CLASSROOMS} replace /> : element;
 };
 
 export default PublicRoute;

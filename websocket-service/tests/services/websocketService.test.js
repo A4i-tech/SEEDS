@@ -94,6 +94,7 @@ describe("WebSocketService", () => {
       expect(connectionManager.getConnection).toHaveBeenCalledWith(
         "test-client"
       );
+      expect(azureBlobService.getBlobData).toHaveBeenCalledTimes(1);
       expect(azureBlobService.getBlobData).toHaveBeenCalledWith(
         "container",
         "audio.wav"
@@ -201,7 +202,8 @@ describe("WebSocketService", () => {
       // Test resume with system audio (should ignore)
       websocketService.resumeAudioContent("test-client");
       expect(consoleSpy).toHaveBeenCalledWith(
-        "Resume request ignored for ID: test-client; system audio content is playing or queued"
+        "Resume request ignored for ID: test-client; system audio content is playing or queued",
+        expect.objectContaining({ eventType: "audio_resume_ignored" })
       );
 
 
@@ -344,7 +346,7 @@ describe("WebSocketService", () => {
       jest.advanceTimersByTime(50);
       expect(consoleSpy).toHaveBeenCalledWith(
         "Error sending data over WebSocket for ID: test-client",
-        testError
+        expect.objectContaining({ message: testError.message, eventType: "audio_send_error" })
       );
 
       expect(mockWebSocket.close).toHaveBeenCalled();
@@ -378,7 +380,7 @@ describe("WebSocketService", () => {
       websocketService.pauseAudioContent("test-client");
       expect(consoleSpy).toHaveBeenCalledWith(
         "Error sending playback status over WebSocket for ID: test-client",
-        controlError
+        expect.objectContaining({ message: controlError.message, eventType: "playback_status_send_error" })
       );
 
       mockControlWebSocket.send.mockImplementation(

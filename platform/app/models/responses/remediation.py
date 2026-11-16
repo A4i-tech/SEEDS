@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from app.models.remediation_job import (
     ArtifactName,
     JobMetrics,
+    JobModels,
     JobProgress,
     JobStage,
     JobStatus,
@@ -23,6 +24,7 @@ class RemediationJobResponse(BaseModel):
     artifacts: dict[ArtifactName, str]
     counts: dict[str, int]
     metrics: JobMetrics
+    models: JobModels
     progress: JobProgress
     draft_remediated_md: str | None
     verified_at: str | None
@@ -33,6 +35,7 @@ class RemediationJobResponse(BaseModel):
     finished_at: str | None
     target_language: str | None
     translation_error: str | None
+    source_page_count: int | None
 
 
 class RemediationJobListResponse(BaseModel):
