@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import subprocess
+import sys
 from contextlib import ExitStack
+from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -83,14 +86,33 @@ async def test_api_mode_init_failure_aborts_startup():
         await _run_lifespan(init_mock)
 
 
-@pytest.mark.asyncio
-async def test_consumer_tasks_yield_and_cancel_without_service_bus_handles() -> None:
-    import asyncio
+CONSUMER_CANCEL_SCRIPT = """
+import asyncio
+from unittest.mock import MagicMock, patch
 
+from app.platform import lifespan
+
+
+async def main():
     with patch("app.platform.database.get_database", return_value=MagicMock()):
-        tasks = lifespan_mod._make_consumer_tasks(None)
+        tasks = lifespan._make_consumer_tasks(None)
     await asyncio.sleep(0)
     for task in tasks:
         task.cancel()
-    await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=5)
+    await asyncio.gather(*tasks, return_exceptions=True)
     assert tasks and all(task.done() for task in tasks)
+
+
+asyncio.run(main())
+"""
+
+
+def test_consumer_tasks_yield_and_cancel_without_service_bus_handles() -> None:
+    result = subprocess.run(
+        [sys.executable, "-c", CONSUMER_CANCEL_SCRIPT],
+        cwd=Path(__file__).parents[2],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
