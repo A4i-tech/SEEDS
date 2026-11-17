@@ -78,4 +78,4 @@ jobs:
                 body: [{type: "TextBlock", text: $text, wrap: true}]
               }
             }]
-          }' | curl --fail-with-body -sS -X POST -H 'Content-Type: application/json' -d @- "$WEBHOOK_URL"
+          }' | curl --fail-with-body -sS -X POST -H 'Content-Type: application/json' -d @- "$WEBHOOK_URL" || echo "Webhook notification failed, not failing the run for it." >&2
