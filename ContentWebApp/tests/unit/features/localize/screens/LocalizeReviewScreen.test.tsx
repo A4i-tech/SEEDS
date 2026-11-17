@@ -88,6 +88,11 @@ async function openReview() {
   await selectOption('Select language', 'Kannada')
 }
 
+const confirmApproveAll = async () => {
+  const dialog = await screen.findByRole('dialog')
+  fireEvent.click(within(dialog).getByRole('button', { name: 'Approve all' }))
+}
+
 describe('LocalizeReviewScreen', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -143,6 +148,7 @@ describe('LocalizeReviewScreen', () => {
     await screen.findByText('Hello World')
 
     fireEvent.click(screen.getByRole('button', { name: 'Approve all' }))
+    await confirmApproveAll()
 
     await waitFor(() =>
       expect(bulkApproveTranslations).toHaveBeenCalledWith('site-1', {
@@ -164,6 +170,7 @@ describe('LocalizeReviewScreen', () => {
     await screen.findByText('Hello World')
     fireEvent.click(screen.getByRole('tab', { name: /^Pending/ }))
     fireEvent.click(screen.getByRole('button', { name: 'Approve all' }))
+    await confirmApproveAll()
 
     await waitFor(() => expect(approveTranslation).toHaveBeenCalledWith('k1', { lang: 'kn' }))
     expect(approveTranslation).toHaveBeenCalledTimes(1)
@@ -176,6 +183,7 @@ describe('LocalizeReviewScreen', () => {
     await screen.findByText('Hello World')
     fireEvent.change(screen.getByPlaceholderText('Search source or translated text...'), { target: { value: 'Hello' } })
     fireEvent.click(screen.getByRole('button', { name: 'Approve all' }))
+    await confirmApproveAll()
 
     await waitFor(() => expect(approveTranslation).toHaveBeenCalledWith('k1', { lang: 'kn' }))
     expect(approveTranslation).toHaveBeenCalledTimes(1)
@@ -187,6 +195,7 @@ describe('LocalizeReviewScreen', () => {
     await openReview()
     await screen.findByText('Hello World')
     fireEvent.click(screen.getByRole('button', { name: 'Approve all' }))
+    await confirmApproveAll()
 
     expect(await screen.findByText('Approved 1, skipped 2, 3 failed.')).toBeInTheDocument()
   })
@@ -200,6 +209,20 @@ describe('LocalizeReviewScreen', () => {
 
     expect(await screen.findByText('Nothing to approve.')).toBeInTheDocument()
     expect(bulkApproveTranslations).not.toHaveBeenCalled()
+  })
+
+  it('approve all asks for confirmation first and does nothing when cancelled', async () => {
+    await openReview()
+    await screen.findByText('Hello World')
+    fireEvent.click(screen.getByRole('button', { name: 'Approve all' }))
+
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText('Approve all translations?')).toBeInTheDocument()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+    expect(bulkApproveTranslations).not.toHaveBeenCalled()
+    expect(approveTranslation).not.toHaveBeenCalled()
   })
 
   it('edit translation commits on blur via updateTranslation', async () => {
@@ -296,11 +319,11 @@ describe('LocalizeReviewScreen', () => {
     await waitFor(() => expect(screen.getByPlaceholderText('Select language')).toHaveValue('Kannada'))
   })
 
-  it('shows Localize and the site name as breadcrumbs', async () => {
+  it('shows a back link to Localize followed by the site name', async () => {
     await openReview()
 
     expect(screen.getByRole('link', { name: 'Localize' })).toBeInTheDocument()
-    expect(within(screen.getByRole('navigation', { name: 'Breadcrumb' })).getByText('A')).toBeInTheDocument()
+    expect(screen.getByText('A', { selector: '[aria-current="page"]' })).toBeInTheDocument()
   })
 
   it('shows the pending, approved and all counts on the tabs', async () => {

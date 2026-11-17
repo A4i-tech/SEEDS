@@ -1,4 +1,4 @@
-import { Alert, Anchor, Button, Chip, Group, Select, Stack, Switch, Text, TextInput } from '@mantine/core';
+import { Alert, Anchor, Button, Chip, Group, Select, Stack, Text, TextInput } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { useState } from 'react';
 import { useNavigate, useParams } from '@tanstack/react-router';
@@ -23,7 +23,7 @@ function toDomain(value: string): string {
 function SiteForm({ site }: { site: SiteDraft }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { languagesState, languages, languageName, create, creating, update, updating } = useLocalizeSites();
+  const { languagesState, languages, create, creating, update, updating } = useLocalizeSites();
   const edit = site.id !== '';
   const [search, setSearch] = useState('');
 
@@ -33,17 +33,16 @@ function SiteForm({ site }: { site: SiteDraft }) {
       domain: site.domain,
       status: site.status || NEW_SITE.status,
       codes: site.languages.map((l) => l.code),
-      disabled: site.languages.filter((l) => !l.enabled).map((l) => l.code),
     },
     validate: { domain: (value) => (toDomain(value) === '' ? t('localize.incomplete') : null) },
   });
 
-  const handleSave = form.onSubmit(({ name, domain, status, codes, disabled }) => {
+  const handleSave = form.onSubmit(({ name, domain, status, codes }) => {
     const fields = {
       domain: toDomain(domain),
       name: name.trim(),
       status,
-      languages: codes.map((code) => ({ code, enabled: !disabled.includes(code) })),
+      languages: codes.map((code) => ({ code, enabled: true })),
     };
     const onSuccess = () => void navigate({ to: '/localize' });
     if (edit) update({ id: site.id, fields }, { onSuccess });
@@ -94,22 +93,6 @@ function SiteForm({ site }: { site: SiteDraft }) {
               ))}
           </Chip.Group>
         </Group>
-        {form.values.codes.map((code) => (
-          <Switch
-            key={code}
-            label={`${languageName(code)} · ${t('localize.languageEnabledLabel')}`}
-            description={t('localize.languageEnabledHint')}
-            checked={!form.values.disabled.includes(code)}
-            onChange={(e) =>
-              form.setFieldValue(
-                'disabled',
-                e.currentTarget.checked
-                  ? form.values.disabled.filter((c) => c !== code)
-                  : [...form.values.disabled, code],
-              )
-            }
-          />
-        ))}
         <Group gap="md">
           <Button type="submit" loading={creating || updating}>
             {edit ? t('localize.update') : t('localize.submitCount', { count: form.values.codes.length })}

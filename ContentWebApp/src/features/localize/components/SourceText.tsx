@@ -1,8 +1,7 @@
-import { Anchor } from '@mantine/core';
+import { Anchor, Box, Text } from '@mantine/core';
 import { useLayoutEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { truncateMiddle } from '../utils/truncateMiddle';
-import classes from './SourceText.module.css';
 
 export function SourceText({ text }: { text: string }) {
   const { t } = useTranslation();
@@ -21,13 +20,15 @@ export function SourceText({ text }: { text: string }) {
   }, [text, expanded]);
 
   return (
-    <div className={classes.cell}>
+    <Box w="clamp(10rem, 25vw, 16rem)">
       {expanded ? (
-        <span className={classes.full}>{text}</span>
+        <Text component="span" display="block" style={{ overflowWrap: 'anywhere' }}>
+          {text}
+        </Text>
       ) : (
-        <span ref={ref} className={classes.line} title={text}>
+        <Text component="span" display="block" truncate ref={ref} title={text}>
           {display}
-        </span>
+        </Text>
       )}
       {display !== text && (
         <Anchor
@@ -41,6 +42,6 @@ export function SourceText({ text }: { text: string }) {
           {expanded ? t('localize.showLess') : t('localize.showMore')}
         </Anchor>
       )}
-    </div>
+    </Box>
   );
 }
