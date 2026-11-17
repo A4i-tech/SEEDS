@@ -37,7 +37,7 @@ _UNMAPPED_RE = re.compile(r"\\(?:x[0-9a-f]{4}|y[0-9a-f]{5}|z[0-9a-f]{8})", re.IG
 _ODD_SPACE_RE = re.compile(r"[\u00a0\u2000-\u200a\u202f]")
 _CELL_MARK = "\ue000"
 _READ_FORMAT = "markdown+tex_math_dollars-raw_tex-smart"
-_PIPE_TABLES = "markdown-simple_tables-multiline_tables-grid_tables"
+_TABLE_MARK = "BRAILLETABLE"
 
 
 class BrailleWarning(BaseModel):
@@ -69,8 +69,19 @@ def validate_braille_job(job: RemediationJob) -> str:
     return job.language
 
 
-def _html_table_to_markdown(match: re.Match[str]) -> str:
-    return pypandoc.convert_text(match.group(0), _PIPE_TABLES, format="html")
+def _splice_tables(node: object, tables: list[list[dict]]) -> object:
+    if isinstance(node, list):
+        out = []
+        for child in node:
+            c = child.get("c") if isinstance(child, dict) else None
+            if isinstance(child, dict) and child["t"] == "Para" and len(c) == 1 and c[0]["t"] == "Str" and c[0]["c"].startswith(_TABLE_MARK):
+                out.extend(tables[int(c[0]["c"][len(_TABLE_MARK):])])
+            else:
+                out.append(_splice_tables(child, tables))
+        return out
+    if isinstance(node, dict):
+        return {k: _splice_tables(v, tables) for k, v in node.items()}
+    return node
 
 
 def _walk(node: object):
@@ -95,9 +106,17 @@ def markdown_to_braille_text(markdown: str) -> tuple[str, BrailleCounts, list[Br
         warnings.append(BrailleWarning(type="equation", detail=f"Equation converted from its spoken form: {text[:80]}", confidence="low"))
         return text
 
-    body = _HTML_TABLE_RE.sub(_html_table_to_markdown, _MATHML_RE.sub(spoken, markdown))
-    ast = pypandoc.convert_text(body, "json", format=_READ_FORMAT)
-    nodes = list(_walk(json.loads(ast)["blocks"]))
+    tables: list[list[dict]] = []
+
+    def stash_table(match: re.Match[str]) -> str:
+        tables.append(json.loads(pypandoc.convert_text(match.group(0), "json", format="html"))["blocks"])
+        return f"\n\n{_TABLE_MARK}{len(tables) - 1}\n\n"
+
+    body = _HTML_TABLE_RE.sub(stash_table, _MATHML_RE.sub(spoken, markdown))
+    doc = json.loads(pypandoc.convert_text(body, "json", format=_READ_FORMAT))
+    doc["blocks"] = _splice_tables(doc["blocks"], tables)
+    ast = json.dumps(doc)
+    nodes = list(_walk(doc["blocks"]))
     math = sum(n["t"] == "Math" for n in nodes)
     counts.equations += math
     counts.tables = sum(n["t"] == "Table" for n in nodes)
