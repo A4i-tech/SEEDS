@@ -18,6 +18,7 @@ on:
 
 permissions:
   contents: read
+  packages: read
 
 concurrency:
   group: teacher-webapp-e2e-${{ github.ref }}-${{ github.event_name }}-${{ inputs.e2e_instance }}
@@ -45,6 +46,14 @@ jobs:
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps chromium
+
+      - name: Log in to GitHub Container Registry
+        if: github.event_name != 'workflow_dispatch'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Wait for this commit's build to be live
         if: github.event_name != 'workflow_dispatch'
