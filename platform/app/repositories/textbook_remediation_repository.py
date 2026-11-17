@@ -58,13 +58,14 @@ class TextbookRemediationRepository:
 
     async def create(
         self, *, job_id: ObjectId, tenant_id: str, source_name: str, source_url: str, language: str,
-        target_language: str | None = None,
+        target_language: str | None = None, book_id: str | None = None,
     ) -> RemediationJob:
         initial_lang = "detecting" if language in AUTO_LANGUAGES else language
         doc: dict[str, object] = {
             "_id": job_id, "tenant_id": tenant_id, "source_name": source_name, "source_url": source_url,
             "language": initial_lang, "status": JobStatus.PENDING.value, "stage": None,
             "created_at": datetime.now(UTC).isoformat(), "target_language": target_language,
+            "book_id": book_id,
         }
         await self._col.insert_one(doc)
         return RemediationJob.from_doc(doc)
@@ -85,6 +86,15 @@ class TextbookRemediationRepository:
             except ValidationError as exc:
                 logger.error("remediation: skipping malformed job doc _id=%s: %s", d.get("_id"), exc)
         return jobs
+
+    async def list_by_book(
+        self, tenant_id: str, book_ids: list[str], *, include_draft: bool = False
+    ) -> list[RemediationJob]:
+        docs = await self._col.find(
+            {"tenant_id": tenant_id, "deleted_at": None, "book_id": {"$in": book_ids}},
+            None if include_draft else {"draft_remediated_md": 0},
+        ).to_list(length=None)
+        return [RemediationJob.from_doc(d) for d in docs]
 
     async def _update(self, job_id: str, fields: dict[str, object]) -> RemediationJob | None:
         doc = await self._col.find_one_and_update(

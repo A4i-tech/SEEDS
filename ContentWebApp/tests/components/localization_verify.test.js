@@ -76,6 +76,8 @@ function renderWorkspace(scope) {
   return { ...utils, onScope };
 }
 
+const confirmApprove = () => userEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Approve" }));
+
 describe("Translate & Review — live component verification", () => {
   beforeEach(() => {
     jest.clearAllMocks();
@@ -257,6 +259,7 @@ describe("Translate & Review — live component verification", () => {
     await screen.findByText("Hello World");
     translationService.listTranslations.mockClear();
     await userEvent.click(screen.getByRole("button", { name: /Approve all/i }));
+    await confirmApprove();
 
     await waitFor(() =>
       expect(translationService.bulkApproveTranslations).toHaveBeenCalledWith({ siteId: "site-1", route: "/", lang: "kn" })
@@ -264,6 +267,38 @@ describe("Translate & Review — live component verification", () => {
     expect(translationService.approveTranslation).not.toHaveBeenCalled();
     expect(await screen.findByText("Approved 2, skipped 2")).toBeInTheDocument();
     await waitFor(() => expect(translationService.listTranslations).toHaveBeenCalled());
+  });
+
+  test("PASS — Approve All does nothing until the dialog is confirmed, and Cancel aborts", async () => {
+    translationService.listTranslations.mockResolvedValue([
+      makeDoc("k1", "Hello World", { translated: "A" }),
+      makeDoc("k2", "Good Morning", { translated: "B" }),
+      makeDoc("k3", "Already Approved", { translated: "X", status: "approved" }),
+    ]);
+    translationService.bulkApproveTranslations.mockResolvedValue({ approved: 2, skipped: 1 });
+    renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
+    await screen.findByText("Hello World");
+    await userEvent.click(screen.getByRole("button", { name: /Approve all/i }));
+    const dialog = screen.getByRole("dialog");
+    expect(within(dialog).getByText(/Approve 2 items/)).toBeInTheDocument();
+    expect(translationService.bulkApproveTranslations).not.toHaveBeenCalled();
+    await userEvent.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(translationService.bulkApproveTranslations).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByRole("button", { name: /Approve all/i }));
+    await confirmApprove();
+    await waitFor(() => expect(translationService.bulkApproveTranslations).toHaveBeenCalledTimes(1));
+  });
+
+  test("PASS — Approve All with every row already approved shows no dialog, only the Nothing to approve toast", async () => {
+    translationService.listTranslations.mockResolvedValue([
+      makeDoc("k1", "Hello World", { translated: "A", status: "approved" }),
+    ]);
+    renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
+    await screen.findByText("Hello World");
+    await userEvent.click(screen.getByRole("button", { name: /Approve all/i }));
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(await screen.findByText("Nothing to approve")).toBeInTheDocument();
   });
 
   test("PASS — a partial bulk approve failure shows the failed count and still reloads", async () => {
@@ -276,6 +311,7 @@ describe("Translate & Review — live component verification", () => {
     await screen.findByText("Hello World");
     translationService.listTranslations.mockClear();
     await userEvent.click(screen.getByRole("button", { name: /Approve all/i }));
+    await confirmApprove();
 
     expect(await screen.findByText("Approved 1, skipped 0, 1 failed")).toBeInTheDocument();
     await waitFor(() => expect(translationService.listTranslations).toHaveBeenCalled());
@@ -291,6 +327,7 @@ describe("Translate & Review — live component verification", () => {
     renderWorkspace({ siteId: "site-1", route: "/", lang: "kn" });
     await screen.findByText("Hello World");
     await userEvent.click(screen.getByRole("button", { name: /Approve all/i }));
+    await confirmApprove();
 
     expect(await screen.findByText("bulk boom")).toBeInTheDocument();
   });
@@ -307,6 +344,7 @@ describe("Translate & Review — live component verification", () => {
     await screen.findByText("Hello World");
     await userEvent.type(screen.getByPlaceholderText(/Search source or translated text/i), "Hello");
     await userEvent.click(screen.getByRole("button", { name: /Approve all/i }));
+    await confirmApprove();
 
     await waitFor(() => expect(translationService.approveTranslation).toHaveBeenCalledTimes(1));
     expect(translationService.approveTranslation).toHaveBeenCalledWith("k1", "kn");
@@ -328,6 +366,7 @@ describe("Translate & Review — live component verification", () => {
     await screen.findByText("Hello World");
     await userEvent.click(screen.getByRole("button", { name: /^Pending Review/ }));
     await userEvent.click(screen.getByRole("button", { name: /Approve all/i }));
+    await confirmApprove();
 
     await waitFor(() => expect(translationService.approveTranslation).toHaveBeenCalledTimes(2));
     expect(translationService.approveTranslation).toHaveBeenCalledWith("k1", "kn");
@@ -350,6 +389,7 @@ describe("Translate & Review — live component verification", () => {
     await screen.findByText("Hello World");
     await userEvent.type(screen.getByPlaceholderText(/Search source or translated text/i), "o");
     await userEvent.click(screen.getByRole("button", { name: /Approve all/i }));
+    await confirmApprove();
 
     expect(await screen.findByText("Approved 1, 1 failed")).toBeInTheDocument();
     expect(translationService.bulkApproveTranslations).not.toHaveBeenCalled();

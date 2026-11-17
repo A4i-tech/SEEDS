@@ -132,7 +132,10 @@ function Block({ block, jobId, editingId, focusIdRef, onEdit, onCommit, onCancel
   }
   return (
     <div style={{ display: "flex", gap: "8px", alignItems: "flex-start" }}>
-      <div className="remediation-block" onClick={() => onEdit(block.id)}>
+      <div
+        className="remediation-block"
+        onClick={() => !window.getSelection().toString() && onEdit(block.id)}
+      >
         <MarkdownViewer text={block.raw} jobId={jobId} />
       </div>
       <button

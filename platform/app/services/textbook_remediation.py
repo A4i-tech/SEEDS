@@ -3,15 +3,18 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 import tempfile
 from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import IO
 
+from azure.core.exceptions import ResourceNotFoundError
 from bson import ObjectId
 
 from app.models.remediation_job import (
     ARTIFACTS,
+    AUTO_LANGUAGES,
     STAGES,
     ArtifactName,
     JobStatus,
@@ -28,8 +31,10 @@ from app.models.responses.remediation import (
 from app.platform.error_handling import NotFoundError, ValidationError
 from app.platform.settings import get_settings
 from app.providers.blob_storage import BlobStorageProvider
+from app.remediation.edit_diff import edit_diff_pairs
 from app.remediation.render import compile_docx_tex_pdf
 from app.remediation.translate import run_translation
+from app.repositories.ocr_correction_repository import OcrCorrectionRepository
 from app.repositories.textbook_remediation_repository import TextbookRemediationRepository
 
 logger = logging.getLogger(__name__)
@@ -67,6 +72,7 @@ def serialize_job(job: RemediationJob) -> dict[str, object]:
         target_language=job.target_language,
         translation_error=job.translation_error,
         source_page_count=job.source_page_count,
+        book_id=job.book_id,
     ).model_dump(mode="json")
 
 
@@ -97,6 +103,7 @@ async def create_job(
     data: IO[bytes],
     language: str,
     target_language: str | None,
+    book_id: str | None = None,
 ) -> RemediationJob:
     job_id = ObjectId()
     url = await blob_provider.upload_file(
@@ -109,6 +116,7 @@ async def create_job(
         source_url=url,
         language=language,
         target_language=target_language,
+        book_id=book_id,
     )
 
 
@@ -191,15 +199,36 @@ async def save_draft(
     return updated
 
 
+# The path of one image in a Markdown link, after "](images/".
+_IMAGE_REF = re.compile(r'\]\(images/([^)\s"]+)')
+
+
+async def fetch_images(job: RemediationJob, markdown: str, out_dir: Path, blob_provider: BlobStorageProvider) -> str:
+    """Download the figures the Markdown shows into out_dir and point the links at them."""
+    container = get_settings().azure_storage_container
+    target = out_dir / "images" / job.job_id
+    target.mkdir(parents=True, exist_ok=True)
+    for name in {Path(n).name for n in _IMAGE_REF.findall(markdown)}:
+        try:
+            data = await blob_provider.download_file(container, f"textbook-remediation/{job.job_id}/images/{name}")
+        except ResourceNotFoundError:
+            logger.warning("Figure %s of job %s is missing; the document shows its description", name, job.job_id)
+            continue
+        (target / name).write_bytes(data)
+    # One folder per job, so figures of two chapters can never share a file name.
+    return _IMAGE_REF.sub(lambda m: f"](images/{job.job_id}/{Path(m.group(1)).name}", markdown)
+
+
 def _compile_verified(markdown: str, out_dir: Path) -> tuple[Path, Path, Path | None]:
     out_docx = out_dir / artifact_filename(ArtifactName.DOCX)
     out_tex = out_dir / artifact_filename(ArtifactName.TEX)
-    out_pdf = compile_docx_tex_pdf(markdown, out_dir, out_docx, out_tex)
+    out_pdf = compile_docx_tex_pdf(markdown, out_dir, out_docx, out_tex, resource_root=out_dir)
     return out_docx, out_tex, out_pdf
 
 
 async def verify_job(
     repo: TextbookRemediationRepository,
+    corrections: OcrCorrectionRepository,
     blob_provider: BlobStorageProvider,
     job: RemediationJob,
     *,
@@ -217,10 +246,20 @@ async def verify_job(
         with tempfile.TemporaryDirectory() as tmpdir:
             out_dir = Path(tmpdir)
             try:
-                out_docx, out_tex, out_pdf = await asyncio.to_thread(_compile_verified, job.draft_remediated_md, out_dir)
+                markdown = await fetch_images(job, job.draft_remediated_md, out_dir, blob_provider)
+                out_docx, out_tex, out_pdf = await asyncio.to_thread(_compile_verified, markdown, out_dir)
             except Exception as exc:
                 logger.error("Could not compile verified artifacts for job %s: %s", job.job_id, exc)
                 raise ValidationError(f"Could not build the verified document: {exc}") from exc
+
+            language = job.detected_language or job.language
+            if language not in AUTO_LANGUAGES:
+                for wrong, right in edit_diff_pairs(previous_md, job.draft_remediated_md):
+                    await corrections.add({
+                        "language": language, "wrong": wrong, "right": right,
+                        "grade": None, "subject": None, "context": None, "page": None,
+                        "status": "pending", "source": f"edit_diff:{job.job_id}", "added_by": edited_by,
+                    })
 
             container = get_settings().azure_storage_container
             verified: dict[str, str] = {}

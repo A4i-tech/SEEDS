@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 import hashlib
 import html
 import json
@@ -66,6 +67,23 @@ def as_jpeg(raw: bytes) -> tuple[bytes, str]:
         return raw, ext
 
 
+# An HTML comment, such as a page marker or a spoken note, across lines.
+_HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
+# One MathML element from its open tag to its close tag, across lines.
+_MATHML_RE = re.compile(r"<math\b.*?</math>", re.DOTALL)
+
+
+@functools.lru_cache(maxsize=512)
+def _mathml_to_tex(mathml: str) -> str:
+    # Cached: a document is built as docx and as tex, so each equation is met twice.
+    return pypandoc.convert_text(mathml, "markdown+tex_math_dollars", format="html").strip()
+
+
+def _prepare_markdown(text: str) -> str:
+    # Raw HTML is off, so pandoc would print comments and MathML as plain text.
+    return _MATHML_RE.sub(lambda m: _mathml_to_tex(m.group(0)), _HTML_COMMENT_RE.sub("", text))
+
+
 def markdown_to_format(
     text: str,
     to: str,
@@ -73,6 +91,7 @@ def markdown_to_format(
     resource_root: Path | None = None,
     reference_docx: Path | None = None,
 ) -> None:
+    text = _prepare_markdown(text)
     extra_args = ["--standalone"]
     if resource_root is not None:
         extra_args.append(f"--resource-path={resource_root}")

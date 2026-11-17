@@ -36,10 +36,25 @@ class RemediationJobResponse(BaseModel):
     target_language: str | None
     translation_error: str | None
     source_page_count: int | None
+    book_id: str | None
+
+
+class BookResponse(BaseModel):
+    book_id: str
+    title: str
+    language: str
+    job_ids: list[str]
+    created_at: str
 
 
 class RemediationJobListResponse(BaseModel):
     jobs: list[RemediationJobResponse]
+    books: list[BookResponse]
+
+
+class CreateBookResponse(BaseModel):
+    book_id: str
+    job_ids: list[str]
 
 
 class CreateRemediationJobResponse(BaseModel):

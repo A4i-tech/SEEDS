@@ -269,3 +269,22 @@ def test_page_without_ocr_text_drops_invented_text_blocks():
 
     assert "Physical Quantities" not in body
     assert corpus.unresolved_records[0]["type"] == "invented_text"
+
+
+def test_page_markers_and_spoken_notes_do_not_reach_the_document(tmp_path):
+    out = tmp_path / "out.txt"
+    render.markdown_to_format("<!-- page 1 -->\n\nHello\n\n<!-- spoken: x\nplus y -->\n\nBye", "plain", out)
+    text = out.read_text(encoding="utf-8")
+    assert "<!" not in text
+    assert "page 1" not in text
+    assert "Hello" in text
+    assert "Bye" in text
+
+
+def test_mathml_becomes_tex_math_not_visible_tags(tmp_path):
+    out = tmp_path / "out.tex"
+    mathml = '<math display="block"><mrow><mn>3</mn><mi>x</mi><mo>=</mo><mn>12</mn></mrow></math>'
+    render.markdown_to_format(f"Solve:\n\n{mathml}", "latex", out)
+    text = out.read_text(encoding="utf-8")
+    assert "<mo>" not in text
+    assert "3x = 12" in text

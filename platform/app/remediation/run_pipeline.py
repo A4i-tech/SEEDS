@@ -37,6 +37,7 @@ from omni_ingest.port.metadata_store import NullMetadataStore  # noqa: E402
 from pydantic import TypeAdapter  # noqa: E402
 
 from app.remediation import (  # noqa: E402, F401
+    apply_corrections,
     detach_content,
     safe_extract,
 )

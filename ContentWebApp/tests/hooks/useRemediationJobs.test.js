@@ -7,6 +7,10 @@ jest.mock("../../src/services/textbookRemediationService", () => ({
     getJobs: jest.fn(),
     getJob: jest.fn(),
     createJob: jest.fn(),
+    createBook: jest.fn(),
+    reorderBook: jest.fn(),
+    deleteBook: jest.fn(),
+    deleteJob: jest.fn(),
     streamJob: jest.fn(),
   },
 }));
@@ -124,4 +128,101 @@ test("aborts every stream on unmount", async () => {
   expect(signal.aborted).toBe(false);
   unmount();
   expect(signal.aborted).toBe(true);
+});
+
+const book = (overrides = {}) => ({
+  book_id: "book-1",
+  title: "Science",
+  language: "auto",
+  job_ids: ["c1", "c2"],
+  created_at: "2026-01-01T00:00:00Z",
+  ...overrides,
+});
+
+test("keeps the books from the listing", async () => {
+  textbookRemediationService.getJobs.mockResolvedValue({ jobs: [], books: [book()] });
+
+  const { result } = renderHook(() => useRemediationJobs());
+
+  await waitFor(() => expect(result.current.books).toHaveLength(1));
+});
+
+test("uploading a book creates it, then reloads jobs and books", async () => {
+  textbookRemediationService.getJobs
+    .mockResolvedValueOnce({ jobs: [], books: [] })
+    .mockResolvedValueOnce({
+      jobs: [job({ job_id: "c1", status: "pending", book_id: "book-1" })],
+      books: [book({ job_ids: ["c1"] })],
+    });
+  textbookRemediationService.createBook.mockResolvedValue({ book_id: "book-1", job_ids: ["c1"] });
+
+  const { result } = renderHook(() => useRemediationJobs());
+  await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+  const files = [new File(["x"], "c1.pdf")];
+  await act(async () => {
+    await result.current.uploadBook(files, { title: "Science", language: "auto", targetLanguage: "" });
+  });
+
+  expect(textbookRemediationService.createBook).toHaveBeenCalledWith(files, {
+    title: "Science",
+    language: "auto",
+    targetLanguage: "",
+  });
+  expect(result.current.books).toHaveLength(1);
+  expect(textbookRemediationService.streamJob).toHaveBeenCalledWith("c1", expect.any(Function), expect.anything());
+});
+
+test("reordering a book replaces it with the saved order", async () => {
+  textbookRemediationService.getJobs.mockResolvedValue({ jobs: [], books: [book()] });
+  textbookRemediationService.reorderBook.mockResolvedValue(book({ job_ids: ["c2", "c1"] }));
+
+  const { result } = renderHook(() => useRemediationJobs());
+  await waitFor(() => expect(result.current.books).toHaveLength(1));
+
+  await act(async () => {
+    await result.current.reorderBook("book-1", ["c2", "c1"]);
+  });
+
+  expect(textbookRemediationService.reorderBook).toHaveBeenCalledWith("book-1", ["c2", "c1"]);
+  expect(result.current.books[0].job_ids).toEqual(["c2", "c1"]);
+});
+
+test("removing a book drops it and its chapters", async () => {
+  textbookRemediationService.getJobs.mockResolvedValue({
+    jobs: [
+      job({ job_id: "c1", status: "verified", book_id: "book-1" }),
+      job({ job_id: "c2", status: "verified", book_id: "book-1" }),
+      job({ job_id: "solo", status: "verified", book_id: null }),
+    ],
+    books: [book()],
+  });
+  textbookRemediationService.deleteBook.mockResolvedValue("");
+
+  const { result } = renderHook(() => useRemediationJobs());
+  await waitFor(() => expect(result.current.books).toHaveLength(1));
+
+  await act(async () => {
+    await result.current.removeBook("book-1");
+  });
+
+  expect(result.current.books).toHaveLength(0);
+  expect(result.current.jobs.map((j) => j.job_id)).toEqual(["solo"]);
+});
+
+test("removing a chapter takes it out of its book order", async () => {
+  textbookRemediationService.getJobs.mockResolvedValue({
+    jobs: [job({ job_id: "c1", status: "verified", book_id: "book-1" })],
+    books: [book()],
+  });
+  textbookRemediationService.deleteJob.mockResolvedValue("");
+
+  const { result } = renderHook(() => useRemediationJobs());
+  await waitFor(() => expect(result.current.books).toHaveLength(1));
+
+  await act(async () => {
+    await result.current.remove("c1");
+  });
+
+  expect(result.current.books[0].job_ids).toEqual(["c2"]);
 });

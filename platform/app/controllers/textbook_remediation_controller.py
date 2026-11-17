@@ -9,6 +9,7 @@ from azure.core.exceptions import ResourceNotFoundError
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.remediation_job import (
     ARTIFACTS,
@@ -25,10 +26,12 @@ from app.models.responses.remediation import (
     ReviewSummaryResponse,
 )
 from app.models.user import UserRole
-from app.platform.auth.dependencies import require_role
+from app.platform.auth.dependencies import get_db, require_role
 from app.platform.error_handling import AppError, NotFoundError, ValidationError
 from app.platform.settings import get_settings
 from app.providers.blob_storage import BlobStorageProvider, get_blob_storage_provider
+from app.repositories.ocr_correction_repository import OcrCorrectionRepository
+from app.repositories.textbook_book_repository import TextbookBookRepository, get_textbook_book_repo
 from app.repositories.textbook_remediation_repository import (
     TextbookRemediationRepository,
     get_textbook_remediation_repo,
@@ -56,7 +59,7 @@ require_remediation_access = require_role(
     UserRole.TENANT.value, UserRole.SCHOOL_ADMIN.value, UserRole.CONTENT_CREATOR.value
 )
 
-MAX_PDF_BYTES = 200 * 1024 * 1024
+MAX_PDF_BYTES = 10 * 1024 * 1024
 
 _LANGUAGE_CODES = frozenset(lang["code"] for lang in SUPPORTED_LANGUAGES)
 
@@ -115,6 +118,22 @@ async def _get_job(repo: TextbookRemediationRepository, tenant_id: str, job_id: 
     return job
 
 
+async def validate_pdf_upload(file: UploadFile) -> None:
+    if file.content_type != "application/pdf":
+        raise ValidationError(f"Expected a PDF for {file.filename}, got {file.content_type!r}")
+    header = await file.read(5)
+    if header != b"%PDF-":
+        raise ValidationError(f"File {file.filename} is not a PDF")
+    file.file.seek(0, 2)
+    size = file.file.tell()
+    if size > MAX_PDF_BYTES:
+        raise ValidationError(
+            f"{file.filename} is {size / (1024 * 1024):.1f} MB. The limit is {MAX_PDF_BYTES // (1024 * 1024)} MB. "
+            "Split the book into chapter PDFs or compress the file, then upload again."
+        )
+    await file.seek(0)
+
+
 @router.post("/jobs", status_code=202, response_model=CreateRemediationJobResponse, summary="Upload a textbook PDF and queue it for remediation")
 async def create_remediation_job(
     file: UploadFile = File(..., description="The textbook PDF"),
@@ -124,16 +143,7 @@ async def create_remediation_job(
     repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
     blob_provider: BlobStorageProvider = Depends(get_blob_storage_provider),
 ) -> dict[str, str]:
-    if file.content_type != "application/pdf":
-        raise ValidationError(f"Expected a PDF, got {file.content_type!r}")
-    header = await file.read(5)
-    if header != b"%PDF-":
-        raise ValidationError("File is not a PDF")
-    file.file.seek(0, 2)
-    size = file.file.tell()
-    if size > MAX_PDF_BYTES:
-        raise ValidationError(f"PDF is larger than {MAX_PDF_BYTES // (1024 * 1024)} MB")
-    await file.seek(0)
+    await validate_pdf_upload(file)
     if language != "auto":
         _validate_language(language)
     if target_language:
@@ -155,9 +165,19 @@ async def list_remediation_jobs(
     limit: int = Query(20, ge=1, le=200),
     user: dict[str, object] = Depends(require_remediation_access),
     repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
+    book_repo: TextbookBookRepository = Depends(get_textbook_book_repo),
 ) -> dict[str, list[dict[str, object]]]:
-    jobs = await repo.list_jobs(str(user["tenant_id"]), limit=limit)
-    return {"jobs": [serialize_job(job) for job in jobs]}
+    tenant_id = str(user["tenant_id"])
+    jobs = {j.job_id: j for j in await repo.list_jobs(tenant_id, limit=limit)}
+    books = await book_repo.list_books(tenant_id)
+    # A long book must show every chapter, even when the limit cut the list.
+    for child in await repo.list_by_book(tenant_id, [str(b["book_id"]) for b in books]):
+        jobs.setdefault(child.job_id, child)
+    live = set(jobs)
+    return {
+        "jobs": [serialize_job(job) for job in jobs.values()],
+        "books": [{**b, "job_ids": [i for i in b["job_ids"] if i in live]} for b in books],
+    }
 
 
 @router.delete("/jobs/{job_id}", status_code=204, summary="Soft-delete a remediation job")
@@ -290,6 +310,7 @@ async def verify_remediation_job(
     payload: VerifyJobRequest,
     user: dict[str, object] = Depends(require_remediation_access),
     repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
+    db: AsyncDatabase = Depends(get_db),  # type: ignore[type-arg]
     blob_provider: BlobStorageProvider = Depends(get_blob_storage_provider),
 ) -> dict[str, object]:
     job = await _get_job(repo, str(user["tenant_id"]), job_id)
@@ -300,7 +321,7 @@ async def verify_remediation_job(
             "Your signed-in account has no email or account ID, so the review cannot be recorded. Sign in again.",
             400,
         )
-    updated = await verify_job(repo, blob_provider, job, title=payload.title, verified_by=identity, edited_by=identity)
+    updated = await verify_job(repo, OcrCorrectionRepository(db), blob_provider, job, title=payload.title, verified_by=identity, edited_by=identity)
     return serialize_job(updated)
 
 

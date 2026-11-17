@@ -134,6 +134,7 @@ class RemediationJob(BaseModel):
     translation_error: str | None = None
     deleted_at: str | None = None
     source_page_count: int | None = None
+    book_id: str | None = None
 
     def to_doc(self) -> dict[str, object]:
         return self.model_dump(mode="json", by_alias=True)
