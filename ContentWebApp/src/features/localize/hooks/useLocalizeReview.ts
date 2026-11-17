@@ -25,7 +25,7 @@ export function useLocalizeReview({ siteId, route, lang }: LocalizeReviewScope) 
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const authStatus = useAuthStore((s) => s.status);
-  const enabled = authStatus === 'authenticated' && siteId !== '' && route !== '';
+  const enabled = authStatus === 'authenticated' && route !== '';
 
   const list = useQuery({
     queryKey: localizeKeys.review(siteId, route),

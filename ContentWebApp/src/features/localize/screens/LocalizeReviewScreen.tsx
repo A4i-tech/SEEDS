@@ -6,7 +6,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearch } from '@tanstack/react-router';
 import type { DataTableColumn } from '@shared/components/DataTable';
-import { BackLink } from '@shared/components/BackLink';
+import { AppBreadcrumbs } from '@shared/components/AppBreadcrumbs';
 import { openConfirmDialog } from '@shared/components/ConfirmDialog';
 import { DataTable } from '@shared/components/DataTable';
 import { StatusBadge } from '@shared/components/StatusBadge';
@@ -16,7 +16,7 @@ import { SourceText } from '../components/SourceText';
 import { useLocalizeSites } from '../hooks/useLocalizeSites';
 import { useLocalizePages } from '../hooks/useLocalizePages';
 import { useLocalizeReview } from '../hooks/useLocalizeReview';
-import type { ReviewScope } from '../types/localize.types';
+import type { ReviewScope, Website } from '../types/localize.types';
 import type { Segment } from '../utils/segments';
 import { PageTitle } from '@shared/components/PageTitle';
 
@@ -54,9 +54,18 @@ function TranslationCell({ seg, onSave }: { seg: Segment; onSave: (id: string, t
 const SCOPE_KEY = 'seeds-localize-scope';
 const EMPTY_SCOPE: ReviewScope = { siteId: '', route: '', lang: '' };
 
+interface SiteReviewProps {
+  site: Website;
+  sites: Website[];
+  languages: { code: string }[];
+  languageName: (code: string) => string;
+  scope: ReviewScope;
+  setScope: (scope: ReviewScope) => void;
+}
+
 export function LocalizeReviewScreen() {
   const { t } = useTranslation();
-  const { sites, languages, languageName } = useLocalizeSites();
+  const { state: sitesState, sites, languages, languageName } = useLocalizeSites();
   const prefill = useSearch({ strict: false });
   const [stored, setStored] = useLocalStorage({ key: SCOPE_KEY, defaultValue: EMPTY_SCOPE, getInitialValueInEffect: false });
   const [picked, setPicked] = useState<ReviewScope | null>(null);
@@ -65,14 +74,24 @@ export function LocalizeReviewScreen() {
     setPicked(next);
     setStored(next);
   };
+  const site = sites.find((s) => s.site_id === scope.siteId) ?? sites[0];
+
+  if (sitesState.status === 'loading') return <Text c="dimmed">{t('common.loading')}</Text>;
+  if (!site) return <Text c="dimmed">{t('localize.pickSiteFirst')}</Text>;
+  return (
+    <SiteReview site={site} sites={sites} languages={languages} languageName={languageName} scope={scope} setScope={setScope} />
+  );
+}
+
+function SiteReview({ site, sites, languages, languageName, scope, setScope }: SiteReviewProps) {
+  const { t } = useTranslation();
   const [stage, setStage] = useState<StageFilter>('all');
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
-  const site = sites.find((s) => s.site_id === scope.siteId) ?? sites[0];
-  const siteId = site?.site_id ?? '';
-  const siteLangCodes = (site?.languages ?? []).filter((l) => l.enabled).map((l) => l.code);
+  const siteId = site.site_id;
+  const siteLangCodes = site.languages.filter((l) => l.enabled).map((l) => l.code);
   const langCodes = siteLangCodes.length > 0 ? siteLangCodes : languages.map((l) => l.code);
   const lang = langCodes.includes(scope.lang) ? scope.lang : (langCodes[0] ?? '');
 
@@ -95,10 +114,8 @@ export function LocalizeReviewScreen() {
     all: segments.length,
   };
 
-  const isLoading =
-    generating ||
-    (siteId !== '' && pagesState.status === 'loading') || (siteId !== '' && activeRoute !== '' && state.status === 'loading');
-  const ready = siteId !== '' && activeRoute !== '' && lang !== '';
+  const isLoading = generating || pagesState.status === 'loading' || (activeRoute !== '' && state.status === 'loading');
+  const ready = activeRoute !== '' && lang !== '';
 
   const q = query.trim().toLowerCase();
   const rows = segments.filter(
@@ -155,7 +172,9 @@ export function LocalizeReviewScreen() {
 
   return (
     <Stack gap="md">
-      <BackLink to="/localize" label={t('nav.localize')} current={site ? site.name || site.domain : undefined} />
+      <AppBreadcrumbs
+        crumbs={[{ label: t('nav.localize'), to: '/localize' }, { label: site.name || site.domain }]}
+      />
       <Group justify="space-between" align="flex-start" wrap="wrap" gap="md">
         <Stack gap="xs">
           <PageTitle title={t('localize.reviewTitle')} />
@@ -224,7 +243,6 @@ export function LocalizeReviewScreen() {
       </Tabs>
       {pagesState.status === 'error' && <Alert>{errorMessage(pagesState.error)}</Alert>}
       {state.status === 'error' && <Alert>{errorMessage(state.error)}</Alert>}
-      {!siteId && !isLoading && <Text c="dimmed">{t('localize.pickSiteFirst')}</Text>}
       <DataTable<Segment>
         columns={columns}
         rows={rows}

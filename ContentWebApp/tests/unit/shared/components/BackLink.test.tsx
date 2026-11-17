@@ -19,10 +19,4 @@ describe('BackLink', () => {
     renderWithProviders(<BackLink to="/create" label="Create" />)
     expect(screen.getByRole('link', { name: 'Create' }).querySelector('svg')).not.toBeNull()
   })
-
-  it('shows the current page name after the link when given', () => {
-    renderWithProviders(<BackLink to="/localize" label="Localize" current="a.com" />)
-    expect(screen.getByText('a.com')).toHaveAttribute('aria-current', 'page')
-    expect(screen.getByRole('link', { name: 'Localize' })).toBeInTheDocument()
-  })
 })
