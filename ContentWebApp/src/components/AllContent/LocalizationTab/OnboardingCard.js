@@ -27,9 +27,13 @@ export function OnboardingCard({ loc }) {
     setSelectedLanguages(next);
   };
 
+  const validLanguages = selectedLanguages.filter((code) =>
+    loc.languages.some((lang) => lang.code === code)
+  );
+
   const register = async (e) => {
     e.preventDefault();
-    if (!domain.trim() || selectedLanguages.length === 0 || busy) return;
+    if (!domain.trim() || validLanguages.length === 0 || busy) return;
     setBusy(true);
     setError("");
     try {
@@ -39,7 +43,7 @@ export function OnboardingCard({ loc }) {
         domain: cleanDomain,
         name: resolvedName,
         status: "Active",
-        languages: selectedLanguages.map((code) => ({ code, enabled: true })),
+        languages: validLanguages.map((code) => ({ code, enabled: true })),
       });
       setResult(site);
     } catch (err) {
@@ -146,7 +150,7 @@ export function OnboardingCard({ loc }) {
           ))}
         </div>
         {error && <p className="error-message">{error}</p>}
-        <button className="primary-button" type="submit" disabled={!domain.trim() || selectedLanguages.length === 0 || busy}>
+        <button className="primary-button" type="submit" disabled={!domain.trim() || validLanguages.length === 0 || busy}>
           {busy ? "Registering…" : "Register Website"}
         </button>
       </form>

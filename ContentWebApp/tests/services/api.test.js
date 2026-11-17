@@ -252,6 +252,96 @@ describe("apiFetch", () => {
     });
   });
 
+  describe("during token refresh and retry", () => {
+    const refreshed = () => fakeResponse({ ok: true, contentType: "application/json", json: { access_token: "new-token" } });
+
+    function retryThatHangs() {
+      let started;
+      const retryStarted = new Promise((resolve) => {
+        started = resolve;
+      });
+      global.fetch
+        .mockResolvedValueOnce(fakeResponse({ ok: false, status: 401, text: "expired" }))
+        .mockResolvedValueOnce(refreshed())
+        .mockImplementationOnce((url, options) => {
+          started();
+          return hangUntilAborted(url, options);
+        });
+      return retryStarted;
+    }
+
+    beforeEach(() => {
+      setAccessToken("expired-token");
+    });
+
+    afterEach(() => {
+      jest.useRealTimers();
+    });
+
+    it("propagates AbortError when the caller aborts the retried request", async () => {
+      const retryStarted = retryThatHangs();
+      const caller = new AbortController();
+      const promise = apiFetch("/x", { signal: caller.signal });
+      await retryStarted;
+      caller.abort();
+
+      const error = await promise.catch((e) => e);
+      expect(error.name).toBe("AbortError");
+      expect(error).not.toBeInstanceOf(ApiError);
+      expect(global.fetch.mock.calls[2][1].signal.aborted).toBe(true);
+    });
+
+    it("reports a timeout, not a cancellation, when the retried request exceeds timeoutMs", async () => {
+      jest.useFakeTimers();
+      const retryStarted = retryThatHangs();
+      const caller = new AbortController();
+      const assertion = expect(apiFetch("/x", { timeoutMs: 1000, signal: caller.signal })).rejects.toMatchObject({
+        name: "ApiError",
+        status: 0,
+        message: "Request timed out",
+      });
+      await retryStarted;
+      jest.advanceTimersByTime(1000);
+      await assertion;
+      expect(caller.signal.aborted).toBe(false);
+    });
+
+    it("keeps a caller cancellation as AbortError when the original timeout elapsed during a slow refresh", async () => {
+      jest.useFakeTimers();
+      let finishRefresh;
+      let retryStarted;
+      const refreshStarted = new Promise((startedRefresh) => {
+        retryStarted = new Promise((startedRetry) => {
+          global.fetch
+            .mockResolvedValueOnce(fakeResponse({ ok: false, status: 401, text: "expired" }))
+            .mockImplementationOnce(
+              () =>
+                new Promise((resolve) => {
+                  finishRefresh = () => resolve(refreshed());
+                  startedRefresh();
+                })
+            )
+            .mockImplementationOnce((url, options) => {
+              startedRetry();
+              return hangUntilAborted(url, options);
+            });
+        });
+      });
+
+      const caller = new AbortController();
+      const promise = apiFetch("/x", { timeoutMs: 1000, signal: caller.signal });
+      await refreshStarted;
+      jest.advanceTimersByTime(5000);
+      finishRefresh();
+      await retryStarted;
+      caller.abort();
+
+      const error = await promise.catch((e) => e);
+      expect(error.name).toBe("AbortError");
+      expect(error).not.toBeInstanceOf(ApiError);
+    });
+  });
+
   it("does not abort at 14999ms and aborts at 15000ms by default", async () => {
     jest.useFakeTimers();
     global.fetch.mockImplementation(hangUntilAborted);

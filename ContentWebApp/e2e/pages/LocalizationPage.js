@@ -41,10 +41,14 @@ class LocalizationPage {
     const page = this.page;
     await page.getByRole('button', { name: /translate & review/i }).click();
 
-    const triggers = page.locator('button.custom-select-trigger');
-    const siteTrigger = triggers.nth(0);
-    const pageTrigger = triggers.nth(1);
-    const langTrigger = triggers.nth(2);
+    const triggerFor = (label) =>
+      page
+        .locator('span.label', { hasText: new RegExp(`^${label}$`) })
+        .locator('xpath=..')
+        .locator('button.custom-select-trigger');
+    const siteTrigger = triggerFor('Site');
+    const pageTrigger = triggerFor('Page');
+    const langTrigger = triggerFor('Review Language');
 
     await siteTrigger.click();
     await page.getByRole('option', { name: siteLabel, exact: true }).click();

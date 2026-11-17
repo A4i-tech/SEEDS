@@ -12,19 +12,23 @@ test.beforeEach(async ({}, testInfo) => {
 const SOURCE_HEADING = 'Welcome to our school';
 
 async function injectSnippet(page, snippetTag) {
-  await page.evaluate((tag) => {
+  await expect(page.locator('#e2e-sdk-snippet-slot'), 'SDK fixture page has no #e2e-sdk-snippet-slot').toHaveCount(1);
+  const injectionError = await page.evaluate((tag) => {
     const slot = document.getElementById('e2e-sdk-snippet-slot');
     slot.innerHTML = tag;
     const script = slot.querySelector('script');
+    if (!script) return `snippet produced no <script> element: ${tag}`;
     const live = document.createElement('script');
     for (const { name, value } of Array.from(script.attributes)) live.setAttribute(name, value);
     live.src = script.getAttribute('src');
     document.body.appendChild(live);
+    return null;
   }, snippetTag);
+  expect(injectionError, 'SDK snippet injection failed').toBeNull();
 
   await expect.poll(async () => {
     return page.evaluate(() => window.__translationSdkInitialized === true);
-  }, { timeout: 15000 }).toBe(true);
+  }, { message: 'SDK script was injected but window.__translationSdkInitialized never became true', timeout: 15000 }).toBe(true);
 }
 
 test('registered site serves extracted and translated content through the embedded SDK', async ({ page, baseURL }) => {
@@ -35,11 +39,13 @@ test('registered site serves extracted and translated content through the embedd
   await loc.gotoLocalizationTab();
   await loc.registerSite({ domain, name: domain, languageCodes: ['fr'] });
   const snippet = await loc.getSnippet();
-  expect(snippet).toContain('data-site-id');
-  expect(snippet).toContain('/sdk.js');
-
-  const snippetTag = snippet.match(/<script[\s\S]*?<\/script>/)[0];
-  const siteId = snippetTag.match(/data-site-id="([^"]+)"/)[1];
+  const snippetTag = snippet.match(/<script[\s\S]*?<\/script>/)?.[0];
+  expect(snippetTag, `generated snippet has no <script> tag: ${snippet}`).toBeTruthy();
+  const scriptSrc = snippetTag.match(/src="([^"]+)"/)?.[1];
+  expect(scriptSrc, `generated snippet has no script src: ${snippetTag}`).toBeTruthy();
+  expect(new URL(scriptSrc).pathname, `snippet src is not the SDK: ${scriptSrc}`).toBe('/sdk.js');
+  const siteId = snippetTag.match(/data-site-id="([^"]+)"/)?.[1];
+  expect(siteId, `generated snippet has no data-site-id: ${snippetTag}`).toBeTruthy();
 
   await page.goto(fixtureUrl);
   const [extractResponse] = await Promise.all([
