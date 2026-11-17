@@ -72,7 +72,7 @@ function makeItem(key: string, sourceText: string, translated?: string, status =
 let items: TranslationItem[]
 
 async function selectOption(inputPlaceholder: string, optionName: string) {
-  fireEvent.mouseDown(screen.getByPlaceholderText(inputPlaceholder))
+  fireEvent.mouseDown(await screen.findByPlaceholderText(inputPlaceholder))
   fireEvent.click(await screen.findByRole('option', { name: optionName, hidden: true }))
 }
 
@@ -312,6 +312,22 @@ describe('LocalizeReviewScreen', () => {
     await waitFor(() => expect(listTranslations).toHaveBeenCalledWith('site-1', '/pricing'))
   })
 
+  it('shows a loading message while the sites load', () => {
+    vi.mocked(listSites).mockReturnValue(new Promise(() => {}))
+    renderWithProviders(<LocalizeReviewScreen />)
+
+    expect(screen.getByText('Loading…')).toBeInTheDocument()
+    expect(screen.queryByPlaceholderText('Select site')).toBeNull()
+  })
+
+  it('asks to pick a site when none are registered', async () => {
+    vi.mocked(listSites).mockResolvedValue([])
+    renderWithProviders(<LocalizeReviewScreen />)
+
+    expect(await screen.findByText('Pick a site above to start reviewing its translations.')).toBeInTheDocument()
+    expect(listTranslations).not.toHaveBeenCalled()
+  })
+
   it('falls back to the first site and its first language when nothing is remembered', async () => {
     renderWithProviders(<LocalizeReviewScreen />)
 
@@ -319,11 +335,11 @@ describe('LocalizeReviewScreen', () => {
     await waitFor(() => expect(screen.getByPlaceholderText('Select language')).toHaveValue('Kannada'))
   })
 
-  it('shows a back link to Localize followed by the site name', async () => {
+  it('shows Localize and the site name as breadcrumbs', async () => {
     await openReview()
 
     expect(screen.getByRole('link', { name: 'Localize' })).toBeInTheDocument()
-    expect(screen.getByText('A', { selector: '[aria-current="page"]' })).toBeInTheDocument()
+    expect(within(screen.getByRole('navigation', { name: 'Breadcrumb' })).getByText('A')).toBeInTheDocument()
   })
 
   it('shows the pending, approved and all counts on the tabs', async () => {
