@@ -1,4 +1,4 @@
-import { Alert, Anchor, AppShell, Breadcrumbs, Burger, Button, Chip, createTheme, Modal, MultiSelect, NavLink, Paper, Progress, Select, Stepper, Tabs, Text } from '@mantine/core';
+import { Alert, Anchor, AppShell, Breadcrumbs, Burger, Button, Chip, Code, createTheme, Modal, MultiSelect, NavLink, Paper, Progress, Select, Stepper, Tabs, Text } from '@mantine/core';
 import i18n from '../../shared/i18n';
 import { seedsColors } from './seedsPalette';
 import classes from './seedsComponents.module.css';
@@ -28,6 +28,7 @@ export const seedsTheme = createTheme({
     Anchor: Anchor.extend({ defaultProps: { size: 'sm' }, classNames: { root: classes.anchor } }),
     Modal: Modal.extend({ defaultProps: { closeButtonProps: { 'aria-label': i18n.t('common.close') } }, classNames: { title: classes.modalTitle } }),
     NavLink: NavLink.extend({ classNames: { root: classes.navLink, label: classes.navLinkLabel } }),
+    Code: Code.extend({ classNames: { root: classes.code } }),
     Paper: Paper.extend({ defaultProps: { withBorder: true }, classNames: { root: classes.paper } }),
     Alert: Alert.extend({ defaultProps: { color: 'red', variant: 'light' } }),
     Stepper: Stepper.extend({ classNames: { stepLabel: classes.stepLabel, stepIcon: classes.stepIcon, separator: classes.stepSeparator } }),
