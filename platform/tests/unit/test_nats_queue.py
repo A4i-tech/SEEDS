@@ -12,7 +12,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from nats.errors import TimeoutError as NatsTimeout
 
-from app.providers.nats_queue import _NatsQueueHandle
+from app.providers.nats_queue import DLQ_MAX_AGE_SECONDS, _NatsQueueHandle
 from app.providers.service_bus import MessageType, QueueMessage
 
 
@@ -85,6 +85,27 @@ async def test_unparseable_message_is_terminated_and_not_returned():
     )
     assert [m.message_id for m in msgs] == ["ok"]
     assert list(handle._message_map) == ["ok"]
+
+
+async def test_dlq_publish_failure_keeps_rest_of_batch():
+    bad = FakeRaw(b"not json")
+    handle = _handle(AsyncMock(return_value=[bad, FakeRaw(_body("ok"))]))
+    handle._js.publish.side_effect = RuntimeError("nats down")
+    msgs = await handle.receive()
+    bad.term.assert_not_awaited()
+    assert [m.message_id for m in msgs] == ["ok"]
+
+
+async def test_ensure_stream_adds_missing_subjects_and_max_age():
+    handle = _handle()
+    config = SimpleNamespace(subjects=["call_event_t"], max_age=0)
+    handle._js.stream_info = AsyncMock(return_value=SimpleNamespace(config=config))
+    handle._js.update_stream = AsyncMock()
+    await handle._ensure_stream()
+    handle._js.update_stream.assert_awaited_once_with(config)
+    assert "sync_jobs_t.dlq" in config.subjects
+    assert config.subjects.count("call_event_t") == 1
+    assert config.max_age == DLQ_MAX_AGE_SECONDS
 
 
 async def test_complete_acks_and_abandon_naks():

@@ -17,6 +17,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 MIN_SERVER_VERSION = (2, 10)
+DLQ_MAX_AGE_SECONDS = 30 * 24 * 3600
 
 
 class _NatsQueueHandle:
@@ -59,23 +60,31 @@ class _NatsQueueHandle:
 
     async def _ensure_stream(self) -> None:
         settings = self.settings
+        queues = [
+            settings.call_webhook_queue_name,
+            settings.dtmf_input_queue_name,
+            settings.call_event_queue_name,
+            settings.sync_jobs_queue_name,
+        ]
+        wanted = queues + [f"{q}.dlq" for q in queues]
         try:
-            await self._js.stream_info(settings.nats_stream)
+            config = (await self._js.stream_info(settings.nats_stream)).config
         except NotFoundError:
-            queues = [
-                settings.call_webhook_queue_name,
-                settings.dtmf_input_queue_name,
-                settings.call_event_queue_name,
-                settings.sync_jobs_queue_name,
-            ]
             await self._js.add_stream(
                 StreamConfig(
                     name=settings.nats_stream,
-                    subjects=queues + [f"{q}.dlq" for q in queues],
+                    subjects=wanted,
                     retention=RetentionPolicy.WORK_QUEUE,
                     storage=StorageType.FILE,
+                    max_age=DLQ_MAX_AGE_SECONDS,
                 )
             )
+            return
+        missing = [s for s in wanted if s not in (config.subjects or [])]
+        if missing or not config.max_age:
+            config.subjects = [*(config.subjects or []), *missing]
+            config.max_age = config.max_age or DLQ_MAX_AGE_SECONDS
+            await self._js.update_stream(config)
 
     async def close(self) -> None:
         if self._nc:
@@ -109,8 +118,11 @@ class _NatsQueueHandle:
                 msg = QueueMessage.from_json_string(raw.data.decode())
             except Exception as exc:  # noqa: BLE001
                 logger.error("Failed to parse message from %s: %s", self.queue_name, exc)
-                await self._publish_dlq(raw, f"seq-{raw.metadata.sequence.stream}", "ParseError")
-                await raw.term()
+                try:
+                    await self._publish_dlq(raw, f"seq-{raw.metadata.sequence.stream}", "ParseError")
+                    await raw.term()
+                except Exception as dlq_exc:  # noqa: BLE001
+                    logger.error("Failed to DLQ unparseable message on %s: %s", self.queue_name, dlq_exc)
                 continue
             msg.retry_count = raw.metadata.num_delivered - 1
             self._message_map[msg.message_id] = raw
