@@ -4,6 +4,8 @@ const BASE_URL = APP_CONFIG.BASE_URL;
 const CONF_BASE = `${BASE_URL}/conference`;
 export const API_ENDPOINTS = {
   LOGIN: `${BASE_URL}/teacher/login`,
+  LOGOUT: `${BASE_URL}/teacher/logout`,
+  REFRESH: `${BASE_URL}/auth/token/refresh`,
   GET_TEACHER_ME: `${BASE_URL}/teacher/me`,
   GET_STUDENTS: `${BASE_URL}/student`,
   GET_AUDIO_CONTENT: `${BASE_URL}/content`,
