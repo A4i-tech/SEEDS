@@ -126,4 +126,11 @@ export const textbookRemediationService = {
       body: JSON.stringify({ target_language: targetLanguage }),
     });
   },
+
+  async brailleJob(jobId) {
+    return apiFetch(`${BASE}/jobs/${encodeURIComponent(jobId)}/braille`, {
+      method: "POST",
+      headers: getAuthHeaders(),
+    });
+  },
 };

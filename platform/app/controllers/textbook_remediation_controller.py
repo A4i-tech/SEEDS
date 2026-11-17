@@ -29,6 +29,7 @@ from app.platform.auth.dependencies import require_role
 from app.platform.error_handling import AppError, NotFoundError, ValidationError
 from app.platform.settings import get_settings
 from app.providers.blob_storage import BlobStorageProvider, get_blob_storage_provider
+from app.remediation.braille import validate_braille_job
 from app.repositories.textbook_remediation_repository import (
     TextbookRemediationRepository,
     get_textbook_remediation_repo,
@@ -38,6 +39,7 @@ from app.services.textbook_remediation import (
     artifact_chunks as _artifact_chunks,
 )
 from app.services.textbook_remediation import (
+    braille_job,
     create_job,
     findings_page,
     review_summary,
@@ -316,6 +318,17 @@ async def translate_remediation_job(
     _validate_language(payload.target_language)
     updated = await translate_job(repo, blob_provider, job, payload.target_language)
     return serialize_job(updated)
+
+
+@router.post("/jobs/{job_id}/braille", response_model=RemediationJobResponse, summary="Generate a BRF file and review report from a verified document")
+async def braille_remediation_job(
+    job_id: str,
+    user: dict[str, object] = Depends(require_remediation_access),
+    repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
+    blob_provider: BlobStorageProvider = Depends(get_blob_storage_provider),
+) -> dict[str, object]:
+    job = await _get_job(repo, str(user["tenant_id"]), job_id)
+    return serialize_job(await braille_job(repo, blob_provider, job, validate_braille_job(job)))
 
 
 @router.get("/jobs/{job_id}/review-summary", response_model=ReviewSummaryResponse, summary="Aggregated review summary of figures, tables, and flags")

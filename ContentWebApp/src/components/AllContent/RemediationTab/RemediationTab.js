@@ -14,15 +14,6 @@ import "../shared/cards.css";
 import "../shared/buttons.css";
 import "../shared/tables.css";
 
-const ARTIFACT_LABELS = {
-  docx: "Word",
-  pdf: "PDF",
-  tex: "LaTeX",
-  translated_docx: "Word (translated)",
-  translated_pdf: "PDF (translated)",
-  translated_tex: "LaTeX (translated)",
-};
-
 const RemediationTab = () => {
   const navigate = useNavigate();
   const { jobs, isLoading, isUploading, error, upload, remove } = useRemediationJobs();
@@ -149,7 +140,7 @@ const RemediationTab = () => {
                                   )
                                 }
                               >
-                                {ARTIFACT_LABELS[entry.key]}
+                                {entry.label}
                               </button>
                             )
                         )}
