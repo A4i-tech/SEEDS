@@ -387,7 +387,7 @@ class TestEnrichBlocksWithContent:
         assert block["student_view_data"]["sources"] == ["v.mp4"]
 
     async def test_enriches_html_block(self) -> None:
-        # Exercises html-type dispatch wiring; stripping itself is covered elsewhere.
+        # Exercises html-type dispatch wiring and staff-only markup stripping.
         raw = '<div class="xblock"><p>Lesson</p><div class="wrap-instructor-info">staff debug</div></div>'
 
         def handler(request: httpx.Request) -> httpx.Response:

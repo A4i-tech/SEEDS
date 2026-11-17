@@ -130,6 +130,18 @@ class TestInit:
         kwargs = mock_client_cls.call_args.kwargs
         assert kwargs["private_key"] == raw_key
 
+    def test_init_strips_pem_private_key_with_leading_newline(self) -> None:
+        raw_key = "-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----"
+        with patch("vonage.Client", return_value=MagicMock()) as mock_client_cls:
+            VonageAPIProvider(
+                application_id="app-id",
+                private_key=f"\n{raw_key}\n",
+                vonage_number="15551234567",
+                conf_id="conf-1",
+            )
+        kwargs = mock_client_cls.call_args.kwargs
+        assert kwargs["private_key"] == raw_key
+
     def test_init_rejects_malformed_base64_private_key(self) -> None:
         with patch("vonage.Client", return_value=MagicMock()), pytest.raises(binascii.Error):
             VonageAPIProvider(
