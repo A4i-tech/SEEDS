@@ -9,9 +9,9 @@ import {
 
 const BULK_APPROVE_TIMEOUT_MS = 5 * 60 * 1000;
 
-export async function listTranslations(siteId: string, route: string): Promise<TranslationItem[]> {
+export async function listTranslations(siteId: string, route?: string): Promise<TranslationItem[]> {
   const { data } = await apiClient.get('/translations/list', {
-    params: { site_id: siteId, route },
+    params: route ? { site_id: siteId, route } : { site_id: siteId },
   });
   return z.array(translationItemSchema).parse(data);
 }

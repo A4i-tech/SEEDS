@@ -23,7 +23,7 @@ function toDomain(value: string): string {
 function SiteForm({ site }: { site: SiteDraft }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { languages, languageName, create, creating, update, updating } = useLocalizeSites();
+  const { languagesState, languages, languageName, create, creating, update, updating } = useLocalizeSites();
   const edit = site.id !== '';
   const [search, setSearch] = useState('');
 
@@ -70,6 +70,7 @@ function SiteForm({ site }: { site: SiteDraft }) {
           {...form.getInputProps('status')}
         />
         <Text variant="label">{t('localize.languages')}</Text>
+        {languagesState.status === 'error' && <Alert>{languagesState.error.message}</Alert>}
         <TextInput
           aria-label={t('localize.searchLanguages')}
           placeholder={t('localize.searchLanguages')}

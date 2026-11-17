@@ -19,14 +19,14 @@ describe('localize review api (translationService port)', () => {
   });
 
   it('bulkApproveTranslations reuses the 5-minute generate timeout', async () => {
-    mockedPost.mockResolvedValue({ data: { approved: 3 } });
+    mockedPost.mockResolvedValue({ data: { approved: 3, skipped: 1, failed: 2 } });
     const out = await bulkApproveTranslations('s1', { route: '/', lang: 'hi' });
     expect(mockedPost).toHaveBeenCalledWith(
       '/translations/bulk-approve',
       { route: '/', lang: 'hi' },
       expect.objectContaining({ params: { site_id: 's1' }, timeoutMs: 300000 }),
     );
-    expect(out).toEqual({ approved: 3 });
+    expect(out).toEqual({ approved: 3, skipped: 1, failed: 2 });
   });
 
   it('listTranslations uses the default timeout (no explicit timeoutMs)', async () => {

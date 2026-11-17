@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { renderWithProviders } from '../../../test-utils/renderWithProviders'
@@ -100,11 +100,39 @@ describe('LocalizeSitesScreen', () => {
     expect(screen.getByText(/data-api-base="https:\/\/api.example.org"/)).toBeInTheDocument()
   })
 
-  it('shows Disabled for a disabled language badge', async () => {
-    vi.mocked(listSites).mockResolvedValue([{ ...site, languages: [{ code: 'hi', enabled: false }] }])
+  it('lists up to two languages comma separated, then +N more that opens the site', async () => {
+    vi.mocked(getLanguages).mockResolvedValue([
+      { code: 'hi', name: 'Hindi' },
+      { code: 'kn', name: 'Kannada' },
+      { code: 'ta', name: 'Tamil' },
+      { code: 'te', name: 'Telugu' },
+    ])
+    vi.mocked(listSites).mockResolvedValue([
+      { ...site, languages: ['hi', 'kn', 'ta', 'te'].map((code) => ({ code, enabled: true })) },
+    ])
     renderWithProviders(<LocalizeSitesScreen />)
-    expect(await screen.findByText('Disabled')).toBeInTheDocument()
-    expect(screen.queryByText('Enabled')).not.toBeInTheDocument()
+    const row = (await screen.findByText('a.com')).closest('tr') as HTMLElement
+    expect(within(row).getByText(/Hindi, Kannada/)).toBeInTheDocument()
+    expect(within(row).queryByText(/Tamil/)).toBeNull()
+    fireEvent.click(within(row).getByRole('button', { name: '+2 more' }))
+    expect(navigate).toHaveBeenCalledWith({ to: '/localize/sites/$siteId/edit', params: { siteId: 's1' } })
+  })
+
+  it('still lists the sites when the languages call fails', async () => {
+    vi.mocked(getLanguages).mockRejectedValue(new Error('Languages down'))
+    vi.mocked(listSites).mockResolvedValue([site])
+    renderWithProviders(<LocalizeSitesScreen />)
+
+    expect(await screen.findByText('a.com')).toBeInTheDocument()
+    expect(await screen.findByText('Languages down')).toBeInTheDocument()
+  })
+
+  it('shows no +N more when there are two languages or fewer', async () => {
+    vi.mocked(listSites).mockResolvedValue([site])
+    renderWithProviders(<LocalizeSitesScreen />)
+    const row = (await screen.findByText('a.com')).closest('tr') as HTMLElement
+    expect(within(row).getByText('Hindi')).toBeInTheDocument()
+    expect(within(row).queryByRole('button', { name: /more/ })).toBeNull()
   })
 
   it('has no Review translations button and shows dot-separated row actions', async () => {
@@ -123,6 +151,6 @@ describe('LocalizeSitesScreen', () => {
     renderWithProviders(<LocalizeSitesScreen />)
     await screen.findByText('a.com')
     fireEvent.click(screen.getByRole('button', { name: 'Review' }))
-    expect(navigate).toHaveBeenCalledWith({ to: '/localize/review', search: { siteId: 's1' } })
+    expect(navigate).toHaveBeenCalledWith({ to: '/localize/review', search: { siteId: 'site-1' } })
   })
 })
