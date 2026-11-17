@@ -11,6 +11,8 @@ os.environ.setdefault("APP_MODE", "api")
 os.environ.setdefault("ENV", "development")
 
 
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
 import pytest_asyncio
 from bson import ObjectId
@@ -241,9 +243,11 @@ class TestSASTokenEndpoint:
     async def test_sas_token_valid_mp3(self, client, mock_db):
         tenant = await _seed_tenant(mock_db)
         token = _tenant_token(tenant["_id"])
-        resp = await client.get("/content/sasToken?blob_name=test.mp3", headers={"Authorization": f"Bearer {token}"})
-        # Will fail with Azure error, but should reach the endpoint
-        assert resp.status_code in (200, 400, 500)
+        mock_provider = MagicMock()
+        mock_provider.get_upload_sas_url = AsyncMock(return_value="https://example.blob.core.windows.net/input-container/test.mp3?sas")
+        with patch("app.controllers.content_controller.get_blob_storage_provider", return_value=mock_provider):
+            resp = await client.get("/content/sasToken?blob_name=test.mp3", headers={"Authorization": f"Bearer {token}"})
+        assert resp.status_code == 200
 
     @pytest.mark.asyncio
     async def test_sas_token_requires_auth(self, client, mock_db):

@@ -46,6 +46,8 @@ async def test_validate_url_allows_public_address(monkeypatch, url):
         ("http://169.254.169.254", "169.254.169.254"),
         ("http://10.0.0.1", "10.0.0.1"),
         ("http://192.168.1.1", "192.168.1.1"),
+        ("http://100.64.0.1", "100.64.0.1"),
+        ("http://100.100.100.200", "100.100.100.200"),
     ],
 )
 async def test_validate_url_blocks_private_and_link_local(monkeypatch, url, ip):

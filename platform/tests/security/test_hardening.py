@@ -373,6 +373,7 @@ async def test_content_job_retry_on_transient():
     job_id = job_result.inserted_id
     await content_col.insert_one({
         "_id": ObjectId(content_id),
+        "tenant_id": ObjectId(),
         "audio_content": [{"audio_url": "https://blob/input.mp3"}],
         "is_pull_model": False,
     })
@@ -397,7 +398,7 @@ async def test_content_job_retry_on_transient():
         patch("app.consumers.content_job_consumer._process_audio_item", side_effect=_flaky_process),
         patch("app.consumers.content_job_consumer.asyncio.sleep", new=AsyncMock()),
     ):
-        await _process_audio_content_job(job_doc, ContentJobRepository(db), ContentRepository(db), blob_provider)
+        await _process_audio_content_job(job_doc, ContentJobRepository(db), ContentRepository(db), blob_provider, db)
 
     updated_job = await jobs_col.find_one({"_id": job_id})
     assert updated_job["status"] == "completed", (
@@ -423,6 +424,7 @@ async def test_content_job_dead_letter_on_permanent():
     job_id = job_result.inserted_id
     await content_col.insert_one({
         "_id": ObjectId(content_id),
+        "tenant_id": ObjectId(),
         "audio_content": [{"audio_url": "https://blob/corrupt.mp3"}],
         "is_pull_model": False,
     })
@@ -439,8 +441,7 @@ async def test_content_job_dead_letter_on_permanent():
     from app.repositories.content_repository import ContentRepository
 
     with patch("app.consumers.content_job_consumer._process_audio_item", side_effect=_always_permanent):
-        with pytest.raises(ValueError, match="Corrupt file"):
-            await _process_audio_content_job(job_doc, ContentJobRepository(db), ContentRepository(db), blob_provider)
+        await _process_audio_content_job(job_doc, ContentJobRepository(db), ContentRepository(db), blob_provider, db)
 
     updated_job = await jobs_col.find_one({"_id": job_id})
     assert updated_job["status"] == "failed", (

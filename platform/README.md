@@ -59,6 +59,7 @@ cp env.example .env
 | `ENV` | no | `development` \| `staging` \| `production` (default: `development`) |
 | `MONGO_DB_CONNECTION_STRING` | yes | MongoDB connection string |
 | `SECRET_KEY` | yes | JWT signing secret |
+| `WEBHOOK_SECRET_ENCRYPTION_KEY` | yes | Comma-separated Fernet keys for webhook secrets; first encrypts, all decrypt. Generate with `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`. Rotate: prepend new key, deploy, run `python -m tools.reencrypt_webhook_secrets`, drop old key |
 | `AUTH_TYPE` | no | `native` \| `firebase` (default: `native`) |
 | `JWT_EXPIRES_IN` | no | Token expiry in ms or duration string (default: `3000000`) |
 | `VONAGE_API_KEY` | for calls | Vonage API key |

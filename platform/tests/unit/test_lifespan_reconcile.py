@@ -21,6 +21,8 @@ ENSURE_INDEXES_TARGETS = [
     "app.repositories.integration_client_repository.IntegrationClientRepository",
     "app.repositories.user_refresh_token_repository.UserRefreshTokenRepository",
     "app.repositories.integration_token_repository.IntegrationTokenRepository",
+    "app.repositories.content_aggregator_webhook_repository.ContentAggregatorWebhookRepository",
+    "app.repositories.content_aggregator_webhook_delivery_repository.ContentAggregatorWebhookDeliveryRepository",
 ]
 
 
