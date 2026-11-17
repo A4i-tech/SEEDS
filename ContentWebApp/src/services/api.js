@@ -152,7 +152,11 @@ export const apiFetch = async (
     if (error.name === "AbortError" && !timedOut) {
       throw error;
     }
-    throw new ApiError(timedOut ? "Request timed out" : error.message || "Network request failed", 0, null);
+    throw new ApiError(
+      timedOut ? "Request timed out" : error.message || "Network request failed",
+      0,
+      null
+    );
   } finally {
     clearTimeout(timer);
     signal?.removeEventListener("abort", forwardAbort);

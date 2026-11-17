@@ -9,6 +9,8 @@ test.beforeEach(async ({}, testInfo) => {
   testInfo.setTimeout(Math.max(testInfo.timeout, 360000));
 });
 
+const SOURCE_HEADING = 'Welcome to our school';
+
 async function injectSnippet(page, snippetTag) {
   await page.evaluate((tag) => {
     const slot = document.getElementById('e2e-sdk-snippet-slot');
@@ -37,19 +39,35 @@ test('registered site serves extracted and translated content through the embedd
   expect(snippet).toContain('/sdk.js');
 
   const snippetTag = snippet.match(/<script[\s\S]*?<\/script>/)[0];
+  const siteId = snippetTag.match(/data-site-id="([^"]+)"/)[1];
 
   await page.goto(fixtureUrl);
-  await injectSnippet(page, snippetTag);
+  const [extractResponse] = await Promise.all([
+    page
+      .waitForResponse(
+        (r) =>
+          r.url().endsWith('/translations/extract') &&
+          r.request().method() === 'POST' &&
+          r.request().postDataJSON()?.site_id === siteId,
+        { timeout: 15000 }
+      )
+      .catch((e) => {
+        throw new Error(`SDK never sent POST /translations/extract for site ${siteId}: ${e.message}`);
+      }),
+    injectSnippet(page, snippetTag),
+  ]);
+  expect(extractResponse.status()).toBe(202);
 
   await loc.gotoLocalizationTab();
-  await loc.approveAllPendingTranslations({ siteLabel: domain, route: '/e2e-sdk-test-page.html', lang: 'fr' });
+  await loc.approveAllPendingTranslations({ siteLabel: domain, siteId, route: '/e2e-sdk-test-page.html', lang: 'fr' });
+  const frenchHeading = (await page.getByLabel(`Translation for: ${SOURCE_HEADING}`).inputValue()).trim();
+  expect(frenchHeading).not.toBe('');
+  expect(frenchHeading).not.toBe(SOURCE_HEADING);
 
   await page.goto(fixtureUrl);
   await injectSnippet(page, snippetTag);
 
   await page.locator('#translation-sdk-widget select').selectOption('fr');
 
-  const heading = page.locator('#e2e-sdk-heading');
-  await expect(heading).not.toHaveText('Welcome to our school', { timeout: 15000 });
-  await expect(heading).not.toHaveText('', { timeout: 1000 });
+  await expect(page.locator('#e2e-sdk-heading')).toHaveText(frenchHeading, { timeout: 15000 });
 });

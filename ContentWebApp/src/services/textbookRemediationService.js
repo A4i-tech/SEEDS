@@ -16,7 +16,12 @@ export const textbookRemediationService = {
     body.append("language", language);
     body.append("target_language", targetLanguage);
     const { "Content-Type": _unused, ...headers } = getAuthHeaders();
-    return apiFetch(`${BASE}/jobs`, { timeoutMs: REMEDIATION_OPERATION_TIMEOUT_MS, method: "POST", headers, body });
+    return apiFetch(`${BASE}/jobs`, {
+      timeoutMs: REMEDIATION_OPERATION_TIMEOUT_MS,
+      method: "POST",
+      headers,
+      body,
+    });
   },
 
   async getJobs(limit = 20) {

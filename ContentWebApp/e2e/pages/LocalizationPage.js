@@ -1,4 +1,15 @@
 // @ts-check
+const { expect } = require('@playwright/test');
+
+function isScopedPost(response, path, siteId, lang) {
+  const url = new URL(response.url());
+  return (
+    response.request().method() === 'POST' &&
+    url.pathname.endsWith(path) &&
+    url.searchParams.get('site_id') === siteId &&
+    (lang === undefined || url.searchParams.get('lang') === lang)
+  );
+}
 
 class LocalizationPage {
   constructor(page) {
@@ -23,10 +34,10 @@ class LocalizationPage {
   }
 
   async getSnippet() {
-    return this.page.locator('[data-testid="sdk-snippet"], pre, code').first().innerText();
+    return this.page.getByTestId('sdk-snippet').first().innerText();
   }
 
-  async approveAllPendingTranslations({ siteLabel, route, lang }) {
+  async approveAllPendingTranslations({ siteLabel, siteId, route, lang }) {
     const page = this.page;
     await page.getByRole('button', { name: /translate & review/i }).click();
 
@@ -49,14 +60,39 @@ class LocalizationPage {
         `Expected exactly one language option for site registered with lang "${lang}", found ${langCount}`
       );
     }
-    await langOptions.first().click();
+    const [generateResponse] = await Promise.all([
+      page.waitForResponse((r) => isScopedPost(r, '/translations/generate', siteId, lang), { timeout: 300000 }),
+      langOptions.first().click(),
+    ]).catch((e) => {
+      throw new Error(`No POST /translations/generate for site ${siteId}, lang ${lang}: ${e.message}`);
+    });
+    if (generateResponse.status() !== 200) {
+      throw new Error(
+        `Generation for lang ${lang} failed with HTTP ${generateResponse.status()}: ${await generateResponse.text()}`
+      );
+    }
 
-    // Generation runs server-side after scope selection and can take up to
-    // GENERATE_TIMEOUT_MS (5 minutes); wait for a real segment row before
-    // approving so "Approve all" has something to approve.
-    await page.locator('table.content-table tbody tr').first().waitFor({ timeout: 300000 });
+    const translations = page.locator('table.content-table tbody tr textarea');
+    await expect
+      .poll(() => translations.evaluateAll((els) => els.length > 0 && els.every((el) => el.value.trim() !== '')), {
+        message: `Some ${lang} translations are still empty in the review table`,
+        timeout: 30000,
+      })
+      .toBe(true);
 
-    await page.getByRole('button', { name: 'Approve all' }).click();
+    const rows = page.locator('table.content-table tbody tr');
+    const rowCount = await rows.count();
+    const [approveResponse] = await Promise.all([
+      page.waitForResponse((r) => isScopedPost(r, '/translations/bulk-approve', siteId), { timeout: 60000 }),
+      page.getByRole('button', { name: 'Approve all' }).click(),
+    ]).catch((e) => {
+      throw new Error(`No POST /translations/bulk-approve for site ${siteId}: ${e.message}`);
+    });
+    expect(approveResponse.status(), `bulk-approve failed: ${await approveResponse.text()}`).toBe(200);
+    expect(await approveResponse.json()).toMatchObject({ approved: rowCount, skipped: 0, failed: 0 });
+
+    await expect(rows.filter({ hasText: 'Pending Review' })).toHaveCount(0);
+    await expect(rows.filter({ hasText: 'Approved' })).toHaveCount(rowCount);
   }
 }
 
