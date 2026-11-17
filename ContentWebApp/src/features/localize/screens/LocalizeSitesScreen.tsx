@@ -24,7 +24,6 @@ import type { Website } from '../types/localize.types';
 import { useLocalizeSites } from '../hooks/useLocalizeSites';
 import { sdkSnippet, devToolsSnippet } from '../utils/siteSnippets';
 import { SiteSnippetModal } from '../components/SiteSnippetModal';
-import classes from './LocalizeSitesScreen.module.css';
 import { PageTitle } from '@shared/components/PageTitle';
 import { RowActions } from '@shared/components/RowActions';
 
@@ -118,12 +117,7 @@ export function LocalizeSitesScreen() {
   return (
     <Stack gap="md">
       <Group justify="space-between" align="flex-start" wrap="wrap" gap="md">
-        <Stack gap="xs">
-          <PageTitle title={t('localize.title')} />
-          <Text size="sm" c="dimmed">
-            {t('localize.description')}
-          </Text>
-        </Stack>
+        <PageTitle title={t('localize.title')} />
         <Group gap="md">
           <Button
             leftSection={<Plus size={16} aria-hidden />}
@@ -190,15 +184,6 @@ export function LocalizeSitesScreen() {
         )}
         actionsLabel=""
       />
-      <Button
-        variant="outline"
-        fullWidth
-        h={48}
-        className={classes.addButton}
-        onClick={() => void navigate({ to: '/localize/add' })}
-      >
-        + {t('localize.addSite')}
-      </Button>
       {snippetRow && (
         <SiteSnippetModal
           title={t('localize.snippetTitle', { name: siteDisplayName(snippetRow) })}

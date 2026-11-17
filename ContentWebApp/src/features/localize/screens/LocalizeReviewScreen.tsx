@@ -7,7 +7,8 @@ import { useTranslation } from 'react-i18next';
 import { useSearch } from '@tanstack/react-router';
 import { z } from 'zod';
 import type { DataTableColumn } from '@shared/components/DataTable';
-import { AppBreadcrumbs } from '@shared/components/AppBreadcrumbs';
+import { BackLink } from '@shared/components/BackLink';
+import { openConfirmDialog } from '@shared/components/ConfirmDialog';
 import { DataTable } from '@shared/components/DataTable';
 import { StatusBadge } from '@shared/components/StatusBadge';
 import { ApiError } from '@shared/services/apiClient';
@@ -119,7 +120,12 @@ export function LocalizeReviewScreen() {
       notifications.show({ message: t('localize.nothingToApprove') });
       return;
     }
-    approveAll({ ids, whole: stage === 'all' && q === '' });
+    openConfirmDialog({
+      title: t('localize.approveAllTitle'),
+      confirmLabel: t('localize.approveAll'),
+      cancelLabel: t('dialog.cancel'),
+      onConfirm: () => approveAll({ ids, whole: stage === 'all' && q === '' }),
+    });
   };
 
   const columns: DataTableColumn<Segment>[] = [
@@ -153,11 +159,16 @@ export function LocalizeReviewScreen() {
 
   return (
     <Stack gap="md">
-      <AppBreadcrumbs
-        crumbs={[{ label: t('nav.localize'), to: '/localize' }, ...(site ? [{ label: site.name || site.domain }] : [])]}
-      />
-      <PageTitle title={t('localize.reviewTitle')} />
-      <Text c="dimmed">{t('localize.reviewDescription')}</Text>
+      <BackLink to="/localize" label={t('nav.localize')} current={site ? site.name || site.domain : undefined} />
+      <Group justify="space-between" align="flex-start" wrap="wrap" gap="md">
+        <Stack gap="xs">
+          <PageTitle title={t('localize.reviewTitle')} />
+          <Text c="dimmed">{t('localize.reviewDescription')}</Text>
+        </Stack>
+        <Button disabled={!ready || approvingAll} loading={approvingAll} onClick={approveVisible}>
+          {t('localize.approveAll')}
+        </Button>
+      </Group>
       <Flex gap="md" direction={{ base: 'column', md: 'row' }} align={{ base: 'stretch', md: 'flex-end' }}>
         <Select
           aria-label={t('localize.site')}
@@ -215,11 +226,6 @@ export function LocalizeReviewScreen() {
           ))}
         </Tabs.List>
       </Tabs>
-      <Group gap="md">
-        <Button disabled={!ready || approvingAll} loading={approvingAll} onClick={approveVisible}>
-          {t('localize.approveAll')}
-        </Button>
-      </Group>
       {pagesState.status === 'error' && <Alert>{errorMessage(pagesState.error)}</Alert>}
       {state.status === 'error' && <Alert>{errorMessage(state.error)}</Alert>}
       {!siteId && !isLoading && <Text c="dimmed">{t('localize.pickSiteFirst')}</Text>}

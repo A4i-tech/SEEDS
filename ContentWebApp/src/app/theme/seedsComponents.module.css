@@ -37,6 +37,10 @@
   border-color: var(--seeds-card-border);
 }
 
+.code {
+  border: 1px solid var(--seeds-card-border);
+}
+
 .tabList.tabList {
   flex-wrap: nowrap;
   overflow-x: auto;

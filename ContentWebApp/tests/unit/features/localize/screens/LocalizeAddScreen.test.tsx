@@ -95,7 +95,7 @@ describe('LocalizeAddScreen', () => {
     expect(screen.getByRole('button', { name: 'Start localization (0 languages)' })).toBeInTheDocument()
   })
 
-  it('editing keeps disabled languages and their enabled flag on save', async () => {
+  it('editing saves every selected language as enabled', async () => {
     params.current = { siteId: 's1' }
     const site = {
       id: 's1',
@@ -115,40 +115,18 @@ describe('LocalizeAddScreen', () => {
     renderWithProviders(<LocalizeAddScreen />)
     fireEvent.click(await screen.findByRole('button', { name: 'Save changes' }))
     await waitFor(() => expect(updateSite).toHaveBeenCalled())
-    expect(vi.mocked(updateSite).mock.calls[0]).toEqual([
-      's1',
-      { domain: 'a.com', name: '', status: 'Active', languages: site.languages },
+    expect(vi.mocked(updateSite).mock.calls[0][1].languages).toEqual([
+      { code: 'hi', enabled: true },
+      { code: 'kn', enabled: true },
     ])
   })
 
-  it('toggling a language off saves it as disabled', async () => {
-    params.current = { siteId: 's1' }
-    const site = {
-      id: 's1',
-      site_id: 'x',
-      domain: 'a.com',
-      name: '',
-      status: 'Active',
-      languages: [{ code: 'hi', enabled: true }],
-      api_base: '',
-      updated_at: '',
-    }
-    vi.mocked(listSites).mockResolvedValue([site])
-    vi.mocked(updateSite).mockResolvedValue(site)
-    renderWithProviders(<LocalizeAddScreen />)
-    fireEvent.click(await screen.findByRole('switch', { name: /^Hindi · Language enabled/ }))
-    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
-    await waitFor(() => expect(updateSite).toHaveBeenCalled())
-    expect(vi.mocked(updateSite).mock.calls[0][1].languages).toEqual([{ code: 'hi', enabled: false }])
-  })
-
-  it('labels the site status and language enabled controls with hints', async () => {
+  it('labels the site status with a hint and has no per-language switch', async () => {
     renderWithProviders(<LocalizeAddScreen />)
     fireEvent.click(await screen.findByRole('checkbox', { name: 'Hindi' }))
     expect(screen.getByText('Site status')).toBeInTheDocument()
     expect(screen.getByText('The site must be Active for the SDK to serve any translations.')).toBeInTheDocument()
-    expect(screen.getByRole('switch', { name: /^Hindi · Language enabled/ })).toBeInTheDocument()
-    expect(screen.getByText('Only enabled languages are served on the site.')).toBeInTheDocument()
+    expect(screen.queryByRole('switch')).toBeNull()
   })
 
   it('shows the selected count in the submit label and clears the selection', async () => {
