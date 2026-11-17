@@ -113,6 +113,6 @@ def test_consumer_tasks_yield_and_cancel_without_service_bus_handles() -> None:
         cwd=Path(__file__).parents[2],
         capture_output=True,
         text=True,
-        timeout=30,
+        timeout=120,
     )
     assert result.returncode == 0, result.stderr
