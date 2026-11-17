@@ -88,9 +88,23 @@ export const initSession = async () => {
  * @param {Object} options - Fetch options
  * @returns {Promise<any>} - Parsed JSON response
  */
-export const apiFetch = async (url, { timeoutMs = 15000, ...options } = {}, _isRetry = false) => {
+export const apiFetch = async (
+  url,
+  { timeoutMs = 15000, signal, ...options } = {},
+  _isRetry = false
+) => {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
+  const forwardAbort = () => controller.abort();
+  if (signal?.aborted) {
+    controller.abort();
+  } else {
+    signal?.addEventListener("abort", forwardAbort, { once: true });
+  }
   try {
     const response = await fetch(url, {
       credentials: "include",
@@ -100,10 +114,16 @@ export const apiFetch = async (url, { timeoutMs = 15000, ...options } = {}, _isR
 
     if (!response.ok) {
       if (response.status === 401 && getAccessToken() && !_isRetry) {
+        clearTimeout(timer);
         return await refreshAndRetry("apiFetch", (newToken) =>
           apiFetch(
             url,
-            { ...options, timeoutMs, headers: { ...options.headers, Authorization: `Bearer ${newToken}` } },
+            {
+              ...options,
+              timeoutMs,
+              signal,
+              headers: { ...options.headers, Authorization: `Bearer ${newToken}` },
+            },
             true
           )
         );
@@ -129,10 +149,13 @@ export const apiFetch = async (url, { timeoutMs = 15000, ...options } = {}, _isR
     if (error instanceof ApiError) {
       throw error;
     }
-    const message = error.name === "AbortError" ? "Request timed out" : error.message || "Network request failed";
-    throw new ApiError(message, 0, null);
+    if (error.name === "AbortError" && !timedOut) {
+      throw error;
+    }
+    throw new ApiError(timedOut ? "Request timed out" : error.message || "Network request failed", 0, null);
   } finally {
     clearTimeout(timer);
+    signal?.removeEventListener("abort", forwardAbort);
   }
 };
 

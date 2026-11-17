@@ -3,6 +3,7 @@ import { getAuthHeaders } from "../utils/authHelpers";
 import { apiFetch, apiFetchBlob, apiFetchText, buildQueryString, streamSse } from "./api";
 
 const BASE = `${SEEDS_URL}/textbook-remediation`;
+const REMEDIATION_OPERATION_TIMEOUT_MS = 5 * 60 * 1000;
 
 export const textbookRemediationService = {
   async getLanguages({ signal } = {}) {
@@ -15,7 +16,7 @@ export const textbookRemediationService = {
     body.append("language", language);
     body.append("target_language", targetLanguage);
     const { "Content-Type": _unused, ...headers } = getAuthHeaders();
-    return apiFetch(`${BASE}/jobs`, { method: "POST", headers, body });
+    return apiFetch(`${BASE}/jobs`, { timeoutMs: REMEDIATION_OPERATION_TIMEOUT_MS, method: "POST", headers, body });
   },
 
   async getJobs(limit = 20) {
@@ -98,6 +99,7 @@ export const textbookRemediationService = {
 
   async markVerified(jobId, { title } = {}) {
     return apiFetch(`${BASE}/jobs/${encodeURIComponent(jobId)}/verify`, {
+      timeoutMs: REMEDIATION_OPERATION_TIMEOUT_MS,
       method: "POST",
       headers: getAuthHeaders(),
       body: JSON.stringify({ title }),
@@ -121,6 +123,7 @@ export const textbookRemediationService = {
 
   async translateJob(jobId, targetLanguage) {
     return apiFetch(`${BASE}/jobs/${encodeURIComponent(jobId)}/translate`, {
+      timeoutMs: REMEDIATION_OPERATION_TIMEOUT_MS,
       method: "POST",
       headers: getAuthHeaders(),
       body: JSON.stringify({ target_language: targetLanguage }),
