@@ -5,8 +5,6 @@ from __future__ import annotations
 from contextlib import asynccontextmanager
 from typing import Any
 
-import httpx
-
 
 class FakeAsyncClient:
     def __init__(self, outcomes: list[Any]) -> None:
