@@ -37,7 +37,7 @@ class LocalizationPage {
     return this.page.getByTestId('sdk-snippet').first().innerText();
   }
 
-  async approveAllPendingTranslations({ siteLabel, siteId, route, lang }) {
+  async approveAllPendingTranslations({ siteLabel, siteId, route, lang, langLabel }) {
     const page = this.page;
     await page.getByRole('button', { name: /translate & review/i }).click();
 
@@ -50,23 +50,23 @@ class LocalizationPage {
     const pageTrigger = triggerFor('Page');
     const langTrigger = triggerFor('Review Language');
 
-    await siteTrigger.click();
-    await page.getByRole('option', { name: siteLabel, exact: true }).click();
+    const openOption = async (trigger, dropdown, name) => {
+      await trigger.click();
+      const option = trigger
+        .locator('xpath=..')
+        .getByRole('listbox')
+        .getByRole('option', { name, exact: true });
+      await expect(option, `${dropdown} dropdown has no "${name}" option`).toHaveCount(1);
+      return option;
+    };
 
-    await pageTrigger.click();
-    await page.getByRole('option', { name: route, exact: true }).click();
+    await (await openOption(siteTrigger, 'Site', siteLabel)).click();
+    await (await openOption(pageTrigger, 'Page', route)).click();
 
-    await langTrigger.click();
-    const langOptions = page.getByRole('option');
-    const langCount = await langOptions.count();
-    if (langCount !== 1) {
-      throw new Error(
-        `Expected exactly one language option for site registered with lang "${lang}", found ${langCount}`
-      );
-    }
+    const langOption = await openOption(langTrigger, 'Review Language', langLabel);
     const [generateResponse] = await Promise.all([
       page.waitForResponse((r) => isScopedPost(r, '/translations/generate', siteId, lang), { timeout: 300000 }),
-      langOptions.first().click(),
+      langOption.click(),
     ]).catch((e) => {
       throw new Error(`No POST /translations/generate for site ${siteId}, lang ${lang}: ${e.message}`);
     });

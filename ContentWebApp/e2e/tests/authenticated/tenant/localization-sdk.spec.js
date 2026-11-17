@@ -82,7 +82,13 @@ test('registered site serves extracted and translated content through the embedd
   expect(extractResponse.status()).toBe(202);
 
   await loc.gotoLocalizationTab();
-  await loc.approveAllPendingTranslations({ siteLabel: domain, siteId, route: FIXTURE_ROUTE, lang: 'fr' });
+  await loc.approveAllPendingTranslations({
+    siteLabel: domain,
+    siteId,
+    route: FIXTURE_ROUTE,
+    lang: 'fr',
+    langLabel: 'French',
+  });
   const frenchHeading = (await page.getByLabel(`Translation for: ${SOURCE_HEADING}`).inputValue()).trim();
   expect(frenchHeading).not.toBe('');
   expect(frenchHeading).not.toBe(SOURCE_HEADING);
