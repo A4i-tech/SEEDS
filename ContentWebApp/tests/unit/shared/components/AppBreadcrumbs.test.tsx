@@ -17,4 +17,10 @@ describe('AppBreadcrumbs', () => {
     expect(screen.queryByRole('link', { name: 'Course' })).not.toBeInTheDocument()
     expect(screen.getByText('Course')).toHaveAttribute('aria-current', 'page')
   })
+
+  it('puts the clickable arrow inside the first link only', () => {
+    renderWithProviders(<AppBreadcrumbs crumbs={[{ label: 'Library', to: '/library' }, { label: 'Course' }]} />)
+    expect(screen.getByRole('link', { name: 'Library' }).querySelector('svg')).not.toBeNull()
+    expect(screen.getByText('Course').querySelector('svg')).toBeNull()
+  })
 })

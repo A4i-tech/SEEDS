@@ -1,5 +1,6 @@
 import { Anchor, Breadcrumbs, Text } from '@mantine/core';
 import { Link } from '@tanstack/react-router';
+import { ArrowLeft } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 interface Crumb {
@@ -12,9 +13,17 @@ export function AppBreadcrumbs({ crumbs }: { crumbs: Crumb[] }) {
   return (
     <nav aria-label={t('a11y.breadcrumb')}>
       <Breadcrumbs>
-        {crumbs.map(({ label, to }) =>
+        {crumbs.map(({ label, to }, index) =>
           to ? (
-            <Anchor key={label} component={Link} to={to} variant="rowAction">
+            <Anchor
+              key={label}
+              component={Link}
+              to={to}
+              variant="rowAction"
+              display="inline-flex"
+              style={{ alignItems: 'center', gap: 4 }}
+            >
+              {index === 0 && <ArrowLeft size={16} aria-hidden />}
               {label}
             </Anchor>
           ) : (

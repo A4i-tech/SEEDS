@@ -9,7 +9,7 @@ export function useLocalizePages(siteId: string) {
   const query = useQuery({
     queryKey: localizeKeys.pages(siteId),
     queryFn: () => listTranslations(siteId),
-    enabled: authStatus === 'authenticated' && siteId !== '',
+    enabled: authStatus === 'authenticated',
     select: (items) => {
       const latest = new Map<string, number>();
       for (const item of items) {
