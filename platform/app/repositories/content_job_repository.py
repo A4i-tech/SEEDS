@@ -10,6 +10,7 @@ from pymongo.asynchronous.database import AsyncDatabase
 from app.repositories.base_repository import BaseRepository
 
 _ACTIVE_STATUSES = ["running", "failed", "claimed"]
+_OPEN_STATUSES = ["pending", "claimed", "running"]
 
 
 class ContentJobRepository(BaseRepository):
@@ -23,19 +24,31 @@ class ContentJobRepository(BaseRepository):
     @classmethod
     async def ensure_indexes(cls, db: AsyncDatabase) -> None:
         await db[cls.COLLECTION].create_index("status")
+        await db[cls.COLLECTION].create_index("content_id")
 
-    async def create(self, content_id: str, tenant_id: str = "", source: str = "") -> str:
-        """Insert a pending job for *content_id* and return its string _id."""
+    async def create(self, content_id: str, status: str = "pending") -> str:
+        """Insert a job for *content_id* and return its string _id."""
         job_doc: dict[str, Any] = {
             "_id": str(uuid.uuid4()),
             "content_id": content_id,
-            "tenant_id": tenant_id,
-            "source": source,
-            "status": "pending",
+            "status": status,
             "created_at": datetime.now(UTC),
         }
         await self._col.insert_one(job_doc)
         return job_doc["_id"]
+
+    async def has_open_job(self, content_id: str) -> bool:
+        """Return whether *content_id* has a pending, claimed or running job."""
+        return await self._col.count_documents(
+            {"content_id": content_id, "status": {"$in": _OPEN_STATUSES}}, limit=1
+        ) > 0
+
+    async def cancel_pending(self, content_id: str) -> None:
+        """Mark every pending job for *content_id* as cancelled."""
+        await self._col.update_many(
+            {"content_id": content_id, "status": "pending"},
+            {"$set": {"status": "cancelled", "cancelled_at": datetime.now(UTC)}},
+        )
 
     async def find_by_id(self, job_id: str) -> dict[str, Any] | None:
         """Return the job document for *job_id*, or None."""
@@ -66,6 +79,13 @@ class ContentJobRepository(BaseRepository):
         await self._col.update_one(
             {"_id": job_id},
             {"$set": {"status": "completed", "completed_at": datetime.now(UTC)}},
+        )
+
+    async def mark_cancelled(self, job_id: str) -> None:
+        """Transition job to cancelled state."""
+        await self._col.update_one(
+            {"_id": job_id},
+            {"$set": {"status": "cancelled", "cancelled_at": datetime.now(UTC)}},
         )
 
     async def mark_failed(self, job_id: str, reason: str) -> None:

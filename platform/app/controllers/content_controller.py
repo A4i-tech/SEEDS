@@ -353,11 +353,12 @@ async def update_content(
     service: ContentService = Depends(get_content_service),
 ) -> ContentItem:
     tenant_id = user.get("tenant_id", "")
+    user_id = user["sub"]
     school_id = _write_school_id(user)
     body.id = content_id
 
     try:
-        result = await service.update_content(body, tenant_id, school_id, is_audio_uploaded)
+        result = await service.update_content(body, tenant_id, user_id, school_id, is_audio_uploaded)
     except ValueError as exc:
         logger.error("update_content failed", extra={"tenant_id": tenant_id, "content_id": str(body.id), "err": str(exc)})
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -382,9 +383,10 @@ async def delete_content(
     service: ContentService = Depends(get_content_service),
 ) -> DeleteMatchedResponse:
     tenant_id = user.get("tenant_id", "")
+    user_id = user["sub"]
     school_id = _write_school_id(user)
 
-    matched = await service.delete_content(content_id, tenant_id, school_id)
+    matched = await service.delete_content(content_id, tenant_id, user_id, school_id)
     if matched:
         return {"matched": matched}
     raise NotFoundError("Content", content_id)

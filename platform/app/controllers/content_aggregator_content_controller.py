@@ -1,136 +1,85 @@
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
-from typing import Annotated, Literal
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, Query
-from fastapi.security import OAuth2PasswordBearer
 
 from app.models.content import Content
+from app.models.content_aggregator import PartnerAccess
 from app.models.requests.content_aggregator_content_requests import (
     PartnerContentCreate,
     PartnerContentListQuery,
     PartnerContentUpdate,
-    TenantIdsHeader,
 )
+from app.models.requests.integration_headers import IdempotencyKey
+from app.models.responses.content import QuizContent
 from app.models.responses.content_aggregator import (
     PartnerContentPageResponse,
     PartnerContentUpdateResponse,
+    PartnerDeleteResponse,
     PartnerJobsResponse,
     PartnerJobStatusResponse,
 )
-from app.models.responses.job import DeleteMatchedResponse
-from app.platform.error_handling import AppError, UnauthorizedError
-from app.platform.settings import Settings, get_settings
-from app.services.content_aggregator._jwt import AccessTokenClaims, decode_access_token
-from app.services.content_aggregator.content import (
-    PartnerContentService,
-    get_partner_content_service,
+from app.platform.auth.partner import require_partner
+from app.services.content_aggregator_content_service import (
+    ContentAggregatorContentService,
+    get_content_aggregator_content_service,
 )
 
 router = APIRouter(prefix="/v1/content", tags=["Content Aggregator Content"])
-
-_partner_oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/v1/auth/token")
-
-_REQUIRED_CLAIMS = ("sub", "tenant_ids", "scopes", "client_name")
-
-
-async def verify_client_token(
-    token: str = Depends(_partner_oauth2_scheme),
-    settings: Settings = Depends(get_settings),
-) -> AccessTokenClaims:
-    claims = decode_access_token(token, secret_key=settings.secret_key)
-    if any(key not in claims for key in _REQUIRED_CLAIMS):
-        raise UnauthorizedError("Invalid token")
-    return claims
-
-
-def require_scope(scope: str) -> Callable[..., Awaitable[AccessTokenClaims]]:
-    async def _check(claims: AccessTokenClaims = Depends(verify_client_token)) -> AccessTokenClaims:
-        if scope not in claims["scopes"]:
-            raise AppError("SCOPE_INSUFFICIENT", f"scope '{scope}' required", 403)
-        return claims
-
-    return _check
-
-
-def get_tenant_id(
-    x_tenant_ids: Annotated[str, Header(alias="x-tenant-ids")],
-    claims: AccessTokenClaims = Depends(verify_client_token),
-) -> str:
-    header = TenantIdsHeader.model_validate(
-        {"ids": x_tenant_ids}, context={"allowed": claims["tenant_ids"], "single": True}
-    )
-    return header.ids[0]
-
-
-async def get_tenant_ids(
-    x_tenant_ids: Annotated[str, Header(alias="x-tenant-ids")],
-    claims: AccessTokenClaims = Depends(verify_client_token),
-) -> list[str]:
-    header = TenantIdsHeader.model_validate(
-        {"ids": x_tenant_ids}, context={"allowed": claims["tenant_ids"], "single": False}
-    )
-    return header.ids
 
 
 @router.post("", summary="Push a single piece of content to one or more tenants")
 async def create_content(
     body: PartnerContentCreate,
-    claims: AccessTokenClaims = Depends(require_scope("content:write")),
-    tenant_ids: list[str] = Depends(get_tenant_ids),
-    service: PartnerContentService = Depends(get_partner_content_service),
+    idempotency_key: Annotated[IdempotencyKey, Header(alias="Idempotency-Key")],
+    access: PartnerAccess = Depends(require_partner("content:write", single=False)),
+    service: ContentAggregatorContentService = Depends(get_content_aggregator_content_service),
 ) -> PartnerJobsResponse:
-    return await service.create(tenant_ids, claims["client_name"], body)
+    return await service.create(access.tenant_ids, access.client_id, idempotency_key, body)
 
 
 @router.get("/job/{job_id}", summary="Get ingestion status for a job")
 async def get_job_status(
     job_id: str,
-    claims: AccessTokenClaims = Depends(require_scope("content:read")),
-    tenant_id: str = Depends(get_tenant_id),
-    service: PartnerContentService = Depends(get_partner_content_service),
+    access: PartnerAccess = Depends(require_partner("content:read")),
+    service: ContentAggregatorContentService = Depends(get_content_aggregator_content_service),
 ) -> PartnerJobStatusResponse:
-    return await service.get_job_status(tenant_id, job_id)
+    return await service.get_job_status(access.tenant_ids[0], access.client_id, job_id)
 
 
 @router.get("/{content_id}", summary="Get a single content item", response_model_exclude_none=True)
 async def get_content(
     content_id: str,
-    claims: AccessTokenClaims = Depends(require_scope("content:read")),
-    tenant_id: str = Depends(get_tenant_id),
-    service: PartnerContentService = Depends(get_partner_content_service),
-) -> Content:
-    return await service.get(tenant_id, content_id)
+    access: PartnerAccess = Depends(require_partner("content:read")),
+    service: ContentAggregatorContentService = Depends(get_content_aggregator_content_service),
+) -> Content | QuizContent:
+    return await service.get(access.tenant_ids[0], content_id)
 
 
 @router.get("", summary="List content for this tenant", response_model_exclude_none=True)
 async def list_content(
     query: Annotated[PartnerContentListQuery, Query()],
-    claims: AccessTokenClaims = Depends(require_scope("content:read")),
-    tenant_id: str = Depends(get_tenant_id),
-    service: PartnerContentService = Depends(get_partner_content_service),
+    access: PartnerAccess = Depends(require_partner("content:read")),
+    service: ContentAggregatorContentService = Depends(get_content_aggregator_content_service),
 ) -> PartnerContentPageResponse:
-    return await service.list(tenant_id, query)
+    return await service.list(access.tenant_ids[0], query)
 
 
 @router.patch("/{content_id}", summary="Update a content item", response_model_exclude_none=True)
 async def update_content(
     content_id: str,
     body: PartnerContentUpdate,
-    is_audio_uploaded: Literal["true", "false"] = Query("false", alias="isAudioUploaded"),
-    claims: AccessTokenClaims = Depends(require_scope("content:write")),
-    tenant_id: str = Depends(get_tenant_id),
-    service: PartnerContentService = Depends(get_partner_content_service),
-) -> PartnerContentUpdateResponse:
-    return await service.update(tenant_id, claims["client_name"], content_id, body, is_audio_uploaded == "true")
+    access: PartnerAccess = Depends(require_partner("content:write")),
+    service: ContentAggregatorContentService = Depends(get_content_aggregator_content_service),
+) -> PartnerContentUpdateResponse | QuizContent:
+    return await service.update(access.tenant_ids[0], access.client_id, content_id, body)
 
 
 @router.delete("/{content_id}", summary="Soft-delete a content item")
 async def delete_content(
     content_id: str,
-    claims: AccessTokenClaims = Depends(require_scope("content:delete")),
-    tenant_id: str = Depends(get_tenant_id),
-    service: PartnerContentService = Depends(get_partner_content_service),
-) -> DeleteMatchedResponse:
-    return await service.delete(tenant_id, content_id)
+    access: PartnerAccess = Depends(require_partner("content:delete")),
+    service: ContentAggregatorContentService = Depends(get_content_aggregator_content_service),
+) -> PartnerDeleteResponse:
+    return await service.delete(access.tenant_ids[0], access.client_id, content_id)

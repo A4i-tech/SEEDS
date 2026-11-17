@@ -360,17 +360,13 @@ async def _process_audio_content_job(
     """
     job_id = job_doc.get("_id")
     content_id = job_doc.get("content_id")
-    is_aggregator = bool(job_doc.get("source"))
 
     await job_repo.mark_running(job_id)
 
     last_exc: Exception | None = None
     for attempt in range(1, MAX_RETRIES + 1):
         try:
-            if is_aggregator:
-                content_doc = await content_repo.find_by_id_and_tenant(content_id, job_doc["tenant_id"])
-            else:
-                content_doc = await content_repo.find_raw_by_id(content_id)
+            content_doc = await content_repo.find_raw_by_id(content_id)
             if not content_doc:
                 raise RuntimeError(f"Content document not found: {content_id}")
 
@@ -410,12 +406,15 @@ async def _process_audio_content_job(
             if "theme" in content_doc:
                 update_fields["theme"] = content_doc["theme"]
 
-            await content_repo.save_processed(content_id, update_fields)
-            await job_repo.mark_completed(job_id)
-            logger.info(
-                "content_job: completed job_id=%s content_id=%s (attempt %d)",
-                job_id, content_id, attempt,
-            )
+            if await content_repo.save_processed(content_id, update_fields):
+                await job_repo.mark_completed(job_id)
+                logger.info(
+                    "content_job: completed job_id=%s content_id=%s (attempt %d)",
+                    job_id, content_id, attempt,
+                )
+            else:
+                await job_repo.mark_cancelled(job_id)
+                logger.info("content_job: cancelled job_id=%s content_id=%s (content deleted)", job_id, content_id)
             return  # success — exit retry loop
 
         except _TRANSIENT_ERRORS as exc:

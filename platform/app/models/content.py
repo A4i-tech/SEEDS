@@ -41,7 +41,6 @@ class Content(BaseModel):
     id: str | None = Field(None, alias="_id")
     version: str = "v3"
     tenant_id: str | None = None
-    content_id: str | None = None
     description: str = ""
     type: str
     language: str
@@ -62,7 +61,6 @@ class Content(BaseModel):
     created_by: str = ""
     is_pull_model: bool = False
     is_teacher_app: bool = False
-    braille_grade: int = 2
     is_processed: bool = False
     is_deleted: bool = False
     creation_time: int = -1
@@ -75,3 +73,5 @@ class Content(BaseModel):
             return None  # type: ignore[return-value]
         d = {k: str(v) if isinstance(v, ObjectId) else v for k, v in doc.items()}
         return cls.model_validate(d)
+
+

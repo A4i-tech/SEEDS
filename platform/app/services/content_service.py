@@ -6,6 +6,7 @@ import time
 from datetime import UTC, datetime
 from typing import Any
 
+from bson import ObjectId
 from fastapi import Depends
 from pymongo.asynchronous.database import AsyncDatabase
 
@@ -165,6 +166,7 @@ class ContentService:
         self,
         body: ContentUpdateRequest,
         tenant_id: str,
+        user_id: str,
         school_id: str | None,
         is_audio_uploaded: bool,
     ) -> AudioContent | QuizContent | None:
@@ -181,8 +183,9 @@ class ContentService:
                 updates["audio_content"] = body.audio_content
             updates["is_processed"] = False
 
+        created_by = ObjectId(user_id)
         result = await self._content_repo.update_by_id_and_tenant(
-            body.id, tenant_id, updates, school_id
+            body.id, tenant_id, created_by, updates, school_id
         )
         if result:
             return AudioContent.from_doc(result)
@@ -191,7 +194,7 @@ class ContentService:
         quiz_allowed = allowed | {"positive_marks", "negative_marks", "questions"}
         quiz_updates = {k: v for k, v in body_dict.items() if k in quiz_allowed}
         quiz_result = await self._quiz_repo.update_by_id_and_tenant(
-            body.id, tenant_id, quiz_updates, school_id
+            body.id, tenant_id, created_by, quiz_updates, school_id
         )
         if quiz_result:
             return QuizContent.from_doc(quiz_result)
@@ -200,16 +203,16 @@ class ContentService:
         self,
         content_id: str,
         tenant_id: str,
+        user_id: str,
         school_id: str | None,
     ) -> int:
+        created_by = ObjectId(user_id)
         matched = await self._content_repo.soft_delete_by_id_and_tenant(
-            content_id, tenant_id, school_id
-        )
+            content_id, tenant_id, created_by, school_id
+        ) or await self._quiz_repo.soft_delete_by_id_and_tenant(content_id, tenant_id, created_by, school_id)
         if matched:
-            return matched
-        return await self._quiz_repo.soft_delete_by_id_and_tenant(
-            content_id, tenant_id, school_id
-        )
+            await self._job_repo.cancel_pending(content_id)
+        return matched
 
 
     async def create_quiz(

@@ -104,15 +104,29 @@ class QuizRepository(BaseRepository):
         result = await self._col.insert_one(doc)
         return str(result.inserted_id)
 
+    async def list_partner_content(
+        self, tenant_id: str, filters: dict[str, object], cursor: str, limit: int
+    ) -> list[dict]:
+        query: dict = {**self._tenant_query(tenant_id, None), **{k: v for k, v in filters.items() if v}}
+        return await self._page_by_creation_time(self._col, query, cursor, limit)
+
+    async def find_raw_by_id(self, content_id: str) -> dict | None:
+        return await self._col.find_one({"_id": ObjectId(content_id)})
+
     async def update_by_id_and_tenant(
         self,
         content_id: str,
         tenant_id: str,
+        created_by: ObjectId,
         updates: dict,
         school_id: str | None = None,
     ) -> dict | None:
         from datetime import UTC, datetime
-        q = {**self._tenant_query(tenant_id, school_id, strict=True), "_id": ObjectId(content_id)}
+        q = {
+            **self._tenant_query(tenant_id, school_id, strict=True),
+            "_id": ObjectId(content_id),
+            "created_by": created_by,
+        }
         updates["updated_at"] = datetime.now(UTC)
         return await self._col.find_one_and_update(q, {"$set": updates}, return_document=True)
 
@@ -120,10 +134,15 @@ class QuizRepository(BaseRepository):
         self,
         content_id: str,
         tenant_id: str,
+        created_by: ObjectId,
         school_id: str | None = None,
     ) -> int:
         from datetime import UTC, datetime
-        q = {**self._tenant_query(tenant_id, school_id, strict=True), "_id": ObjectId(content_id)}
+        q = {
+            **self._tenant_query(tenant_id, school_id, strict=True),
+            "_id": ObjectId(content_id),
+            "created_by": created_by,
+        }
         result = await self._col.update_one(
             q, {"$set": {"is_deleted": True, "updated_at": datetime.now(UTC)}}
         )

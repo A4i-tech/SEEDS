@@ -99,13 +99,17 @@ class ContentAggregatorAuth:
         )
         return client_id, client_secret
 
+    async def get_active_client(self, client_id: str) -> IntegrationClient:
+        client = await self._clients.find_by_client_id(client_id)
+        if client.status != IntegrationClientStatus.ACTIVE:
+            raise AppError("TENANT_NOT_ALLOWED", "Client is not active", 403)
+        return client
+
     async def refresh_token(self, refresh_token: str) -> AggregatorTokenResponse:
         async def verify_owner_active(
             owner_id: str, claims: IntegrationClaims
         ) -> IntegrationClaims:
-            client = await self._clients.find_by_client_id(owner_id)
-            if client.status != IntegrationClientStatus.ACTIVE:
-                raise AppError("TENANT_NOT_ALLOWED", "Client is not active", 403)
+            client = await self.get_active_client(owner_id)
             return {**claims, "client_name": client.name}
 
         pair, claims = await refresh_tokens.rotate(

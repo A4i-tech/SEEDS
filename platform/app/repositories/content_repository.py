@@ -171,13 +171,7 @@ class ContentRepository(BaseRepository):
     ) -> list[dict]:
         """Tenant-scoped partner list with a creation_time plus _id cursor."""
         query: dict = {**self._tenant_query(tenant_id, None), **{k: v for k, v in filters.items() if v}}
-        creation_time, _, last_id = cursor.partition("_")
-        if cursor:
-            query["$or"] = [
-                {"creation_time": {"$lt": int(creation_time)}},
-                {"creation_time": int(creation_time), "_id": {"$lt": ObjectId(last_id)}},
-            ]
-        return await self._col.find(query).sort([("creation_time", -1), ("_id", -1)]).to_list(length=limit)
+        return await self._page_by_creation_time(self._col, query, cursor, limit)
 
     async def insert_raw(self, doc: dict) -> str:
         """Insert a raw content document, coercing tenant_id/school_id/created_by to ObjectId."""
@@ -194,10 +188,15 @@ class ContentRepository(BaseRepository):
         self,
         content_id: str,
         tenant_id: str,
+        created_by: ObjectId,
         updates: dict,
         school_id: str | None = None,
     ) -> dict | None:
-        q = {**self._tenant_query(tenant_id, school_id, strict=True), "_id": ObjectId(content_id)}
+        q = {
+            **self._tenant_query(tenant_id, school_id, strict=True),
+            "_id": ObjectId(content_id),
+            "created_by": created_by,
+        }
         updates["updated_at"] = datetime.now(UTC)
         return await self._col.find_one_and_update(q, {"$set": updates}, return_document=True)
 
@@ -205,13 +204,21 @@ class ContentRepository(BaseRepository):
         self,
         content_id: str,
         tenant_id: str,
+        created_by: ObjectId,
         school_id: str | None = None,
     ) -> int:
-        q = {**self._tenant_query(tenant_id, school_id, strict=True), "_id": ObjectId(content_id)}
+        q = {
+            **self._tenant_query(tenant_id, school_id, strict=True),
+            "_id": ObjectId(content_id),
+            "created_by": created_by,
+        }
         result = await self._col.update_one(
             q, {"$set": {"is_deleted": True, "updated_at": datetime.now(UTC)}}
         )
         return result.matched_count
 
-    async def save_processed(self, content_id: str, fields: dict) -> None:
-        await self._col.update_one({"_id": ObjectId(content_id)}, {"$set": fields})
+    async def save_processed(self, content_id: str, fields: dict) -> int:
+        result = await self._col.update_one(
+            {"_id": ObjectId(content_id), "is_deleted": {"$ne": True}}, {"$set": fields}
+        )
+        return result.matched_count
