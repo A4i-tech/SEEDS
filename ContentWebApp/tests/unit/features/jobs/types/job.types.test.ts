@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { percentOf, syncJobStatus, syncTitle, toJobRows, type SyncJob } from '@features/jobs/types/job.types'
+import { failureSubtitle, percentOf, syncJobStatus, syncTitle, toJobRows, type SyncJob } from '@features/jobs/types/job.types'
 
 const sync: SyncJob = {
   job_id: 'sync-1',
@@ -66,5 +66,17 @@ describe('sync job text', () => {
 
   it('omits zero counts', () => {
     expect(toJobRows([], [sync])[0].subtitle).toBe('3 saved')
+  })
+})
+
+describe('failureSubtitle', () => {
+  const job = { status: 'verified', error: '', translation_error: 'Translation failed: quota' } as Parameters<typeof failureSubtitle>[0]
+
+  it('shows the translation error on a finished job', () => {
+    expect(failureSubtitle(job)).toBe('Translation failed: quota')
+  })
+
+  it('shows the job error on a failed job', () => {
+    expect(failureSubtitle({ ...job, status: 'failed', error: 'OCR failed' })).toBe('OCR failed')
   })
 })

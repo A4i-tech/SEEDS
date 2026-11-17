@@ -115,7 +115,7 @@ export function ReviewQueueScreen() {
             component="button"
             type="button"
             variant="rowAction"
-            onClick={() => void navigate({ to: `/review/text/$jobId`, params: { jobId: row.id } })}
+            onClick={() => void navigate({ to: `/review/remediate/$jobId`, params: { jobId: row.id } })}
           >
             {t('review.open')}
           </Anchor>

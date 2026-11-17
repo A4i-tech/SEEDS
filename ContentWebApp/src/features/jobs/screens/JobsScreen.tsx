@@ -8,6 +8,9 @@ import { openConfirmDialog } from '@shared/components/ConfirmDialog';
 import { DataTable } from '@shared/components/DataTable';
 import { StatusBadge } from '@shared/components/StatusBadge';
 import { LoadError } from '@shared/components/LoadError';
+import { RowDownloadMenu } from '../components/RowDownloadMenu';
+import { StageProgress } from '../components/StageProgress';
+import { availableDownloads } from '../utils/artifacts';
 import { selectValue } from '@shared/utils/select';
 import { formatRelativeTime } from '@shared/utils/format';
 import { JOB_ACTION, flowRoute, type JobRow, type JobStatus, type JobType } from '../types/job.types';
@@ -22,7 +25,9 @@ function RowAction({ row }: { row: JobRow }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
   const go = () => {
-    if (row.status === 'needs-review') return navigate({ to: '/review' });
+    if (row.type === 'make-accessible' && (row.status === 'needs-review' || row.status === 'done')) {
+      return navigate({ to: '/review/remediate/$jobId', params: { jobId: row.id } });
+    }
     if (row.type === 'make-accessible') return navigate({ to: '/make-accessible/$jobId', params: { jobId: row.id } });
     return navigate({ to: flowRoute[row.type] });
   };
@@ -49,6 +54,9 @@ function RowAction({ row }: { row: JobRow }) {
           <Anchor component="button" type="button" variant="rowAction" onClick={() => void go()}>
             {t(action.labelKey)}
           </Anchor>
+        )}
+        {row.remediation && availableDownloads(row.remediation.artifacts).length > 0 && (
+          <RowDownloadMenu job={row.remediation} />
         )}
         {row.type === 'make-accessible' && (
           <Anchor component="button" type="button" variant="rowAction" c="red" onClick={confirmRemove}>
@@ -95,6 +103,11 @@ export function JobsScreen() {
       ),
     },
     { key: 'type', header: t('jobs.columns.type'), render: (row) => t(`jobs.types.${row.type}`) },
+    {
+      key: 'stage',
+      header: t('jobs.columns.stage'),
+      render: (row) => (row.remediation ? <StageProgress job={row.remediation} /> : null),
+    },
     {
       key: 'status',
       header: t('jobs.columns.status'),

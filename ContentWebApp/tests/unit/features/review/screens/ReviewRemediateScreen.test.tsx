@@ -4,11 +4,13 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { renderWithProviders } from '../../../test-utils/renderWithProviders'
 import { useAuthStore } from '@features/auth/store/useAuthStore'
 import { getArtifactMarkdown, getReviewJob, getReviewSummary } from '@features/review/api/review'
+import { useBlocker } from '@tanstack/react-router'
 import { ReviewRemediateScreen } from '@features/review/screens/ReviewRemediateScreen'
 
 vi.mock('@tanstack/react-router', () => ({
   useParams: () => ({ jobId: 'job-1' }),
   useNavigate: () => vi.fn(),
+  useBlocker: vi.fn(),
   Link: ({ to, children }: { to: string; children: React.ReactNode }) => <a href={to}>{children}</a>,
 }))
 vi.mock('@features/review/api/review', async (importOriginal) => ({
@@ -24,6 +26,14 @@ const job = {
   status: 'ready_to_review' as const,
   draft_remediated_md: '',
   error: '',
+  translation_error: '',
+  artifacts: {},
+  stage_index: 3,
+  stage_count: 3,
+  progress: { message: '', percent: 0 },
+  source_page_count: 0,
+  models: { ocr: 'mistral-ocr', verify: '', block_tree: '', alt_text: '', translation: '' },
+  metrics: { processed_pages: 4, diagrams_described: 0, tables_fixed: 0, flagged_items_count: 0 },
   created_at: '2026-01-01',
   finished_at: '',
 }
@@ -63,5 +73,33 @@ describe('ReviewRemediateScreen', () => {
     renderWithProviders(<ReviewRemediateScreen />)
     expect(await screen.findByText('book.pdf')).toBeTruthy()
     expect(screen.queryByText('job-1')).toBeNull()
+  })
+
+  it('shows run details with the models used', async () => {
+    vi.mocked(getReviewJob).mockResolvedValue(job)
+    renderWithProviders(<ReviewRemediateScreen />)
+    expect(await screen.findByText('Run details')).toBeTruthy()
+    expect(screen.getByText('mistral-ocr')).toBeTruthy()
+  })
+
+  it('offers the OCR text toggle beside the original scan', async () => {
+    vi.mocked(getReviewJob).mockResolvedValue(job)
+    renderWithProviders(<ReviewRemediateScreen />)
+    expect(await screen.findByRole('button', { name: 'Show OCR text' })).toBeTruthy()
+  })
+
+  it('publishes through one Verify & publish action', async () => {
+    vi.mocked(getReviewJob).mockResolvedValue(job)
+    renderWithProviders(<ReviewRemediateScreen />)
+    expect(await screen.findByRole('button', { name: 'Verify & publish' })).toBeTruthy()
+  })
+
+  it('does not ask to confirm leaving while nothing is edited', async () => {
+    vi.mocked(getReviewJob).mockResolvedValue(job)
+    renderWithProviders(<ReviewRemediateScreen />)
+    await screen.findByText('book.pdf')
+    const options = vi.mocked(useBlocker).mock.calls.at(-1)![0] as { shouldBlockFn: () => boolean; enableBeforeUnload: () => boolean }
+    expect(options.shouldBlockFn()).toBe(false)
+    expect(options.enableBeforeUnload()).toBe(false)
   })
 })

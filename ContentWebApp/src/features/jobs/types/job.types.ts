@@ -1,6 +1,6 @@
 import i18n from '@shared/i18n';
 import { z } from 'zod';
-import { text } from '@shared/utils/schema';
+import { count, text } from '@shared/utils/schema';
 
 export const remediationStatusSchema = z.enum([
   'pending',
@@ -11,12 +11,35 @@ export const remediationStatusSchema = z.enum([
   'failed',
 ]);
 
+export const remediationModelsSchema = z.object({
+  ocr: text,
+  verify: text,
+  block_tree: text,
+  alt_text: text,
+  translation: text,
+});
+
+export const remediationMetricsSchema = z.object({
+  processed_pages: count,
+  diagrams_described: count,
+  tables_fixed: count,
+  flagged_items_count: count,
+});
+
 export const remediationJobSchema = z.object({
   job_id: z.string(),
   source_name: z.string(),
   status: remediationStatusSchema,
   draft_remediated_md: text,
   error: text,
+  translation_error: text,
+  artifacts: z.record(z.string(), z.string()),
+  stage_index: z.number(),
+  stage_count: z.number(),
+  progress: z.object({ message: text, percent: count }),
+  source_page_count: count,
+  models: remediationModelsSchema,
+  metrics: remediationMetricsSchema,
   created_at: z.string(),
   finished_at: text,
 });
@@ -58,6 +81,7 @@ export interface JobRow {
   type: JobType;
   status: JobStatus;
   updated: string;
+  remediation: RemediationJob | null;
 }
 
 export const flowRoute: Record<JobType, string> = {
@@ -89,7 +113,7 @@ export function percentOf(job: SyncJob): number {
 
 export function failureSubtitle(job: RemediationJob): string {
   if (job.status === 'failed') return job.error;
-  return '';
+  return job.translation_error;
 }
 
 export function syncTitle(job: SyncJob): string {
@@ -114,6 +138,7 @@ export function toJobRows(remediation: RemediationJob[], sync: SyncJob[]): JobRo
     type: 'make-accessible',
     status: remediationStatusMap[job.status],
     updated: job.finished_at || job.created_at,
+    remediation: job,
   }));
   const fromSync: JobRow[] = sync.map((job) => ({
     id: job.job_id,
@@ -122,6 +147,7 @@ export function toJobRows(remediation: RemediationJob[], sync: SyncJob[]): JobRo
     type: 'course-sync',
     status: syncJobStatus(job),
     updated: job.finished_at || job.started_at,
+    remediation: null,
   }));
   return [...fromRemediation, ...fromSync].sort((a, b) => b.updated.localeCompare(a.updated));
 }
