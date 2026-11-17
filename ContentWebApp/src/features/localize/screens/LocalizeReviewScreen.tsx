@@ -1,14 +1,20 @@
 import { Alert, Anchor, Button, Flex, Group, Select, Stack, Tabs, Text, Textarea, TextInput } from '@mantine/core';
+import { notifications } from '@mantine/notifications';
 import { Search } from 'lucide-react';
-import { useState } from 'react';
+import { readLocalStorageValue } from '@mantine/hooks';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearch } from '@tanstack/react-router';
 import { z } from 'zod';
 import type { DataTableColumn } from '@shared/components/DataTable';
+import { AppBreadcrumbs } from '@shared/components/AppBreadcrumbs';
 import { DataTable } from '@shared/components/DataTable';
 import { StatusBadge } from '@shared/components/StatusBadge';
+import { ApiError } from '@shared/services/apiClient';
 import { selectValue } from '@shared/utils/select';
+import { SourceText } from '../components/SourceText';
 import { useLocalizeSites } from '../hooks/useLocalizeSites';
+import { useLocalizePages } from '../hooks/useLocalizePages';
 import { useLocalizeReview } from '../hooks/useLocalizeReview';
 import type { Segment } from '../utils/segments';
 import { PageTitle } from '@shared/components/PageTitle';
@@ -45,37 +51,57 @@ function TranslationCell({ seg, onSave }: { seg: Segment; onSave: (id: string, t
   );
 }
 
-const prefillSchema = z.object({ siteId: text });
+const prefillSchema = z.object({ siteId: text, route: text, lang: text });
+
+const SCOPE_KEY = 'seeds-localize-scope';
+const EMPTY_SCOPE = { siteId: '', route: '', lang: '' };
 
 export function LocalizeReviewScreen() {
   const { t } = useTranslation();
   const { sites, languages, languageName } = useLocalizeSites();
   const prefill = prefillSchema.parse(useSearch({ strict: false }));
-  const [siteId, setSiteId] = useState(prefill.siteId);
-  const [route, setRoute] = useState('');
-  const [lang, setLang] = useState('');
-  const [stage, setStage] = useState<StageFilter>('pending');
+  const [scope, setScope] = useState(() => {
+    if (prefill.siteId) return prefill;
+    return readLocalStorageValue({ key: SCOPE_KEY, defaultValue: EMPTY_SCOPE });
+  });
+  const [stage, setStage] = useState<StageFilter>('all');
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
-  const site = sites.find((s) => s.id === siteId);
+  useEffect(() => {
+    window.localStorage.setItem(SCOPE_KEY, JSON.stringify(scope));
+  }, [scope]);
+
+  const site = sites.find((s) => s.site_id === scope.siteId) ?? sites[0];
+  const siteId = site?.site_id ?? '';
   const siteLangCodes = (site?.languages ?? []).filter((l) => l.enabled).map((l) => l.code);
   const langCodes = siteLangCodes.length > 0 ? siteLangCodes : languages.map((l) => l.code);
+  const lang = langCodes.includes(scope.lang) ? scope.lang : (langCodes[0] ?? '');
+
+  const { state: pagesState, pages } = useLocalizePages(siteId);
+  const activeRoute = pages.includes(scope.route) ? scope.route : (pages[0] ?? '');
 
   const {
     state,
     segments,
-    generate,
     generating,
     saveEdit,
     approve,
     approveAll,
     approvingAll,
-  } = useLocalizeReview({ siteId, route: route.trim(), lang });
+  } = useLocalizeReview({ siteId, route: activeRoute, lang });
 
-  const isLoading = state.status === 'loading';
-  const ready = siteId !== '' && route.trim() !== '' && lang !== '';
+  const counts = {
+    pending: segments.filter((seg) => seg.stage === 'pending').length,
+    approved: segments.filter((seg) => seg.stage === 'approved').length,
+    all: segments.length,
+  };
+
+  const isLoading =
+    generating ||
+    (siteId !== '' && pagesState.status === 'loading') || (siteId !== '' && activeRoute !== '' && state.status === 'loading');
+  const ready = siteId !== '' && activeRoute !== '' && lang !== '';
 
   const q = query.trim().toLowerCase();
   const rows = segments.filter(
@@ -84,18 +110,30 @@ export function LocalizeReviewScreen() {
       (!q || seg.sourceText.toLowerCase().includes(q) || seg.translation.toLowerCase().includes(q)),
   );
 
+  const errorMessage = (error: Error) =>
+    error instanceof ApiError && error.status === 403 ? t('localize.permissionDenied') : error.message;
+
+  const approveVisible = () => {
+    const ids = rows.filter((seg) => seg.stage === 'pending' && seg.translation !== '').map((seg) => seg.id);
+    if (ids.length === 0) {
+      notifications.show({ message: t('localize.nothingToApprove') });
+      return;
+    }
+    approveAll({ ids, whole: stage === 'all' && q === '' });
+  };
+
   const columns: DataTableColumn<Segment>[] = [
     {
       key: 'source',
       header: t('localize.columns.source'),
-      render: (row) => row.sourceText,
+      render: (row) => <SourceText text={row.sourceText} />,
     },
     {
       key: 'translation',
       header: t('localize.columns.translation'),
       render: (row) => (
         <TranslationCell
-          key={`${row.id}:${lang}`}
+          key={`${row.id}:${lang}:${row.translation}`}
           seg={row}
           onSave={(id, text) => saveEdit({ id, text })}
         />
@@ -115,6 +153,9 @@ export function LocalizeReviewScreen() {
 
   return (
     <Stack gap="md">
+      <AppBreadcrumbs
+        crumbs={[{ label: t('nav.localize'), to: '/localize' }, ...(site ? [{ label: site.name || site.domain }] : [])]}
+      />
       <PageTitle title={t('localize.reviewTitle')} />
       <Text c="dimmed">{t('localize.reviewDescription')}</Text>
       <Flex gap="md" direction={{ base: 'column', md: 'row' }} align={{ base: 'stretch', md: 'flex-end' }}>
@@ -123,28 +164,28 @@ export function LocalizeReviewScreen() {
           placeholder={t('localize.pickSite')}
           value={siteId}
           onChange={(v) => {
-            setSiteId(selectValue(v));
-            setLang('');
+            setScope({ siteId: selectValue(v), route: '', lang: '' });
             setPage(1);
           }}
-          data={sites.map((s) => ({ value: s.id, label: s.name || s.domain || s.id }))}
+          data={sites.map((s) => ({ value: s.site_id, label: s.name || s.domain || s.site_id }))}
         />
-        <TextInput
+        <Select
           aria-label={t('localize.page')}
-          placeholder={t('localize.routePlaceholder')}
-          value={route}
-          onChange={(e) => {
-            setRoute(e.currentTarget.value);
+          placeholder={t('localize.pickPage')}
+          value={activeRoute}
+          onChange={(v) => {
+            setScope({ siteId, route: selectValue(v), lang });
             setPage(1);
           }}
-          miw="min(220px, 100%)"
+          data={pages}
+          searchable
         />
         <Select
           aria-label={t('localize.language')}
           placeholder={t('localize.pickLanguage')}
           value={lang}
           onChange={(v) => {
-            setLang(selectValue(v));
+            setScope({ siteId, route: activeRoute, lang: selectValue(v) });
             setPage(1);
           }}
           data={langCodes.map((code) => ({ value: code, label: languageName(code) }))}
@@ -168,28 +209,20 @@ export function LocalizeReviewScreen() {
       >
         <Tabs.List>
           {stageOptions.map((v) => (
-            <Tabs.Tab key={v} value={v}>{t(`localize.stageOptions.${v}`)}</Tabs.Tab>
+            <Tabs.Tab key={v} value={v}>
+              {t(`localize.stageOptions.${v}`)} ({counts[v]})
+            </Tabs.Tab>
           ))}
         </Tabs.List>
       </Tabs>
       <Group gap="md">
-        <Button
-          variant="outline"
-          disabled={!ready || generating}
-          loading={generating}
-          onClick={() => generate()}
-        >
-          {generating ? t('localize.generating') : t('localize.generate')}
-        </Button>
-        <Button disabled={!ready || approvingAll} loading={approvingAll} onClick={() => approveAll()}>
+        <Button disabled={!ready || approvingAll} loading={approvingAll} onClick={approveVisible}>
           {t('localize.approveAll')}
         </Button>
       </Group>
-      {state.status === 'error' && <Alert>{state.error.message}</Alert>}
+      {pagesState.status === 'error' && <Alert>{errorMessage(pagesState.error)}</Alert>}
+      {state.status === 'error' && <Alert>{errorMessage(state.error)}</Alert>}
       {!siteId && !isLoading && <Text c="dimmed">{t('localize.pickSiteFirst')}</Text>}
-      {ready && !isLoading && segments.length === 0 && state.status !== 'error' && (
-        <Text c="dimmed">{t('localize.generateHint')}</Text>
-      )}
       <DataTable<Segment>
         columns={columns}
         rows={rows}

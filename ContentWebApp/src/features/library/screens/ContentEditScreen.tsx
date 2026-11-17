@@ -10,7 +10,7 @@ import { toApiState } from '@shared/utils/apiState';
 import { getContentById, updateContent } from '../api/library';
 import { getUploadSasUrl, uploadMp3ToSasUrl } from '@features/create/api/content';
 import { CONTENT_UI, contentUpdateSchema, libraryKeys } from '../types/content.types';
-import type { ContentItem } from '../types/content.types';
+import type { ContentItem, ContentUpdate } from '../types/content.types';
 import { BackLink } from '@shared/components/BackLink';
 import { PageTitle } from '@shared/components/PageTitle';
 
@@ -50,7 +50,7 @@ function EditForm({ item }: { item: ContentItem }) {
 
   const save = useMutation({
     mutationFn: async ({ audioUploaded, file, ...values }: EditValues) => {
-      const patch = {
+      const patch: ContentUpdate = {
         ...values,
         title: { english: values.title.english, local: values.title.local },
         theme: { english: values.theme.english, local: values.theme.local },

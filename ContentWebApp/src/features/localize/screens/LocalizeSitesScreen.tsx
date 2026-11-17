@@ -4,12 +4,10 @@ import {
   Button,
   Flex,
   Group,
-  Paper,
   Select,
   Stack,
   Text,
   TextInput,
-  UnstyledButton,
 } from '@mantine/core';
 import { Plus, Search } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -17,7 +15,6 @@ import { useNavigate } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import type { DataTableColumn } from '@shared/components/DataTable';
 import { DataTable } from '@shared/components/DataTable';
-import { StatusBadge } from '@shared/components/StatusBadge';
 import { openConfirmDialog } from '@shared/components/ConfirmDialog';
 import { formatRelativeTime } from '@shared/utils/format';
 import { notifyApiError } from '@shared/utils/notifyApiError';
@@ -37,16 +34,10 @@ const statusOptions: SiteStatusFilter[] = ['all', 'Active', 'Inactive'];
 
 const VISIBLE_LANGUAGES = 2;
 
-function LanguageBadge({ enabled }: { enabled: boolean }) {
-  const { t } = useTranslation();
-  if (enabled) return <StatusBadge tone="done" label={t('localize.languageEnabled')} />;
-  return <StatusBadge tone="failed" label={t('localize.languageDisabled')} />;
-}
-
 export function LocalizeSitesScreen() {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { state, sites, languages, languageName, remove } = useLocalizeSites();
+  const { state, languagesState, sites, languages, languageName, remove } = useLocalizeSites();
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<SiteStatusFilter>('all');
   const [languageFilter, setLanguageFilter] = useState('all');
@@ -100,34 +91,17 @@ export function LocalizeSitesScreen() {
       key: 'languages',
       header: t('localize.columns.languages'),
       render: (row) => (
-        <Group gap="xs">
-          {row.languages.slice(0, VISIBLE_LANGUAGES).map((l) => (
-            <Paper key={l.code} p="xs" radius="sm">
-              <Stack gap={4}>
-                <Text size="xs" variant="rowTitle">
-                  {languageName(l.code)}
-                </Text>
-                <LanguageBadge enabled={l.enabled} />
-              </Stack>
-            </Paper>
-          ))}
+        <Text size="sm">
+          {row.languages.slice(0, VISIBLE_LANGUAGES).map((l) => languageName(l.code)).join(', ')}
           {row.languages.length > VISIBLE_LANGUAGES && (
-            <UnstyledButton
-              p="xs"
-              bdrs="sm"
-              ta="left"
-              className={classes.moreButton}
-              onClick={() => openSite(row)}
-            >
-              <Text size="xs" variant="rowAction" c="seeds">
+            <>
+              {' '}
+              <Anchor component="button" type="button" size="sm" onClick={() => openSite(row)}>
                 {t('localize.moreLanguages', { count: row.languages.length - VISIBLE_LANGUAGES })}
-              </Text>
-              <Text size="xs" c="dimmed">
-                {t('localize.viewAll')}
-              </Text>
-            </UnstyledButton>
+              </Anchor>
+            </>
           )}
-        </Group>
+        </Text>
       ),
     },
     {
@@ -183,6 +157,7 @@ export function LocalizeSitesScreen() {
         />
       </Flex>
       {state.status === 'error' && <Alert>{state.error.message}</Alert>}
+      {languagesState.status === 'error' && <Alert>{languagesState.error.message}</Alert>}
       <DataTable<Website>
         columns={columns}
         rows={rows}
@@ -204,7 +179,7 @@ export function LocalizeSitesScreen() {
               component="button"
               type="button"
               variant="rowAction"
-              onClick={() => void navigate({ to: '/localize/review', search: { siteId: row.id } })}
+              onClick={() => void navigate({ to: '/localize/review', search: { siteId: row.site_id } })}
             >
               {t('localize.reviewSite')}
             </Anchor>

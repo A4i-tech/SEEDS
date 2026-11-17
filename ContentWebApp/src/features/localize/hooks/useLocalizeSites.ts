@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { useLanguages } from '@shared/hooks/useLanguages';
 import { createSite, deleteSite, listSites, updateSite } from '../api/sites';
 import { localizeKeys, type WebsiteFields } from '../types/localize.types';
-import { combineStates, toApiState } from '@shared/utils/apiState';
+import { toApiState } from '@shared/utils/apiState';
 import { notifyApiError } from '@shared/utils/notifyApiError';
 
 export function useLocalizeSites() {
@@ -14,7 +14,7 @@ export function useLocalizeSites() {
   const sites = useQuery({ queryKey: localizeKeys.sites, queryFn: listSites });
   const { state: languagesState, languages } = useLanguages();
 
-  const state = combineStates({ sites: toApiState(sites), languages: languagesState });
+  const state = toApiState(sites);
   const languageName = (code: string) => languages.find((l) => l.code === code)?.name ?? code;
 
   const invalidate = () => {
@@ -46,7 +46,8 @@ export function useLocalizeSites() {
 
   return {
     state,
-    sites: state.status === 'done' ? state.data.sites : [],
+    languagesState,
+    sites: state.status === 'done' ? state.data : [],
     languages,
     languageName,
     create: create.mutate,

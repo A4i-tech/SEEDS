@@ -1,7 +1,3 @@
-.moreButton.moreButton {
-  border: 1px dashed var(--mantine-color-default-border);
-}
-
 .addButton.addButton {
   border: 1px dashed;
 }

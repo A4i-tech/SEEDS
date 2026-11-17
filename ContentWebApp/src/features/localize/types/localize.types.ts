@@ -33,16 +33,23 @@ export const translationItemSchema = z.object({
   source_text: text,
   route: text,
   key: text,
+  updated_at: text,
 });
 
 export type TranslationItem = z.infer<typeof translationItemSchema>;
 
-export const bulkApproveResultSchema = z.object({ approved: z.number() });
+export const bulkApproveResultSchema = z.object({
+  approved: z.number(),
+  skipped: z.number().default(0),
+  failed: z.number().default(0),
+});
 
 export type BulkApproveResult = z.infer<typeof bulkApproveResultSchema>;
 
 export const localizeKeys = {
   all: ['localize'] as const,
   sites: ['localize', 'sites'] as const,
+  reviews: ['localize', 'review'] as const,
   review: (siteId: string, route: string) => ['localize', 'review', siteId, route] as const,
+  pages: (siteId: string) => ['localize', 'pages', siteId] as const,
 };

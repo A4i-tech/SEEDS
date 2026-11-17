@@ -1,0 +1,15 @@
+.cell {
+  max-width: 24rem;
+}
+
+.line {
+  display: block;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.full {
+  display: block;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
