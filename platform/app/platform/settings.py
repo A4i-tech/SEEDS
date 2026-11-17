@@ -4,6 +4,7 @@ from __future__ import annotations
 from functools import lru_cache
 from typing import Literal
 
+from cryptography.fernet import Fernet
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -157,10 +158,13 @@ class Settings(BaseSettings):
 
     @field_validator("webhook_secret_encryption_key")
     @classmethod
-    def _webhook_secret_encryption_key_not_blank(cls, value: str) -> str:
-        if not value.strip():
-            raise ValueError("webhook_secret_encryption_key must not be empty")
-        return value
+    def _webhook_secret_encryption_key_valid(cls, value: str) -> str:
+        keys = [key.strip() for key in value.split(",")]
+        if not all(keys):
+            raise ValueError("webhook_secret_encryption_key must be a comma-separated list of non-empty Fernet keys")
+        for key in keys:
+            Fernet(key.encode("utf-8"))
+        return ",".join(keys)
 
     require_https_webhooks: bool = True
 

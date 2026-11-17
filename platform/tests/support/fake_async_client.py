@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from typing import Any
 
 import httpx
@@ -18,9 +19,10 @@ class FakeAsyncClient:
     async def __aexit__(self, *exc: Any) -> bool:
         return False
 
-    async def post(self, url: str, **kwargs: Any) -> httpx.Response:
-        self.calls.append({"url": url, **kwargs})
+    @asynccontextmanager
+    async def stream(self, method: str, url: str, **kwargs: Any):
+        self.calls.append({"method": method, "url": url, **kwargs})
         outcome = self._outcomes.pop(0)
         if isinstance(outcome, Exception):
             raise outcome
-        return outcome
+        yield outcome

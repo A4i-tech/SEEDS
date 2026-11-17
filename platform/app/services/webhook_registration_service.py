@@ -19,6 +19,7 @@ from app.repositories.content_aggregator_webhook_repository import (
     DEFAULT_WEBHOOK_LIMIT,
     ContentAggregatorWebhookRepository,
 )
+from app.services.website_extractor import _validate_url
 
 logger = logging.getLogger(__name__)
 
@@ -49,6 +50,7 @@ class WebhookRegistrationService:
         self, client_id: str, granted_scope: list[str], body: WebhookRegisterRequest
     ) -> tuple[Webhook, str]:
         self._require_scope(body.events, granted_scope)
+        await _validate_url(str(body.url))
         secret, encrypted = _new_secret()
         webhook = await self._repo.create(
             client_id, str(body.url), encrypted, body.events, limit=MAX_WEBHOOKS_PER_CLIENT
@@ -66,6 +68,8 @@ class WebhookRegistrationService:
     ) -> tuple[Webhook, str | None]:
         if body.events is not None:
             self._require_scope(body.events, granted_scope)
+        if body.url is not None:
+            await _validate_url(str(body.url))
         secret: str | None = None
         encrypted: str | None = None
         if body.rotate_secret:

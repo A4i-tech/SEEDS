@@ -39,7 +39,7 @@ async def _seed_webhook(db, *, status="active"):
 async def _seed_pending(db, webhook_id, *, attempt_number=1, next_attempt_at=None):
     delivery_repo = ContentAggregatorWebhookDeliveryRepository(db)
     return await delivery_repo.create_pending(
-        webhook_id=str(webhook_id), content_id="content-1", event=WebhookEventType.JOB_COMPLETED,
+        delivery_id="delivery-1", webhook_id=str(webhook_id), content_id="content-1", event=WebhookEventType.JOB_COMPLETED,
         tenant_id="tenant-1", client_id="client-1",
         payload_data={"jobId": "job-1", "contentId": "content-1", "jobName": "job"},
         attempt_number=attempt_number,
@@ -204,6 +204,7 @@ async def test_claim_due_reclaims_stale_claimed_record(db):
     doc = await db["contentAggregatorWebhookDeliveries"].find_one({"_id": ObjectId(reclaimed.id)})
     assert abs((doc["claimed_at"] - now.replace(tzinfo=None)).total_seconds()) < 1
     assert reclaimed.attempt_number == first.attempt_number
+    assert reclaimed.delivery_id == first.delivery_id
 
     second_reclaim = await delivery_repo.claim_due(now, stale_before)
     assert second_reclaim is None

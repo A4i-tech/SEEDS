@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import hmac
 import json
 import logging
 from datetime import UTC, datetime, timedelta
 from typing import Any, NamedTuple
+from uuid import uuid4
 
 import httpx
 from cryptography.fernet import InvalidToken
@@ -51,43 +53,48 @@ class WebhookDeliveryService:
         self._content_repo = content_repo
         self._client_repo = client_repo
 
+    async def _post(self, url: str, body: bytes, headers: dict[str, str]) -> int:
+        async with httpx.AsyncClient(
+            timeout=WEBHOOK_HTTP_TIMEOUT_SECONDS, transport=_PinnedTransport()
+        ) as client:
+            async with client.stream("POST", url, content=body, headers=headers) as response:
+                return response.status_code
+
     async def _send(self, attempt: DeliveryAttempt, webhook: Webhook) -> _Outcome:
+        now = datetime.now(UTC)
+        timestamp = str(int(now.timestamp()))
         payload = {
             "event": attempt.event.value,
             "webhookId": attempt.webhook_id,
             "tenantId": attempt.tenant_id,
-            "timestamp": datetime.now(UTC).isoformat(),
+            "timestamp": now.isoformat(),
             "data": attempt.payload_data.model_dump(by_alias=True, mode="json"),
         }
         raw_body = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode("utf-8")
         secret = decrypt_secret(webhook.secret_encrypted)
-        digest = hmac.new(secret.encode("utf-8"), raw_body, hashlib.sha256).hexdigest()
-        signature = f"sha256={digest}"
+        signed = timestamp.encode("utf-8") + b"." + raw_body
+        digest = hmac.new(secret.encode("utf-8"), signed, hashlib.sha256).hexdigest()
+        headers = {
+            "Content-Type": "application/json",
+            "X-SEEDS-Delivery": attempt.delivery_id,
+            "X-SEEDS-Timestamp": timestamp,
+            "X-SEEDS-Signature": f"sha256={digest}",
+        }
         try:
-            async with httpx.AsyncClient(
-                timeout=WEBHOOK_HTTP_TIMEOUT_SECONDS, transport=_PinnedTransport()
-            ) as client:
-                response = await client.post(
-                    webhook.url,
-                    content=raw_body,
-                    headers={
-                        "Content-Type": "application/json",
-                        "X-SEEDS-Signature": signature,
-                    },
-                )
+            status_code = await asyncio.wait_for(
+                self._post(webhook.url, raw_body, headers), WEBHOOK_HTTP_TIMEOUT_SECONDS
+            )
         except Exception as exc:
             logger.exception(
                 "webhook_delivery: send error webhook_id=%s attempt_id=%s "
                 "content_id=%s event=%s",
                 attempt.webhook_id, attempt.id, attempt.content_id, attempt.event.value,
             )
-            return _Outcome(DeliveryStatus.FAILED, None, str(exc))
+            return _Outcome(DeliveryStatus.FAILED, None, str(exc) or type(exc).__name__)
 
-        if 200 <= response.status_code < 300:
-            return _Outcome(DeliveryStatus.SUCCEEDED, response.status_code, None)
-        return _Outcome(
-            DeliveryStatus.FAILED, response.status_code, f"non-2xx response: {response.status_code}"
-        )
+        if 200 <= status_code < 300:
+            return _Outcome(DeliveryStatus.SUCCEEDED, status_code, None)
+        return _Outcome(DeliveryStatus.FAILED, status_code, f"non-2xx response: {status_code}")
 
     async def mark_attempt_failed(self, attempt_id: str, *, error: str) -> None:
         await self._delivery_repo.record_attempt_result(
@@ -180,7 +187,7 @@ class WebhookDeliveryService:
         delay = WEBHOOK_RETRY_DELAYS_SECONDS[attempt.attempt_number - 1]
         await self._delivery_repo.create_pending(
             **attempt.model_dump(
-                include={"webhook_id", "content_id", "event", "tenant_id", "client_id", "payload_data"},
+                include={"delivery_id", "webhook_id", "content_id", "event", "tenant_id", "client_id", "payload_data"},
                 by_alias=True,
             ),
             attempt_number=attempt.attempt_number + 1,
@@ -228,6 +235,7 @@ class WebhookDeliveryService:
         now = datetime.now(UTC)
         for webhook in webhooks:
             await self._delivery_repo.create_pending(
+                delivery_id=str(uuid4()),
                 webhook_id=webhook.id,
                 content_id=content_id,
                 event=event,

@@ -98,7 +98,8 @@ async def test_completed_job_delivers_webhook_with_valid_signature(client, recei
     req = receiver.requests[0]
     assert req.headers["Content-Type"] == "application/json"
     signature = req.headers["X-SEEDS-Signature"]
-    expected = "sha256=" + hmac.new(webhook["secret"].encode(), req.body, hashlib.sha256).hexdigest()
+    signed = req.headers["X-SEEDS-Timestamp"].encode() + b"." + req.body
+    expected = "sha256=" + hmac.new(webhook["secret"].encode(), signed, hashlib.sha256).hexdigest()
     assert signature == expected
 
     payload = json.loads(req.body)

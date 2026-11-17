@@ -26,6 +26,7 @@ class ContentAggregatorWebhookDeliveryRepository(BaseRepository):
     async def create_pending(
         self,
         *,
+        delivery_id: str,
         webhook_id: str,
         content_id: str,
         event: WebhookEventType,
@@ -36,6 +37,7 @@ class ContentAggregatorWebhookDeliveryRepository(BaseRepository):
         next_attempt_at: datetime,
     ) -> DeliveryAttempt:
         doc: dict[str, Any] = {
+            "delivery_id": delivery_id,
             "webhook_id": ObjectId(webhook_id),
             "content_id": content_id,
             "event": event.value,

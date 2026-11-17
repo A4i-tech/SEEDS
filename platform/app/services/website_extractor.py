@@ -50,14 +50,7 @@ def _sdk_text_nodes(root) -> list[str]:
 
 def _is_blocked_ip(ip: str) -> bool:
     addr = ipaddress.ip_address(ip)
-    return (
-        addr.is_private
-        or addr.is_loopback
-        or addr.is_link_local
-        or addr.is_multicast
-        or addr.is_reserved
-        or addr.is_unspecified
-    )
+    return not addr.is_global or addr.is_multicast
 
 
 def _validate_scheme_and_host(url: str) -> str:

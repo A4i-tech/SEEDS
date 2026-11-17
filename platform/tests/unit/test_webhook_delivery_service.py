@@ -1,6 +1,10 @@
 from __future__ import annotations
 
+import asyncio
+import hashlib
+import hmac
 import json
+import time
 from datetime import UTC, datetime
 from typing import Any
 from unittest.mock import patch
@@ -11,7 +15,7 @@ from bson import ObjectId
 from cryptography.fernet import InvalidToken
 from pydantic import ValidationError
 
-from app.models.content_aggregator import WebhookStatus
+from app.models.content_aggregator import DeliveryAttempt, WebhookStatus
 from app.models.requests.webhook_registration_requests import WebhookEventType
 from app.platform.auth.webhook_secret import encrypt_secret
 from app.platform.error_handling import ConfigurationError
@@ -62,6 +66,7 @@ async def _make_webhook(webhook_repo, client_id=_TENANT_A, url="https://partner.
 
 async def _make_attempt(delivery_repo, wh, *, attempt_number=1, content_id="content-1", event=WebhookEventType.JOB_COMPLETED, data=None):
     return await delivery_repo.create_pending(
+        delivery_id="delivery-1",
         webhook_id=wh.id,
         content_id=content_id,
         event=event,
@@ -108,6 +113,46 @@ async def test_attempt_delivery_failure_schedules_next_attempt(webhook_repo, del
     assert pending["next_attempt_at"] > datetime.now(UTC).replace(tzinfo=None)
     current = await webhook_repo.get_for_client(_TENANT_A, wh.id)
     assert current.status == "active"
+
+
+@pytest.mark.asyncio
+async def test_retries_keep_delivery_id_and_send_signed_timestamp_headers(db, webhook_repo, delivery_repo, service):
+    wh = await _make_webhook(webhook_repo)
+    attempt = await _make_attempt(delivery_repo, wh)
+    patcher, fake = _patch_client([httpx.Response(500), httpx.Response(500), httpx.Response(200)])
+    with patcher:
+        await service.attempt_delivery(attempt)
+        for _ in range(2):
+            pending = await delivery_repo.find_pending_for_webhook(wh.id)
+            await service.attempt_delivery(DeliveryAttempt.from_mongo(pending))
+
+    docs = await db["contentAggregatorWebhookDeliveries"].find({}).to_list()
+    assert sorted(d["attempt_number"] for d in docs) == [1, 2, 3]
+    assert {d["delivery_id"] for d in docs} == {"delivery-1"}
+    assert len(fake.calls) == 3
+    for call in fake.calls:
+        headers = call["headers"]
+        assert headers["X-SEEDS-Delivery"] == "delivery-1"
+        assert abs(int(headers["X-SEEDS-Timestamp"]) - time.time()) < 60
+        signed = headers["X-SEEDS-Timestamp"].encode() + b"." + call["content"]
+        expected = hmac.new(b"topsecret", signed, hashlib.sha256).hexdigest()
+        assert headers["X-SEEDS-Signature"] == f"sha256={expected}"
+
+
+@pytest.mark.asyncio
+async def test_attempt_delivery_enforces_overall_timeout(monkeypatch, webhook_repo, delivery_repo, service):
+    wh = await _make_webhook(webhook_repo)
+    attempt = await _make_attempt(delivery_repo, wh)
+
+    async def _hang(*args):
+        await asyncio.sleep(10)
+
+    monkeypatch.setattr(service, "_post", _hang)
+    monkeypatch.setattr("app.services.webhook_delivery_service.WEBHOOK_HTTP_TIMEOUT_SECONDS", 0.01)
+    await service.attempt_delivery(attempt)
+    doc = await delivery_repo.get_attempt_doc(attempt.id)
+    assert doc["status"] == "failed"
+    assert doc["error"] == "TimeoutError"
 
 
 @pytest.mark.asyncio

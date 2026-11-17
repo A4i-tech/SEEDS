@@ -75,6 +75,7 @@ class DeliveryAttempt(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
     id: PyObjectId = Field(alias="_id")
+    delivery_id: str
     webhook_id: PyObjectId
     content_id: str
     event: WebhookEventType

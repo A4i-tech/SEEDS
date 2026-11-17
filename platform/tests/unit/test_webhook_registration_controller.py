@@ -21,8 +21,17 @@ from app.platform.error_handling import AppError, NotFoundError, UnauthorizedErr
 from app.repositories.content_aggregator_webhook_repository import (
     ContentAggregatorWebhookRepository,
 )
+from app.services import webhook_registration_service, website_extractor
 from app.services.content_aggregator._jwt import AccessTokenClaims
 from app.services.webhook_registration_service import WebhookRegistrationService
+
+
+@pytest.fixture(autouse=True)
+def _skip_dns(monkeypatch):
+    async def _ok(url):
+        return url
+
+    monkeypatch.setattr(webhook_registration_service, "_validate_url", _ok)
 
 
 @pytest.fixture
@@ -82,6 +91,42 @@ async def test_update_webhook_rejects_event_outside_granted_scope(service, claim
         await update_webhook(request_obj, created.id, update, claims=claims, service=service)
     assert exc_info.value.code == "SCOPE_INSUFFICIENT"
     assert exc_info.value.status_code == 403
+
+
+@pytest.fixture
+def resolve_to(monkeypatch):
+    monkeypatch.setattr(webhook_registration_service, "_validate_url", website_extractor._validate_url)
+    socket = website_extractor.socket
+
+    def _resolve(ip):
+        monkeypatch.setattr(
+            socket, "getaddrinfo", lambda host, port: [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (ip, 0))]
+        )
+
+    return _resolve
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("url", ["https://localhost/hook", "https://internal.example.com/hook"])
+async def test_register_webhook_rejects_internal_url(resolve_to, service, claims, request_obj, url):
+    resolve_to("127.0.0.1")
+    body = WebhookRegisterRequest(url=url, events=["job.completed"])
+    with pytest.raises(AppError) as exc_info:
+        await register_webhook(request_obj, body, claims=claims, service=service)
+    assert exc_info.value.code == "VALIDATION_ERROR"
+
+
+@pytest.mark.asyncio
+async def test_update_webhook_rejects_internal_url(resolve_to, service, claims, request_obj):
+    resolve_to("93.184.216.34")
+    body = WebhookRegisterRequest(url="https://x.example.com/hook", events=["job.completed"])
+    created = await register_webhook(request_obj, body, claims=claims, service=service)
+
+    resolve_to("10.0.0.1")
+    update = WebhookUpdateRequest(url="https://internal.example.com/hook")
+    with pytest.raises(AppError) as exc_info:
+        await update_webhook(request_obj, created.id, update, claims=claims, service=service)
+    assert exc_info.value.code == "VALIDATION_ERROR"
 
 
 @pytest.mark.asyncio

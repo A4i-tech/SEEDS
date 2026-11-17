@@ -80,7 +80,26 @@ def _parse_webhook_id(webhook_id: str) -> ObjectId:
         raise NotFoundError("Webhook", webhook_id) from exc
 
 
-@router.post("", status_code=201, summary="Register a webhook")
+_DELIVERY_DOC = """
+Returns the signing secret once; store it securely.
+
+Each delivery is a JSON `POST` with these headers:
+
+- `X-SEEDS-Delivery`: delivery ID, identical across all retries of one delivery. Use it to deduplicate.
+- `X-SEEDS-Timestamp`: Unix time (seconds) when this attempt was signed.
+- `X-SEEDS-Signature`: `sha256=<hex>`, the HMAC-SHA256 of `<X-SEEDS-Timestamp>.<raw request body>`
+  using the webhook secret.
+
+To verify: rebuild the signed string from the header timestamp, a literal `.`, and the raw body bytes
+(not re-serialized JSON); compute the HMAC; compare in constant time; reject the request if the timestamp
+is more than 5 minutes from your current time.
+
+Migration: signatures were previously computed over the body only. Receivers verifying `HMAC(body)` must
+switch to `HMAC(timestamp + "." + body)`; old-style verification will reject every delivery.
+"""
+
+
+@router.post("", status_code=201, summary="Register a webhook", description=_DELIVERY_DOC)
 @limiter.limit("100/minute")
 async def register_webhook(
     request: Request,
