@@ -1,3 +1,4 @@
+import { z } from 'zod';
 import {
   createRootRoute,
   createRoute,
@@ -37,6 +38,7 @@ import { MakeAccessibleScreen } from '@features/make-accessible/screens/MakeAcce
 import { MakeAccessibleJobScreen } from '@features/make-accessible/screens/MakeAccessibleJobScreen';
 import { HomeScreen } from '@features/home/screens/HomeScreen';
 import { redirectSearchSchema } from './redirectSearch';
+import { reviewScopeSchema } from '@features/localize/types/localize.types';
 import { canAccess } from './roleAccess';
 import { Shell } from './Shell';
 
@@ -74,11 +76,16 @@ const shellRoute = createRoute({
   beforeLoad: requireAuth,
 });
 
-function protectedRoute<const TPath extends string>(path: TPath, component: FunctionComponent) {
+function protectedRoute<const TPath extends string, TSearch extends z.ZodType<Record<string, unknown>, Record<string, unknown>>>(
+  path: TPath,
+  component: FunctionComponent,
+  validateSearch?: TSearch,
+) {
   return createRoute({
     getParentRoute: () => shellRoute,
     path,
     component,
+    validateSearch,
     beforeLoad: () => {
       if (!canAccess(getSession().role, path)) throw redirect({ to: '/home' });
     },
@@ -124,7 +131,7 @@ const routeTree = rootRoute.addChildren([
     protectedRoute('/localize', LocalizeSitesScreen),
     protectedRoute('/localize/add', LocalizeAddScreen),
     protectedRoute('/localize/sites/$siteId/edit', LocalizeAddScreen),
-    protectedRoute('/localize/review', LocalizeReviewScreen),
+    protectedRoute('/localize/review', LocalizeReviewScreen, reviewScopeSchema),
     protectedRoute('/review', ReviewQueueScreen),
     protectedRoute('/review/text/$jobId', ReviewTextScreen),
     protectedRoute('/review/audio/$id', ReviewAudioScreen),
