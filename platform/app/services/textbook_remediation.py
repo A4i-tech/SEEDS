@@ -3,11 +3,13 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import re
 import tempfile
 from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import IO
 
+from azure.core.exceptions import ResourceNotFoundError
 from bson import ObjectId
 
 from app.models.remediation_job import (
@@ -191,11 +193,28 @@ async def save_draft(
     return updated
 
 
+_FIGURE_REF = re.compile(r'!\[[^\]]*\]\(images/([^)\s"]+)')
+
+
 def _compile_verified(markdown: str, out_dir: Path) -> tuple[Path, Path, Path | None]:
     out_docx = out_dir / artifact_filename(ArtifactName.DOCX)
     out_tex = out_dir / artifact_filename(ArtifactName.TEX)
-    out_pdf = compile_docx_tex_pdf(markdown, out_dir, out_docx, out_tex)
+    out_pdf = compile_docx_tex_pdf(markdown, out_dir, out_docx, out_tex, resource_root=out_dir)
     return out_docx, out_tex, out_pdf
+
+
+async def _fetch_figures(blob_provider: BlobStorageProvider, job_id: str, markdown: str, out_dir: Path) -> None:
+    images_dir = out_dir / "images"
+    images_dir.mkdir()
+    container = get_settings().azure_storage_container
+    for name in {Path(ref).name for ref in _FIGURE_REF.findall(markdown)}:
+        try:
+            data = await blob_provider.download_file(container, f"textbook-remediation/{job_id}/images/{name}")
+        except ResourceNotFoundError as exc:
+            raise ValidationError(
+                f"Figure {name} is missing for this job. Re-run remediation, then verify again."
+            ) from exc
+        (images_dir / name).write_bytes(data)
 
 
 async def verify_job(
@@ -216,6 +235,7 @@ async def verify_job(
         await repo.record_edit(job.job_id, previous_md, job.draft_remediated_md, edited_by)
         with tempfile.TemporaryDirectory() as tmpdir:
             out_dir = Path(tmpdir)
+            await _fetch_figures(blob_provider, job.job_id, job.draft_remediated_md, out_dir)
             try:
                 out_docx, out_tex, out_pdf = await asyncio.to_thread(_compile_verified, job.draft_remediated_md, out_dir)
             except Exception as exc:

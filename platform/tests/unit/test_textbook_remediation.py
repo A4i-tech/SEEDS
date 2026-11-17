@@ -633,6 +633,42 @@ async def test_verify_job_uploads_go_under_the_verified_path(repo, monkeypatch):
     assert f"textbook-remediation/{created.job_id}/verified/remediated.tex" in blob.uploaded
 
 
+@pytest.mark.asyncio
+async def test_verify_job_gives_the_compiler_the_draft_figures(repo, monkeypatch):
+    from app.services import textbook_remediation as remediation_service
+
+    created = await _create(repo)
+    draft = '# T\n\n![alt](images/a.jpg "desc")\n\n![b](images/b.jpg)'
+    job = await repo.update_draft(created.job_id, draft)
+    seen = {}
+
+    def _fake_compile(markdown, out_dir):
+        seen["files"] = sorted(p.name for p in (out_dir / "images").iterdir())
+        seen["bytes"] = (out_dir / "images" / "a.jpg").read_bytes()
+        return None, None, None
+
+    monkeypatch.setattr(remediation_service, "_compile_verified", _fake_compile)
+    base = f"textbook-remediation/{created.job_id}/images"
+    blob = _StubBlob({f"{base}/a.jpg": b"A", f"{base}/b.jpg": b"B"})
+
+    await remediation_service.verify_job(repo, blob, job, title="T", verified_by="r@seeds.org", edited_by="r@seeds.org")
+
+    assert seen == {"files": ["a.jpg", "b.jpg"], "bytes": b"A"}
+
+
+@pytest.mark.asyncio
+async def test_verify_job_fails_loudly_when_a_draft_figure_is_missing(repo, monkeypatch):
+    from app.platform.error_handling import ValidationError
+    from app.services import textbook_remediation as remediation_service
+
+    created = await _create(repo)
+    job = await repo.update_draft(created.job_id, "![x](images/gone.jpg)")
+    monkeypatch.setattr(remediation_service, "_compile_verified", lambda markdown, out_dir: (None, None, None))
+
+    with pytest.raises(ValidationError, match="gone.jpg"):
+        await remediation_service.verify_job(repo, _StubBlob(), job, title="T", verified_by="r@seeds.org", edited_by="r@seeds.org")
+
+
 _YAML_STEPS = """
 - agent: safe_extract
   config:
