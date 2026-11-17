@@ -393,27 +393,32 @@ async def _process_audio_content_job(
                 updated_audio.append(updated_item)
 
             tts = TtsAudioUrls()
-            match: dict = {}
             # TTS for pull-model content
             if content_doc.get("is_pull_model"):
                 tts = await _process_tts_for_content(content_doc, blob_provider)
-                match = {"title": content_doc.get("title"), "theme": content_doc.get("theme")}
+            text_match = {
+                f"{field}.{lang}": (content_doc.get(field) or {}).get(lang)
+                for field in ("title", "theme")
+                for lang in ("english", "local")
+            }
 
             # Save updated content
-            update = ProcessedContentUpdate(audio_content=updated_audio, **tts.model_dump())
-            if not await content_repo.save_processed(content_id, update, match):
-                if await content_repo.find_raw_by_id(content_id):
-                    logger.warning(
-                        "content_job: title/theme changed during TTS, discarding stale result "
-                        "job_id=%s content_id=%s",
-                        job_id, content_id,
-                    )
-                else:
-                    logger.warning(
-                        "content_job: content document removed during processing, nothing saved "
-                        "job_id=%s content_id=%s",
-                        job_id, content_id,
-                    )
+            if not await content_repo.save_processed(
+                content_id, ProcessedContentUpdate(audio_content=updated_audio)
+            ):
+                logger.warning(
+                    "content_job: content document removed during processing, nothing saved "
+                    "job_id=%s content_id=%s",
+                    job_id, content_id,
+                )
+            elif tts.model_dump(exclude_none=True) and not await content_repo.save_tts_urls(
+                content_id, tts, text_match
+            ):
+                logger.warning(
+                    "content_job: title/theme changed during TTS, discarding stale audio URLs "
+                    "job_id=%s content_id=%s",
+                    job_id, content_id,
+                )
             await job_repo.mark_completed(job_id)
             logger.info(
                 "content_job: completed job_id=%s content_id=%s (attempt %d)",

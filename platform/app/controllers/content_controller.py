@@ -27,7 +27,6 @@ from app.models.requests.content_requests import (
     WebsiteTranslationRequest,
 )
 from app.models.responses.content import (
-    AudioContent,
     ContentItem,
     ContentPageResponse,
     PaginationInfo,
@@ -364,9 +363,6 @@ async def update_content(
 
     if result is None:
         raise NotFoundError("Content", str(body.id))
-
-    if is_audio_uploaded and isinstance(result, AudioContent):
-        result.job_id = await service.enqueue_content_job(result.id)
     return result
 
 

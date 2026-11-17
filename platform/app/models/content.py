@@ -80,6 +80,6 @@ class TtsAudioUrls(BaseModel):
     theme_audio_url: str | None = Field(None, serialization_alias="theme.audio_url")
 
 
-class ProcessedContentUpdate(TtsAudioUrls):
+class ProcessedContentUpdate(BaseModel):
     audio_content: list[dict]
     is_processed: bool = True

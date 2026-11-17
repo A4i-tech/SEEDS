@@ -167,9 +167,34 @@ async def test_concurrent_title_edit_during_tts_discards_stale_audio_url(mock_db
 
     assert final_doc["title"] == {"english": "New Title", "local": "New Title"}
     assert final_doc["theme"] == {"english": "Space", "local": "Space"}
-    assert "is_processed" not in final_doc
+    assert final_doc["is_processed"] is True
+    assert final_doc["audio_content"] == []
     assert job["status"] == "completed"
     assert "title/theme changed during TTS" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_resave_with_same_text_during_tts_keeps_audio_urls(mock_db):
+    async def _synthesize_while_form_is_resaved(*args, **kwargs):
+        await mock_db["contentsV3"].update_many(
+            {},
+            {
+                "$set": {
+                    "description": "edited",
+                    "title": {"local": "Old Title", "english": "Old Title", "audio_url": None},
+                    "theme": {"english": "Animals", "local": "Animals", "audio_url": None},
+                }
+            },
+        )
+        return b"fake_tts_audio"
+
+    content_id, final_doc, _ = await _run_pull_model_job(mock_db, _synthesize_while_form_is_resaved)
+
+    assert final_doc["title"]["audio_url"] == (
+        f"https://myaccount.blob.core.windows.net/experience-titles/{content_id}/1.0.mp3"
+    )
+    assert final_doc["theme"]["audio_url"] == "https://myaccount.blob.core.windows.net/theme-titles/Animals/1.0.mp3"
+    assert final_doc["is_processed"] is True
 
 
 @pytest.mark.asyncio
@@ -215,3 +240,45 @@ async def test_existing_theme_audio_is_reused_without_resynthesizing():
     assert result.title_audio_url is None
     mock_synthesize.assert_not_called()
     mock_blob_provider.upload_file.assert_not_called()
+
+
+async def _save_form(mock_db, title):
+    from app.models.requests.content_requests import ContentUpdateRequest
+    from app.services.content_service import ContentService
+
+    content_id, _, _, job_repo = await _seed(
+        mock_db,
+        is_pull_model=True,
+        title={"english": "Old Title", "local": "Old Title", "audio_url": "https://tts/new.mp3"},
+        theme={"english": "Animals", "local": "Animals", "audio_url": "https://tts/animals.mp3"},
+        audio_content=[],
+    )
+    body = ContentUpdateRequest(
+        id=content_id,
+        type="story",
+        title={**title, "audio_url": "https://tts/stale.mp3"},
+        theme={"english": "Animals", "local": "Animals", "audio_url": None},
+    )
+    result = await ContentService(mock_db).update_content(body, _TENANT_A_ID, None, False)
+    final_doc = await mock_db["contentsV3"].find_one({"_id": ObjectId(content_id)})
+    return result, final_doc, job_repo
+
+
+@pytest.mark.asyncio
+async def test_form_save_with_same_text_keeps_stored_audio_urls(mock_db):
+    result, final_doc, _ = await _save_form(mock_db, {"english": "Old Title", "local": "Old Title"})
+
+    assert final_doc["title"]["audio_url"] == "https://tts/new.mp3"
+    assert final_doc["theme"]["audio_url"] == "https://tts/animals.mp3"
+    assert "is_processed" not in final_doc
+    assert result.job_id is None
+
+
+@pytest.mark.asyncio
+async def test_form_save_with_new_title_drops_audio_url_and_queues_tts(mock_db):
+    result, final_doc, job_repo = await _save_form(mock_db, {"english": "New Title", "local": "New Title"})
+
+    assert final_doc["title"] == {"english": "New Title", "local": "New Title"}
+    assert final_doc["theme"]["audio_url"] == "https://tts/animals.mp3"
+    assert final_doc["is_processed"] is False
+    assert (await job_repo.find_by_id(result.job_id))["status"] == "pending"

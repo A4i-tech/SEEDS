@@ -12,7 +12,7 @@ from typing import Any
 from bson import ObjectId
 from pymongo.asynchronous.database import AsyncDatabase
 
-from app.models.content import Content, ProcessedContentUpdate
+from app.models.content import Content, ProcessedContentUpdate, TtsAudioUrls
 from app.repositories.base_repository import BaseRepository
 
 
@@ -195,11 +195,13 @@ class ContentRepository(BaseRepository):
         )
         return result.matched_count
 
-    async def save_processed(
-        self, content_id: str, update: ProcessedContentUpdate, match: dict
-    ) -> bool:
+    async def save_processed(self, content_id: str, update: ProcessedContentUpdate) -> bool:
+        result = await self._col.update_one({"_id": ObjectId(content_id)}, {"$set": update.model_dump()})
+        return result.matched_count == 1
+
+    async def save_tts_urls(self, content_id: str, urls: TtsAudioUrls, match: dict) -> bool:
         result = await self._col.update_one(
             {"_id": ObjectId(content_id), **match},
-            {"$set": update.model_dump(by_alias=True, exclude_none=True)},
+            {"$set": urls.model_dump(by_alias=True, exclude_none=True)},
         )
         return result.matched_count == 1

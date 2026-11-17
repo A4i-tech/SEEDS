@@ -182,11 +182,29 @@ class ContentService:
                 updates["audio_content"] = body.audio_content
             updates["is_processed"] = False
 
+        existing = await self._content_repo.find_by_id_and_tenant(body.id, tenant_id, school_id) or {}
+        text_changed = False
+        for field in ("title", "theme"):
+            if not updates.get(field):
+                continue
+            new = updates[field] = {k: v for k, v in updates[field].items() if k != "audio_url"}
+            old = existing.get(field) or {}
+            if (new.get("english"), new.get("local")) != (old.get("english"), old.get("local")):
+                text_changed = True
+            elif old.get("audio_url"):
+                new["audio_url"] = old["audio_url"]
+        queue_tts = text_changed and updates.get("is_pull_model", existing.get("is_pull_model"))
+        if queue_tts:
+            updates["is_processed"] = False
+
         result = await self._content_repo.update_by_id_and_tenant(
             body.id, tenant_id, updates, school_id
         )
         if result:
-            return AudioContent.from_doc(result)
+            content = AudioContent.from_doc(result)
+            if is_audio_uploaded or queue_tts:
+                content.job_id = await self.enqueue_content_job(content.id)
+            return content
 
         # Quiz lives in a separate collection; mirror delete_content's fallback.
         quiz_allowed = allowed | {"positive_marks", "negative_marks", "questions"}
@@ -240,10 +258,8 @@ class ContentService:
     async def get_raw_content_by_id(self, content_id: str) -> dict[str, Any] | None:
         return await self._content_repo.find_raw_by_id(content_id)
 
-    async def save_processed(
-        self, content_id: str, update: ProcessedContentUpdate, match: dict[str, Any]
-    ) -> bool:
-        return await self._content_repo.save_processed(content_id, update, match)
+    async def save_processed(self, content_id: str, update: ProcessedContentUpdate) -> bool:
+        return await self._content_repo.save_processed(content_id, update)
 
     async def extract_website(self, url: str) -> WebsiteExtractResponse:
         return await self._website_extractor.extract(url)
