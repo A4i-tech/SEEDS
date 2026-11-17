@@ -1,6 +1,9 @@
 import { z } from 'zod';
 import { list, text } from '@shared/utils/schema';
 
+export const reviewScopeSchema = z.object({ siteId: text, route: text, lang: text });
+export type ReviewScope = z.infer<typeof reviewScopeSchema>;
+
 const languageConfigSchema = z.object({
   code: z.string(),
   enabled: z.boolean().default(true),
