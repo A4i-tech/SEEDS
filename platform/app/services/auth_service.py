@@ -19,6 +19,7 @@ from fastapi import Depends
 from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.refresh_token import UserClaims
+from app.models.requests.auth_requests import VolunteerCreateRequest
 from app.models.responses.dashboard import (
     DashboardStatistics,
     SchoolDashboardRow,
@@ -148,10 +149,14 @@ async def login_unified(
 
     if is_email:
         user = await repo.find_by_email(identifier)
-        allowed_roles = (UserRole.TENANT, UserRole.SCHOOL_ADMIN)
+        allowed_roles = (
+            UserRole.TENANT,
+            UserRole.SCHOOL_ADMIN,
+            UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER,
+        )
     else:
         user = await repo.find_by_phone(identifier)
-        allowed_roles = UserRole.CONTENT_CREATOR
+        allowed_roles = (UserRole.CONTENT_CREATOR,)
 
     if user is None or user.role not in allowed_roles or not user.hashed_password:
         logger.warning("auth: login failed — user not found or wrong role")
@@ -431,6 +436,21 @@ class AuthService:
 
     async def register_teacher(self, data: TeacherCreate) -> User:
         return await register_teacher(data, self._db)
+
+    async def register_volunteer(self, tenant_id: str, body: VolunteerCreateRequest) -> User:
+        repo = UserRepository(self._db)
+        existing = await repo.find_by_email(body.email)
+        if existing is not None:
+            raise ConflictError(f"email {body.email}")
+        return await repo.create(
+            UserCreate(
+                role=UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER,
+                name=body.name,
+                email=body.email,
+                hashed_password=hash_password(body.password),
+                tenant_id=tenant_id,
+            )
+        )
 
     async def register_tenant(self, data: TenantCreate) -> User:
         return await register_tenant(data, self._db)
