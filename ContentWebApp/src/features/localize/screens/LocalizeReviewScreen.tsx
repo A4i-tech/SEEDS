@@ -1,11 +1,10 @@
 import { Alert, Anchor, Button, Flex, Group, Select, Stack, Tabs, Text, Textarea, TextInput } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 import { Search } from 'lucide-react';
-import { readLocalStorageValue } from '@mantine/hooks';
-import { useEffect, useState } from 'react';
+import { useLocalStorage } from '@mantine/hooks';
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSearch } from '@tanstack/react-router';
-import { z } from 'zod';
 import type { DataTableColumn } from '@shared/components/DataTable';
 import { BackLink } from '@shared/components/BackLink';
 import { openConfirmDialog } from '@shared/components/ConfirmDialog';
@@ -17,9 +16,9 @@ import { SourceText } from '../components/SourceText';
 import { useLocalizeSites } from '../hooks/useLocalizeSites';
 import { useLocalizePages } from '../hooks/useLocalizePages';
 import { useLocalizeReview } from '../hooks/useLocalizeReview';
+import type { ReviewScope } from '../types/localize.types';
 import type { Segment } from '../utils/segments';
 import { PageTitle } from '@shared/components/PageTitle';
-import { text } from '@shared/utils/schema';
 
 type StageFilter = 'all' | 'pending' | 'approved';
 
@@ -52,27 +51,24 @@ function TranslationCell({ seg, onSave }: { seg: Segment; onSave: (id: string, t
   );
 }
 
-const prefillSchema = z.object({ siteId: text, route: text, lang: text });
-
 const SCOPE_KEY = 'seeds-localize-scope';
-const EMPTY_SCOPE = { siteId: '', route: '', lang: '' };
+const EMPTY_SCOPE: ReviewScope = { siteId: '', route: '', lang: '' };
 
 export function LocalizeReviewScreen() {
   const { t } = useTranslation();
   const { sites, languages, languageName } = useLocalizeSites();
-  const prefill = prefillSchema.parse(useSearch({ strict: false }));
-  const [scope, setScope] = useState(() => {
-    if (prefill.siteId) return prefill;
-    return readLocalStorageValue({ key: SCOPE_KEY, defaultValue: EMPTY_SCOPE });
-  });
+  const prefill = useSearch({ strict: false });
+  const [stored, setStored] = useLocalStorage({ key: SCOPE_KEY, defaultValue: EMPTY_SCOPE, getInitialValueInEffect: false });
+  const [picked, setPicked] = useState<ReviewScope | null>(null);
+  const scope = picked ?? (prefill.siteId ? prefill : stored);
+  const setScope = (next: ReviewScope) => {
+    setPicked(next);
+    setStored(next);
+  };
   const [stage, setStage] = useState<StageFilter>('all');
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-
-  useEffect(() => {
-    window.localStorage.setItem(SCOPE_KEY, JSON.stringify(scope));
-  }, [scope]);
 
   const site = sites.find((s) => s.site_id === scope.siteId) ?? sites[0];
   const siteId = site?.site_id ?? '';
