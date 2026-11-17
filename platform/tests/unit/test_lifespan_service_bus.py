@@ -81,3 +81,16 @@ async def test_api_mode_init_failure_aborts_startup():
     init_mock = AsyncMock(side_effect=RuntimeError("sb down"))
     with pytest.raises(RuntimeError, match="sb down"):
         await _run_lifespan(init_mock)
+
+
+@pytest.mark.asyncio
+async def test_consumer_tasks_yield_and_cancel_without_service_bus_handles() -> None:
+    import asyncio
+
+    with patch("app.platform.database.get_database", return_value=MagicMock()):
+        tasks = lifespan_mod._make_consumer_tasks(None)
+    await asyncio.sleep(0)
+    for task in tasks:
+        task.cancel()
+    await asyncio.wait_for(asyncio.gather(*tasks, return_exceptions=True), timeout=5)
+    assert tasks and all(task.done() for task in tasks)
