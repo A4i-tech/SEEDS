@@ -5,22 +5,22 @@ import time
 from collections.abc import Awaitable, Callable
 from typing import Annotated
 
-from fastapi import Depends, Header
+from fastapi import Depends, Header, Request
 from fastapi.security import OAuth2PasswordBearer
 from limits import parse
 from limits.storage import MemoryStorage
 from limits.strategies import MovingWindowRateLimiter
 from pymongo.asynchronous.database import AsyncDatabase
 
-from app.models.content_aggregator import PartnerAccess
+from app.models.content_aggregator import IntegrationClientStatus, PartnerAccess
 from app.models.requests.integration_headers import TenantIdsHeader
 from app.platform.auth.dependencies import get_db
 from app.platform.authz.audit import log_denial
 from app.platform.error_handling import AppError, RateLimitedError
 from app.platform.settings import Settings, get_settings
 from app.platform.telemetry import get_counter
+from app.repositories.integration_client_repository import IntegrationClientRepository
 from app.services.content_aggregator._jwt import decode_access_token
-from app.services.content_aggregator.auth import ContentAggregatorAuth
 
 _partner_oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/v1/auth/token")
 _limiter = MovingWindowRateLimiter(MemoryStorage())
@@ -28,6 +28,7 @@ _limiter = MovingWindowRateLimiter(MemoryStorage())
 
 def require_partner(scope: str, *, single: bool = True) -> Callable[..., Awaitable[PartnerAccess]]:
     async def _check(
+        request: Request,
         x_tenant_ids: Annotated[str, Header(alias="x-tenant-ids")],
         token: str = Depends(_partner_oauth2_scheme),
         settings: Settings = Depends(get_settings),
@@ -37,7 +38,9 @@ def require_partner(scope: str, *, single: bool = True) -> Callable[..., Awaitab
         try:
             claims = decode_access_token(token, secret_key=settings.secret_key)
             client_id = claims["sub"]
-            client = await ContentAggregatorAuth(db, settings).get_active_client(client_id)
+            client = await IntegrationClientRepository(db).find_by_client_id(client_id)
+            if client.status != IntegrationClientStatus.ACTIVE:
+                raise AppError("CLIENT_NOT_ACTIVE", "Client is not active", 403)
             for rate, key in (
                 (parse(settings.content_aggregator_client_rate_limit), client_id),
                 (parse(settings.content_aggregator_global_rate_limit), "global"),
@@ -60,6 +63,8 @@ def require_partner(scope: str, *, single: bool = True) -> Callable[..., Awaitab
                 reason=exc.code.lower(),
             )
             raise
+        request.state.user_id = client_id
+        request.state.tenant_id = ",".join(header.ids)
         return PartnerAccess(client_id=client_id, tenant_ids=header.ids)
 
     return _check

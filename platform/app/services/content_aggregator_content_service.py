@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import urllib.parse
 from datetime import UTC, datetime
 
@@ -27,11 +28,14 @@ from app.models.responses.content_aggregator import (
 )
 from app.platform.auth.dependencies import get_db
 from app.platform.error_handling import AppError, NotFoundError
+from app.platform.logging import request_id_ctx_var
 from app.repositories.content_job_repository import ContentJobRepository
 from app.repositories.content_repository import ContentRepository
 from app.repositories.content_request_repository import ContentRequestRepository
 from app.repositories.integration_client_repository import IntegrationClientRepository
 from app.repositories.quiz_repository import QuizRepository
+
+logger = logging.getLogger(__name__)
 
 _update_adapter = TypeAdapter(PartnerContentUpdate)
 _QUIZ_ONLY_FIELDS = frozenset({"positive_marks", "negative_marks", "questions"})
@@ -82,6 +86,10 @@ class ContentAggregatorContentService:
                     job_id = await self._job_repo.create(content_id)
                 await self._request_repo.set_result(tenant_oid, client_id, key, content_id, job_id)
                 jobs[tenant_id] = job_id
+                logger.info(
+                    "content_aggregator: accepted request_id=%s client_id=%s tenant_id=%s idempotency_key=%s type=%s",
+                    request_id_ctx_var.get(""), client_id, tenant_id, key, body.type,
+                )
             else:
                 request = ContentRequest.model_validate(await self._request_repo.find(tenant_oid, client_id, key))
                 if request.payload_hash != payload_hash or not request.job_id:
@@ -91,6 +99,10 @@ class ContentAggregatorContentService:
                         409,
                     )
                 jobs[tenant_id] = request.job_id
+                logger.info(
+                    "content_aggregator: idempotent replay request_id=%s client_id=%s tenant_id=%s idempotency_key=%s type=%s",
+                    request_id_ctx_var.get(""), client_id, tenant_id, key, body.type,
+                )
         return PartnerJobsResponse(jobs=jobs)
 
     async def get(self, tenant_id: str, content_id: str) -> Content | QuizContent:

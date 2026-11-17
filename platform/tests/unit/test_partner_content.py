@@ -400,7 +400,7 @@ async def test_revoked_client_is_forbidden_even_with_a_valid_token(client, db):
     response = await client.get("/v1/content", headers=_headers("c-1"))
 
     assert response.status_code == 403
-    assert response.json()["code"] == "TENANT_NOT_ALLOWED"
+    assert response.json()["code"] == "CLIENT_NOT_ACTIVE"
 
 
 async def test_tenant_removed_from_the_client_is_forbidden_even_if_the_token_lists_it(client, db):
@@ -687,3 +687,18 @@ async def test_list_rejects_a_malformed_cursor_with_422(client, cursor):
     response = await client.get("/v1/content", params={"cursor": cursor}, headers=_headers())
 
     assert response.status_code == 422
+
+
+async def test_accepted_requests_and_replays_are_logged_with_client_tenant_key_and_type(client, caplog):
+    headers = _headers("c-1", idempotency_key="k-log")
+
+    with caplog.at_level("INFO"):
+        await client.post("/v1/content", json=BODY, headers=headers)
+        await client.post("/v1/content", json=BODY, headers=headers)
+
+    lines = [r.getMessage() for r in caplog.records if r.getMessage().startswith("content_aggregator:")]
+    assert [line.split(" request_id=")[0] for line in lines] == [
+        "content_aggregator: accepted",
+        "content_aggregator: idempotent replay",
+    ]
+    assert all(f"client_id=c-1 tenant_id={TENANT} idempotency_key=k-log type=story" in line for line in lines)
