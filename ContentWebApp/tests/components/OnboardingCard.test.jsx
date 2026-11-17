@@ -17,7 +17,7 @@ const renderCard = (overrides = {}) => {
 test("derives a name from the domain when the Name field is left empty", async () => {
   const { loc } = renderCard();
   fireEvent.change(screen.getByLabelText(/website url/i), { target: { value: "https://example-school.org" } });
-  fireEvent.click(screen.getByLabelText("en"));
+  fireEvent.click(screen.getByLabelText("English"));
   fireEvent.click(screen.getByRole("button", { name: /register website/i }));
   await waitFor(() => expect(loc.handleCreateSite).toHaveBeenCalled());
   expect(loc.handleCreateSite.mock.calls[0][0].name).toBe("Example School");
@@ -28,7 +28,7 @@ test("uses the typed Name field verbatim when provided", async () => {
   const { loc } = renderCard();
   fireEvent.change(screen.getByLabelText(/website url/i), { target: { value: "https://example-school.org" } });
   fireEvent.change(screen.getByLabelText(/^name$/i), { target: { value: "My School" } });
-  fireEvent.click(screen.getByLabelText("en"));
+  fireEvent.click(screen.getByLabelText("English"));
   fireEvent.click(screen.getByRole("button", { name: /register website/i }));
   await waitFor(() => expect(loc.handleCreateSite).toHaveBeenCalled());
   expect(loc.handleCreateSite.mock.calls[0][0].name).toBe("My School");
@@ -44,8 +44,8 @@ test("registration is blocked when no language is selected", () => {
 test("sends only selected languages that are still in the current language list", async () => {
   const { loc, setLanguages } = renderCard();
   fireEvent.change(screen.getByLabelText(/website url/i), { target: { value: "https://example-school.org" } });
-  fireEvent.click(screen.getByLabelText("en"));
-  fireEvent.click(screen.getByLabelText("fr"));
+  fireEvent.click(screen.getByLabelText("English"));
+  fireEvent.click(screen.getByLabelText("French"));
   setLanguages([{ code: "fr", name: "French" }]);
   fireEvent.click(screen.getByRole("button", { name: /register website/i }));
   await waitFor(() => expect(loc.handleCreateSite).toHaveBeenCalled());
@@ -55,18 +55,65 @@ test("sends only selected languages that are still in the current language list"
 test("blocks registration when no selected language is in the current language list", () => {
   const { loc, setLanguages } = renderCard();
   fireEvent.change(screen.getByLabelText(/website url/i), { target: { value: "https://example-school.org" } });
-  fireEvent.click(screen.getByLabelText("en"));
+  fireEvent.click(screen.getByLabelText("English"));
   setLanguages([{ code: "fr", name: "French" }]);
   const button = screen.getByRole("button", { name: /register website/i });
   expect(button).toBeDisabled();
-  fireEvent.submit(button.closest("form"));
+  fireEvent.submit(button);
   expect(loc.handleCreateSite).not.toHaveBeenCalled();
+});
+
+test("tells the user languages are still loading", () => {
+  renderCard({ languages: [], isLoadingWorkspace: true });
+  expect(screen.getByText("Loading available languages…")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /register website/i })).toBeDisabled();
+});
+
+test("tells the user the language list failed to load", () => {
+  renderCard({ languages: [], workspaceLoadError: new Error("network down") });
+  expect(screen.getByText("Unable to load languages. Please try again.")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /register website/i })).toBeDisabled();
+});
+
+test("tells the user when no languages are available", () => {
+  renderCard({ languages: [] });
+  expect(
+    screen.getByText("No languages are currently available. Please contact support.")
+  ).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /register website/i })).toBeDisabled();
+});
+
+test("shows language names but submits language codes", async () => {
+  const { loc } = renderCard();
+  expect(screen.getByLabelText("English")).toBeInTheDocument();
+  expect(screen.getByLabelText("French")).toBeInTheDocument();
+  expect(screen.queryByLabelText("en")).not.toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText(/website url/i), { target: { value: "https://example-school.org" } });
+  fireEvent.click(screen.getByLabelText("English"));
+  fireEvent.click(screen.getByLabelText("French"));
+  fireEvent.click(screen.getByRole("button", { name: /register website/i }));
+  await waitFor(() => expect(loc.handleCreateSite).toHaveBeenCalled());
+  expect(loc.handleCreateSite.mock.calls[0][0].languages).toEqual([
+    { code: "en", enabled: true },
+    { code: "fr", enabled: true },
+  ]);
+});
+
+test("falls back to the language code when a language has no name", () => {
+  renderCard({ languages: [{ code: "xx" }] });
+  expect(screen.getByLabelText("xx")).toBeInTheDocument();
+});
+
+test("a site-list failure does not hide languages that did load", () => {
+  renderCard({ workspaceLoadError: new Error("sites failed") });
+  expect(screen.queryByText("Unable to load languages. Please try again.")).not.toBeInTheDocument();
+  expect(screen.getAllByRole("checkbox")).toHaveLength(2);
 });
 
 test("registration proceeds once a language is checked", async () => {
   const { loc } = renderCard();
   fireEvent.change(screen.getByLabelText(/website url/i), { target: { value: "https://example-school.org" } });
-  fireEvent.click(screen.getByLabelText("fr"));
+  fireEvent.click(screen.getByLabelText("French"));
   fireEvent.click(screen.getByRole("button", { name: /register website/i }));
   await waitFor(() => expect(loc.handleCreateSite).toHaveBeenCalled());
   expect(loc.handleCreateSite.mock.calls[0][0].languages).toEqual([{ code: "fr", enabled: true }]);

@@ -27,7 +27,7 @@ class LocalizationPage {
       await this.page.getByLabel(/^name$/i).fill(name);
     }
     for (const code of languageCodes) {
-      await this.page.getByLabel(code, { exact: true }).check();
+      await this.page.locator(`input[type="checkbox"][value="${code}"]`).check();
     }
     await this.page.getByRole('button', { name: /register website/i }).click();
     await this.page.getByText(/website connected/i).waitFor();

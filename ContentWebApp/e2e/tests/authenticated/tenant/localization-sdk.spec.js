@@ -1,4 +1,5 @@
 // @ts-check
+const path = require('path');
 const { test, expect } = require('@playwright/test');
 const { uniqueId } = require('../../../fixtures/instances');
 const { LocalizationPage } = require('../../../pages/LocalizationPage');
@@ -10,6 +11,17 @@ test.beforeEach(async ({}, testInfo) => {
 });
 
 const SOURCE_HEADING = 'Welcome to our school';
+const FIXTURE_ROUTE = '/e2e-sdk-test-page.html';
+const FIXTURE_PATH = path.join(
+  __dirname,
+  '..',
+  '..',
+  '..',
+  'fixtures',
+  'files',
+  'e2e-sdk-test-page.html'
+);
+const LOCAL_HOSTNAMES = new Set(['localhost', '127.0.0.1']);
 
 async function injectSnippet(page, snippetTag) {
   await expect(page.locator('#e2e-sdk-snippet-slot'), 'SDK fixture page has no #e2e-sdk-snippet-slot').toHaveCount(1);
@@ -34,7 +46,12 @@ async function injectSnippet(page, snippetTag) {
 test('registered site serves extracted and translated content through the embedded SDK', async ({ page, baseURL }) => {
   const domain = `e2e-sdk-${uniqueId()}.example`;
   const loc = new LocalizationPage(page);
-  const fixtureUrl = `${baseURL}/e2e-sdk-test-page.html`;
+  const fixtureUrl = `${baseURL}${FIXTURE_ROUTE}`;
+  if (!LOCAL_HOSTNAMES.has(new URL(fixtureUrl).hostname)) {
+    await page.route(fixtureUrl, (route) =>
+      route.fulfill({ path: FIXTURE_PATH, contentType: 'text/html' })
+    );
+  }
 
   await loc.gotoLocalizationTab();
   await loc.registerSite({ domain, name: domain, languageCodes: ['fr'] });
@@ -65,7 +82,7 @@ test('registered site serves extracted and translated content through the embedd
   expect(extractResponse.status()).toBe(202);
 
   await loc.gotoLocalizationTab();
-  await loc.approveAllPendingTranslations({ siteLabel: domain, siteId, route: '/e2e-sdk-test-page.html', lang: 'fr' });
+  await loc.approveAllPendingTranslations({ siteLabel: domain, siteId, route: FIXTURE_ROUTE, lang: 'fr' });
   const frenchHeading = (await page.getByLabel(`Translation for: ${SOURCE_HEADING}`).inputValue()).trim();
   expect(frenchHeading).not.toBe('');
   expect(frenchHeading).not.toBe(SOURCE_HEADING);

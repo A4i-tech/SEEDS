@@ -31,6 +31,16 @@ export function OnboardingCard({ loc }) {
     loc.languages.some((lang) => lang.code === code)
   );
 
+  const languagesFailed =
+    !loc.isLoadingWorkspace && loc.languages.length === 0 && loc.workspaceLoadError;
+  const languageNotice = loc.isLoadingWorkspace
+    ? "Loading available languages…"
+    : languagesFailed
+      ? "Unable to load languages. Please try again."
+      : loc.languages.length === 0
+        ? "No languages are currently available. Please contact support."
+        : null;
+
   const register = async (e) => {
     e.preventDefault();
     if (!domain.trim() || validLanguages.length === 0 || busy) return;
@@ -137,18 +147,29 @@ export function OnboardingCard({ loc }) {
           placeholder="Leave blank to auto-generate from the domain"
         />
         <label className="label">Languages</label>
-        <div className="checkbox-list">
-          {loc.languages.map((lang) => (
-            <label key={lang.code} className="checkbox-item">
-              <input
-                type="checkbox"
-                checked={selectedLanguages.includes(lang.code)}
-                onChange={() => toggleLanguage(lang.code)}
-              />
-              {lang.code}
-            </label>
-          ))}
-        </div>
+        {languageNotice && (
+          <p
+            className={languagesFailed ? "error-message" : "placeholder-text"}
+            role={languagesFailed ? "alert" : "status"}
+          >
+            {languageNotice}
+          </p>
+        )}
+        {loc.languages.length > 0 && (
+          <div className="checkbox-list">
+            {loc.languages.map((lang) => (
+              <label key={lang.code} className="checkbox-item">
+                <input
+                  type="checkbox"
+                  value={lang.code}
+                  checked={selectedLanguages.includes(lang.code)}
+                  onChange={() => toggleLanguage(lang.code)}
+                />
+                {lang.name || lang.code}
+              </label>
+            ))}
+          </div>
+        )}
         {error && <p className="error-message">{error}</p>}
         <button className="primary-button" type="submit" disabled={!domain.trim() || validLanguages.length === 0 || busy}>
           {busy ? "Registering…" : "Register Website"}
