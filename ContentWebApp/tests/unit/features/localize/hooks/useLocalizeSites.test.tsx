@@ -69,11 +69,12 @@ describe('useLocalizeSites', () => {
     expect(result.current.state).toEqual({ status: 'error', error: new Error('sites down') })
   })
 
-  it('a failed language load reports the error', async () => {
+  it('a failed language load does not hide the sites', async () => {
     vi.mocked(getLanguages).mockRejectedValue(new Error('langs down'))
     const { result } = await loaded()
     expect(result.current.languages).toEqual([])
-    expect(result.current.state).toEqual({ status: 'error', error: new Error('langs down') })
+    expect(result.current.sites).toEqual([site])
+    expect(result.current.languagesState).toEqual({ status: 'error', error: new Error('langs down') })
   })
 
   it('create sends the fields and shows the created site after refetch', async () => {
