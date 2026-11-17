@@ -22,6 +22,12 @@
   font-size: var(--mantine-font-size-xs);
   font-weight: 700;
   padding-block: 12px;
+  text-transform: uppercase;
+}
+
+.table.table th button {
+  font: inherit;
+  text-transform: inherit;
 }
 
 .table.table th,
