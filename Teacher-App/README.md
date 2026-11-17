@@ -72,8 +72,8 @@ This file is **not tracked** in Git and must be created manually.
 #### `.env` Template
 ```env
 # --- API URLs for Staging ---
-BASE_URL="https://your-staging-base-url.onrender.com"
-CONTENT_URL="https://your-staging-content-url.onrender.com"
+BASE_URL="https://your-staging-base-url.a4i-lab.in"
+CONTENT_URL="https://your-staging-content-url.a4i-lab.in"
 
 # --- Firebase Secrets ---
 # Firebase App ID (from Firebase Console -> Project Settings -> Your Apps)
