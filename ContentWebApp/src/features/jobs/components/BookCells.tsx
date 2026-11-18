@@ -1,9 +1,8 @@
-import { Badge, Group, Progress, Stack, Text, UnstyledButton, VisuallyHidden } from '@mantine/core';
+import { ActionIcon, Badge, Group, Progress, Stack, Text, VisuallyHidden } from '@mantine/core';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import type { BookTableRow } from '../utils/bookRows';
-import classes from './BookCells.module.css';
 
 export function BookTitleCell({ row, onToggle }: { row: BookTableRow; onToggle: () => void }) {
   const { t } = useTranslation();
@@ -11,15 +10,16 @@ export function BookTitleCell({ row, onToggle }: { row: BookTableRow; onToggle: 
   const Chevron = expanded ? ChevronDown : ChevronRight;
   return (
     <Group gap="xs" wrap="nowrap" align="flex-start">
-      <UnstyledButton
+      <ActionIcon
+        variant="outline"
+        size="md"
         type="button"
         onClick={onToggle}
         aria-expanded={expanded}
         aria-label={t('jobs.book.toggle', { title: book.title })}
-        mt={2}
       >
-        <Chevron size={16} aria-hidden />
-      </UnstyledButton>
+        <Chevron size={18} aria-hidden />
+      </ActionIcon>
       <Stack gap={2}>
         <Text size="sm" variant="rowTitle">
           {book.title}
@@ -54,7 +54,14 @@ export function BookStageCell({ row }: { row: BookTableRow }) {
 export function ChapterTitleCell({ position, children }: { position: number; children: ReactNode }) {
   const { t } = useTranslation();
   return (
-    <Group gap="xs" wrap="nowrap" align="flex-start" className={classes.chapter}>
+    <Group
+      gap="xs"
+      wrap="nowrap"
+      align="flex-start"
+      ms={16}
+      ps={12}
+      style={{ borderInlineStart: '3px solid var(--seeds-border-default)' }}
+    >
       <Text size="sm" c="dimmed">
         <VisuallyHidden component="span">{t('jobs.book.chapter')}</VisuallyHidden>
         {position}

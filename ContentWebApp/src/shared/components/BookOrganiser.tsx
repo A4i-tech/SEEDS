@@ -1,8 +1,7 @@
-import { Button, Group, Text, VisuallyHidden } from '@mantine/core';
+import { Box, Button, Group, Text, VisuallyHidden } from '@mantine/core';
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MAX_PDF_MB } from '../utils/upload';
-import classes from './BookOrganiser.module.css';
 
 export interface OrganiserItem {
   id: string;
@@ -66,7 +65,7 @@ export function BookOrganiser({ items, onChange, allowRemove }: BookOrganiserPro
     onChange(sortByName(items));
   };
 
-  const handleKeyDown = (event: KeyboardEvent<HTMLLIElement>, index: number) => {
+  const handleKeyDown = (event: KeyboardEvent<HTMLElement>, index: number) => {
     if (!event.altKey || (event.key !== 'ArrowUp' && event.key !== 'ArrowDown')) return;
     event.preventDefault();
     if (event.key === 'ArrowUp') move(index, index - 1, ['up', 'down']);
@@ -98,21 +97,34 @@ export function BookOrganiser({ items, onChange, allowRemove }: BookOrganiserPro
       <Text size="sm" c="dimmed" mb="sm">
         {t('bookOrganiser.keyboardHint')}
       </Text>
-      <ol className={classes.list} aria-label={t('bookOrganiser.listLabel')}>
+      <Box component="ol" m={0} p={0} style={{ listStyle: 'none' }} aria-label={t('bookOrganiser.listLabel')}>
         {items.map((item, index) => {
           const { id, name, sizeMb } = item;
           const tooBig = sizeMb !== undefined && sizeMb > MAX_PDF_MB;
           const problemId = `${idPrefix}-${id}-problem`;
+          const dropTarget = dragOver === index && dragFrom !== index;
           const isFirst = index === 0;
           const isLast = index === total - 1;
           return (
-            <li
+            <Group
+              component="li"
               key={id}
-              className={classes.row}
+              wrap="nowrap"
+              gap="md"
+              px="md"
+              py="sm"
+              mt={index > 0 ? 'xs' : 0}
+              bdrs="md"
+              bd={`1px solid ${tooBig ? 'var(--seeds-badge-hard-text)' : 'var(--seeds-card-border)'}`}
+              bg={dropTarget ? 'var(--seeds-subnav-bg-active)' : 'var(--seeds-bg-surface)'}
+              style={{
+                cursor: 'grab',
+                opacity: dragFrom === index ? 0.5 : 1,
+                ...(dropTarget && { borderTop: '4px solid var(--seeds-btn-primary-bg)' }),
+              }}
               draggable
               data-dragging={dragFrom === index || undefined}
-              data-drop-target={(dragOver === index && dragFrom !== index) || undefined}
-              data-problem={tooBig || undefined}
+              data-drop-target={dropTarget || undefined}
               aria-describedby={tooBig ? problemId : undefined}
               onKeyDown={(event) => handleKeyDown(event, index)}
               onDragStart={(event) => {
@@ -133,10 +145,10 @@ export function BookOrganiser({ items, onChange, allowRemove }: BookOrganiserPro
               }}
               onDragEnd={endDrag}
             >
-              <span className={classes.position} aria-hidden="true">
+              <Text component="span" fw={700} c="dimmed" miw="2ch" aria-hidden="true">
                 {index + 1}
-              </span>
-              <div className={classes.file}>
+              </Text>
+              <Box flex={1} miw={0} style={{ overflowWrap: 'anywhere' }}>
                 <Text fw={600}>{name}</Text>
                 {sizeMb !== undefined && (
                   <Text size="sm" c="dimmed">
@@ -144,11 +156,11 @@ export function BookOrganiser({ items, onChange, allowRemove }: BookOrganiserPro
                   </Text>
                 )}
                 {tooBig && (
-                  <Text id={problemId} size="sm" className={classes.problem}>
+                  <Text id={problemId} size="sm" fw={600} c="var(--seeds-badge-hard-text)">
                     {t('bookOrganiser.tooBig', { name, size: sizeMb.toFixed(1), limit: MAX_PDF_MB })}
                   </Text>
                 )}
-              </div>
+              </Box>
               <Group gap="xs" wrap="nowrap">
                 <Button
                   variant="default"
@@ -190,10 +202,10 @@ export function BookOrganiser({ items, onChange, allowRemove }: BookOrganiserPro
                   </Button>
                 )}
               </Group>
-            </li>
+            </Group>
           );
         })}
-      </ol>
+      </Box>
       <VisuallyHidden role="status" aria-live="polite">
         {announcement}
       </VisuallyHidden>
