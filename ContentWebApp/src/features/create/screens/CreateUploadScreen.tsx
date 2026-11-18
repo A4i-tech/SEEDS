@@ -9,7 +9,7 @@ import { ExperienceSelect } from '../components/ExperienceSelect';
 import { LocalizedFields } from '../components/LocalizedFields';
 import { useCreateContentAudio } from '../hooks/useCreateContent';
 import { localizedFieldsSchema, requireLocal, toLocalizedFields } from '../utils/localized';
-import { BackLink } from '@shared/components/BackLink';
+import { AppBreadcrumbs } from '@shared/components/AppBreadcrumbs';
 import { PageTitle } from '@shared/components/PageTitle';
 
 const uploadSchema = localizedFieldsSchema
@@ -61,7 +61,7 @@ export function CreateUploadScreen() {
   return (
     <form onSubmit={form.onSubmit(confirmSave)}>
       <Stack gap="md">
-        <BackLink to="/create" label={t('create.back')} />
+        <AppBreadcrumbs crumbs={[{ label: t('nav.create'), to: '/create' }, { label: t('create.uploadTitle') }]} />
         <PageTitle title={t('create.uploadTitle')} />
         <Text c="dimmed">{t('create.audioHint')}</Text>
         <Paper p="md" radius="md">

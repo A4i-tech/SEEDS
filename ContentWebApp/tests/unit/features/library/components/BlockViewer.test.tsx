@@ -41,6 +41,36 @@ describe('BlockViewer', () => {
     expect(container.querySelector('.katex')).not.toBeNull()
   })
 
+  it('embeds a YouTube video when the block has streams and no direct source', () => {
+    const video = block({
+      type: 'video',
+      student_view_data: { sources: [], streams: '1.50:zzz,1.00:abc123', poster: '' },
+    })
+    const { container } = renderWithProviders(
+      <BlockViewer course={course([video])} courseId="course-1" index={0} onSelect={vi.fn()} />,
+    )
+    expect(container.querySelector('iframe')).toHaveAttribute('src', 'https://www.youtube.com/embed/abc123')
+  })
+
+  it('plays a direct video source with its poster', () => {
+    const video = block({
+      type: 'video',
+      student_view_data: { sources: ['http://x/v.mp4'], streams: '1.00:abc123', poster: 'http://x/p.png' },
+    })
+    const { container } = renderWithProviders(
+      <BlockViewer course={course([video])} courseId="course-1" index={0} onSelect={vi.fn()} />,
+    )
+    expect(container.querySelector('video')).toHaveAttribute('poster', 'http://x/p.png')
+    expect(container.querySelector('iframe')).toBeNull()
+  })
+
+  it('tells the user to open a drag-and-drop exercise in Subodha', () => {
+    renderWithProviders(
+      <BlockViewer course={course([block({ type: 'drag-and-drop-v2' })])} courseId="course-1" index={0} onSelect={vi.fn()} />,
+    )
+    expect(screen.getByText(/open it in Subodha/i)).toBeInTheDocument()
+  })
+
   it('disables Previous on the first block and Next on the last block', () => {
     const onSelect = vi.fn()
     const { rerender } = renderWithProviders(

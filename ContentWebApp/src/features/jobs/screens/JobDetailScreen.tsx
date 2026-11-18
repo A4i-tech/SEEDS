@@ -10,7 +10,7 @@ import { percentOf, syncJobStatus, syncTitle } from '../types/job.types';
 import { SyncJobItemsTable } from '../components/SyncJobItemsTable';
 import { useJobs } from '../hooks/useJobs';
 import { terminalStatuses, useSyncJob } from '../hooks/useSyncJob';
-import { BackLink } from '@shared/components/BackLink';
+import { AppBreadcrumbs } from '@shared/components/AppBreadcrumbs';
 import { PageTitle } from '@shared/components/PageTitle';
 
 interface JobDetailView {
@@ -50,7 +50,7 @@ export function JobDetailScreen() {
     <Stack gap="md">
       {view && (
         <>
-          <BackLink to="/jobs" label={t('jobs.title')} />
+          <AppBreadcrumbs crumbs={[{ label: t('jobs.title'), to: '/jobs' }, { label: view.title }]} />
 
           <PageTitle title={view.title} />
           <Group gap="sm">

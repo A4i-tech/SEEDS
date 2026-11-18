@@ -4,7 +4,7 @@ import { useNavigate, useParams } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import type { AudioContentItem } from '@features/library/types/content.types';
 import { useReviewAudio } from '../hooks/useReviewAudio';
-import { BackLink } from '@shared/components/BackLink';
+import { AppBreadcrumbs } from '@shared/components/AppBreadcrumbs';
 import { PageTitle } from '@shared/components/PageTitle';
 
 type AudioReview = ReturnType<typeof useReviewAudio>;
@@ -68,7 +68,7 @@ export function ReviewAudioEditScreen() {
 
   return (
     <Stack gap="md">
-      <BackLink to="/review" label={t('review.title')} />
+      <AppBreadcrumbs crumbs={[{ label: t('review.title'), to: '/review' }, { label: t('review.editAudioTitle') }]} />
       <Text variant="eyebrow">{t('review.audioEyebrow')}</Text>
       <PageTitle title={t('review.editAudioTitle')} />
       <Text c="dimmed">{t('review.editAudioHint')}</Text>

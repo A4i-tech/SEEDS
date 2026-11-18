@@ -21,12 +21,28 @@ const sanitizeSchema = {
 
  function BlockBody({ block, courseId }: { block: CourseBlock; courseId: string }) {
   const { t } = useTranslation();
-  const [videoSrc] = block.student_view_data.sources;
+  const { sources: [videoSrc], streams, poster } = block.student_view_data;
+  const entries = streams.split(',');
+  const youtubeId = (entries.find((entry) => entry.startsWith('1.00:')) ?? entries[0]).split(':')[1];
   if (block.type === 'problem') return <ProblemBlock block={block} courseId={courseId} />;
+  if (block.type === 'drag-and-drop-v2') return <Text c="dimmed">{t('library.blockInteractive')}</Text>;
   if (block.type === 'video' && videoSrc) {
     return (
       // eslint-disable-next-line jsx-a11y/media-has-caption
-      <Box component="video" controls src={videoSrc} w="100%" />
+      <Box component="video" controls poster={poster} src={videoSrc} w="100%" />
+    );
+  }
+  if (block.type === 'video' && youtubeId) {
+    return (
+      <Box
+        component="iframe"
+        src={`https://www.youtube.com/embed/${youtubeId}`}
+        title={blockLabel(block)}
+        allowFullScreen
+        w="100%"
+        h={360}
+        style={{ border: 0 }}
+      />
     );
   }
   if (block.markdown) return (

@@ -1,5 +1,5 @@
 import { Alert, Button, Group, Paper, Stack, Text } from '@mantine/core';
-import { Link, useNavigate, useParams } from '@tanstack/react-router';
+import { useNavigate, useParams } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@features/auth/store/useAuthStore';
@@ -11,7 +11,7 @@ import type { AudioContentItem, ContentItem } from '../types/content.types';
 import { useLibraryAccess } from '../hooks/useLibraryAccess';
 import { AudioPreview, QuizPreview } from '../components/ContentPreview';
 import { notifyApiError } from '@shared/utils/notifyApiError';
-import { BackLink } from '@shared/components/BackLink';
+import { AppBreadcrumbs } from '@shared/components/AppBreadcrumbs';
 import { PageTitle } from '@shared/components/PageTitle';
 
 function DetailView({ item }: { item: ContentItem }) {
@@ -43,27 +43,28 @@ function DetailView({ item }: { item: ContentItem }) {
 
   return (
     <>
-      <Text variant="eyebrow">
-        {t(`library.experiences.${item.type}`)} · {t('library.readOnly')}
-      </Text>
-      <PageTitle title={item.title.english} />
-      <Group gap="md">
-        {canModifyContent(item.school_id) && (
-          <>
-            <Button
-              variant="outline"
-              onClick={() => void navigate({ to: '/library/$kind/$id/edit', params: { kind: item.type, id: item.id } })}
-            >
-              {t('library.edit')}
-            </Button>
-            <Button variant="destructive" onClick={confirmRemove}>
-              {t('library.delete')}
-            </Button>
-          </>
-        )}
-        <Button component={Link} to="/library">
-          {t('library.done')}
-        </Button>
+      <Group justify="space-between" align="flex-start" wrap="wrap" gap="md">
+        <Stack gap="xs">
+          <Text variant="eyebrow">
+            {t(`library.experiences.${item.type}`)} · {t('library.readOnly')}
+          </Text>
+          <PageTitle title={item.title.english} />
+        </Stack>
+        <Group gap="md">
+          {canModifyContent(item.school_id) && (
+            <>
+              <Button
+                variant="outline"
+                onClick={() => void navigate({ to: '/library/$kind/$id/edit', params: { kind: item.type, id: item.id } })}
+              >
+                {t('library.edit')}
+              </Button>
+              <Button variant="destructive" onClick={confirmRemove}>
+                {t('library.delete')}
+              </Button>
+            </>
+          )}
+        </Group>
       </Group>
 
       {remove.error && <Alert>{remove.error.message}</Alert>}
@@ -131,7 +132,7 @@ export function LibraryDetailScreen() {
 
   return (
     <Stack gap="md">
-      <BackLink to="/library" label={t('library.title')} />
+      <AppBreadcrumbs crumbs={[{ label: t('library.title'), to: '/library' }, { label: detailState.status === 'done' ? detailState.data.title.english : t('common.loading') }]} />
 
       {detailState.status === 'loading' && <Text c="dimmed">{t('common.loading')}</Text>}
       {detailState.status === 'error' && <Alert>{detailState.error.message}</Alert>}

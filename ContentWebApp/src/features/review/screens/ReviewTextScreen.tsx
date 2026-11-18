@@ -7,7 +7,7 @@ import { useReviewText } from '../hooks/useReviewText';
 import { MarkdownEditor } from '../components/MarkdownEditor';
 import { pageContent, replacePage, splitIntoPages, toPlainText } from '../utils/remediationPages';
 import classes from './ReviewTextScreen.module.css';
-import { BackLink } from '@shared/components/BackLink';
+import { AppBreadcrumbs } from '@shared/components/AppBreadcrumbs';
 import { PageTitle } from '@shared/components/PageTitle';
 
 const DIFF_CLASS = { removed: classes.removed, added: classes.added, same: classes.same };
@@ -28,7 +28,7 @@ export function ReviewTextScreen() {
 
   return (
     <Stack gap="md">
-      <BackLink to="/review" label={t('review.title')} />
+      <AppBreadcrumbs crumbs={[{ label: t('review.title'), to: '/review' }, { label: state.status === 'done' ? state.data.job.source_name : t('review.textTitle') }]} />
       <PageTitle title={state.status === 'done' ? state.data.job.source_name : t('review.textTitle')} />
       <Text c="dimmed">{t('review.textHint')}</Text>
       {state.status === 'loading' && <Text c="dimmed">{t('common.loading')}</Text>}

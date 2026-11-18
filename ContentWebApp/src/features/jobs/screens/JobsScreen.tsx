@@ -33,6 +33,7 @@ function RowAction({ row }: { row: JobRow }) {
       return navigate({ to: '/review/remediate/$jobId', params: { jobId: row.id } });
     }
     if (row.type === 'make-accessible') return navigate({ to: '/make-accessible/$jobId', params: { jobId: row.id } });
+    if (row.type === 'course-sync') return navigate({ to: '/jobs/$jobId', params: { jobId: row.id } });
     return navigate({ to: flowRoute[row.type] });
   };
   const role = useRole();

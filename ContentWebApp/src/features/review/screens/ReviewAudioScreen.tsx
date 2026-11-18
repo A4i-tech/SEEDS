@@ -3,7 +3,7 @@ import { useNavigate, useParams } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { useReviewAudio } from '../hooks/useReviewAudio';
 import classes from './ReviewAudioScreen.module.css';
-import { BackLink } from '@shared/components/BackLink';
+import { AppBreadcrumbs } from '@shared/components/AppBreadcrumbs';
 import { PageTitle } from '@shared/components/PageTitle';
 
 export function ReviewAudioScreen() {
@@ -14,7 +14,7 @@ export function ReviewAudioScreen() {
 
   return (
     <Stack gap="md">
-      <BackLink to="/review" label={t('review.title')} />
+      <AppBreadcrumbs crumbs={[{ label: t('review.title'), to: '/review' }, { label: t('review.audioTitle') }]} />
       <Text variant="eyebrow">{t('review.audioEyebrow')}</Text>
       <PageTitle title={t('review.audioTitle')} />
       <Text c="dimmed">{t('review.audioHint')}</Text>

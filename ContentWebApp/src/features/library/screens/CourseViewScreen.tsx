@@ -1,6 +1,6 @@
 import { Alert, Anchor, Button, Group, Stack, Text } from '@mantine/core';
 import { useState } from 'react';
-import { Link, useNavigate, useParams } from '@tanstack/react-router';
+import { useNavigate, useParams } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
@@ -14,7 +14,7 @@ import { notifyApiError } from '@shared/utils/notifyApiError';
 import { disambiguateLabels } from '../utils/courseLabels';
 import { useLibraryAccess } from '../hooks/useLibraryAccess';
 import { BlockViewer } from '../components/BlockViewer';
-import { BackLink } from '@shared/components/BackLink';
+import { AppBreadcrumbs } from '@shared/components/AppBreadcrumbs';
 import { PageTitle } from '@shared/components/PageTitle';
 
 function CourseContent({ course, id }: { course: CourseDetail; id: string }) {
@@ -54,20 +54,21 @@ function CourseContent({ course, id }: { course: CourseDetail; id: string }) {
 
   return (
     <>
-      <PageTitle title={course.title || course.name} />
-      {course.description && <Text c="dimmed">{course.description}</Text>}
-      <Group gap="md">
-        <Button variant="outline" loading={sync.isPending} onClick={() => sync.mutate()}>
-          {t('library.syncCourse')}
-        </Button>
-        {canDeleteCourse && (
-          <Button variant="destructive" onClick={confirmRemove}>
-            {t('library.delete')}
+      <Group justify="space-between" align="flex-start" wrap="wrap" gap="md">
+        <Stack gap="xs">
+          <PageTitle title={course.title || course.name} />
+          {course.description && <Text c="dimmed">{course.description}</Text>}
+        </Stack>
+        <Group gap="md">
+          <Button variant="outline" loading={sync.isPending} onClick={() => sync.mutate()}>
+            {t('library.syncCourse')}
           </Button>
-        )}
-        <Button component={Link} to={'/library'}>
-          {t('library.done')}
-        </Button>
+          {canDeleteCourse && (
+            <Button variant="destructive" onClick={confirmRemove}>
+              {t('library.delete')}
+            </Button>
+          )}
+        </Group>
       </Group>
 
       <Text variant="label">{t('library.blocks')}</Text>
@@ -102,7 +103,7 @@ export function CourseViewScreen() {
 
   return (
     <Stack gap="md">
-      <BackLink to="/library" label={t('library.title')} />
+      <AppBreadcrumbs crumbs={[{ label: t('library.title'), to: '/library' }, { label: detailState.status === 'done' ? detailState.data.title || detailState.data.name : t('common.loading') }]} />
 
       {detailState.status === 'loading' && <Text c="dimmed">{t('common.loading')}</Text>}
       {detailState.status === 'error' && <Alert>{detailState.error.message}</Alert>}
