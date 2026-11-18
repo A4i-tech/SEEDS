@@ -118,7 +118,8 @@ async def _get_job(
     repo: TextbookRemediationRepository, user: dict[str, object], job_id: str
 ) -> RemediationJob:
     job = await repo.get(str(user["tenant_id"]), job_id)
-    if job is None:
+    is_volunteer = user.get("role") == UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER.value
+    if job is None or (is_volunteer and job.assigned_to != user["sub"]):
         raise NotFoundError("Remediation job", job_id)
     return job
 
@@ -164,7 +165,10 @@ async def list_remediation_jobs(
     user: dict[str, object] = Depends(require_remediation_access),
     repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
 ) -> dict[str, list[dict[str, object]]]:
-    jobs = await repo.list_jobs(str(user["tenant_id"]), limit=limit)
+    is_volunteer = user.get("role") == UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER.value
+    jobs = await repo.list_jobs(
+        str(user["tenant_id"]), limit=limit, assigned_to=str(user["sub"]) if is_volunteer else ""
+    )
     return {"jobs": [serialize_job(job) for job in jobs]}
 
 

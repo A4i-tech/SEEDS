@@ -15,8 +15,10 @@ from app.controllers.textbook_remediation_controller import (
     create_remediation_job,
     get_remediation_artifact,
     get_remediation_image,
+    get_remediation_job,
     get_remediation_page,
     get_review_summary,
+    list_remediation_jobs,
     require_remediation_access,
     save_remediation_draft,
     verify_remediation_job,
@@ -849,17 +851,23 @@ async def test_postman_volunteer_uploads_and_tenant_assigns(repo):
 
 
 @pytest.mark.asyncio
-async def test_postman_volunteer_lists_tenant_jobs(repo):
-    blob = _StubBlob()
+async def test_volunteer_sees_only_assigned_jobs(mock_db):
+    vid = await _seed_volunteer(mock_db)
+    mine = await _seed_job(mock_db)
+    other = await _seed_job(mock_db)
+    await assign_job(mock_db, "tenant-a", mine.job_id, vid)
+    repo = TextbookRemediationRepository(mock_db)
+    volunteer = {"tenant_id": "tenant-a", "sub": vid, "role": "textbook_remediation_volunteer"}
     tenant = {"tenant_id": "tenant-a", "sub": "tenant-1", "role": "tenant"}
-    created = await create_remediation_job(
-        file=_StubUpload(b"%PDF-1.7 body"), language="en", target_language="",
-        user=tenant, repo=repo, blob_provider=blob,
-    )
-    from app.controllers.textbook_remediation_controller import list_remediation_jobs
-    volunteer = {"tenant_id": "tenant-a", "sub": "vol-1", "role": "textbook_remediation_volunteer"}
+
     listed = await list_remediation_jobs(limit=20, user=volunteer, repo=repo)
-    assert [j["job_id"] for j in listed["jobs"]] == [created["job_id"]]
+    assert [j["job_id"] for j in listed["jobs"]] == [mine.job_id]
+    assert (await get_remediation_job(mine.job_id, user=volunteer, repo=repo))["job_id"] == mine.job_id
+    with pytest.raises(NotFoundError):
+        await get_remediation_job(other.job_id, user=volunteer, repo=repo)
+
+    listed_all = await list_remediation_jobs(limit=20, user=tenant, repo=repo)
+    assert {j["job_id"] for j in listed_all["jobs"]} == {mine.job_id, other.job_id}
 
 
 async def _seed_volunteer_with_email(mock_db, email: str, tenant_id: str = "tenant-a") -> str:
