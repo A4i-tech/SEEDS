@@ -1,12 +1,11 @@
-import { Alert, Button, Group, Paper, Progress, Stack, Text } from '@mantine/core';
-import { useMutation } from '@tanstack/react-query';
+import { Alert, Button, Group, Paper, Stack, Text } from '@mantine/core';
 import { useNavigate, useParams } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { toApiState } from '@shared/utils/apiState';
-import { notifyApiError } from '@shared/utils/notifyApiError';
-import { downloadRemediationArtifact } from '../api/remediation';
 import { RemediationSteps } from '../components/RemediationSteps';
 import { useRemediationJob } from '../hooks/useRemediationJob';
+import { DownloadMenu } from '@shared/components/DownloadMenu';
+import { StageProgress } from '@features/jobs/components/StageProgress';
 import { REMEDIATION_UI } from '@features/jobs/types/job.types';
 import type { RemediationJobDetail } from '../types/remediation.types';
 import { AppBreadcrumbs } from '@shared/components/AppBreadcrumbs';
@@ -25,7 +24,6 @@ function metricsSummary(metrics: RemediationJobDetail['metrics']): string {
 function RunningView({ job }: { job: RemediationJobDetail }) {
   const { t } = useTranslation();
   const navigate = useNavigate();
-  const { percent } = job.progress;
 
   return (
     <>
@@ -41,9 +39,7 @@ function RunningView({ job }: { job: RemediationJobDetail }) {
       </Paper>
       <Stack gap="xs">
         <Text variant="label">{t('makeAccessible.progressTitle')}</Text>
-        {job.progress.message && <Text>{job.progress.message}</Text>}
-        <Progress value={percent} aria-label={t('makeAccessible.progressTitle')} />
-        <Text size="sm">{t('makeAccessible.percent', { percent })}</Text>
+        <StageProgress job={job} />
       </Stack>
     </>
   );
@@ -54,22 +50,14 @@ function DoneView({ job, jobId }: { job: RemediationJobDetail; jobId: string }) 
   const navigate = useNavigate();
   const summary = metricsSummary(job.metrics);
 
-  const download = useMutation({
-    mutationFn: () =>
-      downloadRemediationArtifact(jobId, 'docx', `${job.source_name.replace(/\.pdf$/i, '')}-accessible.docx`),
-    onError: notifyApiError,
-  });
-
   return (
     <>
       <PageTitle title={t('makeAccessible.ready')} />
       <Text c="dimmed">{t('makeAccessible.readyBody')}</Text>
       {summary && <Text size="sm">{summary}</Text>}
       <Group gap="md">
-        <Button variant="outline" loading={download.isPending} onClick={() => download.mutate()}>
-          {t('makeAccessible.download')}
-        </Button>
-        <Button onClick={() => void navigate({ to: '/review' })}>
+        <DownloadMenu job={job} />
+        <Button onClick={() => void navigate({ to: '/review/remediate/$jobId', params: { jobId } })}>
           {t('makeAccessible.startReview')}
         </Button>
       </Group>

@@ -1,4 +1,5 @@
 import { Node } from '@tiptap/core';
+import { TableKit } from '@tiptap/extension-table';
 import { Markdown } from '@tiptap/markdown';
 import { useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -42,10 +43,12 @@ export function MarkdownEditor({
   value,
   onChange,
   ariaLabel,
+  toolbar = true,
 }: {
   value: string;
   onChange: (markdown: string) => void;
   ariaLabel: string;
+  toolbar?: boolean;
 }) {
   const { t } = useTranslation();
   const { text, tokens } = useMemo(() => maskRaw(value), []);
@@ -53,6 +56,7 @@ export function MarkdownEditor({
     extensions: [
       StarterKit.configure({ underline: false, link: false }),
       Markdown,
+      TableKit,
       rawChip((raw) => {
         const { kind, page } = describeRaw(raw);
         return kind === 'char' ? raw : t(`review.chips.${kind}`, { page });
@@ -73,13 +77,15 @@ export function MarkdownEditor({
         h1ControlLabel: t('review.toolbar.h1'),
       }}
     >
-      <RichTextEditor.Toolbar>
-        <RichTextEditor.ControlsGroup>
-          <RichTextEditor.Bold />
-          <RichTextEditor.Italic />
-          <RichTextEditor.H1 />
-        </RichTextEditor.ControlsGroup>
-      </RichTextEditor.Toolbar>
+      {toolbar && (
+        <RichTextEditor.Toolbar>
+          <RichTextEditor.ControlsGroup>
+            <RichTextEditor.Bold />
+            <RichTextEditor.Italic />
+            <RichTextEditor.H1 />
+          </RichTextEditor.ControlsGroup>
+        </RichTextEditor.Toolbar>
+      )}
       <RichTextEditor.Content />
     </RichTextEditor>
   );

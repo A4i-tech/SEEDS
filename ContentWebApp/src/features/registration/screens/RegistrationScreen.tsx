@@ -6,10 +6,11 @@ import { RegistrationCards, type Section } from '../components/RegistrationCards
 import { SchoolListScreen } from './SchoolListScreen';
 import { StudentListScreen } from './StudentListScreen';
 import { TeacherListScreen } from './TeacherListScreen';
+import { VolunteerScreen } from './VolunteerScreen';
 import { PageTitle } from '@shared/components/PageTitle';
 
 const SECTIONS_BY_ROLE = {
-  tenant: ['schools'],
+  tenant: ['schools', 'volunteers'],
   school_admin: ['teachers', 'students'],
 } as const;
 
@@ -27,6 +28,7 @@ export function RegistrationScreen() {
       {section === 'schools' && <SchoolListScreen />}
       {section === 'teachers' && <TeacherListScreen />}
       {section === 'students' && <StudentListScreen />}
+      {section === 'volunteers' && <VolunteerScreen />}
     </Stack>
   );
 }

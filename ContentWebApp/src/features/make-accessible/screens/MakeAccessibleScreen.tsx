@@ -10,9 +10,9 @@ import { notifyApiError } from '@shared/utils/notifyApiError';
 import classes from './MakeAccessibleScreen.module.css';
 import { PageTitle } from '@shared/components/PageTitle';
 
-const supportedKeys = ['supportedPdf', 'supportedScan', 'supportedDocx'] as const;
+const supportedKeys = ['supportedPdf', 'supportedScan'] as const;
 
-const accept = '.pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+const accept = '.pdf,application/pdf';
 
 export function MakeAccessibleScreen() {
   const { t } = useTranslation();

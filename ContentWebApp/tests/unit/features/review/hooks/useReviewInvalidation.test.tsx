@@ -11,6 +11,7 @@ import {
   getReviewJob,
   getReviewSummary,
   reviewKeys,
+  saveReviewDraft,
 } from '@features/review/api/review'
 import { useReviewText } from '@features/review/hooks/useReviewText'
 import { useReviewRemediate } from '@features/review/hooks/useReviewRemediate'
@@ -32,6 +33,16 @@ const job = {
   status: 'ready_to_review' as const,
   draft_remediated_md: '',
   error: '',
+  translation_error: '',
+  artifacts: {},
+  language: 'auto',
+  detected_language: '',
+  stage_index: 3,
+  stage_count: 3,
+  progress: { message: '', percent: 0 },
+  source_page_count: 0,
+  models: { ocr: '', verify: '', block_tree: '', alt_text: '', translation: '' },
+  metrics: { processed_pages: 0, diagrams_described: 0, tables_fixed: 0, flagged_items_count: 0 },
   created_at: '2026-01-02',
   finished_at: '',
 }
@@ -48,10 +59,10 @@ function TextHookRunner() {
   return null
 }
 
-let remediateApprove!: () => Promise<void>
+let remediateApprove!: (draft?: string | null) => Promise<void>
 function RemediateHookRunner() {
   const { approve } = useReviewRemediate('job-1')
-  remediateApprove = () => approve.mutateAsync('title')
+  remediateApprove = (draft = null) => approve.mutateAsync({ title: 'title', draft })
   return null
 }
 
@@ -98,5 +109,33 @@ describe('review approve invalidates the queue', () => {
     await waitFor(() => expect(getRemediationJobs).toHaveBeenCalledTimes(1))
     await remediateApprove()
     await waitFor(() => expect(getRemediationJobs).toHaveBeenCalledTimes(2))
+  })
+
+  it('remediate approve saves a dirty draft before verifying', async () => {
+    const order: string[] = []
+    vi.mocked(saveReviewDraft).mockImplementation(async () => {
+      order.push('save')
+    })
+    vi.mocked(approveReview).mockImplementation(async () => {
+      order.push('approve')
+    })
+    renderWithProviders(<RemediateHookRunner />)
+    await remediateApprove('edited')
+    expect(saveReviewDraft).toHaveBeenCalledWith('job-1', 'edited')
+    expect(order).toEqual(['save', 'approve'])
+  })
+
+  it('remediate approve skips the save when nothing changed', async () => {
+    renderWithProviders(<RemediateHookRunner />)
+    await remediateApprove(null)
+    expect(saveReviewDraft).not.toHaveBeenCalled()
+    expect(approveReview).toHaveBeenCalledTimes(1)
+  })
+
+  it('remediate approve does not verify when the draft save fails', async () => {
+    vi.mocked(saveReviewDraft).mockRejectedValue(new Error('save failed'))
+    renderWithProviders(<RemediateHookRunner />)
+    await expect(remediateApprove('edited')).rejects.toThrow('save failed')
+    expect(approveReview).not.toHaveBeenCalled()
   })
 })

@@ -1,15 +1,15 @@
 import { apiClient } from '@shared/services/apiClient';
 import { getSession } from '@features/auth/store/useAuthStore';
-import type { Role } from '@shared/utils/jwt';
+import type { Role, volunteerRole } from '@shared/utils/jwt';
 import { meSchema, type Me } from '../types/account.types';
 
-const rolePaths: Record<Role, string> = {
+const rolePaths: Record<Exclude<Role, typeof volunteerRole>, string> = {
   tenant: '/tenant',
   school_admin: '/school/admin',
   content_creator: '/teacher',
 };
 
-const rolePath = () => rolePaths[getSession().role];
+const rolePath = () => rolePaths[getSession().role as keyof typeof rolePaths];
 
 export async function getMe(): Promise<Me> {
   const { data } = await apiClient.get(`${rolePath()}/me`);

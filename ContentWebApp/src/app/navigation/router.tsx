@@ -37,6 +37,7 @@ import { LocalizeReviewScreen } from '@features/localize/screens/LocalizeReviewS
 import { MakeAccessibleScreen } from '@features/make-accessible/screens/MakeAccessibleScreen';
 import { MakeAccessibleJobScreen } from '@features/make-accessible/screens/MakeAccessibleJobScreen';
 import { HomeScreen } from '@features/home/screens/HomeScreen';
+import { volunteerRole } from '@shared/utils/jwt';
 import { redirectSearchSchema } from './redirectSearch';
 import { reviewScopeSchema } from '@features/localize/types/localize.types';
 import { canAccess } from './roleAccess';
@@ -87,7 +88,8 @@ function protectedRoute<const TPath extends string, TSearch extends z.ZodType<Re
     component,
     validateSearch,
     beforeLoad: () => {
-      if (!canAccess(getSession().role, path)) throw redirect({ to: '/home' });
+      const { role } = getSession();
+      if (!canAccess(role, path)) throw redirect({ to: role === volunteerRole ? '/jobs' : '/home' });
     },
   });
 }
