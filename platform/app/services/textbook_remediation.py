@@ -237,15 +237,13 @@ async def save_draft(
     return updated
 
 
-# The path of one image in a Markdown link, after "](images/".
 _IMAGE_REF = re.compile(r'\]\(images/([^)\s"]+)')
 
 
 async def fetch_images(job: RemediationJob, markdown: str, out_dir: Path, blob_provider: BlobStorageProvider) -> str:
-    """Download the figures the Markdown shows into out_dir and point the links at them."""
     container = get_settings().azure_storage_container
     target = out_dir / "images" / job.job_id
-    target.mkdir(parents=True, exist_ok=True)
+    target.mkdir(parents=True)
     for name in {Path(n).name for n in _IMAGE_REF.findall(markdown)}:
         try:
             data = await blob_provider.download_file(container, f"textbook-remediation/{job.job_id}/images/{name}")
@@ -281,8 +279,7 @@ async def verify_job(
         # A job verified with no edits scores 100% against itself, so its length still counts in a book total.
         final_md = previous_md if job.draft_remediated_md is None else job.draft_remediated_md
         accuracy = await asyncio.to_thread(score_edit, previous_md, final_md)
-    # With no machine output to compare against, the job has no score.
-    if job.draft_remediated_md:
+    if job.draft_remediated_md is not None:
         with tempfile.TemporaryDirectory() as tmpdir:
             out_dir = Path(tmpdir)
             try:
@@ -292,8 +289,6 @@ async def verify_job(
                 logger.error("Could not compile verified artifacts for job %s: %s", job.job_id, exc)
                 raise ValidationError(f"Could not build the verified document: {exc}") from exc
 
-            changes = [{"wrong": w, "right": r} for w, r in edit_diff_pairs(previous_md, job.draft_remediated_md)]
-            await repo.record_edit(job.job_id, previous_md, job.draft_remediated_md, edited_by, changes, accuracy)
             container = get_settings().azure_storage_container
             verified: dict[str, str] = {}
             for name, out_path in (
@@ -320,6 +315,11 @@ async def verify_job(
     )
     if updated is None:
         raise NotFoundError("Remediation job", job.job_id)
+    if job.draft_remediated_md is not None:
+        # Written after the verify succeeded, so a failed verify and its retry leave one record.
+        await repo.record_edit(
+            job.job_id, previous_md, job.draft_remediated_md, edited_by, edit_diff_pairs(previous_md, job.draft_remediated_md), accuracy
+        )
     return updated
 
 

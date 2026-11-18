@@ -462,6 +462,7 @@ def test_render_remediation_keeps_a_question_stem_above_its_options(tmp_path):
     blocks = [
         {"type": "list", "text": "The SI unit of temperature is", "items": ["Kelvin", "Joule"]},
         {"type": "list", "text": "- Heat\n- Cold", "items": ["Heat", "Cold"]},
+        {"type": "list", "text": "Which of 2 and 3 is prime?", "items": ["2", "3"]},
     ]
     ctx = {
         "items": [
@@ -476,3 +477,4 @@ def test_render_remediation_keeps_a_question_stem_above_its_options(tmp_path):
     md = (tmp_path / "artifacts" / "raw.corrected.remediated.md").read_text(encoding="utf-8")
     assert "The SI unit of temperature is\n\n- Kelvin\n- Joule" in md
     assert md.count("Heat") == 1
+    assert "Which of 2 and 3 is prime?\n\n- 2\n- 3" in md

@@ -24,6 +24,7 @@ from app.models.remediation_job import (
 from app.platform.auth.dependencies import get_db
 from app.platform.error_handling import NotFoundError
 from app.remediation.accuracy import Accuracy
+from app.remediation.edit_diff import EditPair
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +45,7 @@ class TextbookRemediationRepository:
         self._edits = db[self.EDITS_COLLECTION_NAME]
 
     async def record_edit(
-        self, job_id: str, previous_md: str, new_md: str, edited_by: str, changes: list[dict[str, str]],
+        self, job_id: str, previous_md: str, new_md: str, edited_by: str, changes: list[EditPair],
         accuracy: Accuracy | None,
     ) -> None:
         await self._edits.insert_one({
@@ -86,6 +87,10 @@ class TextbookRemediationRepository:
         if assigned_to:
             query["assigned_to"] = assigned_to
         docs = await self._col.find(query, {"draft_remediated_md": 0}).sort("created_at", -1).to_list(length=limit)
+        return self._parse(docs)
+
+    @staticmethod
+    def _parse(docs: list[dict[str, object]]) -> list[RemediationJob]:
         jobs = []
         for d in docs:
             try:
@@ -101,7 +106,7 @@ class TextbookRemediationRepository:
             {"tenant_id": tenant_id, "deleted_at": None, "book_id": {"$in": book_ids}},
             None if include_draft else {"draft_remediated_md": 0},
         ).to_list(length=None)
-        return [RemediationJob.from_doc(d) for d in docs]
+        return self._parse(docs)
 
     async def _update(self, job_id: str, fields: dict[str, object]) -> RemediationJob | None:
         doc = await self._col.find_one_and_update(

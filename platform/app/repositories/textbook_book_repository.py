@@ -16,14 +16,14 @@ from app.platform.error_handling import NotFoundError
 def _oid(book_id: str) -> ObjectId:
     try:
         return ObjectId(book_id)
-    except (InvalidId, TypeError) as exc:
+    except InvalidId as exc:
         raise NotFoundError("Book", book_id) from exc
 
 
 def _public(doc: dict[str, object]) -> dict[str, object]:
     return {
         "book_id": str(doc["_id"]), "title": doc["title"], "language": doc["language"],
-        "job_ids": doc["job_ids"], "created_at": doc["created_at"], "built": doc.get("built"),
+        "job_ids": doc["job_ids"], "created_at": doc["created_at"], "built": doc["built"],
     }
 
 
@@ -38,7 +38,7 @@ class TextbookBookRepository:
     ) -> dict[str, object]:
         doc = {
             "_id": book_id, "tenant_id": tenant_id, "title": title, "language": language,
-            "job_ids": job_ids, "created_at": datetime.now(UTC).isoformat(), "deleted_at": None,
+            "job_ids": job_ids, "created_at": datetime.now(UTC).isoformat(), "deleted_at": None, "built": {},
         }
         await self._col.insert_one(doc)
         return _public(doc)

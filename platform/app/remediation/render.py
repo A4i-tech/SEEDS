@@ -67,11 +67,8 @@ def as_jpeg(raw: bytes) -> tuple[bytes, str]:
         return raw, ext
 
 
-# An HTML comment, such as a page marker or a spoken note, across lines.
 _HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
-# One MathML element across lines, then the spoken note the builder writes after it (optional).
 _MATHML_RE = re.compile(r"(<math\b.*?</math>)(?:\s*<!--\s*spoken:\s*(.*?)\s*-->)?", re.DOTALL)
-# Any tag.
 _TAG_RE = re.compile(r"<[^>]+>")
 
 
@@ -89,11 +86,6 @@ def _math_to_text(match: re.Match[str]) -> str:
     return match.group(2) or " ".join(_TAG_RE.sub(" ", match.group(1)).split())
 
 
-def _prepare_markdown(text: str) -> str:
-    # Raw HTML is off, so pandoc would print comments and MathML as plain text.
-    return _HTML_COMMENT_RE.sub("", _MATHML_RE.sub(_math_to_text, text))
-
-
 def markdown_to_format(
     text: str,
     to: str,
@@ -101,7 +93,8 @@ def markdown_to_format(
     resource_root: Path | None = None,
     reference_docx: Path | None = None,
 ) -> None:
-    text = _prepare_markdown(text)
+    # Raw HTML is off, so pandoc would print comments and MathML as plain text.
+    text = _HTML_COMMENT_RE.sub("", _MATHML_RE.sub(_math_to_text, text))
     extra_args = ["--standalone"]
     if resource_root is not None:
         extra_args.append(f"--resource-path={resource_root}")
@@ -432,7 +425,9 @@ def _render_heading(builder: _MarkdownBuilder, page_num: int, block: dict[str, o
 def _render_list(builder: _MarkdownBuilder, page_num: int, block: dict[str, object], b_text: str) -> None:
     items = block.get("items") or []
     if items:
-        if b_text and not any(b_text in str(i) for i in items) and not all(str(i) in b_text for i in items):
+        # The model sometimes repeats the items as the lead-in text. Then the text adds nothing.
+        repeats_items = [line.lstrip("-* ").strip() for line in b_text.splitlines()] == [str(i).strip() for i in items]
+        if b_text and not repeats_items:
             builder.append(b_text)
         builder.append("\n".join(f"- {str(i)}" for i in items))
     elif b_text:

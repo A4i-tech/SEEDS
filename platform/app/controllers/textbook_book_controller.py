@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, File, Form, Response, UploadFile
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.controllers.textbook_remediation_controller import (
-    _validate_language,
+    validate_language,
     validate_pdf_upload,
 )
-from app.models.remediation_job import ArtifactName
 from app.models.responses.remediation import BookResponse, CreateBookResponse
 from app.platform.auth.dependencies import require_tenant
 from app.platform.error_handling import NotFoundError, ValidationError
@@ -25,7 +24,7 @@ MAX_BOOK_FILES = 50
 
 
 class ReorderBookRequest(BaseModel):
-    job_ids: list[str]
+    job_ids: list[str] = Field(max_length=MAX_BOOK_FILES)
 
 
 async def _get_book(books: TextbookBookRepository, tenant_id: str, book_id: str) -> dict[str, object]:
@@ -56,9 +55,9 @@ async def create_book(
     for file in files:
         await validate_pdf_upload(file)
     if language != "auto":
-        _validate_language(language)
+        validate_language(language)
     if target_language:
-        _validate_language(target_language)
+        validate_language(target_language)
     book = await textbook_book.create_book(
         repo, books, blob_provider,
         tenant_id=str(user["tenant_id"]),
@@ -80,8 +79,7 @@ async def reorder_book(
 ) -> dict[str, object]:
     tenant_id = str(user["tenant_id"])
     book = await _get_book(books, tenant_id, book_id)
-    updated = await textbook_book.reorder_book(repo, books, tenant_id, book, payload.job_ids)
-    return {**updated, "edit_accuracy": textbook_book.book_accuracy(await textbook_book.active_children(repo, tenant_id, updated))}
+    return await textbook_book.reorder_book(repo, books, tenant_id, book, payload.job_ids)
 
 
 @router.delete("/{book_id}", status_code=204, summary="Soft-delete a book and its chapters")
@@ -109,5 +107,5 @@ async def get_book_artifact(
     data, content_type = await textbook_book.book_artifact(repo, books, blob_provider, tenant_id, book, name)
     return Response(
         data, media_type=content_type,
-        headers={"Content-Disposition": f'attachment; filename="book.{ArtifactName(name).value}"'},
+        headers={"Content-Disposition": f'attachment; filename="book.{name}"'},
     )

@@ -4,7 +4,6 @@ import asyncio
 import hashlib
 import logging
 import tempfile
-from collections.abc import Awaitable, Callable
 from pathlib import Path
 from typing import IO
 
@@ -14,6 +13,7 @@ from app.models.remediation_job import ARTIFACTS, ArtifactName, JobStatus, Remed
 from app.platform.error_handling import AppError, NotFoundError, ValidationError
 from app.platform.settings import get_settings
 from app.providers.blob_storage import BlobStorageProvider
+from app.remediation.accuracy import percent
 from app.repositories.textbook_book_repository import TextbookBookRepository
 from app.repositories.textbook_remediation_repository import TextbookRemediationRepository
 from app.services.textbook_remediation import (
@@ -28,11 +28,6 @@ logger = logging.getLogger(__name__)
 # Change this when the build output changes, so books built earlier are rebuilt.
 BUILD_VERSION = "2-images"
 BOOK_FORMATS = (ArtifactName.DOCX, ArtifactName.TEX, ArtifactName.PDF)
-CompileFn = Callable[[str, Path], Awaitable[tuple[Path, Path, Path | None]]]
-
-
-async def _compile_in_thread(markdown: str, out_dir: Path) -> tuple[Path, Path, Path | None]:
-    return await asyncio.to_thread(_compile_verified, markdown, out_dir)
 
 
 async def create_book(
@@ -55,12 +50,14 @@ async def create_book(
                 language=language, target_language=target_language, book_id=str(book_id),
             )
             job_ids.append(job.job_id)
+        return await books.create(book_id=book_id, tenant_id=tenant_id, title=title, language=language, job_ids=job_ids)
     except Exception:
-        # No book record exists yet, so remove the chapters saved so far.
+        # The book is not saved, so remove the chapters saved so far and their source files.
+        container = get_settings().azure_storage_container
         for job_id in job_ids:
             await repo.soft_delete(tenant_id, job_id)
+            await blob_provider.delete_blob(container, f"textbook-remediation/{job_id}/source.pdf")
         raise
-    return await books.create(book_id=book_id, tenant_id=tenant_id, title=title, language=language, job_ids=job_ids)
 
 
 async def active_children(
@@ -77,13 +74,14 @@ async def reorder_book(
     book: dict[str, object],
     job_ids: list[str],
 ) -> dict[str, object]:
-    current = {j.job_id for j in await active_children(repo, tenant_id, book)}
+    children = await active_children(repo, tenant_id, book)
+    current = {j.job_id for j in children}
     if len(job_ids) != len(set(job_ids)) or set(job_ids) != current:
         raise ValidationError("The new order must list every chapter of the book exactly once. Reload the page and try again.")
     updated = await books.set_order(tenant_id, str(book["book_id"]), job_ids)
     if updated is None:
         raise NotFoundError("Book", str(book["book_id"]))
-    return updated
+    return {**updated, "edit_accuracy": book_accuracy(children)}
 
 
 async def delete_book(
@@ -95,14 +93,11 @@ async def delete_book(
 
 
 def book_accuracy(children: list[RemediationJob]) -> float | None:
-    """Character accuracy over the verified chapters, weighted by length. None until one is verified."""
     verified = [c for c in children if c.status == JobStatus.VERIFIED]
-    scored = [c for c in verified if c.edit_chars_total is not None]
     # A chapter verified before scoring existed has no counts, so a partial total would mislead.
-    if not scored or len(scored) != len(verified):
+    if not verified or any(c.edit_chars_total is None for c in verified):
         return None
-    total = sum(c.edit_chars_total for c in scored)
-    return 100.0 if total == 0 else round(100 * (1 - sum(c.edit_chars_changed for c in scored) / total), 1)
+    return percent(sum(c.edit_chars_changed for c in verified), sum(c.edit_chars_total for c in verified))
 
 
 def _fingerprint(children: list[RemediationJob]) -> str:
@@ -111,7 +106,7 @@ def _fingerprint(children: list[RemediationJob]) -> str:
 
 
 async def _chapter_markdown(job: RemediationJob, blob_provider: BlobStorageProvider) -> str:
-    if job.draft_remediated_md:
+    if job.draft_remediated_md is not None:
         return job.draft_remediated_md
     data, _ = await artifact_bytes(job, ArtifactName.REMEDIATED, blob_provider)
     return data.decode("utf-8")
@@ -124,7 +119,6 @@ async def book_artifact(
     tenant_id: str,
     book: dict[str, object],
     name: str,
-    compile_book: CompileFn = _compile_in_thread,
 ) -> tuple[bytes, str]:
     if name not in {f.value for f in BOOK_FORMATS}:
         raise ValidationError(f"Unknown book file {name!r}. Use docx, tex or pdf.")
@@ -140,19 +134,19 @@ async def book_artifact(
             409,
         )
     fingerprint = _fingerprint(children)
-    built = book.get("built") or {}
-    if built.get("fingerprint") != fingerprint:
-        urls: dict[str, str] = {}
+    built = book["built"]
+    if built.get("fingerprint") != fingerprint or fmt not in built["artifacts"]:
+        urls: dict[ArtifactName, str] = {}
         with tempfile.TemporaryDirectory() as tmp:
             try:
                 parts = [await fetch_images(c, await _chapter_markdown(c, blob_provider), Path(tmp), blob_provider) for c in children]
-                out_docx, out_tex, out_pdf = await compile_book("\n\n".join(parts), Path(tmp))
+                out_docx, out_tex, out_pdf = await asyncio.to_thread(_compile_verified, "\n\n".join(parts), Path(tmp))
             except Exception as exc:
                 logger.error("Could not build book %s: %s", book["book_id"], exc)
                 raise ValidationError(f"Could not build the book: {exc}") from exc
             container = get_settings().azure_storage_container
             for artifact, path in ((ArtifactName.DOCX, out_docx), (ArtifactName.TEX, out_tex), (ArtifactName.PDF, out_pdf)):
-                if path and path.exists():
+                if path:
                     with path.open("rb") as fh:
                         urls[artifact] = await blob_provider.upload_file(
                             container, f"textbook-remediation/books/{book['book_id']}/book.{artifact}", fh, ARTIFACTS[artifact][1]
@@ -161,5 +155,10 @@ async def book_artifact(
         await books.set_built(tenant_id, str(book["book_id"]), built)
     url = built["artifacts"].get(fmt)
     if url is None:
-        raise NotFoundError("Book file", f"{book['book_id']}/{name}")
+        raise AppError(
+            "NOT_FOUND",
+            f"The {name.upper()} of this book could not be built. Download the Word file instead, "
+            "or ask an admin to check that LibreOffice is installed on the server.",
+            404,
+        )
     return await blob_provider.download_from_url(url), ARTIFACTS[fmt][1]

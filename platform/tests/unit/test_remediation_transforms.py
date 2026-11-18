@@ -73,6 +73,21 @@ def test_digit_guard_keeps_when_source_has_bengali_digit():
     assert _digit("পাতা ২৫", "পাতা ২৫") == "পাতা ২৫"
 
 
+def test_digit_guard_keeps_bengali_digits_when_ocr_read_no_digit_at_all():
+    assert _digit("পাতা", "পাতা ২৫") == "পাতা ২৫"
+
+
+def test_digit_guard_skips_items_with_no_text_or_no_verified_markdown():
+    doc = {
+        "metadata": {},
+        "items": [
+            {"id": "a", "text": None, "metadata": {"kind": "page", "verified": {"markdown": "১০"}}},
+            {"id": "b", "text": "Class 10", "metadata": {"kind": "page"}},
+        ],
+    }
+    assert _run("Restore Western digits the OCR verification turned into Bengali digits", doc) == doc
+
+
 def test_digit_guard_skips_image_items():
     assert _digit("x", "১০", kind="image") == "১০"
 

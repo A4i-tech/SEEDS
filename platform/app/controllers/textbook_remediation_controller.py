@@ -69,7 +69,7 @@ MAX_PDF_BYTES = 10 * 1024 * 1024
 _LANGUAGE_CODES = frozenset(lang["code"] for lang in SUPPORTED_LANGUAGES)
 
 
-def _validate_language(value: str) -> None:
+def validate_language(value: str) -> None:
     if value not in _LANGUAGE_CODES:
         raise ValidationError(f"{value!r} is not a supported language. Pick a language from GET /v1/languages.")
 
@@ -120,7 +120,8 @@ async def _get_job(
     repo: TextbookRemediationRepository, user: dict[str, object], job_id: str
 ) -> RemediationJob:
     job = await repo.get(str(user["tenant_id"]), job_id)
-    if job is None:
+    is_volunteer = user.get("role") == UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER.value
+    if job is None or (is_volunteer and job.assigned_to != user["sub"]):
         raise NotFoundError("Remediation job", job_id)
     return job
 
@@ -152,9 +153,9 @@ async def create_remediation_job(
 ) -> dict[str, str]:
     await validate_pdf_upload(file)
     if language != "auto":
-        _validate_language(language)
+        validate_language(language)
     if target_language:
-        _validate_language(target_language)
+        validate_language(target_language)
 
     job = await create_job(
         repo, blob_provider,
@@ -175,17 +176,18 @@ async def list_remediation_jobs(
     book_repo: TextbookBookRepository = Depends(get_textbook_book_repo),
 ) -> dict[str, list[dict[str, object]]]:
     tenant_id = str(user["tenant_id"])
-    volunteer = user.get("role") == UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER.value
-    jobs = {j.job_id: j for j in await repo.list_jobs(tenant_id, limit=limit)}
+    volunteer = user["role"] == UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER.value
+    assigned_to = str(user["sub"]) if volunteer else ""
+    jobs = {j.job_id: j for j in await repo.list_jobs(tenant_id, limit=limit, assigned_to=assigned_to)}
     books = await book_repo.list_books(tenant_id)
     if not volunteer:
         # A long book must show every chapter, even when the limit cut the list.
         for child in await repo.list_by_book(tenant_id, [str(b["book_id"]) for b in books]):
             jobs.setdefault(child.job_id, child)
     live = set(jobs)
-    # A volunteer sees a book only through a chapter that is in their own job list.
+    # A volunteer sees a book only through a chapter in their own job list.
     return {
-        "jobs": [serialize_job(job) for job in jobs.values()],
+        "jobs": [serialize_job(job) for job in sorted(jobs.values(), key=lambda j: j.created_at, reverse=True)],
         "books": [
             {
                 **b,
@@ -349,7 +351,7 @@ async def translate_remediation_job(
     blob_provider: BlobStorageProvider = Depends(get_blob_storage_provider),
 ) -> dict[str, object]:
     job = await _get_job(repo, user, job_id)
-    _validate_language(payload.target_language)
+    validate_language(payload.target_language)
     updated = await translate_job(repo, blob_provider, job, payload.target_language)
     return serialize_job(updated)
 

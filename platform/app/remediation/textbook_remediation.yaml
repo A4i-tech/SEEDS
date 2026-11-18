@@ -55,7 +55,6 @@ steps:
           if (.text | type) == "string" then
             .text |= (
               split("\n")
-              # Drop a chapter code line (40 chars or fewer), a Reprint line, or an .indd marker line (80 chars or fewer).
               | map(select(((test("\\b\\d{4}CH\\d{2}\\b") and length <= 40) or test("^\\s*Reprint\\s+\\d{4}-\\d{2}\\s*$") or (test("\\.indd") and length <= 80)) | not))
               | join("\n")
             )
@@ -162,9 +161,11 @@ steps:
       value: |
         .items |= map(
           if .metadata.kind != "image"
-            # The raw OCR text has no Bengali digit (U+09E6-U+09EF).
+            and (.text | type) == "string"
+            and (.metadata.verified.markdown | type) == "string"
+            # OCR read Western digits and has no Bengali digit, so Bengali digits in the model text are a misread.
+            and (.text | test("[0-9]"))
             and (.text | test("[\u09e6-\u09ef]") | not)
-            # The model's text has a Bengali digit.
             and (.metadata.verified.markdown | test("[\u09e6-\u09ef]"))
           then
             .metadata.verified.markdown |= (explode | map(if . >= 2534 and . <= 2543 then . - 2486 else . end) | implode)
@@ -479,7 +480,6 @@ steps:
       update: [items]
       value: |
         def digits_to_sub: explode | map(if . >= 48 and . <= 57 then . + 8272 elif . == 43 then 8330 elif . == 45 then 8331 else . end) | implode;
-        # Drop a literal bullet after a list marker, and turn a raw _{3} subscript into a Unicode subscript.
         def clean: gsub("(?<m>^[ \\t]*(?:[0-9\u09e6-\u09ef]+[.)]|[-*]))[ \\t]*\u2022[ \\t]*"; "\(.m) ") | gsub("_\\{(?<d>[0-9+-]+)\\}"; .d | digits_to_sub);
         # Drop a leading list number when a second one follows, so "1. 6." becomes "6.".
         def dedupe: sub("\\A[0-9০-৯]{1,3}[.)][ \\t]+(?<n>[0-9০-৯]{1,3}[.)])(?<r>[ \\t]|$)"; "\(.n)\(.r)");
@@ -490,7 +490,6 @@ steps:
         .items |= map(
           if (.metadata.remediation.blocks | type) == "array" then
             .metadata.remediation.blocks |= (
-              # Drop a paragraph whose whole text is one digit or a single question mark.
               map(select(((.type == "paragraph") and (.text | test("^\\s*([0-9\u09e6-\u09ef]|\\?)\\s*$"))) | not))
               | map(select(((.type == "list") and all((.items // [])[]; . == "")) | not))
               | map(fix_block)
