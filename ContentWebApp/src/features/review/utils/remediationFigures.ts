@@ -7,7 +7,8 @@ export type Segment =
   | { type: 'text'; markdown: string }
   | { type: 'figure'; imageName: string; figure: Figure };
 
-const FIGURE_BLOCK = /^!\[([^\]]*)\]\(images\/([^)\s"]+)(?:\s+"([^"]*)")?\)$/;
+// Matches a block that is only one figure, ![alt](images/name "description"), so images inside a paragraph stay text.
+const FIGURE_BLOCK =/^!\[([^\]]*)\]\(images\/([^)\s"]+)(?:\s+"([^"]*)")?\)$/;
 
 export function figureMarkdown(imageName: string, { alt, description }: Figure): string {
   const title = description.trim() ? ` "${description.trim().replace(/"/g, "'").replace(/\s*\n\s*/g, ' ')}"` : '';
