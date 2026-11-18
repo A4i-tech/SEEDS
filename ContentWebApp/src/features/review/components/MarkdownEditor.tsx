@@ -42,10 +42,12 @@ export function MarkdownEditor({
   value,
   onChange,
   ariaLabel,
+  toolbar = true,
 }: {
   value: string;
   onChange: (markdown: string) => void;
   ariaLabel: string;
+  toolbar?: boolean;
 }) {
   const { t } = useTranslation();
   const { text, tokens } = useMemo(() => maskRaw(value), []);
@@ -73,13 +75,15 @@ export function MarkdownEditor({
         h1ControlLabel: t('review.toolbar.h1'),
       }}
     >
-      <RichTextEditor.Toolbar>
-        <RichTextEditor.ControlsGroup>
-          <RichTextEditor.Bold />
-          <RichTextEditor.Italic />
-          <RichTextEditor.H1 />
-        </RichTextEditor.ControlsGroup>
-      </RichTextEditor.Toolbar>
+      {toolbar && (
+        <RichTextEditor.Toolbar>
+          <RichTextEditor.ControlsGroup>
+            <RichTextEditor.Bold />
+            <RichTextEditor.Italic />
+            <RichTextEditor.H1 />
+          </RichTextEditor.ControlsGroup>
+        </RichTextEditor.Toolbar>
+      )}
       <RichTextEditor.Content />
     </RichTextEditor>
   );

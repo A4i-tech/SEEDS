@@ -8,7 +8,8 @@ import { openConfirmDialog } from '@shared/components/ConfirmDialog';
 import { DataTable } from '@shared/components/DataTable';
 import { StatusBadge } from '@shared/components/StatusBadge';
 import { LoadError } from '@shared/components/LoadError';
-import { RowDownloadMenu } from '../components/RowDownloadMenu';
+import { useRole } from '@features/auth/store/useAuthStore';
+import { DownloadMenu } from '../components/DownloadMenu';
 import { StageProgress } from '../components/StageProgress';
 import { availableDownloads } from '../utils/artifacts';
 import { selectValue } from '@shared/utils/select';
@@ -31,6 +32,7 @@ function RowAction({ row }: { row: JobRow }) {
     if (row.type === 'make-accessible') return navigate({ to: '/make-accessible/$jobId', params: { jobId: row.id } });
     return navigate({ to: flowRoute[row.type] });
   };
+  const role = useRole();
   const remove = useDeleteRemediationJob();
   const confirmRemove = () =>
     openConfirmDialog({
@@ -56,9 +58,9 @@ function RowAction({ row }: { row: JobRow }) {
           </Anchor>
         )}
         {row.remediation && availableDownloads(row.remediation.artifacts).length > 0 && (
-          <RowDownloadMenu job={row.remediation} />
+          <DownloadMenu job={row.remediation} row />
         )}
-        {row.type === 'make-accessible' && (
+        {row.type === 'make-accessible' && role === 'tenant' && (
           <Anchor component="button" type="button" variant="rowAction" c="red" onClick={confirmRemove}>
             {t('jobs.delete')}
           </Anchor>

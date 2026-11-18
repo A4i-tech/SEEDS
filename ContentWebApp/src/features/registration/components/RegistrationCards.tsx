@@ -4,7 +4,7 @@ import { LoadError } from '@shared/components/LoadError';
 import type { AnalyticsRole } from '@features/analytics/types/analytics.types';
 import { useAnalyticsDashboard, useAnalyticsRole } from '@features/analytics/hooks/useAnalytics';
 
-export type Section = 'schools' | 'teachers' | 'students';
+export type Section = 'schools' | 'teachers' | 'students' | 'volunteers';
 
 interface Props {
   sections: readonly Section[];

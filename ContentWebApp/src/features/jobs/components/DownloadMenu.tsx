@@ -1,18 +1,31 @@
-import { Anchor, Menu } from '@mantine/core';
+import { Anchor, Button, Menu } from '@mantine/core';
+import { ChevronDown } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useDownloadArtifact } from '../hooks/useDownloadArtifact';
 import type { RemediationJob } from '../types/job.types';
 import { availableDownloads } from '../utils/artifacts';
 
-export function RowDownloadMenu({ job }: { job: Pick<RemediationJob, 'job_id' | 'source_name' | 'artifacts'> }) {
+export function DownloadMenu({
+  job,
+  row = false,
+}: {
+  job: Pick<RemediationJob, 'job_id' | 'source_name' | 'artifacts'>;
+  row?: boolean;
+}) {
   const { t } = useTranslation();
   const download = useDownloadArtifact(job);
   return (
     <Menu position="bottom-end">
       <Menu.Target>
-        <Anchor component="button" type="button" variant="rowAction">
-          {t('jobs.download')}
-        </Anchor>
+        {row ? (
+          <Anchor component="button" type="button" variant="rowAction">
+            {t('jobs.download')}
+          </Anchor>
+        ) : (
+          <Button variant="outline" rightSection={<ChevronDown size={16} aria-hidden />} loading={download.isPending}>
+            {t('jobs.download')}
+          </Button>
+        )}
       </Menu.Target>
       <Menu.Dropdown>
         {availableDownloads(job.artifacts).map((entry) => (

@@ -1,6 +1,7 @@
-import { adminRoles, roleSchema, type Role } from '@shared/utils/jwt';
+import { adminRoles, roleSchema, volunteerRole, type Role } from '@shared/utils/jwt';
 
-const CONTENT_ROLES = roleSchema.options;
+const CONTENT_ROLES = roleSchema.options.filter((role) => role !== volunteerRole);
+const VOLUNTEER_SEGMENTS = ['jobs', 'make-accessible', 'review'];
 
 const ROLES_BY_SEGMENT: Record<string, readonly Role[]> = {
   library: CONTENT_ROLES,
@@ -15,6 +16,8 @@ const ROLES_BY_SEGMENT: Record<string, readonly Role[]> = {
 };
 
 export function canAccess(role: Role, path: string): boolean {
-  const allowed = ROLES_BY_SEGMENT[path.split('/')[1]];
+  const segment = path.split('/')[1];
+  if (role === volunteerRole) return VOLUNTEER_SEGMENTS.includes(segment);
+  const allowed = ROLES_BY_SEGMENT[segment];
   return !allowed || allowed.includes(role);
 }

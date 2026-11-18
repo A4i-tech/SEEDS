@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react'
+import { fireEvent, screen } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { renderWithProviders } from '../../../test-utils/renderWithProviders'
@@ -75,11 +75,31 @@ describe('ReviewRemediateScreen', () => {
     expect(screen.queryByText('job-1')).toBeNull()
   })
 
-  it('shows run details with the models used', async () => {
+  it('keeps run details collapsed until opened', async () => {
     vi.mocked(getReviewJob).mockResolvedValue(job)
     renderWithProviders(<ReviewRemediateScreen />)
-    expect(await screen.findByText('Run details')).toBeTruthy()
+    const toggle = await screen.findByRole('button', { name: 'Run details' })
+    expect(toggle.getAttribute('aria-expanded')).toBe('false')
+    fireEvent.click(toggle)
+    expect(toggle.getAttribute('aria-expanded')).toBe('true')
     expect(screen.getByText('mistral-ocr')).toBeTruthy()
+  })
+
+  it('puts one Download menu and the publish actions in the header, with no Back to queue', async () => {
+    vi.mocked(getReviewJob).mockResolvedValue({ ...job, artifacts: { docx: 'u', pdf: 'u', tex: 'u' } })
+    renderWithProviders(<ReviewRemediateScreen />)
+    expect(await screen.findByRole('button', { name: 'Download' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Download Word' })).toBeNull()
+    expect(screen.getByRole('button', { name: 'Save draft' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Back to queue' })).toBeNull()
+  })
+
+  it('has no separate Diagrams or Findings panels', async () => {
+    vi.mocked(getReviewJob).mockResolvedValue(job)
+    renderWithProviders(<ReviewRemediateScreen />)
+    await screen.findByText('book.pdf')
+    expect(screen.queryByText('Diagrams')).toBeNull()
+    expect(screen.queryByText('Findings')).toBeNull()
   })
 
   it('offers the OCR text toggle beside the original scan', async () => {

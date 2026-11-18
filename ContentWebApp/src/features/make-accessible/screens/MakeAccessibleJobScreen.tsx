@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { toApiState } from '@shared/utils/apiState';
 import { RemediationSteps } from '../components/RemediationSteps';
 import { useRemediationJob } from '../hooks/useRemediationJob';
-import { ArtifactDownloads } from '@features/jobs/components/ArtifactDownloads';
+import { DownloadMenu } from '@features/jobs/components/DownloadMenu';
 import { StageProgress } from '@features/jobs/components/StageProgress';
 import { REMEDIATION_UI } from '@features/jobs/types/job.types';
 import type { RemediationJobDetail } from '../types/remediation.types';
@@ -56,7 +56,7 @@ function DoneView({ job, jobId }: { job: RemediationJobDetail; jobId: string }) 
       <Text c="dimmed">{t('makeAccessible.readyBody')}</Text>
       {summary && <Text size="sm">{summary}</Text>}
       <Group gap="md">
-        <ArtifactDownloads job={job} />
+        <DownloadMenu job={job} />
         <Button onClick={() => void navigate({ to: '/review/remediate/$jobId', params: { jobId } })}>
           {t('makeAccessible.startReview')}
         </Button>

@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { toApiState } from '@shared/utils/apiState';
 import { getArtifactMarkdown, getSourcePage, getSourcePdf, reviewKeys } from '../api/review';
 import { pageContent, splitIntoPages, toPlainText } from '../utils/remediationPages';
+import { ReviewFrame } from './ReviewFrame';
 
 function useObjectUrl(blob: Blob | undefined) {
   const [url, setUrl] = useState('');
@@ -75,9 +76,11 @@ export function OriginalScan({
           {showOcr ? t('review.showScan') : t('review.showOcr')}
         </Button>
       </Group>
-      {showOcr && <OcrText jobId={jobId} pageIndex={pageIndex} />}
-      {!showOcr && hasPageImages && <ScanImage jobId={jobId} pageNum={pageNum} />}
-      {!showOcr && !hasPageImages && <ScanPdf jobId={jobId} pageNum={pageNum} />}
+      <ReviewFrame label={t('review.scanTitle')}>
+        {showOcr && <OcrText jobId={jobId} pageIndex={pageIndex} />}
+        {!showOcr && hasPageImages && <ScanImage jobId={jobId} pageNum={pageNum} />}
+        {!showOcr && !hasPageImages && <ScanPdf jobId={jobId} pageNum={pageNum} />}
+      </ReviewFrame>
     </Stack>
   );
 }
