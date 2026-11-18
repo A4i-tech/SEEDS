@@ -37,6 +37,7 @@ from app.repositories.textbook_remediation_repository import (
     get_textbook_remediation_repo,
 )
 from app.services.language_registry import SUPPORTED_LANGUAGES
+from app.services.textbook_book import book_accuracy
 from app.services.textbook_remediation import (
     artifact_chunks as _artifact_chunks,
 )
@@ -185,7 +186,15 @@ async def list_remediation_jobs(
     # A volunteer sees a book only through a chapter that is in their own job list.
     return {
         "jobs": [serialize_job(job) for job in jobs.values()],
-        "books": [{**b, "job_ids": [i for i in b["job_ids"] if i in live]} for b in books if not volunteer or live & set(b["job_ids"])],
+        "books": [
+            {
+                **b,
+                "job_ids": [i for i in b["job_ids"] if i in live],
+                # A volunteer's list holds only some chapters, so a book score would be partial.
+                "edit_accuracy": None if volunteer else book_accuracy([jobs[i] for i in b["job_ids"] if i in live]),
+            }
+            for b in books if not volunteer or live & set(b["job_ids"])
+        ],
     }
 
 

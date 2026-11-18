@@ -94,6 +94,17 @@ async def delete_book(
     await books.soft_delete(tenant_id, str(book["book_id"]))
 
 
+def book_accuracy(children: list[RemediationJob]) -> float | None:
+    """Character accuracy over the verified chapters, weighted by length. None until one is verified."""
+    verified = [c for c in children if c.status == JobStatus.VERIFIED]
+    scored = [c for c in verified if c.edit_chars_total is not None]
+    # A chapter verified before scoring existed has no counts, so a partial total would mislead.
+    if not scored or len(scored) != len(verified):
+        return None
+    total = sum(c.edit_chars_total for c in scored)
+    return 100.0 if total == 0 else round(100 * (1 - sum(c.edit_chars_changed for c in scored) / total), 1)
+
+
 def _fingerprint(children: list[RemediationJob]) -> str:
     # A chapter verified again gets a new verified_at, so the stored build goes stale.
     return hashlib.sha256("|".join([BUILD_VERSION, *(f"{c.job_id}:{c.verified_at}" for c in children)]).encode()).hexdigest()

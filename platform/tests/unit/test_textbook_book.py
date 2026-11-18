@@ -10,6 +10,7 @@ from bson import ObjectId
 from app.controllers import textbook_book_controller as ctl
 from app.controllers.textbook_remediation_controller import list_remediation_jobs
 from app.platform.error_handling import AppError, NotFoundError, ValidationError
+from app.remediation.accuracy import score_edit
 from app.repositories.textbook_book_repository import TextbookBookRepository
 from app.repositories.textbook_remediation_repository import TextbookRemediationRepository
 from app.services import textbook_book
@@ -45,7 +46,7 @@ async def _make_book(repo, books, blob, names=("unit_01.pdf", "unit_02.pdf", "un
 
 async def _verify(repo, job_id, md):
     await repo.update_draft(job_id, md, None)
-    await repo.mark_verified(job_id, verified_by="r")
+    await repo.mark_verified(job_id, verified_by="r", accuracy=score_edit(md, md))
 
 
 @pytest.mark.asyncio
@@ -284,3 +285,79 @@ async def test_volunteer_sees_a_book_only_through_chapters_in_their_own_job_list
     assert (await list_remediation_jobs(limit=20, user=volunteer, repo=repo, book_repo=books))["books"] == []
     tenant = await list_remediation_jobs(limit=20, user=USER, repo=repo, book_repo=books)
     assert len(tenant["books"]) == 1 and len(tenant["jobs"]) == 3
+
+
+@pytest.mark.asyncio
+async def test_verify_stores_the_accuracy_and_a_book_adds_it_up_by_length(repo, books, monkeypatch):
+    from app.services import textbook_remediation as remediation_service
+
+    monkeypatch.setattr(remediation_service, "_compile_verified", lambda markdown, out_dir: (None, None, None))
+    out = await _make_book(repo, books, _StubBlob(), names=("a.pdf", "b.pdf"))
+    first, second = out["job_ids"]
+    original = {first: "abcdefghij", second: "abcdefghijklmnopqrst"}
+    edited = {first: "abcdefghij", second: "abcdefghijklmnopqrXX"}
+    blob = _StubBlob({f"https://blob/{j}.md": original[j].encode() for j in original})
+    for job_id in out["job_ids"]:
+        await repo.record_artifacts(job_id, {"remediated": f"https://blob/{job_id}.md"}, {})
+        job = await repo.update_draft(job_id, edited[job_id], None)
+        await remediation_service.verify_job(repo, blob, job, title="T", verified_by="r", edited_by="r")
+
+    a, b = [await repo.get("tenant-a", j) for j in out["job_ids"]]
+    assert (a.edit_accuracy, b.edit_accuracy) == (100.0, 90.0)
+    assert (b.edit_chars_changed, b.edit_chars_total) == (2, 20)
+    (record,) = await repo.list_edits(second)
+    assert record["accuracy"]["percent"] == 90.0
+    assert textbook_book.book_accuracy([a, b]) == 93.3  # 2 changed of 30 characters, not (100 + 90) / 2
+
+
+@pytest.mark.asyncio
+async def test_book_accuracy_is_none_until_a_chapter_is_verified_and_a_job_without_edits_is_100(repo, books):
+    out = await _make_book(repo, books, _StubBlob())
+    jobs = [await repo.get("tenant-a", j) for j in out["job_ids"]]
+    assert textbook_book.book_accuracy(jobs) is None
+    await repo.mark_verified(out["job_ids"][0], verified_by="r", accuracy=score_edit("same text", "same text"))
+    body = await list_remediation_jobs(limit=20, user=USER, repo=repo, book_repo=books)
+    assert body["books"][0]["edit_accuracy"] == 100.0
+    assert {j["job_id"]: j["edit_accuracy"] for j in body["jobs"]}[out["job_ids"][0]] == 100.0
+    assert {j["job_id"]: j["edit_accuracy"] for j in body["jobs"]}[out["job_ids"][1]] is None
+
+
+@pytest.mark.asyncio
+async def test_clearing_the_whole_chapter_scores_0_and_no_baseline_means_no_score(repo, monkeypatch):
+    from app.services import textbook_remediation as remediation_service
+
+    monkeypatch.setattr(remediation_service, "_compile_verified", lambda markdown, out_dir: (None, None, None))
+    cleared = await repo.create(job_id=ObjectId(), tenant_id="tenant-a", source_name="a.pdf", source_url="u", language="ta")
+    await repo.record_artifacts(cleared.job_id, {"remediated": "https://blob/a.md"}, {})
+    job = await repo.update_draft(cleared.job_id, "")
+    blob = _StubBlob({"https://blob/a.md": b"machine text"})
+    done = await remediation_service.verify_job(repo, blob, job, title="T", verified_by="r", edited_by="r")
+    assert done.edit_accuracy == 0.0
+
+    bare = await repo.create(job_id=ObjectId(), tenant_id="tenant-a", source_name="b.pdf", source_url="u", language="ta")
+    job = await repo.update_draft(bare.job_id, "reviewed text")
+    done = await remediation_service.verify_job(repo, blob, job, title="T", verified_by="r", edited_by="r")
+    assert done.edit_accuracy is None
+
+
+@pytest.mark.asyncio
+async def test_reopening_a_verified_job_clears_its_score(repo):
+    job = await repo.create(job_id=ObjectId(), tenant_id="tenant-a", source_name="a.pdf", source_url="u", language="ta")
+    await repo.mark_verified(job.job_id, verified_by="r", accuracy=score_edit("abc", "abd"))
+    assert (await repo.get("tenant-a", job.job_id)).edit_accuracy == 66.7
+    reopened = await repo.update_draft(job.job_id, "abd more")
+    assert (reopened.edit_accuracy, reopened.edit_chars_total) == (None, None)
+
+
+@pytest.mark.asyncio
+async def test_book_score_is_withheld_when_a_verified_chapter_has_no_counts_and_for_volunteers(repo, books):
+    out = await _make_book(repo, books, _StubBlob(), names=("a.pdf", "b.pdf"))
+    first, second = out["job_ids"]
+    await repo.mark_verified(first, verified_by="r", accuracy=score_edit("abcd", "abcd"))
+    await repo.mark_verified(second, verified_by="r", accuracy=None)
+    jobs = [await repo.get("tenant-a", j) for j in out["job_ids"]]
+    assert textbook_book.book_accuracy(jobs) is None
+    await repo.mark_verified(second, verified_by="r", accuracy=score_edit("abcd", "abcd"))
+    volunteer = {"tenant_id": "tenant-a", "sub": "v1", "role": "textbook_remediation_volunteer"}
+    assert (await list_remediation_jobs(limit=20, user=USER, repo=repo, book_repo=books))["books"][0]["edit_accuracy"] == 100.0
+    assert (await list_remediation_jobs(limit=20, user=volunteer, repo=repo, book_repo=books))["books"][0]["edit_accuracy"] is None

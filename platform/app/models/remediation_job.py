@@ -137,6 +137,9 @@ class RemediationJob(BaseModel):
     deleted_at: str | None = None
     source_page_count: int | None = None
     book_id: str | None = None
+    edit_accuracy: float | None = None
+    edit_chars_changed: int | None = None
+    edit_chars_total: int | None = None
 
     def to_doc(self) -> dict[str, object]:
         return self.model_dump(mode="json", by_alias=True)

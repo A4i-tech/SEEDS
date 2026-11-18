@@ -80,7 +80,8 @@ async def reorder_book(
 ) -> dict[str, object]:
     tenant_id = str(user["tenant_id"])
     book = await _get_book(books, tenant_id, book_id)
-    return await textbook_book.reorder_book(repo, books, tenant_id, book, payload.job_ids)
+    updated = await textbook_book.reorder_book(repo, books, tenant_id, book, payload.job_ids)
+    return {**updated, "edit_accuracy": textbook_book.book_accuracy(await textbook_book.active_children(repo, tenant_id, updated))}
 
 
 @router.delete("/{book_id}", status_code=204, summary="Soft-delete a book and its chapters")

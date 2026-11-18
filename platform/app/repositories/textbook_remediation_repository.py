@@ -23,6 +23,7 @@ from app.models.remediation_job import (
 )
 from app.platform.auth.dependencies import get_db
 from app.platform.error_handling import NotFoundError
+from app.remediation.accuracy import Accuracy
 
 logger = logging.getLogger(__name__)
 
@@ -43,11 +44,12 @@ class TextbookRemediationRepository:
         self._edits = db[self.EDITS_COLLECTION_NAME]
 
     async def record_edit(
-        self, job_id: str, previous_md: str, new_md: str, edited_by: str, changes: list[dict[str, str]]
+        self, job_id: str, previous_md: str, new_md: str, edited_by: str, changes: list[dict[str, str]],
+        accuracy: Accuracy | None,
     ) -> None:
         await self._edits.insert_one({
             "job_id": job_id, "timestamp": datetime.now(UTC).isoformat(), "edited_by": edited_by,
-            "previous": previous_md, "new": new_md, "changes": changes,
+            "previous": previous_md, "new": new_md, "changes": changes, "accuracy": accuracy,
         })
 
     async def list_edits(self, job_id: str) -> list[dict[str, object]]:
@@ -153,7 +155,11 @@ class TextbookRemediationRepository:
         return await self._update(job_id, {"source_page_count": page_count})
 
     async def update_draft(self, job_id: str, draft_md: str, draft_url: str | None = None) -> RemediationJob | None:
-        update: dict[str, object] = {"draft_remediated_md": draft_md, "status": JobStatus.IN_REVIEW}
+        # The job is open again, so its old score no longer applies.
+        update: dict[str, object] = {
+            "draft_remediated_md": draft_md, "status": JobStatus.IN_REVIEW,
+            "edit_accuracy": None, "edit_chars_changed": None, "edit_chars_total": None,
+        }
         if draft_url:
             update[f"artifacts.{ArtifactName.DRAFT}"] = draft_url
         return await self._update(job_id, update)
@@ -164,11 +170,15 @@ class TextbookRemediationRepository:
         *,
         verified_by: str,
         title: str | None = None,
+        accuracy: Accuracy | None,
     ) -> RemediationJob | None:
         update: dict[str, object] = {
             "status": JobStatus.VERIFIED,
             "verified_by": verified_by,
             "verified_at": datetime.now(UTC).isoformat(),
+            "edit_accuracy": accuracy and accuracy["percent"],
+            "edit_chars_changed": accuracy and accuracy["distance"],
+            "edit_chars_total": accuracy and accuracy["length"],
         }
         if title:
             update["title"] = title

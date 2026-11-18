@@ -38,6 +38,7 @@ class RemediationJobResponse(BaseModel):
     translation_error: str | None
     source_page_count: int | None
     book_id: str | None
+    edit_accuracy: float | None
 
 
 class BookResponse(BaseModel):
@@ -46,6 +47,7 @@ class BookResponse(BaseModel):
     language: str
     job_ids: list[str]
     created_at: str
+    edit_accuracy: float | None
 
 
 class RemediationJobListResponse(BaseModel):

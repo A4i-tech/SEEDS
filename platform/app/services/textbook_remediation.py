@@ -32,6 +32,7 @@ from app.models.user import UserRole
 from app.platform.error_handling import ConflictError, NotFoundError, ValidationError
 from app.platform.settings import get_settings
 from app.providers.blob_storage import BlobStorageProvider
+from app.remediation.accuracy import score_edit
 from app.remediation.edit_diff import edit_diff_pairs
 from app.remediation.render import compile_docx_tex_pdf
 from app.remediation.translate import run_translation
@@ -75,6 +76,7 @@ def serialize_job(job: RemediationJob) -> dict[str, object]:
         translation_error=job.translation_error,
         source_page_count=job.source_page_count,
         book_id=job.book_id,
+        edit_accuracy=job.edit_accuracy,
     ).model_dump(mode="json")
 
 
@@ -271,14 +273,16 @@ async def verify_job(
     verified_by: str,
     edited_by: str,
 ) -> RemediationJob:
+    previous_md = ""
+    accuracy = None
+    if ArtifactName.REMEDIATED in job.artifacts:
+        remediated_bytes, _ = await artifact_bytes(job, ArtifactName.REMEDIATED, blob_provider)
+        previous_md = remediated_bytes.decode("utf-8")
+        # A job verified with no edits scores 100% against itself, so its length still counts in a book total.
+        final_md = previous_md if job.draft_remediated_md is None else job.draft_remediated_md
+        accuracy = await asyncio.to_thread(score_edit, previous_md, final_md)
+    # With no machine output to compare against, the job has no score.
     if job.draft_remediated_md:
-        if ArtifactName.REMEDIATED in job.artifacts:
-            remediated_bytes, _ = await artifact_bytes(job, ArtifactName.REMEDIATED, blob_provider)
-            previous_md = remediated_bytes.decode("utf-8")
-        else:
-            previous_md = ""
-        changes = [{"wrong": w, "right": r} for w, r in edit_diff_pairs(previous_md, job.draft_remediated_md)]
-        await repo.record_edit(job.job_id, previous_md, job.draft_remediated_md, edited_by, changes)
         with tempfile.TemporaryDirectory() as tmpdir:
             out_dir = Path(tmpdir)
             try:
@@ -288,6 +292,8 @@ async def verify_job(
                 logger.error("Could not compile verified artifacts for job %s: %s", job.job_id, exc)
                 raise ValidationError(f"Could not build the verified document: {exc}") from exc
 
+            changes = [{"wrong": w, "right": r} for w, r in edit_diff_pairs(previous_md, job.draft_remediated_md)]
+            await repo.record_edit(job.job_id, previous_md, job.draft_remediated_md, edited_by, changes, accuracy)
             container = get_settings().azure_storage_container
             verified: dict[str, str] = {}
             for name, out_path in (
@@ -310,6 +316,7 @@ async def verify_job(
         job.job_id,
         verified_by=verified_by,
         title=title or job.source_name.replace(".pdf", " (Accessible)"),
+        accuracy=accuracy,
     )
     if updated is None:
         raise NotFoundError("Remediation job", job.job_id)
