@@ -54,18 +54,6 @@ def test_long_sentence_with_chapter_code_kept():
     assert _repeat(text) == [text]
 
 
-def test_report_sums_corrections_applied():
-    doc = {
-        "metadata": {"book": {}},
-        "items": [
-            {"id": "a", "metadata": {"corrections_applied": [{"wrong": "x", "right": "y", "count": 2}, {"wrong": "p", "right": "q", "count": 1}]}},
-            {"id": "b", "metadata": {"corrections_applied": []}},
-            {"id": "c", "metadata": {"kind": "image"}},
-        ],
-    }
-    assert _run("Build the VE review report", doc)["metadata"]["remediation_report"]["corrections_applied"] == 3
-
-
 def test_repeat_lines_skip_null_text():
     doc = {"metadata": {}, "items": [{"id": "i", "text": None, "metadata": {}}]}
     assert _run("Remove print-artifact lines from OCR text", doc) == doc

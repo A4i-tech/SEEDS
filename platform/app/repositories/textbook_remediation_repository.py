@@ -42,10 +42,12 @@ class TextbookRemediationRepository:
         self._col = db[self.COLLECTION_NAME]
         self._edits = db[self.EDITS_COLLECTION_NAME]
 
-    async def record_edit(self, job_id: str, previous_md: str, new_md: str, edited_by: str) -> None:
+    async def record_edit(
+        self, job_id: str, previous_md: str, new_md: str, edited_by: str, changes: list[dict[str, str]]
+    ) -> None:
         await self._edits.insert_one({
             "job_id": job_id, "timestamp": datetime.now(UTC).isoformat(), "edited_by": edited_by,
-            "previous": previous_md, "new": new_md,
+            "previous": previous_md, "new": new_md, "changes": changes,
         })
 
     async def list_edits(self, job_id: str) -> list[dict[str, object]]:

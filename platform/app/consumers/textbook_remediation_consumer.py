@@ -36,7 +36,6 @@ from app.remediation.detect_language import (
 from app.remediation.render import render_remediation
 from app.remediation.run_pipeline import omni_settings, run_pipeline
 from app.remediation.translate import run_translation
-from app.repositories.ocr_correction_repository import OcrCorrectionRepository
 from app.repositories.textbook_remediation_repository import TextbookRemediationRepository
 
 logger = logging.getLogger(__name__)
@@ -236,10 +235,7 @@ async def _translate_if_requested(
 
 
 async def _process_job(
-    job: RemediationJob,
-    service: TextbookRemediationRepository,
-    blob_provider: BlobStorageProvider,
-    corrections: OcrCorrectionRepository,
+    job: RemediationJob, service: TextbookRemediationRepository, blob_provider: BlobStorageProvider
 ) -> None:
     def make_progress_handler(stage: JobStage) -> Callable[[dict[str, object]], Awaitable[None]]:
         async def _handler(evt: dict[str, object]) -> None:
@@ -285,7 +281,7 @@ async def _process_job(
 
         ctx_data = await run_pipeline(
             PIPELINE_PATH, pdf, work,
-            {"language": pipeline_lang, "known_corrections": await corrections.find_approved()},
+            {"language": pipeline_lang},
             on_progress=make_progress_handler(JobStage.OCR),
             timeout=JOB_TIMEOUT_SECONDS,
         )
@@ -343,7 +339,6 @@ class TextbookRemediationConsumer(BaseConsumer):
 
     def __init__(self, db: AsyncDatabase) -> None:
         self._service = TextbookRemediationRepository(db)
-        self._corrections = OcrCorrectionRepository(db)
         self._blob_provider: BlobStorageProvider | None = None
 
     async def _run_loop(self) -> None:
@@ -370,7 +365,7 @@ class TextbookRemediationConsumer(BaseConsumer):
             raise PermanentError("BlobStorageProvider unavailable")
         try:
             await asyncio.wait_for(
-                _process_job(job, self._service, self._blob_provider, self._corrections), timeout=JOB_TIMEOUT_SECONDS
+                _process_job(job, self._service, self._blob_provider), timeout=JOB_TIMEOUT_SECONDS
             )
         except TimeoutError as exc:
             raise PermanentError(f"Remediation timed out after {JOB_TIMEOUT_SECONDS // 3600} hours. Upload a smaller PDF or try again.") from exc

@@ -9,7 +9,6 @@ from azure.core.exceptions import ResourceNotFoundError
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.remediation_job import (
     ARTIFACTS,
@@ -26,11 +25,10 @@ from app.models.responses.remediation import (
     ReviewSummaryResponse,
 )
 from app.models.user import UserRole
-from app.platform.auth.dependencies import get_db, require_role
+from app.platform.auth.dependencies import require_role
 from app.platform.error_handling import AppError, NotFoundError, ValidationError
 from app.platform.settings import get_settings
 from app.providers.blob_storage import BlobStorageProvider, get_blob_storage_provider
-from app.repositories.ocr_correction_repository import OcrCorrectionRepository
 from app.repositories.textbook_book_repository import TextbookBookRepository, get_textbook_book_repo
 from app.repositories.textbook_remediation_repository import (
     TextbookRemediationRepository,
@@ -310,7 +308,6 @@ async def verify_remediation_job(
     payload: VerifyJobRequest,
     user: dict[str, object] = Depends(require_remediation_access),
     repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
-    db: AsyncDatabase = Depends(get_db),  # type: ignore[type-arg]
     blob_provider: BlobStorageProvider = Depends(get_blob_storage_provider),
 ) -> dict[str, object]:
     job = await _get_job(repo, str(user["tenant_id"]), job_id)
@@ -321,7 +318,7 @@ async def verify_remediation_job(
             "Your signed-in account has no email or account ID, so the review cannot be recorded. Sign in again.",
             400,
         )
-    updated = await verify_job(repo, OcrCorrectionRepository(db), blob_provider, job, title=payload.title, verified_by=identity, edited_by=identity)
+    updated = await verify_job(repo, blob_provider, job, title=payload.title, verified_by=identity, edited_by=identity)
     return serialize_job(updated)
 
 

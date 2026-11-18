@@ -14,7 +14,6 @@ from bson import ObjectId
 
 from app.models.remediation_job import (
     ARTIFACTS,
-    AUTO_LANGUAGES,
     STAGES,
     ArtifactName,
     JobStatus,
@@ -34,7 +33,6 @@ from app.providers.blob_storage import BlobStorageProvider
 from app.remediation.edit_diff import edit_diff_pairs
 from app.remediation.render import compile_docx_tex_pdf
 from app.remediation.translate import run_translation
-from app.repositories.ocr_correction_repository import OcrCorrectionRepository
 from app.repositories.textbook_remediation_repository import TextbookRemediationRepository
 
 logger = logging.getLogger(__name__)
@@ -228,7 +226,6 @@ def _compile_verified(markdown: str, out_dir: Path) -> tuple[Path, Path, Path | 
 
 async def verify_job(
     repo: TextbookRemediationRepository,
-    corrections: OcrCorrectionRepository,
     blob_provider: BlobStorageProvider,
     job: RemediationJob,
     *,
@@ -242,7 +239,8 @@ async def verify_job(
             previous_md = remediated_bytes.decode("utf-8")
         else:
             previous_md = ""
-        await repo.record_edit(job.job_id, previous_md, job.draft_remediated_md, edited_by)
+        changes = [{"wrong": w, "right": r} for w, r in edit_diff_pairs(previous_md, job.draft_remediated_md)]
+        await repo.record_edit(job.job_id, previous_md, job.draft_remediated_md, edited_by, changes)
         with tempfile.TemporaryDirectory() as tmpdir:
             out_dir = Path(tmpdir)
             try:
@@ -251,15 +249,6 @@ async def verify_job(
             except Exception as exc:
                 logger.error("Could not compile verified artifacts for job %s: %s", job.job_id, exc)
                 raise ValidationError(f"Could not build the verified document: {exc}") from exc
-
-            language = job.detected_language or job.language
-            if language not in AUTO_LANGUAGES:
-                for wrong, right in edit_diff_pairs(previous_md, job.draft_remediated_md):
-                    await corrections.add({
-                        "language": language, "wrong": wrong, "right": right,
-                        "grade": None, "subject": None, "context": None, "page": None,
-                        "status": "pending", "source": f"edit_diff:{job.job_id}", "added_by": edited_by,
-                    })
 
             container = get_settings().azure_storage_container
             verified: dict[str, str] = {}

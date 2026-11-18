@@ -22,7 +22,6 @@ from app.controllers.textbook_remediation_controller import (
 )
 from app.models.remediation_job import STAGES, JobStage, JobStatus, RemediationJob
 from app.platform.error_handling import AppError, ForbiddenError, NotFoundError, ValidationError
-from app.repositories.ocr_correction_repository import OcrCorrectionRepository
 from app.repositories.textbook_remediation_repository import TextbookRemediationRepository
 from app.services.textbook_remediation import artifact_bytes as _artifact_bytes
 from app.services.textbook_remediation import serialize_job, subscribe
@@ -37,11 +36,6 @@ def db():
 @pytest.fixture
 def repo(db):
     return TextbookRemediationRepository(db)
-
-
-@pytest.fixture
-def corrections(db):
-    return OcrCorrectionRepository(db)
 
 
 async def _create(repo, tenant_id="tenant-a"):
@@ -399,7 +393,7 @@ async def test_get_remediation_page_404s_when_finished_job_has_no_page_images(re
 
 
 @pytest.mark.asyncio
-async def test_save_draft_and_verify_job(repo, db):
+async def test_save_draft_and_verify_job(repo):
     created = await _create(repo)
     blob = _StubBlob()
     res = await save_remediation_draft(
@@ -418,7 +412,6 @@ async def test_save_draft_and_verify_job(repo, db):
         VerifyJobRequest(title="TN Maths Grade 5 Verified"),
         user={"tenant_id": "tenant-a", "email": "reviewer@seeds.org"},
         repo=repo,
-        db=db,
         blob_provider=blob,
     )
     assert verified["status"] == "verified"
@@ -428,7 +421,7 @@ async def test_save_draft_and_verify_job(repo, db):
 
 
 @pytest.mark.asyncio
-async def test_verify_rejects_user_without_identity(repo, db):
+async def test_verify_rejects_user_without_identity(repo):
     created = await _create(repo)
     with pytest.raises(AppError) as exc_info:
         await verify_remediation_job(
@@ -436,7 +429,6 @@ async def test_verify_rejects_user_without_identity(repo, db):
             VerifyJobRequest(title="T"),
             user={"tenant_id": "tenant-a"},
             repo=repo,
-            db=db,
             blob_provider=_StubBlob(),
         )
     assert exc_info.value.code == "IDENTITY_MISSING"
@@ -625,7 +617,7 @@ async def test_update_source_page_count_stores_the_count(repo):
 
 
 @pytest.mark.asyncio
-async def test_verify_job_uploads_go_under_the_verified_path(repo, corrections, monkeypatch):
+async def test_verify_job_uploads_go_under_the_verified_path(repo, monkeypatch):
     from app.services import textbook_remediation as remediation_service
 
     created = await _create(repo)
@@ -641,7 +633,7 @@ async def test_verify_job_uploads_go_under_the_verified_path(repo, corrections, 
     monkeypatch.setattr(remediation_service, "_compile_verified", _fake_compile)
     blob = _StubBlob()
 
-    await remediation_service.verify_job(repo, corrections, blob, job, title="Title", verified_by="reviewer@seeds.org", edited_by="reviewer@seeds.org")
+    await remediation_service.verify_job(repo, blob, job, title="Title", verified_by="reviewer@seeds.org", edited_by="reviewer@seeds.org")
 
     assert f"textbook-remediation/{created.job_id}/verified/remediated.docx" in blob.uploaded
     assert f"textbook-remediation/{created.job_id}/verified/remediated.tex" in blob.uploaded
@@ -710,7 +702,7 @@ def test_resolve_models_sets_translation_when_target_language_requested(monkeypa
 
 
 @pytest.mark.asyncio
-async def test_verify_job_appends_an_edit_record_against_the_remediated_artifact(repo, corrections, monkeypatch):
+async def test_verify_job_appends_an_edit_record_against_the_remediated_artifact(repo, monkeypatch):
     from app.services import textbook_remediation as remediation_service
 
     monkeypatch.setattr(remediation_service, "_compile_verified", lambda markdown, out_dir: (None, None, None))
@@ -719,14 +711,14 @@ async def test_verify_job_appends_an_edit_record_against_the_remediated_artifact
     job = await repo.update_draft(job.job_id, "# Edited once", "https://blob/draft.md")
     blob = _StubBlob({"https://blob/remediated.md": b"# Original"})
 
-    await remediation_service.verify_job(repo, corrections, blob, job, title="Title", verified_by="reviewer@seeds.org", edited_by="teacher@seeds.org")
+    await remediation_service.verify_job(repo, blob, job, title="Title", verified_by="reviewer@seeds.org", edited_by="teacher@seeds.org")
 
     (record,) = await repo.list_edits(job.job_id)
     assert (record["previous"], record["new"], record["edited_by"]) == ("# Original", "# Edited once", "teacher@seeds.org")
 
 
 @pytest.mark.asyncio
-async def test_verify_job_appends_a_second_record_on_a_repeat_verification(repo, corrections, monkeypatch):
+async def test_verify_job_appends_a_second_record_on_a_repeat_verification(repo, monkeypatch):
     from app.services import textbook_remediation as remediation_service
 
     monkeypatch.setattr(remediation_service, "_compile_verified", lambda markdown, out_dir: (None, None, None))
@@ -735,9 +727,9 @@ async def test_verify_job_appends_a_second_record_on_a_repeat_verification(repo,
     job = await repo.update_draft(job.job_id, "# Edited once", "https://blob/draft.md")
     blob = _StubBlob({"https://blob/remediated.md": b"# Original"})
 
-    job = await remediation_service.verify_job(repo, corrections, blob, job, title="Title", verified_by="reviewer@seeds.org", edited_by="teacher@seeds.org")
+    job = await remediation_service.verify_job(repo, blob, job, title="Title", verified_by="reviewer@seeds.org", edited_by="teacher@seeds.org")
     job = await repo.update_draft(job.job_id, "# Edited twice", "https://blob/draft.md")
-    job = await remediation_service.verify_job(repo, corrections, blob, job, title="Title", verified_by="reviewer@seeds.org", edited_by="teacher@seeds.org")
+    job = await remediation_service.verify_job(repo, blob, job, title="Title", verified_by="reviewer@seeds.org", edited_by="teacher@seeds.org")
 
     lines = await repo.list_edits(job.job_id)
     assert len(lines) == 2
@@ -754,34 +746,16 @@ async def test_ensure_indexes_covers_jobs_and_edits():
 
 
 @pytest.mark.asyncio
-async def test_verify_job_files_word_swaps_as_pending_corrections(repo, corrections, monkeypatch):
+async def test_verify_job_stores_the_word_swaps_on_the_edit_record(repo, monkeypatch):
     from app.services import textbook_remediation as remediation_service
 
     monkeypatch.setattr(remediation_service, "_compile_verified", lambda markdown, out_dir: (None, None, None))
     created = await _create(repo)
     job = await repo.record_artifacts(created.job_id, {"remediated": "https://blob/remediated.md"}, {})
-    job = await repo.update_draft(job.job_id, "এই কণা ছোট", "https://blob/draft.md")
-    blob = _StubBlob({"https://blob/remediated.md": "এই কপা ছোট".encode()})
+    job = await repo.update_draft(job.job_id, "এই কণা ছোট\nশেষ এক", "https://blob/draft.md")
+    blob = _StubBlob({"https://blob/remediated.md": "এই কপা ছোট\nশেষ এক".encode()})
 
-    await remediation_service.verify_job(repo, corrections, blob, job, title="T", verified_by="r@seeds.org", edited_by="teacher@seeds.org")
+    await remediation_service.verify_job(repo, blob, job, title="T", verified_by="r@seeds.org", edited_by="teacher@seeds.org")
 
-    [row] = await corrections.find_by_status("pending")
-    assert (row["wrong"], row["right"], row["language"], row["added_by"]) == ("কপা", "কণা", "kn", "teacher@seeds.org")
-    assert row["source"] == f"edit_diff:{job.job_id}"
-
-
-@pytest.mark.asyncio
-async def test_verify_job_files_no_corrections_while_the_language_is_still_unknown(repo, corrections, monkeypatch):
-    from app.services import textbook_remediation as remediation_service
-
-    monkeypatch.setattr(remediation_service, "_compile_verified", lambda markdown, out_dir: (None, None, None))
-    created = await repo.create(
-        job_id=ObjectId(), tenant_id="tenant-a", source_name="book.pdf", source_url="https://blob/source.pdf", language="auto",
-    )
-    job = await repo.record_artifacts(created.job_id, {"remediated": "https://blob/remediated.md"}, {})
-    job = await repo.update_draft(job.job_id, "one fixed", "https://blob/draft.md")
-    blob = _StubBlob({"https://blob/remediated.md": b"one wrong"})
-
-    await remediation_service.verify_job(repo, corrections, blob, job, title="T", verified_by="r", edited_by="r")
-
-    assert await corrections.find_by_status(None) == []
+    (record,) = await repo.list_edits(job.job_id)
+    assert record["changes"] == [{"wrong": "কপা", "right": "কণা"}]

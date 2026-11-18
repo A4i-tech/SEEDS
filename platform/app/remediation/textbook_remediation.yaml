@@ -22,10 +22,6 @@ parameters:
       minimum: 1
       description: "Pages remediated at the same time"
       default: 4
-    known_corrections:
-      type: array
-      description: "Approved OCR correction rows"
-      default: []
 
 steps:
   - agent: page_chunking
@@ -198,11 +194,6 @@ steps:
           title: {type: ["string", "null"]}
           evidence: {type: string, description: "The printed line each value came from"}
         required: [grade, subject, language, board, title, evidence]
-
-  - agent: apply_corrections
-    description: "Apply approved OCR corrections to verified page text"
-    config:
-      corrections: ${.config.known_corrections}
 
   - agent: safe_extract
     description: "Write alt text and a long description for every figure"
@@ -501,18 +492,12 @@ steps:
           else . end
         )
 
-  - agent: apply_corrections
-    description: "Apply approved OCR corrections to the rebuilt block text"
-    config:
-      corrections: ${.config.known_corrections}
-
   - agent: transform
     description: "Build the VE review report"
     config:
       value: |
         .metadata.remediation_report = {
           detected_book: .metadata.book,
-          corrections_applied: ([.items[] | (.metadata.corrections_applied // [])[] | .count] | add // 0),
           pages: ([.items[] | select(.metadata.remediation != null)] | length),
           ocr_verification: {
             pages_verified: ([.items[] | select(.metadata.verified != null)] | length),
