@@ -316,6 +316,12 @@ steps:
           scripts in the order the book prints them
         - paragraph and list boundaries
         - each list entry the page prints on its own line, as its own entry
+        - the full printed words of every list entry and every question, word for word.
+          Never summarise, shorten, or describe an entry. "Statement about X" is wrong.
+        - a question stem that comes before answer options. Write the stem in the list
+          block's text field and each option in items. A list block's text field holds
+          only printed words. Never write a title, label, or description of the list
+          there. Leave text empty when no printed lead-in line exists.
         - a footnote, as a note block
         - a printed figure reference, as a figure_ref block
 

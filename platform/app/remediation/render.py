@@ -432,6 +432,8 @@ def _render_heading(builder: _MarkdownBuilder, page_num: int, block: dict[str, o
 def _render_list(builder: _MarkdownBuilder, page_num: int, block: dict[str, object], b_text: str) -> None:
     items = block.get("items") or []
     if items:
+        if b_text and not any(b_text in str(i) for i in items) and not all(str(i) in b_text for i in items):
+            builder.append(b_text)
         builder.append("\n".join(f"- {str(i)}" for i in items))
     elif b_text:
         builder.append(b_text)
