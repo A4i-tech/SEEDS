@@ -3,13 +3,6 @@ import { joinSegments, splitSegments, type Segment } from '../utils/remediationF
 import { FigureBlock } from './FigureBlock';
 import { MarkdownEditor } from './MarkdownEditor';
 import { RawBlock } from './RawBlock';
-import { TableBlock } from './TableBlock';
-import { parseTable } from '../utils/tableBlocks';
-
-function RawSegment({ markdown, onChange }: { markdown: string; onChange: (markdown: string) => void }) {
-  const table = parseTable(markdown);
-  return table ? <TableBlock table={table} onChange={onChange} /> : <RawBlock markdown={markdown} onChange={onChange} />;
-}
 
 export function DraftPage({
   jobId,
@@ -32,7 +25,7 @@ export function DraftPage({
     <Stack gap="md">
       {segments.map((segment, index) =>
         segment.type === 'raw' ? (
-          <RawSegment
+          <RawBlock
             key={`${pageIndex}:${index}`}
             markdown={segment.markdown}
             onChange={(next) => update(index, { type: 'raw', markdown: next })}

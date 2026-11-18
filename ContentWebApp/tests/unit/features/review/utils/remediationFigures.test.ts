@@ -47,14 +47,13 @@ describe('table and display math blocks', () => {
   const table = '| A | B |\n| --- | --- |\n| 1 | 2 |'
   const math = '$$a = \\frac{v-u}{t}$$'
 
-  it('keeps a pipe table as its own raw segment, unchanged', () => {
-    const page = `Intro\n\n${table}\n\nOutro`
-    expect(splitSegments(page)).toEqual([
-      { type: 'text', markdown: 'Intro' },
-      { type: 'raw', markdown: table },
-      { type: 'text', markdown: 'Outro' },
-    ])
-    expect(joinSegments(splitSegments(page))).toBe(page)
+  it('leaves a pipe table inside the text segment for the editor', () => {
+    const page = `Intro
+
+${table}
+
+Outro`
+    expect(splitSegments(page)).toEqual([{ type: 'text', markdown: page }])
   })
 
   it('keeps display math as its own raw segment, including multi-line math', () => {

@@ -1,4 +1,5 @@
 import { Node } from '@tiptap/core';
+import { TableKit } from '@tiptap/extension-table';
 import { Markdown } from '@tiptap/markdown';
 import { useEditor } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
@@ -55,6 +56,7 @@ export function MarkdownEditor({
     extensions: [
       StarterKit.configure({ underline: false, link: false }),
       Markdown,
+      TableKit,
       rawChip((raw) => {
         const { kind, page } = describeRaw(raw);
         return kind === 'char' ? raw : t(`review.chips.${kind}`, { page });

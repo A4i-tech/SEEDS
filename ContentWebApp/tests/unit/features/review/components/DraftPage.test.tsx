@@ -56,7 +56,7 @@ describe('DraftPage', () => {
   })
 })
 
-describe('DraftPage raw blocks', () => {
+describe('DraftPage math blocks', () => {
   beforeEach(() => {
     Object.defineProperty(document, 'fonts', {
       value: { addEventListener: vi.fn(), removeEventListener: vi.fn() },
@@ -64,36 +64,8 @@ describe('DraftPage raw blocks', () => {
     })
   })
 
-  it('edits a table cell in the rendered table and writes the table back around the other text', () => {
-    const onChange = vi.fn()
-    const page = 'Intro\n\n| A | B |\n| --- | --- |\n| 1 | 2 |'
-    renderWithProviders(<DraftPage jobId="job-1" pageIndex={0} markdown={page} ariaLabel="Draft" onChange={onChange} />)
-    const cell = screen.getByLabelText('Table row 1, column 1')
-    fireEvent.change(cell, { target: { value: '9' } })
-    fireEvent.blur(cell)
-    expect(onChange).toHaveBeenCalledWith('Intro\n\n| A | B |\n| --- | --- |\n| 9 | 2 |')
-  })
-
-  it('edits a header cell', () => {
-    const onChange = vi.fn()
-    renderWithProviders(
-      <DraftPage jobId="job-1" pageIndex={0} markdown={'| A | B |\n| --- | --- |\n| 1 | 2 |'} ariaLabel="Draft" onChange={onChange} />,
-    )
-    const header = screen.getByLabelText('Table header, column 2')
-    fireEvent.change(header, { target: { value: 'Unit' } })
-    fireEvent.blur(header)
-    expect(onChange).toHaveBeenCalledWith('| A | Unit |\n| --- | --- |\n| 1 | 2 |')
-  })
-
-  it('falls back to the text editor for a table that is not a clean grid', () => {
-    const page = '| A | B |\n| --- | --- |\n| 1 |'
-    renderWithProviders(<DraftPage jobId="job-1" pageIndex={0} markdown={page} ariaLabel="Draft" onChange={vi.fn()} />)
-    expect(screen.getByLabelText('Edit table or math as text')).toBeTruthy()
-    expect(screen.queryByLabelText('Table row 1, column 1')).toBeNull()
-  })
-
   it('keeps display math in the text editor', () => {
     renderWithProviders(<DraftPage jobId="job-1" pageIndex={0} markdown={'$$a = b$$'} ariaLabel="Draft" onChange={vi.fn()} />)
-    expect(screen.getByLabelText('Edit table or math as text')).toBeTruthy()
+    expect(screen.getByLabelText('Edit math as text')).toBeTruthy()
   })
 })
