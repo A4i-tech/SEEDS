@@ -1,4 +1,3 @@
-export const MAX_REMEDIATION_PDF_MB = 10;
 export const SEEDS_URL = process.env.REACT_APP_API_BASE_URL || "http://localhost:4000";
 export const STORAGE_ACCOUNT_NAME =
   process.env.REACT_APP_STORAGE_ACCOUNT_NAME ||

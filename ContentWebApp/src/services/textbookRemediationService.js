@@ -4,15 +4,6 @@ import { apiFetch, apiFetchBlob, apiFetchText, buildQueryString, streamSse } fro
 
 const BASE = `${SEEDS_URL}/textbook-remediation`;
 
-const saveBlob = (blob, filename) => {
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = filename;
-  link.click();
-  URL.revokeObjectURL(url);
-};
-
 export const textbookRemediationService = {
   async getLanguages({ signal } = {}) {
     return apiFetch(`${SEEDS_URL}/v1/languages`, { method: "GET", signal });
@@ -81,40 +72,12 @@ export const textbookRemediationService = {
       `${BASE}/jobs/${encodeURIComponent(jobId)}/artifacts/${encodeURIComponent(name)}`,
       { headers: getAuthHeaders(), signal }
     );
-    saveBlob(blob, filename);
-  },
-
-  async createBook(files, { title, language, targetLanguage = "" }) {
-    const body = new FormData();
-    files.forEach((file) => body.append("files", file));
-    body.append("title", title);
-    body.append("language", language);
-    body.append("target_language", targetLanguage);
-    const { "Content-Type": _unused, ...headers } = getAuthHeaders();
-    return apiFetch(`${BASE}/books`, { method: "POST", headers, body });
-  },
-
-  async reorderBook(bookId, jobIds) {
-    return apiFetch(`${BASE}/books/${encodeURIComponent(bookId)}/order`, {
-      method: "PUT",
-      headers: getAuthHeaders(),
-      body: JSON.stringify({ job_ids: jobIds }),
-    });
-  },
-
-  async deleteBook(bookId) {
-    return apiFetch(`${BASE}/books/${encodeURIComponent(bookId)}`, {
-      method: "DELETE",
-      headers: getAuthHeaders(),
-    });
-  },
-
-  async downloadBookArtifact(bookId, name, filename, { signal } = {}) {
-    const blob = await apiFetchBlob(
-      `${BASE}/books/${encodeURIComponent(bookId)}/artifacts/${encodeURIComponent(name)}`,
-      { headers: getAuthHeaders(), signal }
-    );
-    saveBlob(blob, filename);
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    link.click();
+    URL.revokeObjectURL(url);
   },
 
   async getFindings(jobId, { name = "findings", limit = 50, offset = 0 } = {}) {

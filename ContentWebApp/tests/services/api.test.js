@@ -117,9 +117,12 @@ describe("apiFetch", () => {
           signal.addEventListener("abort", () => reject(Object.assign(new Error("aborted"), { name: "AbortError" })))
         )
     );
-    const pending = apiFetch("/x", { timeoutMs: 1000 });
+    const pending = expect(apiFetch("/x", { timeoutMs: 1000 })).rejects.toMatchObject({
+      status: 0,
+      message: "Request timed out",
+    });
     jest.advanceTimersByTime(1000);
-    await expect(pending).rejects.toMatchObject({ status: 0, message: "Request timed out" });
+    await pending;
     jest.useRealTimers();
   });
 
@@ -164,16 +167,6 @@ describe("apiFetchText and apiFetchBlob", () => {
     global.fetch.mockResolvedValue({ ok: false, status: 404, text: async () => "" });
     await expect(apiFetchText("/x")).rejects.toBeInstanceOf(ApiError);
     await expect(apiFetchBlob("/x")).rejects.toMatchObject({ status: 404 });
-  });
-
-  it("shows the server error text on a failed download", async () => {
-    global.fetch.mockResolvedValue({ ok: false, status: 409, text: async () => JSON.stringify({ message: "2 chapters are not verified yet." }) });
-    await expect(apiFetchBlob("/x")).rejects.toMatchObject({ status: 409, message: "2 chapters are not verified yet." });
-  });
-
-  it("does not show a non-JSON error body on a failed download", async () => {
-    global.fetch.mockResolvedValue({ ok: false, status: 502, text: async () => "<html>Bad Gateway</html>" });
-    await expect(apiFetchBlob("/x")).rejects.toMatchObject({ status: 502, message: "Request failed with status 502" });
   });
 
   it("refreshes an expired token and retries once", async () => {

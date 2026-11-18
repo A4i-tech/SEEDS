@@ -6,7 +6,6 @@ const isRunning = (job) => job.status === JOB_STATUS.PENDING || job.status === J
 
 export const useRemediationJobs = () => {
   const [jobs, setJobs] = useState([]);
-  const [books, setBooks] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -41,26 +40,19 @@ export const useRemediationJobs = () => {
     [upsert]
   );
 
-  const apply = useCallback(
-    (data) => {
-      setJobs(data.jobs);
-      setBooks(data.books);
-      data.jobs.filter(isRunning).forEach((job) => follow(job.job_id));
-    },
-    [follow]
-  );
-
   const load = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
-      apply(await textbookRemediationService.getJobs());
+      const data = await textbookRemediationService.getJobs();
+      setJobs(data.jobs);
+      data.jobs.filter(isRunning).forEach((job) => follow(job.job_id));
     } catch (loadError) {
       setError(loadError.message);
     } finally {
       setIsLoading(false);
     }
-  }, [apply]);
+  }, [follow]);
 
   useEffect(() => {
     load();
@@ -88,84 +80,17 @@ export const useRemediationJobs = () => {
     [follow, upsert]
   );
 
-  const uploadBook = useCallback(
-    async (files, bookOptions) => {
-      setIsUploading(true);
-      setError(null);
-      try {
-        await textbookRemediationService.createBook(files, bookOptions);
-        apply(await textbookRemediationService.getJobs());
-        return true;
-      } catch (uploadError) {
-        setError(uploadError.message);
-        return false;
-      } finally {
-        setIsUploading(false);
-      }
-    },
-    [apply]
-  );
-
-  const stopFollowing = useCallback((jobId) => {
-    controllersRef.current[jobId]?.abort();
-    delete controllersRef.current[jobId];
-  }, []);
-
-  const remove = useCallback(
-    async (jobId) => {
-      setError(null);
-      try {
-        await textbookRemediationService.deleteJob(jobId);
-        stopFollowing(jobId);
-        setJobs((previous) => previous.filter((job) => job.job_id !== jobId));
-        setBooks((previous) =>
-          previous.map((book) => ({ ...book, job_ids: book.job_ids.filter((id) => id !== jobId) }))
-        );
-      } catch (deleteError) {
-        setError(deleteError.message);
-      }
-    },
-    [stopFollowing]
-  );
-
-  const reorderBook = useCallback(async (bookId, jobIds) => {
+  const remove = useCallback(async (jobId) => {
     setError(null);
     try {
-      const updated = await textbookRemediationService.reorderBook(bookId, jobIds);
-      setBooks((previous) => previous.map((book) => (book.book_id === bookId ? updated : book)));
-      return true;
-    } catch (reorderError) {
-      setError(reorderError.message);
-      return false;
+      await textbookRemediationService.deleteJob(jobId);
+      controllersRef.current[jobId]?.abort();
+      delete controllersRef.current[jobId];
+      setJobs((previous) => previous.filter((job) => job.job_id !== jobId));
+    } catch (deleteError) {
+      setError(deleteError.message);
     }
   }, []);
 
-  const removeBook = useCallback(
-    async (bookId) => {
-      setError(null);
-      try {
-        await textbookRemediationService.deleteBook(bookId);
-        books.find((book) => book.book_id === bookId).job_ids.forEach(stopFollowing);
-        setJobs((previous) => previous.filter((job) => job.book_id !== bookId));
-        setBooks((previous) => previous.filter((book) => book.book_id !== bookId));
-      } catch (deleteError) {
-        setError(deleteError.message);
-      }
-    },
-    [books, stopFollowing]
-  );
-
-  return {
-    jobs,
-    books,
-    isLoading,
-    isUploading,
-    error,
-    upload,
-    uploadBook,
-    remove,
-    removeBook,
-    reorderBook,
-    reload: load,
-  };
+  return { jobs, isLoading, isUploading, error, upload, remove, reload: load };
 };

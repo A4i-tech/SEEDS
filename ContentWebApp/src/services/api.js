@@ -170,14 +170,7 @@ const apiFetchRaw = async (url, { headers, signal } = {}, _isRetry = false) => {
     if (response.status === 401) {
       clearAuthAndRedirect();
     }
-    let message;
-    try {
-      const parsed = JSON.parse(await response.text());
-      message = parsed.message || parsed.error;
-    } catch {
-      // Non-JSON body, such as a proxy HTML page: use the status message below.
-    }
-    throw new ApiError(message || `Request failed with status ${response.status}`, response.status, response);
+    throw new ApiError(`Request failed with status ${response.status}`, response.status, response);
   }
   return response;
 };

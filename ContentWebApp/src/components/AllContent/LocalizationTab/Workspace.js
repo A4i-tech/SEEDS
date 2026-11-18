@@ -3,7 +3,6 @@ import Skeleton, { SkeletonTheme } from "react-loading-skeleton";
 import "react-loading-skeleton/dist/skeleton.css";
 import Select from "../shared/Select";
 import RowActions from "../shared/RowActions";
-import { ConfirmModal } from "../shared/ConfirmModal";
 import MiddleEllipsis from "../shared/MiddleEllipsis";
 import "../shared/tables.css";
 import "../shared/utilities.css";
@@ -158,7 +157,6 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
   const [docsError, setDocsError] = useState(null);
   const [query, setQuery] = useState("");
   const [savedAt, setSavedAt] = useState(null);
-  const [confirmingApproveAll, setConfirmingApproveAll] = useState(false);
   const [statusTab, setStatusTab] = useState("all");
   const rowsPerPage = 10;
   const [pageOffset, setPageOffset] = useState(0);
@@ -290,13 +288,9 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
       toast({ message: e.message, tone: "crit" });
     }
   };
-  const approvableIds = filtered.filter((s) => s.stage !== "approved" && s.stage !== "rejected").map((s) => s.id);
-  const requestApproveAll = () => {
-    if (!approvableIds.length) return toast({ message: "Nothing to approve", tone: "info" });
-    setConfirmingApproveAll(true);
-  };
   const approveAll = async () => {
-    setConfirmingApproveAll(false);
+    const ids = filtered.filter((s) => s.stage !== "approved" && s.stage !== "rejected").map((s) => s.id);
+    if (!ids.length) return toast({ message: "Nothing to approve", tone: "info" });
     if (statusTab === "all" && !query.trim()) {
       try {
         const { approved, skipped, failed } = await translationService.bulkApproveTranslations({
@@ -315,9 +309,9 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
       }
       return;
     }
-    const results = await Promise.allSettled(approvableIds.map((id) => translationService.approveTranslation(id, lang)));
-    const succeeded = approvableIds.filter((_, i) => results[i].status === "fulfilled");
-    const failed = approvableIds.length - succeeded.length;
+    const results = await Promise.allSettled(ids.map((id) => translationService.approveTranslation(id, lang)));
+    const succeeded = ids.filter((_, i) => results[i].status === "fulfilled");
+    const failed = ids.length - succeeded.length;
     succeeded.forEach((id) => patchLangStatus(id, "approved"));
     if (succeeded.length) setSavedAt(Date.now());
     if (failed) {
@@ -331,15 +325,6 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
 
   return (
     <div className="card">
-      {confirmingApproveAll && (
-        <ConfirmModal
-          title="Approve all"
-          description={`Approve ${approvableIds.length} ${approvableIds.length === 1 ? "item" : "items"}? This applies to every pending item in the current view.`}
-          confirmLabel="Approve"
-          onCancel={() => setConfirmingApproveAll(false)}
-          onConfirm={approveAll}
-        />
-      )}
       <div className="card-header">
         <div>
           <h1 className="card-title">Translate & Review</h1>
@@ -355,7 +340,7 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
             aria-label="Search source or translated text"
             style={{ width: 260 }}
           />
-          <button type="button" className="tertiary-button" onClick={requestApproveAll} disabled={!ready}>
+          <button type="button" className="tertiary-button" onClick={approveAll} disabled={!ready}>
             Approve all
           </button>
         </div>
