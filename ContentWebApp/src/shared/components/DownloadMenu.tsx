@@ -1,9 +1,9 @@
 import { Anchor, Button, Menu } from '@mantine/core';
 import { ChevronDown } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { useDownloadArtifact } from '../hooks/useDownloadArtifact';
-import type { RemediationJob } from '../types/job.types';
-import { availableDownloads } from '../utils/artifacts';
+import { useDownloadArtifact } from '@features/jobs/hooks/useDownloadArtifact';
+import type { RemediationJob } from '@features/jobs/types/job.types';
+import { availableDownloads } from '@features/jobs/utils/artifacts';
 
 export function DownloadMenu({
   job,
