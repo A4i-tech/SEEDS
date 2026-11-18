@@ -79,7 +79,13 @@ class Settings(BaseSettings):
     audio_capture_channels: int = 1
     audio_capture_sample_width_bytes: int = 2
 
-    azure_service_bus_connection_string: str = Field(min_length=1, repr=False)
+    queue_provider: str = "nats"
+    nats_url: str = "nats://localhost:4222"
+    nats_stream: str = "SEEDS"
+    nats_ack_wait_seconds: int = Field(default=60, gt=0)
+    nats_creds_file: str = ""
+
+    azure_service_bus_connection_string: str = Field(default="", repr=False)
     azure_service_bus_queue_name: str = ""
     azure_service_bus_max_retries: int = 3
 
@@ -180,6 +186,30 @@ class Settings(BaseSettings):
                 f"TRANSLATION_PROVIDER '{value}' is not supported. Set it to 'azure' or 'openai'."
             )
         return value
+
+    @field_validator("queue_provider")
+    @classmethod
+    def _check_queue_provider(cls, value: str) -> str:
+        value = value.strip().lower()
+        if value not in ("nats", "azure_service_bus"):
+            raise ValueError(
+                f"QUEUE_PROVIDER '{value}' is not supported. Set it to 'nats' or 'azure_service_bus'."
+            )
+        return value
+
+    @model_validator(mode="after")
+    def _check_queue_settings(self) -> Settings:
+        if self.queue_provider == "azure_service_bus" and not self.azure_service_bus_connection_string:
+            raise ValueError(
+                "AZURE_SERVICE_BUS_CONNECTION_STRING is empty. Set it when QUEUE_PROVIDER "
+                "is 'azure_service_bus', or set QUEUE_PROVIDER to 'nats'."
+            )
+        if "queue_provider" not in self.model_fields_set and self.azure_service_bus_connection_string:
+            raise ValueError(
+                "AZURE_SERVICE_BUS_CONNECTION_STRING is set but QUEUE_PROVIDER is not. "
+                "Set QUEUE_PROVIDER=azure_service_bus to keep Azure, or QUEUE_PROVIDER=nats to use NATS."
+            )
+        return self
 
     @model_validator(mode="after")
     def _check_translation_settings(self) -> Settings:

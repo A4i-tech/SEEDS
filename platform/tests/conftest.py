@@ -14,7 +14,7 @@ os.environ.setdefault("ENV", "development")
 os.environ.setdefault("MONGO_DB_CONNECTION_STRING", "")
 os.environ.setdefault("DB_CONNECTION", "")
 os.environ.setdefault("AUTH_TYPE", "jwt")
-os.environ.setdefault("AZURE_SERVICE_BUS_CONNECTION_STRING", "Endpoint=sb://test/;SharedAccessKeyName=k;SharedAccessKey=v")
+os.environ.setdefault("QUEUE_PROVIDER", "nats")
 os.environ.setdefault("TRANSLATION_MODEL", "test-model")
 os.environ.setdefault(
     "APPLICATIONINSIGHTS_CONNECTION_STRING",

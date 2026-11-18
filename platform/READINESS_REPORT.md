@@ -175,5 +175,5 @@ f5f7a657 Release 2026.05.01 (#203)
 - [ ] Configure `REDIS_URL` for conference state persistence
 - [ ] Configure `AZURE_STORAGE_CONNECTION_STRING` for audio blob storage
 - [ ] Enable `AUDIO_CAPTURE_ENABLED=true` if audio recording required
-- [ ] Set `AZURE_SERVICE_BUS_CONNECTION_STRING` for async job processing
+- [ ] Set `NATS_URL` (or `AZURE_SERVICE_BUS_CONNECTION_STRING` with `QUEUE_PROVIDER=azure_service_bus`) for async job processing
 - [ ] Rotate all secrets; do not reuse staging credentials in production

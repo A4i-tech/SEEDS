@@ -14,7 +14,7 @@ pydantic-settings = ">=2.2"
 pydantic = {extras = ["email"], version = ">=2.6"}
 python-jose = {extras = ["cryptography"], version = ">=3.3"}
 passlib = {extras = ["bcrypt"], version = ">=1.7"}
-azure-servicebus = ">=7.12"
+nats-py = ">=2.10"
 azure-storage-blob = ">=12.19"
 azure-identity = ">=1.15"
 azure-monitor-opentelemetry = ">=1.2"
@@ -44,6 +44,7 @@ pycountry = ">=24.6"
 omni-ingest = "2.0.0"
 openai = ">=3.8.0"
 azure-ai-translation-text = {version = ">=2.0.0", optional = true}
+azure-servicebus = {version = ">=7.12", optional = true}
 fastmcp = "<4.0"
 lancedb = "0.38.0"
 liblouis = [
@@ -52,7 +53,7 @@ liblouis = [
 ]
 
 [tool.poetry.extras]
-azure = ["azure-ai-translation-text"]
+azure = ["azure-ai-translation-text", "azure-servicebus"]
 
 [tool.poetry.group.test.dependencies]
 pytest = ">=8.0"
