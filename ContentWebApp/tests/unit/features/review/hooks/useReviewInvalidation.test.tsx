@@ -45,6 +45,8 @@ const job = {
   metrics: { processed_pages: 0, diagrams_described: 0, tables_fixed: 0, flagged_items_count: 0 },
   created_at: '2026-01-02',
   finished_at: '',
+  assigned_to: '',
+  book_id: null,
 }
 
 function QueueProbe() {

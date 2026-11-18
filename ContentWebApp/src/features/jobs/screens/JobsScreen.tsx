@@ -1,83 +1,42 @@
-import { Anchor, Button, Flex, Group, Select, Stack, Text, TextInput } from '@mantine/core';
+import { Flex, Select, Stack, Text, TextInput } from '@mantine/core';
 import { Search } from 'lucide-react';
-import { useDisclosure } from '@mantine/hooks';
 import { useState } from 'react';
-import { useNavigate } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import type { DataTableColumn } from '@shared/components/DataTable';
-import { openConfirmDialog } from '@shared/components/ConfirmDialog';
 import { DataTable } from '@shared/components/DataTable';
 import { StatusBadge } from '@shared/components/StatusBadge';
 import { LoadError } from '@shared/components/LoadError';
 import { useRole } from '@features/auth/store/useAuthStore';
-import { DownloadMenu } from '@shared/components/DownloadMenu';
 import { useVolunteers } from '@features/registration/hooks/useVolunteers';
-import { AssignVolunteerModal } from '../components/AssignVolunteerModal';
+import { BookActions } from '../components/BookActions';
+import { BookStageCell, BookTitleCell, ChapterTitleCell } from '../components/BookCells';
+import { JobRowAction } from '../components/JobRowAction';
 import { StageProgress } from '../components/StageProgress';
-import { availableDownloads } from '../utils/artifacts';
+import { buildRows, type JobsTableRow } from '../utils/bookRows';
 import { selectValue } from '@shared/utils/select';
 import { formatRelativeTime } from '@shared/utils/format';
-import { JOB_ACTION, flowRoute, type JobRow, type JobStatus, type JobType } from '../types/job.types';
-import { useDeleteRemediationJob, useJobs } from '../hooks/useJobs';
+import type { JobRow, JobStatus, JobType } from '../types/job.types';
+import { useJobs } from '../hooks/useJobs';
 import { PageTitle } from '@shared/components/PageTitle';
-import { RowActions } from '@shared/components/RowActions';
+import { volunteerRole } from '@shared/utils/jwt';
 
 const typeOptions: Array<'all' | JobType> = ['all', 'make-accessible', 'course-sync', 'localize', 'create'];
 const statusOptions: Array<'all' | JobStatus> = ['all', 'failed', 'needs-review', 'needs-attention', 'running', 'done'];
 
-function RowAction({ row }: { row: JobRow }) {
-  const { t } = useTranslation();
-  const navigate = useNavigate();
-  const go = () => {
-    if (row.type === 'make-accessible' && (row.status === 'needs-review' || row.status === 'done')) {
-      return navigate({ to: '/review/remediate/$jobId', params: { jobId: row.id } });
-    }
-    if (row.type === 'make-accessible') return navigate({ to: '/make-accessible/$jobId', params: { jobId: row.id } });
-    if (row.type === 'course-sync') return navigate({ to: '/jobs/$jobId', params: { jobId: row.id } });
-    return navigate({ to: flowRoute[row.type] });
-  };
-  const role = useRole();
-  const [assigning, { open: openAssign, close: closeAssign }] = useDisclosure();
-  const remove = useDeleteRemediationJob();
-  const confirmRemove = () =>
-    openConfirmDialog({
-      title: t('jobs.deleteTitle'),
-      body: t('jobs.deleteBody'),
-      confirmLabel: t('jobs.deleteConfirm'),
-      cancelLabel: t('dialog.cancel'),
-      onConfirm: () => remove.mutate(row.id),
-    });
-  const action = JOB_ACTION[row.status];
-  const emphasised = row.status === 'failed' || row.status === 'needs-review';
+const PAGE_SIZE = 10;
+
+function JobTitle({ job }: { job: JobRow }) {
   return (
-    <Group gap="sm" wrap="nowrap">
-      {emphasised && (
-        <Button variant="outline" size="compact-md" onClick={() => void go()}>
-          {t(action.labelKey)}
-        </Button>
+    <Stack gap={0}>
+      <Text size="sm" variant="rowTitle">
+        {job.title}
+      </Text>
+      {job.subtitle && (
+        <Text size="xs" c="dimmed">
+          {job.subtitle}
+        </Text>
       )}
-      <RowActions>
-        {!emphasised && (
-          <Anchor component="button" type="button" variant="rowAction" onClick={() => void go()}>
-            {t(action.labelKey)}
-          </Anchor>
-        )}
-        {row.remediation && availableDownloads(row.remediation.artifacts).length > 0 && (
-          <DownloadMenu job={row.remediation} row />
-        )}
-        {row.remediation && role === 'tenant' && (
-          <Anchor component="button" type="button" variant="rowAction" onClick={openAssign}>
-            {t('jobs.assign')}
-          </Anchor>
-        )}
-        {row.type === 'make-accessible' && role === 'tenant' && (
-          <Anchor component="button" type="button" variant="rowAction" c="red" onClick={confirmRemove}>
-            {t('jobs.delete')}
-          </Anchor>
-        )}
-      </RowActions>
-      {assigning && row.remediation && <AssignVolunteerModal job={row.remediation} onClose={closeAssign} />}
-    </Group>
+    </Stack>
   );
 }
 
@@ -91,46 +50,56 @@ export function JobsScreen() {
   const [statusFilter, setStatusFilter] = useState<(typeof statusOptions)[number]>('all');
   const [page, setPage] = useState(1);
 
-  const rows = state.status === 'done' ? state.data : [];
-  const q = query.trim().toLowerCase();
-  const filtered = rows.filter(
-    (row) =>
-      (typeFilter === 'all' || row.type === typeFilter) &&
-      (statusFilter === 'all' || row.status === statusFilter) &&
-      (!q || row.title.toLowerCase().includes(q)),
-  );
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
+  const toggle = (bookId: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (!next.delete(bookId)) next.add(bookId);
+      return next;
+    });
 
-  const columns: DataTableColumn<JobRow>[] = [
+  const tableRows =
+    state.status === 'done'
+      ? buildRows(state.data, state.books, expanded, { query, type: typeFilter, status: statusFilter }, role === volunteerRole)
+      : [];
+
+  const columns: DataTableColumn<JobsTableRow>[] = [
     {
       key: 'title',
       header: t('jobs.columns.job'),
-      render: (row) => (
-        <Stack gap={0}>
-          <Text size="sm" variant="rowTitle">
-            {row.title}
-          </Text>
-          {row.subtitle && (
-            <Text size="xs" c="dimmed">
-              {row.subtitle}
-            </Text>
-          )}
-        </Stack>
-      ),
+      render: (row) => {
+        if (row.kind === 'book') {
+          if (row.readOnly) return <Text size="sm" variant="rowTitle">{t('jobs.book.volunteerHeading', { title: row.book.title })}</Text>;
+          return <BookTitleCell row={row} onToggle={() => toggle(row.book.book_id)} />;
+        }
+        const title = <JobTitle job={row.job} />;
+        return row.kind === 'chapter' ? <ChapterTitleCell position={row.position}>{title}</ChapterTitleCell> : title;
+      },
     },
-    { key: 'type', header: t('jobs.columns.type'), render: (row) => t(`jobs.types.${row.type}`) },
+    {
+      key: 'type',
+      header: t('jobs.columns.type'),
+      render: (row) => {
+        if (row.kind === 'book') return row.readOnly ? null : t('jobs.types.make-accessible');
+        return t(`jobs.types.${row.job.type}`);
+      },
+    },
     {
       key: 'stage',
       header: t('jobs.columns.stage'),
-      render: (row) => (row.remediation ? <StageProgress job={row.remediation} /> : null),
+      render: (row) => {
+        if (row.kind === 'book') return row.readOnly ? null : <BookStageCell row={row} />;
+        return row.job.remediation ? <StageProgress job={row.job.remediation} /> : null;
+      },
     },
     ...(role === 'tenant'
       ? [
           {
             key: 'assignee',
             header: t('jobs.columns.assignee'),
-            render: (row: JobRow) => {
-              if (!row.remediation) return null;
-              const id = row.remediation.assigned_to;
+            render: (row: JobsTableRow) => {
+              if (row.kind === 'book' || !row.job.remediation) return null;
+              const id = row.job.remediation.assigned_to;
               if (!id) return <Text size="sm" c="dimmed">{t('jobs.unassigned')}</Text>;
               return new Map(volunteers.map((v) => [v.id, v.name])).get(id);
             },
@@ -140,16 +109,23 @@ export function JobsScreen() {
     {
       key: 'status',
       header: t('jobs.columns.status'),
-      render: (row) => <StatusBadge tone={row.status} label={t(`jobs.statuses.${row.status}`)} />,
+      render: (row) => {
+        if (row.kind === 'book' && row.readOnly) return null;
+        const status = row.kind === 'book' ? row.status : row.job.status;
+        return <StatusBadge tone={status} label={t(`jobs.statuses.${status}`)} />;
+      },
     },
     {
       key: 'updated',
       header: t('jobs.columns.updated'),
-      render: (row) => (
-        <Text size="xs" c="dimmed">
-          {formatRelativeTime(row.updated)}
-        </Text>
-      ),
+      render: (row) => {
+        if (row.kind === 'book' && row.readOnly) return null;
+        return (
+          <Text size="xs" c="dimmed">
+            {formatRelativeTime(row.kind === 'book' ? row.updated : row.job.updated)}
+          </Text>
+        );
+      },
     },
   ];
 
@@ -163,7 +139,7 @@ export function JobsScreen() {
         <Select
           aria-label={t('jobs.columns.type')}
           value={typeFilter}
-          onChange={(v) => setTypeFilter(selectValue(v, 'all'))}
+          onChange={(v) => { setTypeFilter(selectValue(v, 'all')); setPage(1); }}
           data={typeOptions.map((v) => ({ value: v, label: t(`jobs.typeOptions.${v}`) }))}
         />
         <Select
@@ -184,16 +160,19 @@ export function JobsScreen() {
       </Flex>
       {state.status === 'loading' && <Text c="dimmed">{t('common.loading')}</Text>}
       {state.status === 'error' && <LoadError error={state.error} />}
-      <DataTable<JobRow>
+      <DataTable<JobsTableRow>
         columns={columns}
-        rows={filtered}
-        getRowId={(row) => `${row.type}:${row.id}`}
+        rows={tableRows}
+        getRowId={(row) => row.id}
         loading={state.status === 'loading'}
-        page={page}
-        pageSize={10}
+        page={Math.min(page, Math.max(1, Math.ceil(tableRows.length / PAGE_SIZE)))}
+        pageSize={PAGE_SIZE}
         onPageChange={setPage}
         emptyMessage={t('jobs.empty')}
-        actions={(row) => <RowAction row={row} />}
+        actions={(row) => {
+          if (row.kind !== 'book') return <JobRowAction row={row.job} />;
+          return row.readOnly ? null : <BookActions row={row} />;
+        }}
         actionsLabel={t('jobs.columns.action')}
       />
     </Stack>

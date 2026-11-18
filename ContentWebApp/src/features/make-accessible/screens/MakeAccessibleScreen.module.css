@@ -15,6 +15,14 @@
   border-color: var(--seeds-btn-secondary-border);
 }
 
+.problem {
+  display: flex;
+  align-items: center;
+  gap: var(--mantine-spacing-xs);
+  color: var(--mantine-color-red-7);
+  font-weight: 600;
+}
+
 @media (min-width: 48em) {
   .dropzone {
     padding: var(--mantine-spacing-xl);

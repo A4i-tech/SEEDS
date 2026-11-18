@@ -7,7 +7,7 @@ import {
   assignRemediationJob,
   deleteRemediationJob,
   downloadRemediationArtifact,
-  getRemediationJobs,
+  getRemediationJobsAndBooks,
 } from '@features/jobs/api/remediationJobs'
 import { getVolunteers } from '@features/registration/api/volunteers'
 import { getActiveSyncJobs, getSyncJobs } from '@features/jobs/api/syncJobs'
@@ -20,7 +20,7 @@ vi.mock('@features/jobs/api/remediationJobs', () => ({
   assignRemediationJob: vi.fn(),
   deleteRemediationJob: vi.fn(),
   downloadRemediationArtifact: vi.fn(),
-  getRemediationJobs: vi.fn(),
+  getRemediationJobsAndBooks: vi.fn(),
 }))
 vi.mock('@features/jobs/api/syncJobs', () => ({ getSyncJobs: vi.fn(), getActiveSyncJobs: vi.fn() }))
 
@@ -43,6 +43,7 @@ const remediation = {
   created_at: '2026-01-02',
   finished_at: '',
   assigned_to: '',
+  book_id: null,
 }
 
 const sync = {
@@ -62,7 +63,7 @@ describe('JobsScreen delete', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     useAuthStore.setState({ status: 'authenticated', role: 'tenant' })
-    vi.mocked(getRemediationJobs).mockResolvedValue([remediation])
+    vi.mocked(getRemediationJobsAndBooks).mockResolvedValue({ jobs: [remediation], books: [] })
     vi.mocked(getSyncJobs).mockResolvedValue([sync])
     vi.mocked(getActiveSyncJobs).mockResolvedValue([])
     vi.mocked(getVolunteers).mockResolvedValue([{ id: 'vol-1', name: 'Ann', email: 'ann@x.com' }])
@@ -79,13 +80,14 @@ describe('JobsScreen delete', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Delete job' }))
 
     await waitFor(() => expect(vi.mocked(deleteRemediationJob).mock.calls[0]?.[0]).toBe('job-1'))
-    await waitFor(() => expect(getRemediationJobs).toHaveBeenCalledTimes(2))
+    await waitFor(() => expect(getRemediationJobsAndBooks).toHaveBeenCalledTimes(2))
   })
 
   it('renders Fix as an outlined button and keeps View a link-style action', async () => {
-    vi.mocked(getRemediationJobs).mockResolvedValue([
-      { ...remediation, job_id: 'job-2', source_name: 'bad.pdf', status: 'failed', error: 'boom' },
-    ])
+    vi.mocked(getRemediationJobsAndBooks).mockResolvedValue({
+      jobs: [{ ...remediation, job_id: 'job-2', source_name: 'bad.pdf', status: 'failed', error: 'boom' }],
+      books: [],
+    })
     vi.mocked(getSyncJobs).mockResolvedValue([sync])
     renderWithProviders(<JobsScreen />)
     await screen.findByText('bad.pdf')
@@ -122,7 +124,7 @@ describe('JobsScreen delete', () => {
       { id: 'vol-1', name: 'Ann', email: 'ann@x.com' },
       { id: 'vol-2', name: 'Bo', email: 'bo@x.com' },
     ])
-    vi.mocked(getRemediationJobs).mockResolvedValue([{ ...remediation, assigned_to: 'vol-1' }])
+    vi.mocked(getRemediationJobsAndBooks).mockResolvedValue({ jobs: [{ ...remediation, assigned_to: 'vol-1' }], books: [] })
     vi.mocked(assignRemediationJob).mockResolvedValue(undefined)
     renderWithProviders(<JobsScreen />)
     expect(await screen.findByText('Ann')).toBeInTheDocument()
@@ -137,7 +139,7 @@ describe('JobsScreen delete', () => {
   })
 
   it('shows needs attention for completed syncs with failures', async () => {
-    vi.mocked(getRemediationJobs).mockResolvedValue([])
+    vi.mocked(getRemediationJobsAndBooks).mockResolvedValue({ jobs: [], books: [] })
     vi.mocked(getSyncJobs).mockResolvedValue([{ ...sync, stats: { ...sync.stats, failed: 1 } }])
     renderWithProviders(<JobsScreen />)
     expect(await screen.findByText('Needs attention')).toBeTruthy()
@@ -152,7 +154,7 @@ describe('JobsScreen delete', () => {
   })
 
   it('opens a running make-accessible job on its progress page', async () => {
-    vi.mocked(getRemediationJobs).mockResolvedValue([{ ...remediation, status: 'running' }])
+    vi.mocked(getRemediationJobsAndBooks).mockResolvedValue({ jobs: [{ ...remediation, status: 'running' }], books: [] })
     vi.mocked(getSyncJobs).mockResolvedValue([])
     renderWithProviders(<JobsScreen />)
     await screen.findByText('book.pdf')
@@ -168,7 +170,7 @@ describe('JobsScreen delete', () => {
   })
 
   it('downloads an artifact from the row menu', async () => {
-    vi.mocked(getRemediationJobs).mockResolvedValue([{ ...remediation, artifacts: { docx: 'u', translated_pdf: 'u' } }])
+    vi.mocked(getRemediationJobsAndBooks).mockResolvedValue({ jobs: [{ ...remediation, artifacts: { docx: 'u', translated_pdf: 'u' } }], books: [] })
     vi.mocked(getSyncJobs).mockResolvedValue([])
     vi.mocked(downloadRemediationArtifact).mockResolvedValue(undefined)
     renderWithProviders(<JobsScreen />)

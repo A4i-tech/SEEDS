@@ -3,16 +3,18 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useAuthStore } from '@features/auth/store/useAuthStore'
 import { useJobs } from '../../../../../src/features/jobs/hooks/useJobs'
-import { getRemediationJobs } from '@features/jobs/api/remediationJobs'
+import { getRemediationJobsAndBooks } from '@features/jobs/api/remediationJobs'
 import { getActiveSyncJobs, getSyncJobs } from '@features/jobs/api/syncJobs'
 
 import { renderHookWithProviders } from '../../../test-utils/renderWithProviders'
 
-vi.mock('@features/jobs/api/remediationJobs', () => ({ getRemediationJobs: vi.fn() }))
+vi.mock('@features/jobs/api/remediationJobs', () => ({ getRemediationJobsAndBooks: vi.fn() }))
 vi.mock('@features/jobs/api/syncJobs', () => ({
   getSyncJobs: vi.fn(),
   getActiveSyncJobs: vi.fn(),
 }))
+
+const books = [{ book_id: 'book-1', title: 'Atlas', language: 'en', job_ids: ['job-1'], created_at: '2026-01-01' }]
 
 const job = (overrides = {}) => ({
   job_id: 'job-1',
@@ -34,10 +36,10 @@ beforeEach(() => {
 
 describe('useJobs', () => {
   it('lists remediation jobs once loaded', async () => {
-    vi.mocked(getRemediationJobs).mockResolvedValue([
-      job(),
-      job({ job_id: 'job-2', status: 'ready_to_review', created_at: '2026-01-01' }),
-    ])
+    vi.mocked(getRemediationJobsAndBooks).mockResolvedValue({
+      jobs: [job(), job({ job_id: 'job-2', status: 'ready_to_review', created_at: '2026-01-01' })],
+      books,
+    })
     const { result } = renderHookWithProviders(() => useJobs())
     expect(result.current.status).toBe('loading')
     await waitFor(() => expect(result.current.status).toBe('done'))
@@ -46,16 +48,17 @@ describe('useJobs', () => {
       ['job-1', 'running'],
       ['job-2', 'needs-review'],
     ])
+    expect(result.current.books).toEqual(books)
   })
 
   it('asks for the maximum number of remediation jobs', async () => {
-    vi.mocked(getRemediationJobs).mockResolvedValue([job()])
+    vi.mocked(getRemediationJobsAndBooks).mockResolvedValue({ jobs: [job()], books: [] })
     renderHookWithProviders(() => useJobs())
-    await waitFor(() => expect(getRemediationJobs).toHaveBeenCalledWith(200))
+    await waitFor(() => expect(getRemediationJobsAndBooks).toHaveBeenCalledWith(200))
   })
 
   it('surfaces a failed listing', async () => {
-    vi.mocked(getRemediationJobs).mockRejectedValue(new Error('network down'))
+    vi.mocked(getRemediationJobsAndBooks).mockRejectedValue(new Error('network down'))
     const { result } = renderHookWithProviders(() => useJobs())
     await waitFor(() => expect(result.current.status).toBe('error'))
     if (result.current.status !== 'error') throw new Error('expected error')
@@ -64,7 +67,7 @@ describe('useJobs', () => {
 
   it('skips tenant-only sync queries for other roles', async () => {
     useAuthStore.setState({ role: 'school_admin' })
-    vi.mocked(getRemediationJobs).mockResolvedValue([job()])
+    vi.mocked(getRemediationJobsAndBooks).mockResolvedValue({ jobs: [job()], books: [] })
     const { result } = renderHookWithProviders(() => useJobs())
     await waitFor(() => expect(result.current.status).toBe('done'))
     expect(getSyncJobs).not.toHaveBeenCalled()

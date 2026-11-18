@@ -1,43 +1,153 @@
-import { Alert, Button, Group, Paper, Select, SimpleGrid, Stack, Text } from '@mantine/core';
+import { Alert, Anchor, Button, Group, Paper, Select, SimpleGrid, Stack, Text, TextInput } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { Upload } from 'lucide-react';
+import { useNavigate } from '@tanstack/react-router';
+import { CircleAlert, Upload } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { RemediationSteps } from '../components/RemediationSteps';
 import { useRemediationUpload } from '../hooks/useRemediationUpload';
-import { selectValue } from '@shared/utils/select';
-import { notifyApiError } from '@shared/utils/notifyApiError';
-import classes from './MakeAccessibleScreen.module.css';
+import { defaultBookTitle } from '../utils/bookTitle';
+import { useRole } from '@features/auth/store/useAuthStore';
+import { BookOrganiser, sortByName, type OrganiserItem } from '@shared/components/BookOrganiser';
 import { PageTitle } from '@shared/components/PageTitle';
+import { volunteerRole } from '@shared/utils/jwt';
+import { selectValue } from '@shared/utils/select';
+import { MAX_BOOK_FILES, MAX_PDF_MB, toMb } from '@shared/utils/upload';
+import classes from './MakeAccessibleScreen.module.css';
 
 const supportedKeys = ['supportedPdf', 'supportedScan'] as const;
 
 const accept = '.pdf,application/pdf';
 
+const isPdf = (file: File) => file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+
+const isTooBig = (file: File) => toMb(file.size) > MAX_PDF_MB;
+
 export function MakeAccessibleScreen() {
   const { t } = useTranslation();
-  const { languageOptions, languagesError, upload, isUploading } = useRemediationUpload();
+  if (useRole() === volunteerRole) {
+    return (
+      <Stack gap="md">
+        <PageTitle title={t('makeAccessible.title')} />
+        <Text>{t('makeAccessible.volunteerNote')}</Text>
+      </Stack>
+    );
+  }
+  return <UploadForm />;
+}
+
+function UploadForm() {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
+  const { languageOptions, languagesError, upload, isUploading, uploadBook, isUploadingBook } = useRemediationUpload();
   const [file, setFile] = useState<File | null>(null);
+  const [items, setItems] = useState<OrganiserItem[]>([]);
+  const [filesById, setFilesById] = useState<Record<string, File>>({});
+  const [title, setTitle] = useState('');
+  const [titleTouched, setTitleTouched] = useState(false);
+  const [selectionError, setSelectionError] = useState('');
+  const [bookError, setBookError] = useState<string | null>(null);
   const [targetLanguage, setTargetLanguage] = useState('');
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const browseRef = useRef<HTMLButtonElement>(null);
 
-  const selectFile = (incoming: FileList) => {
-    setFile(incoming[0]);
+  const isBook = items.length >= 2;
+  const bookFiles = items.map((item) => filesById[item.id]);
+  const titleBlank = title.trim() === '';
+
+  const clearBook = () => {
+    setItems([]);
+    setFilesById({});
+    setTitle('');
+    setTitleTouched(false);
+  };
+
+  const selectSingle = (picked: File) => {
+    clearBook();
+    setFile(picked);
+  };
+
+  const selectFiles = (incoming: FileList) => {
+    const picked = Array.from(incoming);
+    setSelectionError('');
+    setBookError(null);
+    if (picked.length === 0) return;
+    if (picked.length === 1) {
+      selectSingle(picked[0]);
+      return;
+    }
+    const pdfs = picked.filter(isPdf);
+    const skipped = picked.filter((f) => !isPdf(f));
+    if (skipped.length > 0) {
+      notifications.show({ message: t('makeAccessible.skippedNonPdf', { names: skipped.map((f) => f.name).join(', ') }) });
+    }
+    if (pdfs.length > MAX_BOOK_FILES) {
+      setSelectionError(t('makeAccessible.tooManyFiles', { limit: MAX_BOOK_FILES, count: pdfs.length }));
+      return;
+    }
+    if (pdfs.length === 0) return;
+    if (pdfs.length === 1) {
+      selectSingle(pdfs[0]);
+      return;
+    }
+    const entries = pdfs.map((pdf, index) => ({
+      item: { id: `${pdf.name}-${pdf.size}-${pdf.lastModified}-${index}`, name: pdf.name, sizeMb: toMb(pdf.size) },
+      pdf,
+    }));
+    const sorted = sortByName(entries.map((entry) => entry.item));
+    setFile(null);
+    setItems(sorted);
+    setFilesById(Object.fromEntries(entries.map((entry) => [entry.item.id, entry.pdf])));
+    setTitle(defaultBookTitle(sorted[0].name));
+    setTitleTouched(false);
+  };
+
+  const changeItems = (next: OrganiserItem[]) => {
+    setBookError(null);
+    if (next.length === 1) {
+      selectSingle(filesById[next[0].id]);
+      browseRef.current?.focus();
+      return;
+    }
+    setItems(next);
   };
 
   const handleUpload = async () => {
     if (!file) return;
     try {
       await upload({ file, targetLanguage });
-    } catch (err) {
-      notifyApiError(err as Error);
-      return;
+    } catch {
+      return; // the hook already showed the error
     }
-    notifications.show({ message: t('makeAccessible.uploaded', { name: file.name }) });
     setFile(null);
   };
 
+  const handleUploadBook = async () => {
+    setTitleTouched(true);
+    setBookError(null);
+    if (titleBlank) return;
+    const count = items.length;
+    try {
+      await uploadBook({ files: bookFiles, title: title.trim(), targetLanguage });
+    } catch (err) {
+      setBookError((err as Error).message);
+      return;
+    }
+    clearBook();
+    notifications.show({
+      message: (
+        <Group gap="xs">
+          <Text span>{t('makeAccessible.bookQueued', { count })}</Text>
+          <Anchor component="button" type="button" onClick={() => void navigate({ to: '/jobs' })}>
+            {t('makeAccessible.bookQueuedLink')}
+          </Anchor>
+        </Group>
+      ),
+    });
+  };
+
+  const tooBig = isBook ? bookFiles.some(isTooBig) : file !== null && isTooBig(file);
 
   return (
     <Stack gap="md">
@@ -59,7 +169,7 @@ export function MakeAccessibleScreen() {
         onDrop={(e) => {
           e.preventDefault();
           setDragging(false);
-          selectFile(e.dataTransfer.files);
+          selectFiles(e.dataTransfer.files);
         }}
         onClick={() => inputRef.current?.click()}
         onKeyDown={(e) => {
@@ -69,25 +179,57 @@ export function MakeAccessibleScreen() {
         <Upload size={32} aria-hidden />
         <Text variant="rowTitle">{t('makeAccessible.dropzone')}</Text>
         <Text size="sm" c="dimmed">
-          {t('makeAccessible.dropzoneHint')}
+          {t('makeAccessible.dropzoneHint', { limit: MAX_PDF_MB })}
         </Text>
         <input
           ref={inputRef}
           type="file"
           accept={accept}
+          multiple
           hidden
           aria-hidden
           onChange={(e) => {
-            if (e.target.files) selectFile(e.target.files);
+            if (e.target.files) selectFiles(e.target.files);
             e.target.value = '';
           }}
         />
-        <Button variant="outline" size="md">
+        <Button ref={browseRef} variant="outline" size="md">
           {t('makeAccessible.browse')}
         </Button>
       </div>
 
-      {file && <Text size="sm">{file.name}</Text>}
+      {selectionError && <Alert color="red" role="alert">{selectionError}</Alert>}
+
+      {file && (
+        <Stack gap={4}>
+          <Text size="sm">{t('makeAccessible.selectedFile', { name: file.name })}</Text>
+          {isTooBig(file) && (
+            <Text size="sm" className={classes.problem}>
+              <CircleAlert size={16} aria-hidden />
+              {t('bookOrganiser.tooBig', { name: file.name, size: toMb(file.size).toFixed(1), limit: MAX_PDF_MB })}
+            </Text>
+          )}
+        </Stack>
+      )}
+
+      {isBook && (
+        <>
+          <BookOrganiser items={items} onChange={changeItems} allowRemove />
+          <TextInput
+            label={t('makeAccessible.bookName')}
+            required
+            value={title}
+            error={titleTouched && titleBlank ? t('makeAccessible.bookNameRequired') : undefined}
+            onChange={(e) => setTitle(e.currentTarget.value)}
+            onBlur={() => setTitleTouched(true)}
+          />
+          {bookError !== null && (
+            <Alert color="red" role="alert">
+              {bookError} {t('makeAccessible.bookFailed')}
+            </Alert>
+          )}
+        </>
+      )}
 
       <Group gap="md" align="flex-end">
         <Select
@@ -97,9 +239,19 @@ export function MakeAccessibleScreen() {
           onChange={(v) => setTargetLanguage(selectValue(v))}
           data={[{ value: '', label: t('makeAccessible.noTranslation') }, ...languageOptions]}
         />
-        <Button disabled={!file} loading={isUploading} onClick={() => void handleUpload()}>
-          {isUploading ? t('makeAccessible.uploading') : t('makeAccessible.upload')}
-        </Button>
+        {isBook ? (
+          <Button
+            disabled={tooBig || titleBlank}
+            loading={isUploadingBook}
+            onClick={() => void handleUploadBook()}
+          >
+            {isUploadingBook ? t('makeAccessible.uploadingBook') : t('makeAccessible.uploadBook', { count: items.length })}
+          </Button>
+        ) : (
+          <Button disabled={!file || tooBig} loading={isUploading} onClick={() => void handleUpload()}>
+            {isUploading ? t('makeAccessible.uploading') : t('makeAccessible.upload')}
+          </Button>
+        )}
       </Group>
       {languagesError && <Alert>{languagesError}</Alert>}
 
