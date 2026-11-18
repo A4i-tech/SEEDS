@@ -131,7 +131,7 @@ export function JobsScreen() {
               if (!row.remediation) return null;
               const id = row.remediation.assigned_to;
               if (!id) return <Text size="sm" c="dimmed">{t('jobs.unassigned')}</Text>;
-              return volunteers.find((v) => v.id === id)?.name ?? '';
+              return new Map(volunteers.map((v) => [v.id, v.name])).get(id);
             },
           },
         ]

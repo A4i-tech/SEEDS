@@ -20,6 +20,7 @@ export function useAssignRemediationJob() {
   return useMutation({
     mutationFn: assignRemediationJob,
     onSettled: () => queryClient.invalidateQueries({ queryKey: jobKeys.remediation }),
+    onError: notifyApiError,
   });
 }
 
