@@ -40,6 +40,7 @@ const job = {
   finished_at: '',
   assigned_to: '',
   book_id: null,
+  edit_accuracy: null,
 }
 
 const summary = {

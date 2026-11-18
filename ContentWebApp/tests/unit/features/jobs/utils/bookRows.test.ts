@@ -20,6 +20,7 @@ const book = (id: string, jobIds: string[], over: Partial<Book> = {}): Book => (
   language: 'en',
   job_ids: jobIds,
   created_at: '2026-01-01',
+  edit_accuracy: null,
   ...over,
 })
 

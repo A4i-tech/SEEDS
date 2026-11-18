@@ -75,6 +75,7 @@ const job = (id: string, over: Partial<RemediationJob> = {}): RemediationJob => 
   finished_at: '',
   assigned_to: '',
   book_id: null,
+  edit_accuracy: null,
   ...over,
 })
 
@@ -84,6 +85,7 @@ const book = (over: Partial<Book> = {}): Book => ({
   language: 'en',
   job_ids: ['j2', 'j1', 'j3'],
   created_at: '2026-02-01',
+  edit_accuracy: null,
   ...over,
 })
 
@@ -270,5 +272,64 @@ describe('JobsScreen books', () => {
     renderWithProviders(<JobsScreen />)
     await screen.findByText('Atlas')
     expect(within(screen.getByRole('row', { name: /Atlas/ })).getByText(badge)).toBeInTheDocument()
+  })
+})
+
+describe('JobsScreen accuracy column', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    useAuthStore.setState({ status: 'authenticated', role: 'tenant' })
+    vi.mocked(getSyncJobs).mockResolvedValue([])
+    vi.mocked(getActiveSyncJobs).mockResolvedValue([])
+    vi.mocked(getVolunteers).mockResolvedValue([])
+  })
+
+  const rowOf = (name: RegExp) => within(screen.getByRole('row', { name }))
+
+  it('shows one decimal for a verified job and a dash for an unverified one', async () => {
+    load([job('s1', { edit_accuracy: 93.3 }), job('s2', { status: 'running' })], [])
+    renderWithProviders(<JobsScreen />)
+    await screen.findByText('s1.pdf')
+    expect(rowOf(/s1\.pdf/).getByText('93.3%')).toBeInTheDocument()
+    expect(rowOf(/s2\.pdf/).getByText('—')).toBeInTheDocument()
+  })
+
+  it('shows the book value with "so far" while chapters are unverified, and on chapter rows', async () => {
+    const jobs = ['j1', 'j2', 'j3', 'j4'].map((id, i) =>
+      job(id, { book_id: 'book-1', status: i < 2 ? 'verified' : 'ready_to_review', edit_accuracy: i < 2 ? 90 : null }),
+    )
+    load(jobs, [book({ job_ids: ['j1', 'j2', 'j3', 'j4'], edit_accuracy: 93.3 })])
+    renderWithProviders(<JobsScreen />)
+    await screen.findByText('Atlas')
+    expect(rowOf(/Atlas/).getByText('93.3% so far')).toBeInTheDocument()
+    fireEvent.click(toggle())
+    expect(rowOf(/j1\.pdf/).getByText('90.0%')).toBeInTheDocument()
+    expect(rowOf(/j3\.pdf/).getByText('—')).toBeInTheDocument()
+  })
+
+  it('omits "so far" when every chapter is verified', async () => {
+    load(chapters({ edit_accuracy: 80 }), [book({ edit_accuracy: 80 })])
+    renderWithProviders(<JobsScreen />)
+    await screen.findByText('Atlas')
+    expect(rowOf(/Atlas/).getByText('80.0%')).toBeInTheDocument()
+    expect(screen.queryByText(/so far/)).toBeNull()
+  })
+
+  it('links the header to its help text', async () => {
+    load(chapters(), [book()])
+    renderWithProviders(<JobsScreen />)
+    await screen.findByText('Atlas')
+    expect(screen.getByRole('columnheader', { name: /Accuracy/ })).toHaveAccessibleDescription(
+      'Share of the machine text the reviewer left unchanged. 100% means no edits. 0% means everything was changed.',
+    )
+  })
+
+  it('hides the column from a volunteer', async () => {
+    useAuthStore.setState({ role: volunteerRole })
+    load(chapters({ edit_accuracy: 80 }), [book({ edit_accuracy: 80 })])
+    renderWithProviders(<JobsScreen />)
+    await screen.findByText('Book: Atlas')
+    expect(screen.queryByRole('columnheader', { name: /Accuracy/ })).toBeNull()
+    expect(screen.queryByText(/80\.0%/)).toBeNull()
   })
 })

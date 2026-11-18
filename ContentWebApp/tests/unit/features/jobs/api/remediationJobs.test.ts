@@ -27,8 +27,9 @@ const job = {
   finished_at: '',
   assigned_to: '',
   book_id: 'book-1',
+  edit_accuracy: 93.3,
 }
-const book = { book_id: 'book-1', title: 'Atlas', language: 'en', job_ids: ['job-1'], created_at: '2026-01-01' }
+const book = { book_id: 'book-1', title: 'Atlas', language: 'en', job_ids: ['job-1'], created_at: '2026-01-01', edit_accuracy: 93.3 }
 
 describe('remediationJobs api', () => {
   beforeEach(() => {
@@ -52,6 +53,15 @@ describe('remediationJobs api', () => {
   it('getRemediationJobs returns only the jobs', async () => {
     vi.mocked(apiClient.get).mockResolvedValue({ data: { jobs: [job], books: [book] } })
     expect(await getRemediationJobs(200)).toEqual([job])
+  })
+
+  it('rejects a job or a book without edit_accuracy', async () => {
+    const { edit_accuracy: _job, ...bareJob } = job
+    const { edit_accuracy: _book, ...bareBook } = book
+    vi.mocked(apiClient.get).mockResolvedValue({ data: { jobs: [bareJob], books: [book] } })
+    await expect(getRemediationJobsAndBooks(200)).rejects.toThrow()
+    vi.mocked(apiClient.get).mockResolvedValue({ data: { jobs: [job], books: [bareBook] } })
+    await expect(getRemediationJobsAndBooks(200)).rejects.toThrow()
   })
 
   it('rejects a malformed book', async () => {

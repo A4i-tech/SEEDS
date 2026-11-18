@@ -105,7 +105,12 @@ void i18n.use(initReactI18next).init({
           deleteTitle: 'Delete this job?',
           deleteBody: 'This job and its results will be removed. This cannot be undone.',
           deleteConfirm: 'Delete job',
-          columns: { job: 'Job', type: 'Type', stage: 'Stage', assignee: 'Assignee', status: 'Status', updated: 'Updated', action: 'Action' },
+          columns: { job: 'Job', type: 'Type', stage: 'Stage', assignee: 'Assignee', status: 'Status', updated: 'Updated', accuracy: 'Accuracy', action: 'Action' },
+          accuracy: {
+            percent: '{{value}}%',
+            soFar: '{{value}}% so far',
+            help: 'Share of the machine text the reviewer left unchanged. 100% means no edits. 0% means everything was changed.',
+          },
           book: {
             tag: 'Book',
             chapters: '{{count}} chapters',

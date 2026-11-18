@@ -1,12 +1,13 @@
-import { Button, Group, Pagination, Select, Skeleton, Table, Text, UnstyledButton } from '@mantine/core';
+import { Button, Group, Pagination, Select, Skeleton, Table, Text, UnstyledButton, VisuallyHidden } from '@mantine/core';
 import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { useId, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import classes from './DataTable.module.css';
 
 export interface DataTableColumn<T> {
   key: string;
   header: string;
+  description?: string;
   sortable?: boolean;
   render: (row: T) => ReactNode;
 }
@@ -54,6 +55,7 @@ export function DataTable<T>({
   emptyMessage,
 }: DataTableProps<T>) {
   const { t } = useTranslation();
+  const tableId = useId();
   const itemCount = rows.length;
   const pageCount = Math.max(1, Math.ceil(itemCount / pageSize));
   const visibleRows = rows.slice((page - 1) * pageSize, page * pageSize);
@@ -81,7 +83,11 @@ export function DataTable<T>({
                 const SortIcon = SORT_ICON[state];
                 const isSortable = col.sortable && onSortChange;
                 return (
-                  <Table.Th key={col.key} aria-sort={ARIA_SORT[state]}>
+                  <Table.Th
+                    key={col.key}
+                    aria-sort={ARIA_SORT[state]}
+                    aria-describedby={col.description ? `${tableId}-${col.key}` : undefined}
+                  >
                     {isSortable && (
                       <UnstyledButton onClick={() => onSortChange(col.key)} aria-label={`Sort by ${col.header}`}>
                         <Group gap={4}>
@@ -91,6 +97,7 @@ export function DataTable<T>({
                       </UnstyledButton>
                     )}
                     {!isSortable && col.header}
+                    {col.description && <VisuallyHidden id={`${tableId}-${col.key}`}>{col.description}</VisuallyHidden>}
                   </Table.Th>
                 );
               })}

@@ -14,7 +14,7 @@ vi.mock('@features/jobs/api/syncJobs', () => ({
   getActiveSyncJobs: vi.fn(),
 }))
 
-const books = [{ book_id: 'book-1', title: 'Atlas', language: 'en', job_ids: ['job-1'], created_at: '2026-01-01' }]
+const books = [{ book_id: 'book-1', title: 'Atlas', language: 'en', job_ids: ['job-1'], created_at: '2026-01-01', edit_accuracy: null }]
 
 const job = (overrides = {}) => ({
   job_id: 'job-1',
