@@ -69,8 +69,10 @@ def as_jpeg(raw: bytes) -> tuple[bytes, str]:
 
 # An HTML comment, such as a page marker or a spoken note, across lines.
 _HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
-# One MathML element from its open tag to its close tag, across lines.
-_MATHML_RE = re.compile(r"<math\b.*?</math>", re.DOTALL)
+# One MathML element across lines, then the spoken note the builder writes after it (optional).
+_MATHML_RE = re.compile(r"(<math\b.*?</math>)(?:\s*<!--\s*spoken:\s*(.*?)\s*-->)?", re.DOTALL)
+# Any tag.
+_TAG_RE = re.compile(r"<[^>]+>")
 
 
 @functools.lru_cache(maxsize=512)
@@ -79,9 +81,17 @@ def _mathml_to_tex(mathml: str) -> str:
     return pypandoc.convert_text(mathml, "markdown+tex_math_dollars", format="html").strip()
 
 
+def _math_to_text(match: re.Match[str]) -> str:
+    tex = _mathml_to_tex(match.group(1))
+    if "$" in tex:
+        return tex
+    # Pandoc could not read this MathML, so a reader gets the spoken note, or the bare text.
+    return match.group(2) or " ".join(_TAG_RE.sub(" ", match.group(1)).split())
+
+
 def _prepare_markdown(text: str) -> str:
     # Raw HTML is off, so pandoc would print comments and MathML as plain text.
-    return _MATHML_RE.sub(lambda m: _mathml_to_tex(m.group(0)), _HTML_COMMENT_RE.sub("", text))
+    return _HTML_COMMENT_RE.sub("", _MATHML_RE.sub(_math_to_text, text))
 
 
 def markdown_to_format(
