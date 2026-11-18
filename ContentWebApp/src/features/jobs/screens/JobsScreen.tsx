@@ -1,5 +1,6 @@
 import { Anchor, Button, Flex, Group, Select, Stack, Text, TextInput } from '@mantine/core';
 import { Search } from 'lucide-react';
+import { useDisclosure } from '@mantine/hooks';
 import { useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
@@ -10,6 +11,8 @@ import { StatusBadge } from '@shared/components/StatusBadge';
 import { LoadError } from '@shared/components/LoadError';
 import { useRole } from '@features/auth/store/useAuthStore';
 import { DownloadMenu } from '@shared/components/DownloadMenu';
+import { useVolunteers } from '@features/registration/hooks/useVolunteers';
+import { AssignVolunteerModal } from '../components/AssignVolunteerModal';
 import { StageProgress } from '../components/StageProgress';
 import { availableDownloads } from '../utils/artifacts';
 import { selectValue } from '@shared/utils/select';
@@ -33,6 +36,7 @@ function RowAction({ row }: { row: JobRow }) {
     return navigate({ to: flowRoute[row.type] });
   };
   const role = useRole();
+  const [assigning, { open: openAssign, close: closeAssign }] = useDisclosure();
   const remove = useDeleteRemediationJob();
   const confirmRemove = () =>
     openConfirmDialog({
@@ -60,12 +64,18 @@ function RowAction({ row }: { row: JobRow }) {
         {row.remediation && availableDownloads(row.remediation.artifacts).length > 0 && (
           <DownloadMenu job={row.remediation} row />
         )}
+        {row.remediation && role === 'tenant' && (
+          <Anchor component="button" type="button" variant="rowAction" onClick={openAssign}>
+            {t('jobs.assign')}
+          </Anchor>
+        )}
         {row.type === 'make-accessible' && role === 'tenant' && (
           <Anchor component="button" type="button" variant="rowAction" c="red" onClick={confirmRemove}>
             {t('jobs.delete')}
           </Anchor>
         )}
       </RowActions>
+      {assigning && row.remediation && <AssignVolunteerModal job={row.remediation} onClose={closeAssign} />}
     </Group>
   );
 }
@@ -73,6 +83,8 @@ function RowAction({ row }: { row: JobRow }) {
 export function JobsScreen() {
   const { t } = useTranslation();
   const state = useJobs();
+  const role = useRole();
+  const { volunteers } = useVolunteers(role === 'tenant');
   const [query, setQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<(typeof typeOptions)[number]>('all');
   const [statusFilter, setStatusFilter] = useState<(typeof statusOptions)[number]>('all');
@@ -110,6 +122,20 @@ export function JobsScreen() {
       header: t('jobs.columns.stage'),
       render: (row) => (row.remediation ? <StageProgress job={row.remediation} /> : null),
     },
+    ...(role === 'tenant'
+      ? [
+          {
+            key: 'assignee',
+            header: t('jobs.columns.assignee'),
+            render: (row: JobRow) => {
+              if (!row.remediation) return null;
+              const id = row.remediation.assigned_to;
+              if (!id) return <Text size="sm" c="dimmed">{t('jobs.unassigned')}</Text>;
+              return new Map(volunteers.map((v) => [v.id, v.name])).get(id);
+            },
+          },
+        ]
+      : []),
     {
       key: 'status',
       header: t('jobs.columns.status'),

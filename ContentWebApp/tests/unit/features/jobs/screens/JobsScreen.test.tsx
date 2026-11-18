@@ -1,15 +1,23 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { renderWithProviders } from '../../../test-utils/renderWithProviders'
 import { useAuthStore } from '@features/auth/store/useAuthStore'
-import { deleteRemediationJob, downloadRemediationArtifact, getRemediationJobs } from '@features/jobs/api/remediationJobs'
+import {
+  assignRemediationJob,
+  deleteRemediationJob,
+  downloadRemediationArtifact,
+  getRemediationJobs,
+} from '@features/jobs/api/remediationJobs'
+import { getVolunteers } from '@features/registration/api/volunteers'
 import { getActiveSyncJobs, getSyncJobs } from '@features/jobs/api/syncJobs'
 import { JobsScreen } from '@features/jobs/screens/JobsScreen'
 
 const navigate = vi.fn()
 vi.mock('@tanstack/react-router', () => ({ useNavigate: () => navigate }))
+vi.mock('@features/registration/api/volunteers', () => ({ getVolunteers: vi.fn() }))
 vi.mock('@features/jobs/api/remediationJobs', () => ({
+  assignRemediationJob: vi.fn(),
   deleteRemediationJob: vi.fn(),
   downloadRemediationArtifact: vi.fn(),
   getRemediationJobs: vi.fn(),
@@ -34,6 +42,7 @@ const remediation = {
   metrics: { processed_pages: 0, diagrams_described: 0, tables_fixed: 0, flagged_items_count: 0 },
   created_at: '2026-01-02',
   finished_at: '',
+  assigned_to: '',
 }
 
 const sync = {
@@ -56,6 +65,7 @@ describe('JobsScreen delete', () => {
     vi.mocked(getRemediationJobs).mockResolvedValue([remediation])
     vi.mocked(getSyncJobs).mockResolvedValue([sync])
     vi.mocked(getActiveSyncJobs).mockResolvedValue([])
+    vi.mocked(getVolunteers).mockResolvedValue([{ id: 'vol-1', name: 'Ann', email: 'ann@x.com' }])
   })
 
   it('offers delete only on make-accessible rows and deletes after confirmation', async () => {
@@ -83,11 +93,47 @@ describe('JobsScreen delete', () => {
     expect(screen.getByRole('button', { name: 'View' })).not.toHaveAttribute('data-variant', 'outline')
   })
 
-  it('separates View and Delete on a make-accessible done row', async () => {
+  it('separates View, Assign and Delete on a make-accessible done row', async () => {
     vi.mocked(getSyncJobs).mockResolvedValue([])
     renderWithProviders(<JobsScreen />)
     await screen.findByText('book.pdf')
-    expect(document.querySelectorAll('[data-separator]')).toHaveLength(1)
+    expect(document.querySelectorAll('[data-separator]')).toHaveLength(2)
+  })
+
+  it('assigns a job to the chosen volunteer and shows the assignee', async () => {
+    vi.mocked(getSyncJobs).mockResolvedValue([])
+    vi.mocked(assignRemediationJob).mockResolvedValue(undefined)
+    renderWithProviders(<JobsScreen />)
+    await screen.findByText('book.pdf')
+    expect(screen.getByText('Unassigned')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Assign' }))
+    fireEvent.mouseDown(await screen.findByRole('combobox', { name: 'Volunteer' }))
+    fireEvent.click(await screen.findByText('Ann (ann@x.com)'))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Assign' }))
+    await waitFor(() =>
+      expect(vi.mocked(assignRemediationJob).mock.calls[0]?.[0]).toEqual({ jobId: 'job-1', volunteerId: 'vol-1', force: false }),
+    )
+  })
+
+  it('reassigns with force when the job already has an assignee', async () => {
+    vi.mocked(getSyncJobs).mockResolvedValue([])
+    vi.mocked(getVolunteers).mockResolvedValue([
+      { id: 'vol-1', name: 'Ann', email: 'ann@x.com' },
+      { id: 'vol-2', name: 'Bo', email: 'bo@x.com' },
+    ])
+    vi.mocked(getRemediationJobs).mockResolvedValue([{ ...remediation, assigned_to: 'vol-1' }])
+    vi.mocked(assignRemediationJob).mockResolvedValue(undefined)
+    renderWithProviders(<JobsScreen />)
+    expect(await screen.findByText('Ann')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Assign' }))
+    fireEvent.mouseDown(await screen.findByRole('combobox', { name: 'Volunteer' }))
+    fireEvent.click(await screen.findByText('Bo (bo@x.com)'))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Assign' }))
+    await waitFor(() =>
+      expect(vi.mocked(assignRemediationJob).mock.calls[0]?.[0]).toEqual({ jobId: 'job-1', volunteerId: 'vol-2', force: true }),
+    )
   })
 
   it('shows needs attention for completed syncs with failures', async () => {

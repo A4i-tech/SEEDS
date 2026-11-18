@@ -44,6 +44,7 @@ export const remediationJobSchema = z.object({
   metrics: remediationMetricsSchema,
   created_at: z.string(),
   finished_at: text,
+  assigned_to: text,
 });
 
 export type RemediationJob = z.infer<typeof remediationJobSchema>;
