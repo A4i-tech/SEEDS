@@ -17,7 +17,7 @@ export function AssignVolunteerModal({ job, onClose }: { job: RemediationJob; on
     <FormModal
       title={t('jobs.assignTitle', { name: job.source_name })}
       submitLabel={t('jobs.assign')}
-      submitDisabled={!volunteerId || volunteerId === job.assigned_to}
+      submitDisabled={!volunteerId}
       errorMessage={assign.error && assign.error.message}
       isPending={assign.isPending}
       onClose={onClose}
