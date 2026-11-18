@@ -3,7 +3,7 @@ import { modals } from '@mantine/modals';
 
 interface ConfirmOptions {
   title: string;
-  body?: string;
+  body: string;
   confirmLabel: string;
   cancelLabel: string;
   onConfirm: () => void;
@@ -18,7 +18,7 @@ export function openConfirmDialog({ title, body, confirmLabel, cancelLabel, onCo
     overlayProps: { backgroundOpacity: 0.55 },
     cancelProps: { variant: 'subtle' },
     title: <Title order={3}>{title}</Title>,
-    children: body && <Text size="sm">{body}</Text>,
+    children: <Text size="sm">{body}</Text>,
     labels: { confirm: confirmLabel, cancel: cancelLabel },
     confirmProps: { variant: 'destructive' },
     onConfirm,

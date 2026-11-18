@@ -484,6 +484,7 @@ void i18n.use(initReactI18next).init({
           approve: 'Approve',
           approveAll: 'Approve all',
           approveAllTitle: 'Approve all translations?',
+          approveAllBody: 'Every pending translation shown here will be approved.',
           approved: 'Approved.',
           approvedCount: 'Approved {{count}}.',
           approvedPartial: 'Approved {{approved}}, skipped {{skipped}}, {{failed}} failed.',

@@ -10,14 +10,7 @@ export function useLocalizePages(siteId: string) {
     queryKey: localizeKeys.pages(siteId),
     queryFn: () => listTranslations(siteId),
     enabled: authStatus === 'authenticated',
-    select: (items) => {
-      const latest = new Map<string, number>();
-      for (const item of items) {
-        const route = item.route || '/';
-        latest.set(route, Math.max(latest.get(route) ?? 0, Date.parse(item.updated_at) || 0));
-      }
-      return [...latest.keys()].sort((a, b) => (latest.get(b) ?? 0) - (latest.get(a) ?? 0));
-    },
+    select: (items) => [...new Set(items.toSorted((a, b) => b.updated_at.localeCompare(a.updated_at)).map((item) => item.route))],
   });
   const state = toApiState(query);
   return { state, pages: state.status === 'done' ? state.data : [] };
