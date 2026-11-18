@@ -5,11 +5,11 @@ from pydantic import BaseModel
 
 from app.controllers.textbook_remediation_controller import (
     _validate_language,
-    require_remediation_access,
     validate_pdf_upload,
 )
 from app.models.remediation_job import ArtifactName
 from app.models.responses.remediation import BookResponse, CreateBookResponse
+from app.platform.auth.dependencies import require_tenant
 from app.platform.error_handling import NotFoundError, ValidationError
 from app.providers.blob_storage import BlobStorageProvider, get_blob_storage_provider
 from app.repositories.textbook_book_repository import TextbookBookRepository, get_textbook_book_repo
@@ -41,7 +41,7 @@ async def create_book(
     title: str = Form(..., min_length=1, max_length=200),
     language: str = Form("auto"),
     target_language: str = Form(""),
-    user: dict[str, object] = Depends(require_remediation_access),
+    user: dict[str, object] = Depends(require_tenant),
     repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
     books: TextbookBookRepository = Depends(get_textbook_book_repo),
     blob_provider: BlobStorageProvider = Depends(get_blob_storage_provider),
@@ -74,7 +74,7 @@ async def create_book(
 async def reorder_book(
     book_id: str,
     payload: ReorderBookRequest,
-    user: dict[str, object] = Depends(require_remediation_access),
+    user: dict[str, object] = Depends(require_tenant),
     repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
     books: TextbookBookRepository = Depends(get_textbook_book_repo),
 ) -> dict[str, object]:
@@ -86,7 +86,7 @@ async def reorder_book(
 @router.delete("/{book_id}", status_code=204, summary="Soft-delete a book and its chapters")
 async def delete_book(
     book_id: str,
-    user: dict[str, object] = Depends(require_remediation_access),
+    user: dict[str, object] = Depends(require_tenant),
     repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
     books: TextbookBookRepository = Depends(get_textbook_book_repo),
 ) -> None:
@@ -98,7 +98,7 @@ async def delete_book(
 async def get_book_artifact(
     book_id: str,
     name: str,
-    user: dict[str, object] = Depends(require_remediation_access),
+    user: dict[str, object] = Depends(require_tenant),
     repo: TextbookRemediationRepository = Depends(get_textbook_remediation_repo),
     books: TextbookBookRepository = Depends(get_textbook_book_repo),
     blob_provider: BlobStorageProvider = Depends(get_blob_storage_provider),

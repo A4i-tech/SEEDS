@@ -251,3 +251,36 @@ async def test_fetch_images_keeps_a_climbing_link_inside_the_job_folder(repo, tm
     job = await repo.create(job_id=ObjectId(), tenant_id="tenant-a", source_name="a.pdf", source_url="u", language="ta")
     out = await fetch_images(job, "![x](images/../../secret.png)", tmp_path, _StubBlob())
     assert out == f"![x](images/{job.job_id}/secret.png)"
+
+
+def test_book_routes_are_tenant_only():
+    import inspect
+
+    from app.platform.auth.dependencies import require_tenant
+
+    for route in (ctl.create_book, ctl.reorder_book, ctl.delete_book, ctl.get_book_artifact):
+        assert inspect.signature(route).parameters["user"].default.dependency is require_tenant
+
+
+@pytest.mark.asyncio
+async def test_volunteer_sees_a_book_only_through_chapters_in_their_own_job_list(repo, books, monkeypatch):
+    out = await _make_book(repo, books, _StubBlob())
+    first = out["job_ids"][0]
+    volunteer = {"tenant_id": "tenant-a", "sub": "v1", "role": "textbook_remediation_volunteer"}
+    real_list_jobs = repo.list_jobs
+
+    async def only_first(tenant_id, **kw):
+        return [j for j in await real_list_jobs(tenant_id, **kw) if j.job_id == first]
+
+    monkeypatch.setattr(repo, "list_jobs", only_first)
+    body = await list_remediation_jobs(limit=20, user=volunteer, repo=repo, book_repo=books)
+    assert [j["job_id"] for j in body["jobs"]] == [first]
+    assert [b["job_ids"] for b in body["books"]] == [[first]]
+
+    async def none(tenant_id, **kw):
+        return []
+
+    monkeypatch.setattr(repo, "list_jobs", none)
+    assert (await list_remediation_jobs(limit=20, user=volunteer, repo=repo, book_repo=books))["books"] == []
+    tenant = await list_remediation_jobs(limit=20, user=USER, repo=repo, book_repo=books)
+    assert len(tenant["books"]) == 1 and len(tenant["jobs"]) == 3
