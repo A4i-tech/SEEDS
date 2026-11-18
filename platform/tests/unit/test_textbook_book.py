@@ -15,10 +15,8 @@ from app.platform.error_handling import AppError, ValidationError
 from app.remediation.accuracy import score_edit
 from app.repositories.textbook_book_repository import TextbookBookRepository
 from app.repositories.textbook_remediation_repository import TextbookRemediationRepository
-from app.services import textbook_book
-from app.services import textbook_remediation as remediation_service
 from app.services.textbook_book import TextbookBookService
-from app.services.textbook_remediation import fetch_images
+from app.services.textbook_remediation import TextbookRemediationService
 from tests.support.mongomock_async import AsyncMongoMockClient
 from tests.unit.test_textbook_remediation import _StubBlob, _StubUpload
 
@@ -70,7 +68,7 @@ def fake_compile(monkeypatch):
             pdf.write_bytes(b"%PDF-fake")
         return docx, tex, pdf
 
-    monkeypatch.setattr(textbook_book, "compile_verified", compile_fake)
+    monkeypatch.setattr(TextbookRemediationService, "compile_verified", staticmethod(compile_fake))
     compile_fake.built = built
     compile_fake.formats = formats
     return compile_fake
@@ -189,8 +187,8 @@ async def test_book_is_one_document_in_saved_order_built_once_and_rebuilt_after_
     await _svc(db, blob).reorder_book("tenant-a", out.book_id, [c, a, b])
 
     async def download(fmt):
-        book = await books.get("tenant-a", out.book_id)
-        return await textbook_book.book_artifact(repo, books, blob, "tenant-a", book, fmt)
+        response = await _svc(db, blob).book_artifact("tenant-a", out.book_id, fmt)
+        return response.body, response.media_type
 
     data, kind = await download("docx")
     assert data == b"docx:# Three\n\n# One\n\n# Two"
@@ -215,8 +213,8 @@ async def test_pdf_is_stored_and_served_as_pdf_and_a_missing_pdf_is_built_again_
         await _verify(repo, job_id, "# x")
 
     async def download(fmt):
-        book = await books.get("tenant-a", out.book_id)
-        return await textbook_book.book_artifact(repo, books, blob, "tenant-a", book, fmt)
+        response = await _svc(db, blob).book_artifact("tenant-a", out.book_id, fmt)
+        return response.body, response.media_type
 
     with pytest.raises(AppError, match="PDF of this book could not be built") as exc:
         await download("pdf")
@@ -236,8 +234,7 @@ async def test_a_chapter_cleared_to_empty_text_stays_empty_in_the_book(db, repo,
     blob = _StubBlob({"https://blob/a.md": b"machine text"})
     await _verify(repo, first, "")
     await _verify(repo, second, "# Two")
-    book = await books.get("tenant-a", out.book_id)
-    await textbook_book.book_artifact(repo, books, blob, "tenant-a", book, "docx")
+    await _svc(db, blob).book_artifact("tenant-a", out.book_id, "docx")
     assert "machine text" not in fake_compile.built[0]
 
 
@@ -249,8 +246,7 @@ async def test_deleting_a_chapter_keeps_the_book_and_skips_it(db, repo, books, f
     for job_id in out.job_ids:
         await _verify(repo, job_id, f"# {job_id[-3:]}")
     await repo.soft_delete("tenant-a", b)
-    book = await books.get("tenant-a", out.book_id)
-    await textbook_book.book_artifact(repo, books, blob, "tenant-a", book, "docx")
+    await _svc(db, blob).book_artifact("tenant-a", out.book_id, "docx")
     assert fake_compile.built == [f"# {a[-3:]}\n\n# {c[-3:]}"]
 
 
@@ -260,9 +256,8 @@ async def test_book_with_every_chapter_deleted_says_so(db, repo, books):
     out = await _make_book(db, blob)
     for job_id in out.job_ids:
         await repo.soft_delete("tenant-a", job_id)
-    book = await books.get("tenant-a", out.book_id)
     with pytest.raises(AppError, match="no chapters left"):
-        await textbook_book.book_artifact(repo, books, blob, "tenant-a", book, "docx")
+        await _svc(db, blob).book_artifact("tenant-a", out.book_id, "docx")
 
 
 @pytest.mark.asyncio
@@ -301,20 +296,20 @@ async def test_list_skips_a_malformed_chapter_instead_of_failing_the_whole_list(
 
 
 @pytest.mark.asyncio
-async def test_fetch_images_downloads_each_figure_into_a_folder_per_job_and_rewrites_the_links(repo, tmp_path):
+async def test_fetch_images_downloads_each_figure_into_a_folder_per_job_and_rewrites_the_links(repo, tmp_path, db):
     job = await repo.create(job_id=ObjectId(), tenant_id="tenant-a", source_name="a.pdf", source_url="u", language="ta")
     blob = _StubBlob({f"textbook-remediation/{job.job_id}/images/a_1_img.jpg": b"jpg"})
     md = '![One](images/a_1_img.jpg "title")\n\n![Gone](images/missing.jpg)'
-    out = await fetch_images(job, md, tmp_path, blob)
+    out = await TextbookRemediationService(db, blob).fetch_images(job, md, tmp_path)
     assert out == f'![One](images/{job.job_id}/a_1_img.jpg "title")\n\n![Gone](images/{job.job_id}/missing.jpg)'
     assert (tmp_path / "images" / job.job_id / "a_1_img.jpg").read_bytes() == b"jpg"
     assert not (tmp_path / "images" / job.job_id / "missing.jpg").exists()
 
 
 @pytest.mark.asyncio
-async def test_fetch_images_keeps_a_climbing_link_inside_the_job_folder(repo, tmp_path):
+async def test_fetch_images_keeps_a_climbing_link_inside_the_job_folder(repo, tmp_path, db):
     job = await repo.create(job_id=ObjectId(), tenant_id="tenant-a", source_name="a.pdf", source_url="u", language="ta")
-    out = await fetch_images(job, "![x](images/../../secret.png)", tmp_path, _StubBlob())
+    out = await TextbookRemediationService(db, _StubBlob()).fetch_images(job, "![x](images/../../secret.png)", tmp_path)
     assert out == f"![x](images/{job.job_id}/secret.png)"
 
 
@@ -326,8 +321,7 @@ async def test_book_word_file_holds_the_figures_of_every_chapter(db, repo, books
     })
     for n, job_id in enumerate(out.job_ids):
         await _verify(repo, job_id, f"# Chapter {n}\n\n![Figure {n}](images/fig_{n}.png)")
-    book = await books.get("tenant-a", out.book_id)
-    data, _ = await textbook_book.book_artifact(repo, books, blob, "tenant-a", book, "docx")
+    data = (await _svc(db, blob).book_artifact("tenant-a", out.book_id, "docx")).body
     with zipfile.ZipFile(io.BytesIO(data)) as z:
         assert len([n for n in z.namelist() if n.startswith("word/media/")]) == 2
 
@@ -357,7 +351,7 @@ async def test_volunteer_sees_a_book_only_through_their_assigned_chapters(db, re
 
 @pytest.mark.asyncio
 async def test_verify_stores_the_accuracy_and_a_book_adds_it_up_by_length(db, repo, books, monkeypatch):
-    monkeypatch.setattr(remediation_service, "compile_verified", lambda markdown, out_dir: (None, None, None))
+    monkeypatch.setattr(TextbookRemediationService, "compile_verified", staticmethod(lambda markdown, out_dir: (None, None, None)))
     out = await _make_book(db, _StubBlob(), names=("a.pdf", "b.pdf"))
     first, second = out.job_ids
     original = {first: "abcdefghij", second: "abcdefghijklmnopqrst"}
@@ -366,21 +360,21 @@ async def test_verify_stores_the_accuracy_and_a_book_adds_it_up_by_length(db, re
     for job_id in out.job_ids:
         await repo.record_artifacts(job_id, {"remediated": f"https://blob/{job_id}.md"}, {})
         job = await repo.update_draft(job_id, edited[job_id], None)
-        await remediation_service.verify_job(repo, blob, job, title="T", verified_by="r", edited_by="r")
+        await TextbookRemediationService(db, blob).verify_job(job, title="T", verified_by="r", edited_by="r")
 
     a, b = [await repo.get("tenant-a", j) for j in out.job_ids]
     assert (a.edit_accuracy, b.edit_accuracy) == (100.0, 90.0)
     assert (b.edit_chars_changed, b.edit_chars_total) == (2, 20)
     (record,) = await repo.list_edits(second)
     assert record["accuracy"]["percent"] == 90.0
-    assert textbook_book.book_accuracy([a, b]) == 93.3  # 2 changed of 30 characters, not (100 + 90) / 2
+    assert TextbookBookService.book_accuracy([a, b]) == 93.3  # 2 changed of 30 characters, not (100 + 90) / 2
 
 
 @pytest.mark.asyncio
 async def test_book_accuracy_is_zero_until_a_chapter_is_verified_and_a_job_without_edits_is_100(db, repo, books):
     out = await _make_book(db, _StubBlob())
     jobs = [await repo.get("tenant-a", j) for j in out.job_ids]
-    assert textbook_book.book_accuracy(jobs) == 0.0
+    assert TextbookBookService.book_accuracy(jobs) == 0.0
     await repo.mark_verified(out.job_ids[0], verified_by="r", accuracy=score_edit("same text", "same text"))
     body = await _svc(db, _StubBlob()).list_jobs_with_books("tenant-a", volunteer=False, assigned_to="", limit=20)
     assert body.books[0].edit_accuracy == 100.0
@@ -389,24 +383,24 @@ async def test_book_accuracy_is_zero_until_a_chapter_is_verified_and_a_job_witho
 
 
 @pytest.mark.asyncio
-async def test_clearing_the_whole_chapter_scores_0_and_no_baseline_means_no_score(repo, monkeypatch):
-    monkeypatch.setattr(remediation_service, "compile_verified", lambda markdown, out_dir: (None, None, None))
+async def test_clearing_the_whole_chapter_scores_0_and_no_baseline_means_no_score(repo, monkeypatch, db):
+    monkeypatch.setattr(TextbookRemediationService, "compile_verified", staticmethod(lambda markdown, out_dir: (None, None, None)))
     cleared = await repo.create(job_id=ObjectId(), tenant_id="tenant-a", source_name="a.pdf", source_url="u", language="ta")
     await repo.record_artifacts(cleared.job_id, {"remediated": "https://blob/a.md"}, {})
     job = await repo.update_draft(cleared.job_id, "")
     blob = _StubBlob({"https://blob/a.md": b"machine text"})
-    done = await remediation_service.verify_job(repo, blob, job, title="T", verified_by="r", edited_by="r")
+    done = await TextbookRemediationService(db, blob).verify_job(job, title="T", verified_by="r", edited_by="r")
     assert done.edit_accuracy == 0.0
     assert len(await repo.list_edits(cleared.job_id)) == 1
 
     bare = await repo.create(job_id=ObjectId(), tenant_id="tenant-a", source_name="b.pdf", source_url="u", language="ta")
     job = await repo.update_draft(bare.job_id, "reviewed text")
-    done = await remediation_service.verify_job(repo, blob, job, title="T", verified_by="r", edited_by="r")
+    done = await TextbookRemediationService(db, blob).verify_job(job, title="T", verified_by="r", edited_by="r")
     assert done.edit_accuracy == 0.0
 
 
 @pytest.mark.asyncio
-async def test_a_failed_build_leaves_no_edit_record_so_a_retry_adds_one(repo, monkeypatch):
+async def test_a_failed_build_leaves_no_edit_record_so_a_retry_adds_one(repo, monkeypatch, db):
     job = await repo.create(job_id=ObjectId(), tenant_id="tenant-a", source_name="a.pdf", source_url="u", language="ta")
     await repo.record_artifacts(job.job_id, {"remediated": "https://blob/a.md"}, {})
     job = await repo.update_draft(job.job_id, "reviewed")
@@ -415,13 +409,13 @@ async def test_a_failed_build_leaves_no_edit_record_so_a_retry_adds_one(repo, mo
     def broken(markdown, out_dir):
         raise RuntimeError("pandoc crashed")
 
-    monkeypatch.setattr(remediation_service, "compile_verified", broken)
+    monkeypatch.setattr(TextbookRemediationService, "compile_verified", staticmethod(broken))
     with pytest.raises(ValidationError):
-        await remediation_service.verify_job(repo, blob, job, title="T", verified_by="r", edited_by="r")
+        await TextbookRemediationService(db, blob).verify_job(job, title="T", verified_by="r", edited_by="r")
     assert await repo.list_edits(job.job_id) == []
 
-    monkeypatch.setattr(remediation_service, "compile_verified", lambda markdown, out_dir: (None, None, None))
-    await remediation_service.verify_job(repo, blob, job, title="T", verified_by="r", edited_by="r")
+    monkeypatch.setattr(TextbookRemediationService, "compile_verified", staticmethod(lambda markdown, out_dir: (None, None, None)))
+    await TextbookRemediationService(db, blob).verify_job(job, title="T", verified_by="r", edited_by="r")
     assert len(await repo.list_edits(job.job_id)) == 1
 
 
@@ -441,7 +435,7 @@ async def test_book_score_counts_an_unscored_chapter_as_zero_and_volunteers_see_
     await repo.mark_verified(first, verified_by="r", accuracy=score_edit("abcd", "abcd"))
     await repo.mark_verified(second, verified_by="r", accuracy=score_edit("", ""))
     jobs = [await repo.get("tenant-a", j) for j in out.job_ids]
-    assert textbook_book.book_accuracy(jobs) == 100.0
+    assert TextbookBookService.book_accuracy(jobs) == 100.0
     await repo.mark_verified(second, verified_by="r", accuracy=score_edit("abcd", "abcd"))
     await repo.set_assignment("tenant-a", first, "v1")
     svc = _svc(db, _StubBlob())

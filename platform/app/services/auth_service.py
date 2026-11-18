@@ -19,7 +19,6 @@ from fastapi import Depends
 from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.refresh_token import UserClaims
-from app.models.requests.auth_requests import VolunteerCreateRequest
 from app.models.responses.dashboard import (
     DashboardStatistics,
     SchoolDashboardRow,
@@ -436,26 +435,6 @@ class AuthService:
 
     async def register_teacher(self, data: TeacherCreate) -> User:
         return await register_teacher(data, self._db)
-
-    async def register_volunteer(self, tenant_id: str, body: VolunteerCreateRequest) -> User:
-        repo = UserRepository(self._db)
-        existing = await repo.find_by_email(body.email)
-        if existing is not None:
-            raise ConflictError(f"email {body.email}")
-        return await repo.create(
-            UserCreate(
-                role=UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER,
-                name=body.name,
-                email=body.email,
-                hashed_password=hash_password(body.password),
-                tenant_id=tenant_id,
-            )
-        )
-
-    async def list_volunteers(self, tenant_id: str) -> list[User]:
-        return await UserRepository(self._db).find_all_by_tenant_and_role(
-            tenant_id, UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER.value
-        )
 
     async def register_tenant(self, data: TenantCreate) -> User:
         return await register_tenant(data, self._db)

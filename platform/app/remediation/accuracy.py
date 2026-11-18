@@ -41,8 +41,6 @@ def readable_text(markdown: str) -> str:
 
 def _pages(markdown: str) -> dict[str, str]:
     parts = _PAGE_MARKER.split(markdown)
-    if len(parts) == 1:
-        return {"0": parts[0]}
     pages = {"0": parts[0]} if parts[0].strip() else {}
     for number, body in zip(parts[1::2], parts[2::2], strict=True):
         pages[number] = pages.get(number, "") + body

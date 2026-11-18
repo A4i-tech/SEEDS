@@ -38,13 +38,8 @@ from app.repositories.textbook_remediation_repository import TextbookRemediation
 from app.repositories.user_repository import UserRepository
 from app.services.auth_service import AuthService
 from app.services.textbook_book import TextbookBookService
-from app.services.textbook_remediation import (
-    TextbookRemediationService,
-    assign_job,
-    serialize_job,
-    subscribe,
-)
-from app.services.textbook_remediation import artifact_bytes as _artifact_bytes
+from app.services.textbook_remediation import TextbookRemediationService
+from app.services.volunteer_service import VolunteerService
 from tests.support.mongomock_async import AsyncMongoMockClient
 
 
@@ -130,7 +125,7 @@ def test_serialize_job_numbers_the_stage_for_a_progress_bar():
         job_id="j", tenant_id="t", source_name="book.pdf", source_url="u", language="kn",
         status="running", stage="review",
     )
-    payload = serialize_job(job)
+    payload = TextbookRemediationService.serialize_job(job)
     assert (payload.stage_index, payload.stage_count) == (2, len(STAGES))
 
 
@@ -139,24 +134,24 @@ def test_serialize_job_reports_stage_zero_before_the_first_stage():
         job_id="j", tenant_id="t", source_name="book.pdf", source_url="u", language="kn",
         status="pending", stage=None,
     )
-    assert serialize_job(job).stage_index == 0
+    assert TextbookRemediationService.serialize_job(job).stage_index == 0
 
 
 @pytest.mark.asyncio
-async def test_subscribe_ends_on_a_finished_job(repo):
+async def test_subscribe_ends_on_a_finished_job(repo, db):
     job = await _create(repo)
     await repo.finish(job.job_id, JobStatus.READY_TO_REVIEW)
-    events = [e async for e in subscribe(repo, "tenant-a", job.job_id, interval=0)]
+    events = [e async for e in TextbookRemediationService(db, _StubBlob()).subscribe("tenant-a", job.job_id, interval=0)]
     assert [e["event"] for e in events] == ["done"]
 
 
 @pytest.mark.asyncio
-async def test_subscribe_yields_each_change_then_done(repo):
+async def test_subscribe_yields_each_change_then_done(repo, db):
     job = await _create(repo)
     await repo.claim_next_pending()
 
     events = []
-    async for event in subscribe(repo, "tenant-a", job.job_id, interval=0):
+    async for event in TextbookRemediationService(db, _StubBlob()).subscribe("tenant-a", job.job_id, interval=0):
         events.append(event)
         if len(events) == 1:
             await repo.set_stage(job.job_id, JobStage.REVIEW)
@@ -167,8 +162,8 @@ async def test_subscribe_yields_each_change_then_done(repo):
 
 
 @pytest.mark.asyncio
-async def test_subscribe_stops_on_an_unknown_job(repo):
-    assert [e async for e in subscribe(repo, "tenant-a", "000000000000000000000000", interval=0)] == []
+async def test_subscribe_stops_on_an_unknown_job(repo, db):
+    assert [e async for e in TextbookRemediationService(db, _StubBlob()).subscribe("tenant-a", "000000000000000000000000", interval=0)] == []
 
 
 
@@ -286,33 +281,33 @@ async def test_create_job_rejects_bad_input(repo, db, upload, language, message)
 
 
 @pytest.mark.asyncio
-async def test_artifact_bytes_rejects_an_unknown_name(repo):
+async def test_artifact_bytes_rejects_an_unknown_name(repo, db):
     job = await _create(repo)
     with pytest.raises(ValidationError, match="Unknown artifact"):
-        await _artifact_bytes(job, "../secrets", _StubBlob())
+        await TextbookRemediationService(db, _StubBlob()).artifact_bytes(job, "../secrets")
 
 
 @pytest.mark.asyncio
-async def test_artifact_bytes_404s_before_the_stage_that_writes_it_has_run(repo):
+async def test_artifact_bytes_404s_before_the_stage_that_writes_it_has_run(repo, db):
     job = await _create(repo)
     with pytest.raises(NotFoundError):
-        await _artifact_bytes(job, "docx", _StubBlob())
+        await TextbookRemediationService(db, _StubBlob()).artifact_bytes(job, "docx")
 
 
 @pytest.mark.asyncio
-async def test_artifact_bytes_serves_the_recorded_url(repo):
+async def test_artifact_bytes_serves_the_recorded_url(repo, db):
     created = await _create(repo)
     job = await repo.record_artifacts(created.job_id, {"corrected": "https://blob/c.md"}, {})
-    data, content_type = await _artifact_bytes(job, "corrected", _StubBlob({"https://blob/c.md": b"# hello"}))
+    data, content_type = await TextbookRemediationService(db, _StubBlob({"https://blob/c.md": b"# hello"})).artifact_bytes(job, "corrected")
     assert (data, content_type) == (b"# hello", "text/markdown")
 
 
 @pytest.mark.asyncio
-async def test_artifact_bytes_resolves_source_to_the_job_source_url(repo):
+async def test_artifact_bytes_resolves_source_to_the_job_source_url(repo, db):
     created = await _create(repo)
-    data, content_type = await _artifact_bytes(
-        created, "source", _StubBlob({"https://blob/source.pdf": b"%PDF-1.7 source bytes"})
-    )
+    data, content_type = await TextbookRemediationService(
+        db, _StubBlob({"https://blob/source.pdf": b"%PDF-1.7 source bytes"})
+    ).artifact_bytes(created, "source")
     assert (data, content_type) == (b"%PDF-1.7 source bytes", "application/pdf")
 
 
@@ -535,25 +530,21 @@ async def test_review_summary_reassembles_lines_split_across_chunks(repo, db):
 
 @pytest.mark.asyncio
 async def test_iter_jsonl_lines_reassembles_a_line_split_across_chunks():
-    from app.services.textbook_remediation import _iter_jsonl_lines
-
     async def chunks():
         yield b'{"id": 1, "na'
         yield b'me": "a"}\n{"id": 2}\n'
 
-    lines = [json.loads(line) async for line in _iter_jsonl_lines(chunks())]
+    lines = [json.loads(line) async for line in TextbookRemediationService._iter_jsonl_lines(chunks())]
     assert lines == [{"id": 1, "name": "a"}, {"id": 2}]
 
 
 @pytest.mark.asyncio
-async def test_findings_page_pages_correctly_across_chunk_boundaries(repo):
-    from app.services.textbook_remediation import findings_page
-
+async def test_findings_page_pages_correctly_across_chunk_boundaries(repo, db):
     created = await _create(repo)
     job = await repo.record_artifacts(created.job_id, {"findings": "https://blob/f.jsonl"}, {})
     lines = "\n".join(json.dumps({"id": i}) for i in range(5))
     blob = _StubBlob({"https://blob/f.jsonl": lines.encode("utf-8")})
-    page = await findings_page(job, "findings", blob, limit=2, offset=1)
+    page = await TextbookRemediationService(db, blob).findings_page(job, "findings", limit=2, offset=1)
     assert [f["id"] for f in page.findings] == [1, 2]
     assert (page.total, page.offset, page.has_more) == (5, 1, True)
 
@@ -652,9 +643,7 @@ async def test_update_source_page_count_stores_the_count(repo):
 
 
 @pytest.mark.asyncio
-async def test_verify_job_uploads_go_under_the_verified_path(repo, monkeypatch):
-    from app.services import textbook_remediation as remediation_service
-
+async def test_verify_job_uploads_go_under_the_verified_path(repo, monkeypatch, db):
     created = await _create(repo)
     job = await repo.update_draft(created.job_id, "# Title\n\nBody")
 
@@ -665,10 +654,10 @@ async def test_verify_job_uploads_go_under_the_verified_path(repo, monkeypatch):
         tex.write_bytes(b"tex-bytes")
         return docx, tex, None
 
-    monkeypatch.setattr(remediation_service, "compile_verified", _fake_compile)
+    monkeypatch.setattr(TextbookRemediationService, "compile_verified", staticmethod(_fake_compile))
     blob = _StubBlob()
 
-    await remediation_service.verify_job(repo, blob, job, title="Title", verified_by="reviewer@seeds.org", edited_by="reviewer@seeds.org")
+    await TextbookRemediationService(db, blob).verify_job(job, title="Title", verified_by="reviewer@seeds.org", edited_by="reviewer@seeds.org")
 
     assert f"textbook-remediation/{created.job_id}/verified/remediated.docx" in blob.uploaded
     assert f"textbook-remediation/{created.job_id}/verified/remediated.tex" in blob.uploaded
@@ -737,34 +726,30 @@ def test_resolve_models_sets_translation_when_target_language_requested(monkeypa
 
 
 @pytest.mark.asyncio
-async def test_verify_job_appends_an_edit_record_against_the_remediated_artifact(repo, monkeypatch):
-    from app.services import textbook_remediation as remediation_service
-
-    monkeypatch.setattr(remediation_service, "compile_verified", lambda markdown, out_dir: (None, None, None))
+async def test_verify_job_appends_an_edit_record_against_the_remediated_artifact(repo, monkeypatch, db):
+    monkeypatch.setattr(TextbookRemediationService, "compile_verified", staticmethod(lambda markdown, out_dir: (None, None, None)))
     created = await _create(repo)
     job = await repo.record_artifacts(created.job_id, {"remediated": "https://blob/remediated.md"}, {})
     job = await repo.update_draft(job.job_id, "# Edited once", "https://blob/draft.md")
     blob = _StubBlob({"https://blob/remediated.md": b"# Original"})
 
-    await remediation_service.verify_job(repo, blob, job, title="Title", verified_by="reviewer@seeds.org", edited_by="teacher@seeds.org")
+    await TextbookRemediationService(db, blob).verify_job(job, title="Title", verified_by="reviewer@seeds.org", edited_by="teacher@seeds.org")
 
     (record,) = await repo.list_edits(job.job_id)
     assert (record["previous"], record["new"], record["edited_by"]) == ("# Original", "# Edited once", "teacher@seeds.org")
 
 
 @pytest.mark.asyncio
-async def test_verify_job_appends_a_second_record_on_a_repeat_verification(repo, monkeypatch):
-    from app.services import textbook_remediation as remediation_service
-
-    monkeypatch.setattr(remediation_service, "compile_verified", lambda markdown, out_dir: (None, None, None))
+async def test_verify_job_appends_a_second_record_on_a_repeat_verification(repo, monkeypatch, db):
+    monkeypatch.setattr(TextbookRemediationService, "compile_verified", staticmethod(lambda markdown, out_dir: (None, None, None)))
     created = await _create(repo)
     job = await repo.record_artifacts(created.job_id, {"remediated": "https://blob/remediated.md"}, {})
     job = await repo.update_draft(job.job_id, "# Edited once", "https://blob/draft.md")
     blob = _StubBlob({"https://blob/remediated.md": b"# Original"})
 
-    job = await remediation_service.verify_job(repo, blob, job, title="Title", verified_by="reviewer@seeds.org", edited_by="teacher@seeds.org")
+    job = await TextbookRemediationService(db, blob).verify_job(job, title="Title", verified_by="reviewer@seeds.org", edited_by="teacher@seeds.org")
     job = await repo.update_draft(job.job_id, "# Edited twice", "https://blob/draft.md")
-    job = await remediation_service.verify_job(repo, blob, job, title="Title", verified_by="reviewer@seeds.org", edited_by="teacher@seeds.org")
+    job = await TextbookRemediationService(db, blob).verify_job(job, title="Title", verified_by="reviewer@seeds.org", edited_by="teacher@seeds.org")
 
     lines = await repo.list_edits(job.job_id)
     assert len(lines) == 2
@@ -781,16 +766,14 @@ async def test_ensure_indexes_covers_jobs_and_edits():
 
 
 @pytest.mark.asyncio
-async def test_verify_job_stores_the_word_swaps_on_the_edit_record(repo, monkeypatch):
-    from app.services import textbook_remediation as remediation_service
-
-    monkeypatch.setattr(remediation_service, "compile_verified", lambda markdown, out_dir: (None, None, None))
+async def test_verify_job_stores_the_word_swaps_on_the_edit_record(repo, monkeypatch, db):
+    monkeypatch.setattr(TextbookRemediationService, "compile_verified", staticmethod(lambda markdown, out_dir: (None, None, None)))
     created = await _create(repo)
     job = await repo.record_artifacts(created.job_id, {"remediated": "https://blob/remediated.md"}, {})
     job = await repo.update_draft(job.job_id, "এই কণা ছোট\nশেষ এক", "https://blob/draft.md")
     blob = _StubBlob({"https://blob/remediated.md": "এই কপা ছোট\nশেষ এক".encode()})
 
-    await remediation_service.verify_job(repo, blob, job, title="T", verified_by="r@seeds.org", edited_by="teacher@seeds.org")
+    await TextbookRemediationService(db, blob).verify_job(job, title="T", verified_by="r@seeds.org", edited_by="teacher@seeds.org")
 
     (record,) = await repo.list_edits(job.job_id)
     assert record["changes"] == [{"wrong": "কপা", "right": "কণা"}]
@@ -844,17 +827,17 @@ class TestVolunteerCreate:
 
 class TestVolunteerFlow:
     async def test_register_login_assign(self, mock_db):
-        service = AuthService(mock_db)
+        service = VolunteerService(mock_db)
         user = await service.register_volunteer(
             "tenant-a", VolunteerCreateRequest(name="V", email="v@example.com", password="password123")
         )
         assert user.tenant_id == "tenant-a"
         assert user.school_id is None
-        result = await service.login_unified(identifier="v@example.com", password="password123", is_email=True)
+        result = await AuthService(mock_db).login_unified(identifier="v@example.com", password="password123", is_email=True)
         assert result["user"]["role"] == "textbook_remediation_volunteer"
 
     async def test_list_volunteers_is_tenant_scoped(self, mock_db):
-        service = AuthService(mock_db)
+        service = VolunteerService(mock_db)
         await service.register_volunteer(
             "tenant-a", VolunteerCreateRequest(name="A", email="a@example.com", password="password123")
         )
@@ -866,7 +849,7 @@ class TestVolunteerFlow:
     async def test_assign_and_list(self, mock_db):
         vid = await _seed_volunteer(mock_db)
         job = await _seed_job(mock_db)
-        updated = await assign_job(mock_db, "tenant-a", job.job_id, vid)
+        updated = await TextbookRemediationService(mock_db, _StubBlob()).assign_job("tenant-a", job.job_id, vid)
         assert updated.assigned_to == vid
         repo = TextbookRemediationRepository(mock_db)
         jobs = await repo.list_jobs("tenant-a", assigned_to=vid)
@@ -878,12 +861,12 @@ class TestVolunteerFlow:
         vid = await _seed_volunteer(mock_db, tenant_id="tenant-b")
         job = await _seed_job(mock_db, tenant_id="tenant-a")
         with pytest.raises(ValidationError):
-            await assign_job(mock_db, "tenant-a", job.job_id, vid)
+            await TextbookRemediationService(mock_db, _StubBlob()).assign_job("tenant-a", job.job_id, vid)
 
     async def test_delete_volunteer_keeps_jobs(self, mock_db):
         vid = await _seed_volunteer(mock_db)
         job = await _seed_job(mock_db)
-        await assign_job(mock_db, "tenant-a", job.job_id, vid)
+        await TextbookRemediationService(mock_db, _StubBlob()).assign_job("tenant-a", job.job_id, vid)
         await UserRepository(mock_db).delete(vid)
         repo = TextbookRemediationRepository(mock_db)
         assert await repo.get("tenant-a", job.job_id) is not None
@@ -921,7 +904,7 @@ async def test_volunteer_sees_only_assigned_jobs(mock_db):
     vid = await _seed_volunteer(mock_db)
     mine = await _seed_job(mock_db)
     other = await _seed_job(mock_db)
-    await assign_job(mock_db, "tenant-a", mine.job_id, vid)
+    await TextbookRemediationService(mock_db, _StubBlob()).assign_job("tenant-a", mine.job_id, vid)
     blob = _StubBlob()
     book_service = TextbookBookService(mock_db, blob)
     remediation_service = TextbookRemediationService(mock_db, blob)
@@ -954,9 +937,9 @@ async def test_assign_rejects_steal_without_force(mock_db):
     vid1 = await _seed_volunteer(mock_db)
     vid2 = await _seed_volunteer_with_email(mock_db, "vol2@example.com")
     job = await _seed_job(mock_db)
-    await assign_job(mock_db, "tenant-a", job.job_id, vid1)
+    await TextbookRemediationService(mock_db, _StubBlob()).assign_job("tenant-a", job.job_id, vid1)
     with pytest.raises(ConflictError):
-        await assign_job(mock_db, "tenant-a", job.job_id, vid2)
+        await TextbookRemediationService(mock_db, _StubBlob()).assign_job("tenant-a", job.job_id, vid2)
 
 
 @pytest.mark.asyncio
@@ -964,6 +947,6 @@ async def test_assign_allows_reassign_with_force(mock_db):
     vid1 = await _seed_volunteer(mock_db)
     vid2 = await _seed_volunteer_with_email(mock_db, "vol2@example.com")
     job = await _seed_job(mock_db)
-    await assign_job(mock_db, "tenant-a", job.job_id, vid1)
-    updated = await assign_job(mock_db, "tenant-a", job.job_id, vid2, force=True)
+    await TextbookRemediationService(mock_db, _StubBlob()).assign_job("tenant-a", job.job_id, vid1)
+    updated = await TextbookRemediationService(mock_db, _StubBlob()).assign_job("tenant-a", job.job_id, vid2, force=True)
     assert updated.assigned_to == vid2

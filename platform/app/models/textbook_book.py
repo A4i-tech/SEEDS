@@ -4,18 +4,9 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.user import PyObjectId
 from app.platform.error_handling import ValidationError
-from app.services.language_registry import SUPPORTED_LANGUAGES
+from app.services.textbook_upload_validation import validate_language
 
 MAX_BOOK_FILES = 50
-
-_LANGUAGE_CODES = frozenset(lang["code"] for lang in SUPPORTED_LANGUAGES)
-
-
-def _check_language(value: str) -> str:
-    if value != "auto" and value not in _LANGUAGE_CODES:
-        raise ValidationError(f"{value!r} is not a supported language. Pick a language from GET /v1/languages.")
-    return value
-
 
 class BuiltBook(BaseModel):
     fingerprint: str = ""
@@ -57,13 +48,15 @@ class CreateBookRequest(BaseModel):
     @field_validator("language")
     @classmethod
     def _source_language(cls, value: str) -> str:
-        return _check_language(value)
+        if value != "auto":
+            validate_language(value)
+        return value
 
     @field_validator("target_language")
     @classmethod
     def _target_language(cls, value: str) -> str:
         if value:
-            _check_language(value)
+            validate_language(value)
         return value
 
 

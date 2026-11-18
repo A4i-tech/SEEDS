@@ -45,6 +45,7 @@ from app.controllers import (
     token_controller,
     translation_controller,
     user_controller,
+    volunteer_controller,
     # Webhooks (split from webhook_controller)
     webhook_controller,
     websocket_controller,
@@ -56,6 +57,7 @@ api_router = APIRouter()
 api_router.include_router(auth_controller.router)
 api_router.include_router(teacher_auth_controller.router)
 api_router.include_router(tenant_auth_controller.router)
+api_router.include_router(volunteer_controller.router)
 api_router.include_router(school_admin_auth_controller.router)
 api_router.include_router(token_controller.router)
 

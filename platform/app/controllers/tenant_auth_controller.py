@@ -11,7 +11,6 @@ from fastapi import APIRouter, Depends, HTTPException, Response, status
 from app.models.requests.auth_requests import (
     TenantChangePasswordRequest,
     TenantRegisterRequest,
-    VolunteerCreateRequest,
 )
 from app.models.requests.tenant_requests import TenantAnalyticsRequest
 from app.models.responses.analytics_response import AnalyticsResponse
@@ -123,32 +122,3 @@ async def tenant_dashboard(
     service: AuthService = Depends(get_auth_service),
 ) -> TenantDashboardResponse:
     return await service.get_tenant_dashboard(current_user.get("sub", ""))
-
-
-@router.post(
-    "/volunteers",
-    summary="Create a textbook remediation volunteer for this tenant",
-    description=(
-        "Request carries email plus password. Response id is the stable user identifier "
-        "(token sub) used for assignment and attribution. Duplicate email returns 409."
-    ),
-    status_code=status.HTTP_201_CREATED,
-    response_model_exclude_none=True,
-    responses={409: {"description": "Email already taken"}},
-)
-async def create_volunteer(
-    body: VolunteerCreateRequest,
-    current_user: dict[str, Any] = Depends(require_tenant),
-    service: AuthService = Depends(get_auth_service),
-) -> UserPublicResponse:
-    user = await service.register_volunteer(current_user["sub"], body)
-    return UserPublicResponse.from_domain(user)
-
-
-@router.get("/volunteers", summary="List textbook remediation volunteers for this tenant")
-async def list_volunteers(
-    current_user: dict[str, Any] = Depends(require_tenant),
-    service: AuthService = Depends(get_auth_service),
-) -> list[UserPublicResponse]:
-    users = await service.list_volunteers(current_user["sub"])
-    return [UserPublicResponse.from_domain(u) for u in users]
