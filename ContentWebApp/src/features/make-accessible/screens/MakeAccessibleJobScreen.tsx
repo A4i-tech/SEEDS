@@ -4,7 +4,7 @@ import { useTranslation } from 'react-i18next';
 import { toApiState } from '@shared/utils/apiState';
 import { RemediationSteps } from '../components/RemediationSteps';
 import { useRemediationJob } from '../hooks/useRemediationJob';
-import { DownloadMenu } from '@features/jobs/components/DownloadMenu';
+import { DownloadMenu } from '@shared/components/DownloadMenu';
 import { StageProgress } from '@features/jobs/components/StageProgress';
 import { REMEDIATION_UI } from '@features/jobs/types/job.types';
 import type { RemediationJobDetail } from '../types/remediation.types';

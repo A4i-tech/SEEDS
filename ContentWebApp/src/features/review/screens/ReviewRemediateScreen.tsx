@@ -8,7 +8,7 @@ import { DraftPage } from '../components/DraftPage';
 import { OriginalScan } from '../components/OriginalScan';
 import { ReviewFrame } from '../components/ReviewFrame';
 import { RunDetails } from '../components/RunDetails';
-import { DownloadMenu } from '@features/jobs/components/DownloadMenu';
+import { DownloadMenu } from '@shared/components/DownloadMenu';
 import { pageContent, replacePage, splitIntoPages } from '../utils/remediationPages';
 import { AppBreadcrumbs } from '@shared/components/AppBreadcrumbs';
 import { PageTitle } from '@shared/components/PageTitle';

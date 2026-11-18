@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const adminRoles = ['tenant', 'school_admin'] as const;
-export const volunteerRole = 'textbook_remediation_volunteer';
+export const volunteerRole = 'textbook_remediation_volunteer' as const;
 export const roleSchema = z.enum([...adminRoles, 'content_creator', volunteerRole]);
 export type Role = z.infer<typeof roleSchema>;
 

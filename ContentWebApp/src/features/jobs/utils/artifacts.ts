@@ -9,8 +9,8 @@ export const ARTIFACT_DOWNLOADS = [
 
 export type ArtifactDownload = (typeof ARTIFACT_DOWNLOADS)[number];
 
-export const availableDownloads = (artifacts: Record<string, string>) =>
+export const availableDownloads = (artifacts: Record<string, string>): ArtifactDownload[] =>
   ARTIFACT_DOWNLOADS.filter((entry) => artifacts[entry.key]);
 
-export const artifactFilename = (sourceName: string, entry: ArtifactDownload) =>
+export const artifactFilename = (sourceName: string, entry: ArtifactDownload): string =>
   `${sourceName.replace(/\.pdf$/i, '')}.${entry.ext}`;

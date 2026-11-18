@@ -11,7 +11,11 @@ const TONES = {
   pending: { bg: 'var(--seeds-badge-neutral-bg)', c: 'var(--seeds-badge-neutral-text)' },
 };
 
-export function StageProgress({ job }: { job: Pick<RemediationJob, 'status' | 'stage_index' | 'stage_count' | 'progress'> }) {
+export function StageProgress({
+  job,
+}: {
+  job: Pick<RemediationJob, 'status' | 'stage_index' | 'stage_count' | 'progress'>;
+}) {
   const { t } = useTranslation();
   const done = DONE_STATUSES.has(job.status);
   const running = job.status === 'running';
