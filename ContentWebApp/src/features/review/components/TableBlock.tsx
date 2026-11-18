@@ -1,6 +1,7 @@
 import { Table, Textarea } from '@mantine/core';
 import { useTranslation } from 'react-i18next';
 import { buildTable, type TableData } from '../utils/tableBlocks';
+import classes from './TableBlock.module.css';
 
 export function TableBlock({ table, onChange }: { table: TableData; onChange: (markdown: string) => void }) {
   const { t } = useTranslation();
@@ -10,6 +11,8 @@ export function TableBlock({ table, onChange }: { table: TableData; onChange: (m
       aria-label={label}
       autosize
       minRows={1}
+      variant="unstyled"
+      classNames={{ input: classes.cell }}
       defaultValue={value}
       onBlur={(e) => {
         if (e.currentTarget.value !== value) save(e.currentTarget.value);
@@ -18,8 +21,8 @@ export function TableBlock({ table, onChange }: { table: TableData; onChange: (m
   );
 
   return (
-    <Table withTableBorder withColumnBorders>
-      <Table.Thead>
+    <Table withTableBorder withColumnBorders withRowBorders className={classes.table}>
+      <Table.Thead className={classes.head}>
         <Table.Tr>
           {table.header.map((cell, column) => (
             <Table.Th key={column}>
