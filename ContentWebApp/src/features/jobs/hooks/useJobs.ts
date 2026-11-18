@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore, useRole } from '@features/auth/store/useAuthStore';
 import { combineStates, toApiState } from '@shared/utils/apiState';
 import { notifyApiError } from '@shared/utils/notifyApiError';
-import { deleteRemediationJob, getRemediationJobs } from '../api/remediationJobs';
+import { assignRemediationJob, deleteRemediationJob, getRemediationJobs } from '../api/remediationJobs';
 import { getActiveSyncJobs, getSyncJobs } from '../api/syncJobs';
 import { jobKeys, toJobRows, type JobRow } from '../types/job.types';
 
@@ -10,6 +10,15 @@ export function useDeleteRemediationJob() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: deleteRemediationJob,
+    onSettled: () => queryClient.invalidateQueries({ queryKey: jobKeys.remediation }),
+    onError: notifyApiError,
+  });
+}
+
+export function useAssignRemediationJob() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: assignRemediationJob,
     onSettled: () => queryClient.invalidateQueries({ queryKey: jobKeys.remediation }),
     onError: notifyApiError,
   });

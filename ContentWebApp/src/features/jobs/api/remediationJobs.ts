@@ -13,6 +13,13 @@ export async function deleteRemediationJob(jobId: string) {
   await apiClient.delete(`/textbook-remediation/jobs/${encodeURIComponent(jobId)}`);
 }
 
+export async function assignRemediationJob(body: { jobId: string; volunteerId: string; force: boolean }) {
+  await apiClient.put(`/textbook-remediation/jobs/${encodeURIComponent(body.jobId)}/assignment`, {
+    volunteer_id: body.volunteerId,
+    force: body.force,
+  });
+}
+
 export async function downloadRemediationArtifact(jobId: string, name: string, filename: string) {
   const blob = await apiClient.getBlob(
     `/textbook-remediation/jobs/${encodeURIComponent(jobId)}/artifacts/${encodeURIComponent(name)}`,
