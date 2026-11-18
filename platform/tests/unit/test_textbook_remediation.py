@@ -833,6 +833,16 @@ class TestVolunteerFlow:
         result = await service.login_unified(identifier="v@example.com", password="password123", is_email=True)
         assert result["user"]["role"] == "textbook_remediation_volunteer"
 
+    async def test_list_volunteers_is_tenant_scoped(self, mock_db):
+        service = AuthService(mock_db)
+        await service.register_volunteer(
+            "tenant-a", VolunteerCreateRequest(name="A", email="a@example.com", password="password123")
+        )
+        await service.register_volunteer(
+            "tenant-b", VolunteerCreateRequest(name="B", email="b@example.com", password="password123")
+        )
+        assert [u.email for u in await service.list_volunteers("tenant-a")] == ["a@example.com"]
+
     async def test_assign_and_list(self, mock_db):
         vid = await _seed_volunteer(mock_db)
         job = await _seed_job(mock_db)

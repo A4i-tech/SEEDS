@@ -452,6 +452,11 @@ class AuthService:
             )
         )
 
+    async def list_volunteers(self, tenant_id: str) -> list[User]:
+        return await UserRepository(self._db).find_all_by_tenant_and_role(
+            tenant_id, UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER.value
+        )
+
     async def register_tenant(self, data: TenantCreate) -> User:
         return await register_tenant(data, self._db)
 
