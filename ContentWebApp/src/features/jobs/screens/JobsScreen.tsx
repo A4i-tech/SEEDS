@@ -29,7 +29,6 @@ function AccuracyCell({ row }: { row: JobsTableRow }) {
   const { t } = useTranslation();
   const source = row.kind === 'book' ? row.book : row.job.remediation;
   if (!source) return null;
-  if (source.edit_accuracy === null) return <Text c="dimmed">—</Text>;
   const partial = row.kind === 'book' && row.verified < row.chapters.length;
   return <Text size="sm">{t(partial ? 'jobs.accuracy.soFar' : 'jobs.accuracy.percent', { value: source.edit_accuracy.toFixed(1) })}</Text>;
 }

@@ -22,7 +22,7 @@ export function BookDownloads({ book, total, ready }: { book: Book; total: numbe
               size="compact-sm"
               disabled={!ready}
               loading={building}
-              aria-busy={building || undefined}
+              aria-busy={building}
               aria-describedby={hintId}
               onClick={() => download.mutate(format)}
             >

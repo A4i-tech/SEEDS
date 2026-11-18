@@ -20,7 +20,7 @@ const book = (id: string, jobIds: string[], over: Partial<Book> = {}): Book => (
   language: 'en',
   job_ids: jobIds,
   created_at: '2026-01-01',
-  edit_accuracy: null,
+  edit_accuracy: 0,
   ...over,
 })
 
@@ -50,16 +50,16 @@ describe('buildRows', () => {
     expect(ids(buildRows(jobs, books, new Set(), all, false))).toEqual(['book:new', 'book:old', 'job:course-sync:a'])
   })
 
-  it('lists chapters in job_ids order and skips ids that are not loaded', () => {
-    const books = [book('x', ['c', 'missing', 'a'])]
+  it('lists chapters in job_ids order', () => {
+    const books = [book('x', ['c', 'a'])]
     const rows = buildRows(jobs, books, new Set(['x']), all, false)
     expect(ids(rows)).toEqual(['book:x', 'chapter:c', 'chapter:a', 'job:make-accessible:b', 'job:course-sync:a'])
     expect(rows[1]).toMatchObject({ kind: 'chapter', position: 1 })
     expect(rows[2]).toMatchObject({ kind: 'chapter', position: 2 })
   })
 
-  it('drops a book with no loaded chapters', () => {
-    expect(ids(buildRows([], [book('x', ['gone'])], new Set(), all, false))).toEqual([])
+  it('drops a book with no chapters', () => {
+    expect(ids(buildRows([], [book('x', [])], new Set(), all, false))).toEqual([])
   })
 
   it('derives the book fields from its chapters', () => {

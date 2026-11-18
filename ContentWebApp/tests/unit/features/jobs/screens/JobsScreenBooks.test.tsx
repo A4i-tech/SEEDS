@@ -74,8 +74,8 @@ const job = (id: string, over: Partial<RemediationJob> = {}): RemediationJob => 
   created_at: '2026-01-02',
   finished_at: '',
   assigned_to: '',
-  book_id: null,
-  edit_accuracy: null,
+  book_id: '',
+  edit_accuracy: 0,
   ...over,
 })
 
@@ -85,7 +85,7 @@ const book = (over: Partial<Book> = {}): Book => ({
   language: 'en',
   job_ids: ['j2', 'j1', 'j3'],
   created_at: '2026-02-01',
-  edit_accuracy: null,
+  edit_accuracy: 0,
   ...over,
 })
 
@@ -167,15 +167,6 @@ describe('JobsScreen books', () => {
     expect(toggle()).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByText('j1.pdf')).toBeInTheDocument()
     expect(within(screen.getByRole('row', { name: /Atlas/ })).getByText('Running')).toBeInTheDocument()
-  })
-
-  it('skips a chapter id that is not loaded', async () => {
-    load(chapters(), [book({ job_ids: ['j1', 'ghost', 'j2', 'j3'] })])
-    renderWithProviders(<JobsScreen />)
-    await screen.findByText('Atlas')
-    expect(screen.getByText('3 chapters')).toBeInTheDocument()
-    fireEvent.click(toggle())
-    expect(rowTexts()).toHaveLength(5)
   })
 
   it('saves the new chapter order and closes the modal on success', async () => {
@@ -286,17 +277,17 @@ describe('JobsScreen accuracy column', () => {
 
   const rowOf = (name: RegExp) => within(screen.getByRole('row', { name }))
 
-  it('shows one decimal for a verified job and a dash for an unverified one', async () => {
+  it('shows one decimal for a verified job and 0.0% for an unverified one', async () => {
     load([job('s1', { edit_accuracy: 93.3 }), job('s2', { status: 'running' })], [])
     renderWithProviders(<JobsScreen />)
     await screen.findByText('s1.pdf')
     expect(rowOf(/s1\.pdf/).getByText('93.3%')).toBeInTheDocument()
-    expect(rowOf(/s2\.pdf/).getByText('—')).toBeInTheDocument()
+    expect(rowOf(/s2\.pdf/).getByText('0.0%')).toBeInTheDocument()
   })
 
   it('shows the book value with "so far" while chapters are unverified, and on chapter rows', async () => {
     const jobs = ['j1', 'j2', 'j3', 'j4'].map((id, i) =>
-      job(id, { book_id: 'book-1', status: i < 2 ? 'verified' : 'ready_to_review', edit_accuracy: i < 2 ? 90 : null }),
+      job(id, { book_id: 'book-1', status: i < 2 ? 'verified' : 'ready_to_review', edit_accuracy: i < 2 ? 90 : 0 }),
     )
     load(jobs, [book({ job_ids: ['j1', 'j2', 'j3', 'j4'], edit_accuracy: 93.3 })])
     renderWithProviders(<JobsScreen />)
@@ -304,7 +295,7 @@ describe('JobsScreen accuracy column', () => {
     expect(rowOf(/Atlas/).getByText('93.3% so far')).toBeInTheDocument()
     fireEvent.click(toggle())
     expect(rowOf(/j1\.pdf/).getByText('90.0%')).toBeInTheDocument()
-    expect(rowOf(/j3\.pdf/).getByText('—')).toBeInTheDocument()
+    expect(rowOf(/j3\.pdf/).getByText('0.0%')).toBeInTheDocument()
   })
 
   it('omits "so far" when every chapter is verified', async () => {

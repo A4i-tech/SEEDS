@@ -39,8 +39,8 @@ const job = {
   created_at: '2026-01-01',
   finished_at: '',
   assigned_to: '',
-  book_id: null,
-  edit_accuracy: null,
+  book_id: '',
+  edit_accuracy: 0,
 }
 
 const summary = {

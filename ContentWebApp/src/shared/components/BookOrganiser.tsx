@@ -2,6 +2,7 @@ import { Box, Button, Group, Text, VisuallyHidden } from '@mantine/core';
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { MAX_PDF_MB } from '../utils/upload';
+import classes from './BookOrganiser.module.css';
 
 export interface OrganiserItem {
   id: string;
@@ -10,6 +11,10 @@ export interface OrganiserItem {
 }
 
 type Action = 'up' | 'down' | 'remove';
+
+const NO_INDEX = -1;
+
+const NO_FOCUS = { id: '', actions: [] as Action[] };
 
 interface BookOrganiserProps {
   items: OrganiserItem[];
@@ -25,28 +30,28 @@ export function BookOrganiser({ items, onChange, allowRemove }: BookOrganiserPro
   const { t } = useTranslation();
   const idPrefix = useId();
   const [announcement, setAnnouncement] = useState('');
-  const [dragFrom, setDragFrom] = useState<number | null>(null);
-  const [dragOver, setDragOver] = useState<number | null>(null);
-  const buttonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
-  const pendingFocus = useRef<{ id: string; actions: Action[] } | null>(null);
+  const [dragFrom, setDragFrom] = useState(NO_INDEX);
+  const [dragOver, setDragOver] = useState(NO_INDEX);
+  const buttonRefs = useRef<Record<string, HTMLButtonElement>>({});
+  const pendingFocus = useRef(NO_FOCUS);
   const total = items.length;
 
   useEffect(() => {
-    if (!pendingFocus.current) return;
     const { id, actions } = pendingFocus.current;
-    pendingFocus.current = null;
+    pendingFocus.current = NO_FOCUS;
+    if (actions.length === 0) return;
     actions
       .map((action) => buttonRefs.current[`${id}:${action}`])
-      .find((button) => button && !button.disabled)
-      ?.focus();
+      .filter((button) => !button.disabled)[0]
+      .focus();
   }, [items]);
 
-  const move = (from: number, to: number, focus: Action[] | null) => {
+  const move = (from: number, to: number, focus: Action[] = []) => {
     if (to < 0 || to >= total) return;
     const next = [...items];
     const [item] = next.splice(from, 1);
     next.splice(to, 0, item);
-    pendingFocus.current = focus && { id: item.id, actions: focus };
+    pendingFocus.current = { id: item.id, actions: focus };
     setAnnouncement(t('bookOrganiser.moved', { name: item.name, position: to + 1, total }));
     onChange(next);
   };
@@ -54,7 +59,7 @@ export function BookOrganiser({ items, onChange, allowRemove }: BookOrganiserPro
   const remove = (index: number) => {
     const next = items.filter((_, i) => i !== index);
     const neighbour = next[Math.min(index, next.length - 1)];
-    pendingFocus.current = neighbour ? { id: neighbour.id, actions: ['remove'] } : null;
+    pendingFocus.current = neighbour ? { id: neighbour.id, actions: ['remove'] } : NO_FOCUS;
     setAnnouncement(t('bookOrganiser.removed', { name: items[index].name, count: next.length }));
     onChange(next);
   };
@@ -72,12 +77,12 @@ export function BookOrganiser({ items, onChange, allowRemove }: BookOrganiserPro
   };
 
   const endDrag = () => {
-    setDragFrom(null);
-    setDragOver(null);
+    setDragFrom(NO_INDEX);
+    setDragOver(NO_INDEX);
   };
 
   const setButtonRef = (id: string, action: Action) => (element: HTMLButtonElement | null) => {
-    buttonRefs.current[`${id}:${action}`] = element;
+    if (element) buttonRefs.current[`${id}:${action}`] = element;
   };
 
   return (
@@ -98,8 +103,8 @@ export function BookOrganiser({ items, onChange, allowRemove }: BookOrganiserPro
       </Text>
       <Box component="ol" m={0} p={0} style={{ listStyle: 'none' }} aria-label={t('bookOrganiser.listLabel')}>
         {items.map((item, index) => {
-          const { id, name, sizeMb } = item;
-          const tooBig = sizeMb !== undefined && sizeMb > MAX_PDF_MB;
+          const { id, name, sizeMb = 0 } = item;
+          const tooBig = sizeMb > MAX_PDF_MB;
           const problemId = `${idPrefix}-${id}-problem`;
           const dropTarget = dragOver === index && dragFrom !== index;
           const isFirst = index === 0;
@@ -110,19 +115,11 @@ export function BookOrganiser({ items, onChange, allowRemove }: BookOrganiserPro
               key={id}
               wrap="nowrap"
               gap="md"
-              px="md"
-              py="sm"
-              mt={index > 0 ? 'xs' : 0}
-              bdrs="md"
-              bd={`1px solid ${tooBig ? 'var(--seeds-badge-hard-text)' : 'var(--seeds-card-border)'}`}
-              bg={dropTarget ? 'var(--seeds-subnav-bg-active)' : 'var(--seeds-bg-surface)'}
-              style={{
-                cursor: 'grab',
-                opacity: dragFrom === index ? 0.5 : 1,
-                ...(dropTarget && { borderTop: '4px solid var(--seeds-btn-primary-bg)' }),
-              }}
               draggable
-              data-drop-target={dropTarget || undefined}
+              className={classes.item}
+              data-too-big={tooBig}
+              data-dragging={dragFrom === index}
+              data-drop-target={dropTarget}
               aria-describedby={tooBig ? problemId : undefined}
               onKeyDown={(event) => handleKeyDown(event, index)}
               onDragStart={(event) => {
@@ -131,7 +128,7 @@ export function BookOrganiser({ items, onChange, allowRemove }: BookOrganiserPro
                 event.dataTransfer.setData('text/plain', id);
               }}
               onDragOver={(event) => {
-                if (dragFrom === null) return;
+                if (dragFrom === NO_INDEX) return;
                 event.preventDefault();
                 setDragOver(index);
               }}
@@ -139,7 +136,7 @@ export function BookOrganiser({ items, onChange, allowRemove }: BookOrganiserPro
                 event.preventDefault();
                 const from = dragFrom;
                 endDrag();
-                if (from !== null && from !== index) move(from, index, null);
+                if (from !== NO_INDEX && from !== index) move(from, index);
               }}
               onDragEnd={endDrag}
             >
@@ -148,7 +145,7 @@ export function BookOrganiser({ items, onChange, allowRemove }: BookOrganiserPro
               </Text>
               <Box flex={1} miw={0} style={{ overflowWrap: 'anywhere' }}>
                 <Text fw={600}>{name}</Text>
-                {sizeMb !== undefined && (
+                {sizeMb > 0 && (
                   <Text size="sm" c="dimmed">
                     {t('bookOrganiser.size', { size: sizeMb.toFixed(1) })}
                   </Text>

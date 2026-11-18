@@ -114,7 +114,6 @@ void i18n.use(initReactI18next).init({
           book: {
             tag: 'Book',
             chapters: '{{count}} chapters',
-            missingChapters: '{{title}} is missing {{count}} chapters from the latest jobs, so it may look incomplete',
             toggle: 'Chapters of {{title}}',
             verifiedOf: '{{verified}} of {{total}} verified',
             progress: 'Chapters verified',

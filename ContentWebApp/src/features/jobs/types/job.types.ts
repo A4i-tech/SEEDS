@@ -45,8 +45,8 @@ export const remediationJobSchema = z.object({
   created_at: z.string(),
   finished_at: text,
   assigned_to: text,
-  book_id: z.string().nullable(),
-  edit_accuracy: z.number().nullable(),
+  book_id: z.string(),
+  edit_accuracy: z.number(),
 });
 
 export type RemediationJob = z.infer<typeof remediationJobSchema>;
@@ -57,7 +57,7 @@ export const bookSchema = z.object({
   language: z.string(),
   job_ids: z.array(z.string()),
   created_at: z.string(),
-  edit_accuracy: z.number().nullable(),
+  edit_accuracy: z.number(),
 });
 
 export type Book = z.infer<typeof bookSchema>;

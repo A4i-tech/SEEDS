@@ -202,11 +202,11 @@ describe('BookOrganiser', () => {
       fireEvent.dragStart(rows()[0], { dataTransfer })
       expect(dataTransfer.setData).toHaveBeenCalledWith('text/plain', 'a')
       fireEvent.dragOver(rows()[2], { dataTransfer })
-      expect(rows()[2]).toHaveAttribute('data-drop-target')
-      expect(rows()[0]).not.toHaveAttribute('data-drop-target')
+      expect(rows()[2]).toHaveAttribute('data-drop-target', 'true')
+      expect(rows()[0]).toHaveAttribute('data-drop-target', 'false')
       fireEvent.drop(rows()[2], { dataTransfer })
       expect(names()).toEqual(['Unit_2.pdf', 'Unit_1.pdf', 'Unit_10.pdf'])
-      rows().forEach((row) => expect(row).not.toHaveAttribute('data-drop-target'))
+      rows().forEach((row) => expect(row).toHaveAttribute('data-drop-target', 'false'))
     })
 
     it('shows no drop target over the dragged row itself', () => {
@@ -214,7 +214,7 @@ describe('BookOrganiser', () => {
       const dataTransfer = makeTransfer()
       fireEvent.dragStart(rows()[1], { dataTransfer })
       fireEvent.dragOver(rows()[1], { dataTransfer })
-      expect(rows()[1]).not.toHaveAttribute('data-drop-target')
+      expect(rows()[1]).toHaveAttribute('data-drop-target', 'false')
     })
 
     it('clears the drop target on drag end without changing the order', () => {
@@ -223,7 +223,7 @@ describe('BookOrganiser', () => {
       fireEvent.dragStart(rows()[0], { dataTransfer })
       fireEvent.dragOver(rows()[1], { dataTransfer })
       fireEvent.dragEnd(rows()[0], { dataTransfer })
-      expect(rows()[1]).not.toHaveAttribute('data-drop-target')
+      expect(rows()[1]).toHaveAttribute('data-drop-target', 'false')
       expect(names()).toEqual(['Unit_10.pdf', 'Unit_2.pdf', 'Unit_1.pdf'])
     })
   })

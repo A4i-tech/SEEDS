@@ -36,12 +36,12 @@ export function buildRows(
   readOnly: boolean,
 ): JobsTableRow[] {
   const q = filters.query.trim().toLowerCase();
-  const remediation = new Map(rows.filter((row) => row.type === 'make-accessible').map((row) => [row.id, row]));
+  const remediation = Object.fromEntries(rows.filter((row) => row.type === 'make-accessible').map((row) => [row.id, row]));
   const grouped = new Set<string>();
   const bookRows: JobsTableRow[] = [];
 
   for (const book of [...books].sort((a, b) => b.created_at.localeCompare(a.created_at))) {
-    const chapters = book.job_ids.flatMap((id) => remediation.get(id) ?? []);
+    const chapters = book.job_ids.map((id) => remediation[id]);
     chapters.forEach((chapter) => grouped.add(chapter.id));
     if (chapters.length === 0) continue;
     const status = bookStatus(chapters);

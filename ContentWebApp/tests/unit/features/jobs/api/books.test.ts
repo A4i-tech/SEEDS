@@ -11,7 +11,7 @@ vi.mock('@shared/services/apiClient', async (importOriginal) => ({
   apiClient: { put: vi.fn(), delete: vi.fn(), getBlob: vi.fn() },
 }))
 
-const book = { book_id: 'book 1', title: 'Atlas', language: 'en', job_ids: ['b', 'a'], created_at: '2026-01-01', edit_accuracy: null }
+const book = { book_id: 'book 1', title: 'Atlas', language: 'en', job_ids: ['b', 'a'], created_at: '2026-01-01', edit_accuracy: 0 }
 
 describe('books api', () => {
   beforeEach(() => {
