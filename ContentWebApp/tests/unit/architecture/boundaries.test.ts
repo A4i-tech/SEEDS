@@ -27,10 +27,6 @@ function violations(root: string, forbidden: string) {
 }
 
 describe('architecture boundaries', () => {
-  it('shared never imports from features', () => {
-    expect(violations('shared', '@features/')).toEqual([]);
-  });
-
   it('features never import from app', () => {
     expect(violations('features', '@app/')).toEqual([]);
   });

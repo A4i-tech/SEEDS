@@ -26,6 +26,16 @@ export async function getRemediationImage(jobId: string, imageName: string): Pro
   return URL.createObjectURL(blob);
 }
 
+export function getSourcePage(jobId: string, pageNum: number): Promise<Blob> {
+  return apiClient.getBlob(
+    `/textbook-remediation/jobs/${encodeURIComponent(jobId)}/pages/${encodeURIComponent(pageNum)}`,
+  );
+}
+
+export function getSourcePdf(jobId: string): Promise<Blob> {
+  return apiClient.getBlob(`/textbook-remediation/jobs/${encodeURIComponent(jobId)}/artifacts/source`);
+}
+
 export async function getReviewJob(jobId: string) {
   const { data } = await apiClient.get(`/textbook-remediation/jobs/${encodeURIComponent(jobId)}`);
   return remediationJobSchema.parse(data);
@@ -87,4 +97,6 @@ export const reviewKeys = {
   quiz: (id: string) => ['review', 'quiz', id] as const,
   queue: ['review', 'queue'] as const,
   image: (jobId: string, imageName: string) => ['review', jobId, 'image', imageName] as const,
+  sourcePage: (jobId: string, pageNum: number) => ['review', jobId, 'source-page', pageNum] as const,
+  sourcePdf: (jobId: string) => ['review', jobId, 'source-pdf'] as const,
 };

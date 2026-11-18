@@ -18,6 +18,13 @@ describe('canAccess', () => {
     ['content_creator', '/review/text/$jobId', true],
     ['content_creator', '/home', true],
     ['content_creator', '/account/profile', true],
+    ['textbook_remediation_volunteer', '/jobs', true],
+    ['textbook_remediation_volunteer', '/make-accessible/$jobId', true],
+    ['textbook_remediation_volunteer', '/review/remediate/$jobId', true],
+    ['textbook_remediation_volunteer', '/library', false],
+    ['textbook_remediation_volunteer', '/create', false],
+    ['textbook_remediation_volunteer', '/registration', false],
+    ['textbook_remediation_volunteer', '/account/profile', false],
     ['', '/library', false],
     ['', '/home', true],
   ])('%s on %s -> %s', (role, path, expected) => {
@@ -38,6 +45,9 @@ describe('router role redirect', () => {
     ['content_creator', '/create', '/create'],
     ['school_admin', '/analytics', '/analytics'],
     ['tenant', '/localize', '/localize'],
+    ['textbook_remediation_volunteer', '/library', '/jobs'],
+    ['textbook_remediation_volunteer', '/home', '/jobs'],
+    ['textbook_remediation_volunteer', '/review', '/review'],
   ])('%s navigating to %s lands on %s', async (role, to, landed) => {
     useAuthStore.setState({ role });
     await router.navigate({ to: '/home' });

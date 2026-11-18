@@ -1,6 +1,6 @@
 import { PAGE_MARKER } from './remediationPages';
 
-const RAW = /<!--[\s\S]*?-->|<image\b[^>]*\/>|<math\b[\s\S]*?<\/math>|!\[[^\]]*\]\([^)]*\)|\$[^$\n]+\$|[>\\]/g;
+const RAW = /<!--[\s\S]*?-->|<image\b[^>]*\/>|<math\b[\s\S]*?<\/math>|!\[[^\]]*\]\([^)]*\)|\$[^$\n]+\$|\\\||[>\\]/g;
 export const TOKEN = /RAWTOKEN(\d+)END/g;
 export const TOKEN_AT_START = /^RAWTOKEN(\d+)END/;
 

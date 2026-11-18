@@ -106,13 +106,17 @@ function AuthenticatedShell() {
               </UnstyledButton>
             </Menu.Target>
             <Menu.Dropdown>
-              <Menu.Item onClick={() => void navigate({ to: '/account/profile' })}>
-                {t('account.profile')}
-              </Menu.Item>
-              <Menu.Item onClick={() => void navigate({ to: '/account/settings' })}>
-                {t('account.settings')}
-              </Menu.Item>
-              <Menu.Divider />
+              {canAccess(role, '/account/profile') && (
+                <>
+                  <Menu.Item onClick={() => void navigate({ to: '/account/profile' })}>
+                    {t('account.profile')}
+                  </Menu.Item>
+                  <Menu.Item onClick={() => void navigate({ to: '/account/settings' })}>
+                    {t('account.settings')}
+                  </Menu.Item>
+                  <Menu.Divider />
+                </>
+              )}
               <Menu.Item color="red" onClick={confirmSignOut}>{t('account.signOut')}</Menu.Item>
             </Menu.Dropdown>
           </Menu>

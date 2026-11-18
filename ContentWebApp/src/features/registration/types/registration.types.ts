@@ -49,6 +49,14 @@ export const teacherRegisterSchema = z.object({
 
 export type TeacherRegister = z.infer<typeof teacherRegisterSchema>;
 
+export const volunteerRegisterSchema = z.object({
+  name: z.string().trim().min(1, 'registration.errors.nameRequired'),
+  email: z.email('registration.errors.emailInvalid'),
+  password: z.string().min(8, 'registration.errors.passwordShort'),
+});
+
+export type VolunteerRegister = z.infer<typeof volunteerRegisterSchema>;
+
 export const teacherUpdateSchema = z.object({
   name: z.string(),
   phone_number: phoneNumber,
