@@ -20,7 +20,6 @@ class Accuracy(TypedDict):
     pages: list[PageScore]
 
 
-# The marker the Markdown builder writes at the start of every page.
 _PAGE_MARKER = re.compile(r"<!--\s*page\s+(\d+)\s*-->")
 _COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
 _LINK = re.compile(r"!?\[([^\]]*)\]\([^)]*\)")
@@ -44,7 +43,6 @@ def _pages(markdown: str) -> dict[str, str]:
     parts = _PAGE_MARKER.split(markdown)
     if len(parts) == 1:
         return {"0": parts[0]}
-    # parts is [text before the first marker, page number, page text, page number, page text, ...].
     pages = {"0": parts[0]} if parts[0].strip() else {}
     for number, body in zip(parts[1::2], parts[2::2], strict=True):
         pages[number] = pages.get(number, "") + body
@@ -54,7 +52,6 @@ def _pages(markdown: str) -> dict[str, str]:
 def score_edit(previous: str, new: str) -> Accuracy:
     before, after = _pages(previous), _pages(new)
     if before.keys() != after.keys():
-        # A lost or added page marker would pair the wrong pages, so score the whole text as one page.
         before, after = {"0": previous}, {"0": new}
     scores: list[PageScore] = []
     for page in sorted(before, key=int):

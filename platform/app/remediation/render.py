@@ -74,7 +74,6 @@ _TAG_RE = re.compile(r"<[^>]+>")
 
 @functools.lru_cache(maxsize=512)
 def _mathml_to_tex(mathml: str) -> str:
-    # Cached: a document is built as docx and as tex, so each equation is met twice.
     return pypandoc.convert_text(mathml, "markdown+tex_math_dollars", format="html").strip()
 
 
@@ -82,7 +81,6 @@ def _math_to_text(match: re.Match[str]) -> str:
     tex = _mathml_to_tex(match.group(1))
     if "$" in tex:
         return tex
-    # Pandoc could not read this MathML, so a reader gets the spoken note, or the bare text.
     return match.group(2) or " ".join(_TAG_RE.sub(" ", match.group(1)).split())
 
 
@@ -93,7 +91,6 @@ def markdown_to_format(
     resource_root: Path | None = None,
     reference_docx: Path | None = None,
 ) -> None:
-    # Raw HTML is off, so pandoc would print comments and MathML as plain text.
     text = _HTML_COMMENT_RE.sub("", _MATHML_RE.sub(_math_to_text, text))
     extra_args = ["--standalone"]
     if resource_root is not None:
@@ -425,7 +422,6 @@ def _render_heading(builder: _MarkdownBuilder, page_num: int, block: dict[str, o
 def _render_list(builder: _MarkdownBuilder, page_num: int, block: dict[str, object], b_text: str) -> None:
     items = block.get("items") or []
     if items:
-        # The model sometimes repeats the items as the lead-in text. Then the text adds nothing.
         repeats_items = [line.lstrip("-* ").strip() for line in b_text.splitlines()] == [str(i).strip() for i in items]
         if b_text and not repeats_items:
             builder.append(b_text)

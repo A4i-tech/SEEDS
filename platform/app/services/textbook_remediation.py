@@ -7,21 +7,25 @@ import re
 import tempfile
 from collections.abc import AsyncIterator
 from pathlib import Path
-from typing import IO
 
 from azure.core.exceptions import ResourceNotFoundError
 from bson import ObjectId
+from fastapi import Depends, UploadFile
+from fastapi.responses import StreamingResponse
 from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.remediation_job import (
     ARTIFACTS,
+    IMAGE_CONTENT_TYPES,
     STAGES,
     ArtifactName,
     JobStatus,
     RemediationJob,
     artifact_filename,
 )
+from app.models.requests.textbook_requests import CreateJobRequest
 from app.models.responses.remediation import (
+    CreateRemediationJobResponse,
     DiagramResponse,
     FindingsPageResponse,
     FlaggedItemResponse,
@@ -29,15 +33,17 @@ from app.models.responses.remediation import (
     ReviewSummaryResponse,
 )
 from app.models.user import UserRole
-from app.platform.error_handling import ConflictError, NotFoundError, ValidationError
+from app.platform.auth.dependencies import get_db
+from app.platform.error_handling import AppError, ConflictError, NotFoundError, ValidationError
 from app.platform.settings import get_settings
-from app.providers.blob_storage import BlobStorageProvider
+from app.providers.blob_storage import BlobStorageProvider, get_blob_storage_provider
 from app.remediation.accuracy import score_edit
 from app.remediation.edit_diff import edit_diff_pairs
 from app.remediation.render import compile_docx_tex_pdf
 from app.remediation.translate import run_translation
 from app.repositories.textbook_remediation_repository import TextbookRemediationRepository
 from app.repositories.user_repository import UserRepository
+from app.services.textbook_upload_validation import validate_language, validate_pdf_upload
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +55,7 @@ _TERMINAL: tuple[JobStatus, ...] = (
 )
 
 
-def serialize_job(job: RemediationJob) -> dict[str, object]:
+def serialize_job(job: RemediationJob) -> RemediationJobResponse:
     return RemediationJobResponse(
         job_id=job.job_id,
         source_name=job.source_name,
@@ -77,7 +83,37 @@ def serialize_job(job: RemediationJob) -> dict[str, object]:
         source_page_count=job.source_page_count,
         book_id=job.book_id,
         edit_accuracy=job.edit_accuracy,
-    ).model_dump(mode="json")
+    )
+
+
+async def require_job(
+    repo: TextbookRemediationRepository, user: dict[str, object], job_id: str
+) -> RemediationJob:
+    job = await repo.get(str(user["tenant_id"]), job_id)
+    is_volunteer = user.get("role") == UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER.value
+    if job is None or (is_volunteer and job.assigned_to != user["sub"]):
+        raise NotFoundError("Remediation job", job_id)
+    return job
+
+
+async def stream_blob(
+    blob_provider: BlobStorageProvider, blob_path: str, media_type: str, not_found_kind: str, not_found_id: str
+) -> StreamingResponse:
+    container = get_settings().azure_storage_container
+    try:
+        size = await blob_provider.blob_size(container, blob_path)
+        chunks = await blob_provider.download_chunks(container, blob_path)
+    except ResourceNotFoundError as exc:
+        raise NotFoundError(not_found_kind, not_found_id) from exc
+    return StreamingResponse(
+        chunks,
+        media_type=media_type,
+        headers={
+            "Cache-Control": "private, max-age=86400",
+            "X-Content-Type-Options": "nosniff",
+            "Content-Length": str(size),
+        },
+    )
 
 
 async def subscribe(
@@ -88,7 +124,7 @@ async def subscribe(
         job = await repo.get(tenant_id, job_id, include_draft=False)
         if job is None:
             return
-        payload = serialize_job(job)
+        payload = serialize_job(job).model_dump(mode="json")
         if job.status in _TERMINAL:
             yield {"event": "done", "job": payload}
             return
@@ -103,20 +139,24 @@ async def create_job(
     blob_provider: BlobStorageProvider,
     *,
     tenant_id: str,
-    source_name: str,
-    data: IO[bytes],
+    file: UploadFile,
     language: str,
     target_language: str | None,
     book_id: str | None = None,
 ) -> RemediationJob:
+    await validate_pdf_upload(file)
+    if language != "auto":
+        validate_language(language)
+    if target_language:
+        validate_language(target_language)
     job_id = ObjectId()
     url = await blob_provider.upload_file(
-        get_settings().azure_storage_container, f"textbook-remediation/{job_id}/source.pdf", data, "application/pdf"
+        get_settings().azure_storage_container, f"textbook-remediation/{job_id}/source.pdf", file.file, "application/pdf"
     )
     return await repo.create(
         job_id=job_id,
         tenant_id=tenant_id,
-        source_name=source_name,
+        source_name=file.filename if file.filename else "textbook.pdf",
         source_url=url,
         language=language,
         target_language=target_language,
@@ -207,16 +247,14 @@ async def _iter_artifact_jsonl(
 
 async def findings_page(
     job: RemediationJob, name: str, blob_provider: BlobStorageProvider, *, limit: int, offset: int
-) -> dict[str, object]:
+) -> FindingsPageResponse:
     page: list[dict[str, object]] = []
     total = 0
     async for item in _iter_artifact_jsonl(job, name, blob_provider):
         if offset <= total < offset + limit:
             page.append(item)
         total += 1
-    return FindingsPageResponse(
-        findings=page, total=total, offset=offset, has_more=offset + limit < total
-    ).model_dump(mode="json")
+    return FindingsPageResponse(findings=page, total=total, offset=offset, has_more=offset + limit < total)
 
 
 async def save_draft(
@@ -255,7 +293,7 @@ async def fetch_images(job: RemediationJob, markdown: str, out_dir: Path, blob_p
     return _IMAGE_REF.sub(lambda m: f"](images/{job.job_id}/{Path(m.group(1)).name}", markdown)
 
 
-def _compile_verified(markdown: str, out_dir: Path) -> tuple[Path, Path, Path | None]:
+def compile_verified(markdown: str, out_dir: Path) -> tuple[Path, Path, Path | None]:
     out_docx = out_dir / artifact_filename(ArtifactName.DOCX)
     out_tex = out_dir / artifact_filename(ArtifactName.TEX)
     out_pdf = compile_docx_tex_pdf(markdown, out_dir, out_docx, out_tex, resource_root=out_dir)
@@ -272,19 +310,17 @@ async def verify_job(
     edited_by: str,
 ) -> RemediationJob:
     previous_md = ""
-    accuracy = None
     if ArtifactName.REMEDIATED in job.artifacts:
         remediated_bytes, _ = await artifact_bytes(job, ArtifactName.REMEDIATED, blob_provider)
         previous_md = remediated_bytes.decode("utf-8")
-        # A job verified with no edits scores 100% against itself, so its length still counts in a book total.
-        final_md = previous_md if job.draft_remediated_md is None else job.draft_remediated_md
-        accuracy = await asyncio.to_thread(score_edit, previous_md, final_md)
+    final_md = previous_md if job.draft_remediated_md is None else job.draft_remediated_md
+    accuracy = await asyncio.to_thread(score_edit, previous_md, final_md)
     if job.draft_remediated_md is not None:
         with tempfile.TemporaryDirectory() as tmpdir:
             out_dir = Path(tmpdir)
             try:
                 markdown = await fetch_images(job, job.draft_remediated_md, out_dir, blob_provider)
-                out_docx, out_tex, out_pdf = await asyncio.to_thread(_compile_verified, markdown, out_dir)
+                out_docx, out_tex, out_pdf = await asyncio.to_thread(compile_verified, markdown, out_dir)
             except Exception as exc:
                 logger.error("Could not compile verified artifacts for job %s: %s", job.job_id, exc)
                 raise ValidationError(f"Could not build the verified document: {exc}") from exc
@@ -310,7 +346,7 @@ async def verify_job(
     updated = await repo.mark_verified(
         job.job_id,
         verified_by=verified_by,
-        title=title or job.source_name.replace(".pdf", " (Accessible)"),
+        title=title if title != "" else job.source_name.replace(".pdf", " (Accessible)"),
         accuracy=accuracy,
     )
     if updated is None:
@@ -318,7 +354,8 @@ async def verify_job(
     if job.draft_remediated_md is not None:
         # Written after the verify succeeded, so a failed verify and its retry leave one record.
         await repo.record_edit(
-            job.job_id, previous_md, job.draft_remediated_md, edited_by, edit_diff_pairs(previous_md, job.draft_remediated_md), accuracy
+            job.job_id, previous_md, job.draft_remediated_md, edited_by,
+            edit_diff_pairs(previous_md, job.draft_remediated_md), accuracy,
         )
     return updated
 
@@ -352,7 +389,7 @@ async def translate_job(
     return updated
 
 
-async def review_summary(job: RemediationJob, blob_provider: BlobStorageProvider) -> dict[str, object]:
+async def review_summary(job: RemediationJob, blob_provider: BlobStorageProvider) -> ReviewSummaryResponse:
     incomplete = False
     diagrams: list[DiagramResponse] = []
     if ArtifactName.ALT in job.artifacts:
@@ -401,16 +438,123 @@ async def review_summary(job: RemediationJob, blob_provider: BlobStorageProvider
             logger.warning("Failed to parse remediation artifact for job %s: %s", job.job_id, exc)
             incomplete = True
 
-    summary = ReviewSummaryResponse(
+    return ReviewSummaryResponse(
         job_id=job.job_id,
         status=job.status,
-        total_pages=job.metrics.total_pages or 1,
+        total_pages=job.metrics.total_pages if job.metrics.total_pages is not None else 1,
         diagrams_described_count=job.metrics.diagrams_described if job.metrics.diagrams_described is not None else len(diagrams),
         tables_fixed_count=job.metrics.tables_fixed if job.metrics.tables_fixed is not None else len(tables),
         flagged_items_count=job.metrics.flagged_items_count if job.metrics.flagged_items_count is not None else len(flagged_items),
         diagrams=diagrams,
         tables=tables,
         flagged_items=flagged_items,
-    ).model_dump(mode="json")
-    summary["incomplete"] = incomplete
-    return summary
+        incomplete=incomplete,
+    )
+
+
+async def delete_job(repo: TextbookRemediationRepository, tenant_id: str, job_id: str) -> None:
+    deleted = await repo.soft_delete(tenant_id, job_id)
+    if deleted is None:
+        raise NotFoundError("Remediation job", job_id)
+
+
+class TextbookRemediationService:
+    def __init__(self, db: AsyncDatabase, blob_provider: BlobStorageProvider) -> None:
+        self._repo = TextbookRemediationRepository(db)
+        self._db = db
+        self._blob = blob_provider
+
+    async def require_job(self, user: dict[str, object], job_id: str) -> RemediationJob:
+        return await require_job(self._repo, user, job_id)
+
+    async def create(self, tenant_id: str, file: UploadFile, payload: CreateJobRequest) -> CreateRemediationJobResponse:
+        job = await create_job(
+            self._repo, self._blob, tenant_id=tenant_id, file=file,
+            language=payload.language,
+            target_language=payload.target_language if payload.target_language != "" else None,
+        )
+        return CreateRemediationJobResponse(job_id=job.job_id)
+
+    async def remove(self, tenant_id: str, job_id: str) -> None:
+        await delete_job(self._repo, tenant_id, job_id)
+
+    async def get(self, user: dict[str, object], job_id: str) -> RemediationJobResponse:
+        return serialize_job(await self.require_job(user, job_id))
+
+    async def save(self, user: dict[str, object], job_id: str, draft_md: str) -> RemediationJobResponse:
+        job = await self.require_job(user, job_id)
+        return serialize_job(await save_draft(self._repo, self._blob, job, draft_md))
+
+    async def verify(self, user: dict[str, object], job_id: str, title: str) -> RemediationJobResponse:
+        job = await self.require_job(user, job_id)
+        verified_by = str(user["sub"])
+        updated = await verify_job(
+            self._repo, self._blob, job, title=title, verified_by=verified_by, edited_by=verified_by
+        )
+        return serialize_job(updated)
+
+    async def translate(self, user: dict[str, object], job_id: str, target_language: str) -> RemediationJobResponse:
+        job = await self.require_job(user, job_id)
+        return serialize_job(await translate_job(self._repo, self._blob, job, target_language))
+
+    async def findings(
+        self, user: dict[str, object], job_id: str, name: str, limit: int, offset: int
+    ) -> FindingsPageResponse:
+        job = await self.require_job(user, job_id)
+        return await findings_page(job, name, self._blob, limit=limit, offset=offset)
+
+    async def review(self, user: dict[str, object], job_id: str) -> ReviewSummaryResponse:
+        job = await self.require_job(user, job_id)
+        return await review_summary(job, self._blob)
+
+    async def assign(
+        self, tenant_id: str, job_id: str, volunteer_id: str, force: bool
+    ) -> RemediationJobResponse:
+        updated = await assign_job(self._db, tenant_id, job_id, volunteer_id, force)
+        return serialize_job(updated)
+
+    async def artifact(self, user: dict[str, object], job_id: str, name: str) -> StreamingResponse:
+        job = await self.require_job(user, job_id)
+        chunks, content_type = await artifact_chunks(job, name, self._blob)
+        return StreamingResponse(
+            chunks,
+            media_type=content_type,
+            headers={"Content-Disposition": f'attachment; filename="{ARTIFACTS[ArtifactName(name)][0]}"'},
+        )
+
+    async def image(self, user: dict[str, object], job_id: str, image_name: str) -> StreamingResponse:
+        await self.require_job(user, job_id)
+        safe_name = Path(image_name).name
+        content_type = IMAGE_CONTENT_TYPES.get(Path(safe_name).suffix.lower())
+        if content_type is None:
+            raise NotFoundError("Image", safe_name)
+        return await stream_blob(
+            self._blob, f"textbook-remediation/{job_id}/images/{safe_name}", content_type, "Image", safe_name
+        )
+
+    async def page(self, user: dict[str, object], job_id: str, page_num: int) -> StreamingResponse:
+        job = await self.require_job(user, job_id)
+        if not job.source_page_count:
+            if job.status in (JobStatus.PENDING, JobStatus.RUNNING):
+                raise AppError(
+                    "PAGES_NOT_READY",
+                    "The source pages are still being rendered. Try again in a few seconds.",
+                    409,
+                )
+            raise NotFoundError("Page", str(page_num))
+        if page_num < 1 or page_num > job.source_page_count:
+            raise NotFoundError("Page", str(page_num))
+        return await stream_blob(
+            self._blob, f"textbook-remediation/{job_id}/pages/{page_num}.jpg", "image/jpeg", "Page", str(page_num)
+        )
+
+    async def events(self, user: dict[str, object], job_id: str) -> AsyncIterator[str]:
+        async for event in subscribe(self._repo, str(user["tenant_id"]), job_id):
+            yield f"data: {json.dumps(event, default=str)}\n\n"
+
+
+def get_textbook_remediation_service(
+    db: AsyncDatabase = Depends(get_db),
+    blob_provider: BlobStorageProvider = Depends(get_blob_storage_provider),
+) -> TextbookRemediationService:
+    return TextbookRemediationService(db, blob_provider)

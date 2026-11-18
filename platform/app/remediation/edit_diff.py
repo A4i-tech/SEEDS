@@ -34,7 +34,6 @@ def edit_diff_pairs(previous: str, new: str) -> list[EditPair]:
     old_lines, new_lines = previous.splitlines(), new.splitlines()
     pairs = []
     for tag, i1, i2, j1, j2 in SequenceMatcher(None, old_lines, new_lines).get_opcodes():
-        # Unequal block sizes mean lines were added or removed, so no line pairs up.
         if tag == "replace" and i2 - i1 == j2 - j1:
             for old_line, new_line in zip(old_lines[i1:i2], new_lines[j1:j2], strict=True):
                 pairs.extend(_word_pairs(old_line, new_line))

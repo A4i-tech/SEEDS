@@ -46,7 +46,7 @@ class TextbookRemediationRepository:
 
     async def record_edit(
         self, job_id: str, previous_md: str, new_md: str, edited_by: str, changes: list[EditPair],
-        accuracy: Accuracy | None,
+        accuracy: Accuracy,
     ) -> None:
         await self._edits.insert_one({
             "job_id": job_id, "timestamp": datetime.now(UTC).isoformat(), "edited_by": edited_by,
@@ -69,9 +69,12 @@ class TextbookRemediationRepository:
         doc: dict[str, object] = {
             "_id": job_id, "tenant_id": tenant_id, "source_name": source_name, "source_url": source_url,
             "language": initial_lang, "status": JobStatus.PENDING.value, "stage": None,
-            "created_at": datetime.now(UTC).isoformat(), "target_language": target_language,
-            "book_id": book_id,
+            "created_at": datetime.now(UTC).isoformat(),
         }
+        if target_language:
+            doc["target_language"] = target_language
+        if book_id:
+            doc["book_id"] = book_id
         await self._col.insert_one(doc)
         return RemediationJob.from_doc(doc)
 
@@ -163,7 +166,7 @@ class TextbookRemediationRepository:
         # The job is open again, so its old score no longer applies.
         update: dict[str, object] = {
             "draft_remediated_md": draft_md, "status": JobStatus.IN_REVIEW,
-            "edit_accuracy": None, "edit_chars_changed": None, "edit_chars_total": None,
+            "edit_accuracy": 0.0, "edit_chars_changed": 0, "edit_chars_total": 0,
         }
         if draft_url:
             update[f"artifacts.{ArtifactName.DRAFT}"] = draft_url
@@ -174,16 +177,16 @@ class TextbookRemediationRepository:
         job_id: str,
         *,
         verified_by: str,
-        title: str | None = None,
-        accuracy: Accuracy | None,
+        title: str = "",
+        accuracy: Accuracy,
     ) -> RemediationJob | None:
         update: dict[str, object] = {
             "status": JobStatus.VERIFIED,
             "verified_by": verified_by,
             "verified_at": datetime.now(UTC).isoformat(),
-            "edit_accuracy": accuracy and accuracy["percent"],
-            "edit_chars_changed": accuracy and accuracy["distance"],
-            "edit_chars_total": accuracy and accuracy["length"],
+            "edit_accuracy": accuracy["percent"],
+            "edit_chars_changed": accuracy["distance"],
+            "edit_chars_total": accuracy["length"],
         }
         if title:
             update["title"] = title

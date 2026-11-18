@@ -9,6 +9,7 @@ from fastapi import Depends
 from pymongo import ReturnDocument
 from pymongo.asynchronous.database import AsyncDatabase
 
+from app.models.textbook_book import BuiltBook, TextbookBook
 from app.platform.auth.dependencies import get_db
 from app.platform.error_handling import NotFoundError
 
@@ -20,13 +21,6 @@ def _oid(book_id: str) -> ObjectId:
         raise NotFoundError("Book", book_id) from exc
 
 
-def _public(doc: dict[str, object]) -> dict[str, object]:
-    return {
-        "book_id": str(doc["_id"]), "title": doc["title"], "language": doc["language"],
-        "job_ids": doc["job_ids"], "created_at": doc["created_at"], "built": doc["built"],
-    }
-
-
 class TextbookBookRepository:
     COLLECTION_NAME: ClassVar[str] = "textbookRemediationBooks"
 
@@ -35,36 +29,36 @@ class TextbookBookRepository:
 
     async def create(
         self, *, book_id: ObjectId, tenant_id: str, title: str, language: str, job_ids: list[str]
-    ) -> dict[str, object]:
+    ) -> TextbookBook:
         doc = {
             "_id": book_id, "tenant_id": tenant_id, "title": title, "language": language,
             "job_ids": job_ids, "created_at": datetime.now(UTC).isoformat(), "deleted_at": None, "built": {},
         }
         await self._col.insert_one(doc)
-        return _public(doc)
+        return TextbookBook.from_doc(doc)
 
-    async def get(self, tenant_id: str, book_id: str) -> dict[str, object] | None:
+    async def get(self, tenant_id: str, book_id: str) -> TextbookBook | None:
         doc = await self._col.find_one({"_id": _oid(book_id), "tenant_id": tenant_id, "deleted_at": None})
-        return _public(doc) if doc else None
+        return TextbookBook.from_doc(doc) if doc else None
 
-    async def list_books(self, tenant_id: str) -> list[dict[str, object]]:
+    async def list_books(self, tenant_id: str) -> list[TextbookBook]:
         docs = await self._col.find({"tenant_id": tenant_id, "deleted_at": None}).sort("created_at", -1).to_list(length=None)
-        return [_public(d) for d in docs]
+        return [TextbookBook.from_doc(d) for d in docs]
 
-    async def _set(self, tenant_id: str, book_id: str, fields: dict[str, object]) -> dict[str, object] | None:
+    async def _set(self, tenant_id: str, book_id: str, fields: dict[str, object]) -> TextbookBook | None:
         doc = await self._col.find_one_and_update(
             {"_id": _oid(book_id), "tenant_id": tenant_id, "deleted_at": None},
             {"$set": fields}, return_document=ReturnDocument.AFTER,
         )
-        return _public(doc) if doc else None
+        return TextbookBook.from_doc(doc) if doc else None
 
-    async def set_order(self, tenant_id: str, book_id: str, job_ids: list[str]) -> dict[str, object] | None:
+    async def set_order(self, tenant_id: str, book_id: str, job_ids: list[str]) -> TextbookBook | None:
         return await self._set(tenant_id, book_id, {"job_ids": job_ids})
 
-    async def set_built(self, tenant_id: str, book_id: str, built: dict[str, object]) -> None:
-        await self._set(tenant_id, book_id, {"built": built})
+    async def set_built(self, tenant_id: str, book_id: str, built: BuiltBook) -> None:
+        await self._set(tenant_id, book_id, {"built": built.model_dump(mode="json")})
 
-    async def soft_delete(self, tenant_id: str, book_id: str) -> dict[str, object] | None:
+    async def soft_delete(self, tenant_id: str, book_id: str) -> TextbookBook | None:
         return await self._set(tenant_id, book_id, {"deleted_at": datetime.now(UTC).isoformat()})
 
 

@@ -37,8 +37,8 @@ class RemediationJobResponse(BaseModel):
     target_language: str | None
     translation_error: str | None
     source_page_count: int | None
-    book_id: str | None
-    edit_accuracy: float | None
+    book_id: str = ""
+    edit_accuracy: float = 0.0
 
 
 class BookResponse(BaseModel):
@@ -47,7 +47,7 @@ class BookResponse(BaseModel):
     language: str
     job_ids: list[str]
     created_at: str
-    edit_accuracy: float | None
+    edit_accuracy: float = 0.0
 
 
 class RemediationJobListResponse(BaseModel):
@@ -92,6 +92,7 @@ class ReviewSummaryResponse(BaseModel):
     diagrams: list[DiagramResponse]
     tables: list[dict[str, object]]
     flagged_items: list[FlaggedItemResponse]
+    incomplete: bool = False
 
 
 class FindingsPageResponse(BaseModel):
