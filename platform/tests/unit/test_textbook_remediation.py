@@ -15,8 +15,10 @@ from app.controllers.textbook_remediation_controller import (
     create_remediation_job,
     get_remediation_artifact,
     get_remediation_image,
+    get_remediation_job,
     get_remediation_page,
     get_review_summary,
+    list_remediation_jobs,
     require_remediation_access,
     save_remediation_draft,
     verify_remediation_job,
@@ -850,8 +852,6 @@ async def test_postman_volunteer_uploads_and_tenant_assigns(repo):
 
 @pytest.mark.asyncio
 async def test_volunteer_sees_only_assigned_jobs(mock_db):
-    from app.controllers.textbook_remediation_controller import get_remediation_job, list_remediation_jobs
-    from app.platform.error_handling import NotFoundError
     vid = await _seed_volunteer(mock_db)
     mine = await _seed_job(mock_db)
     other = await _seed_job(mock_db)
