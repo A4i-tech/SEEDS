@@ -6,7 +6,7 @@ RUN pip install poetry==1.8.3 && \
     poetry config virtualenvs.in-project true
 
 COPY pyproject.toml poetry.lock ./
-RUN poetry install --only main --no-root --no-interaction
+RUN poetry install --only main --no-root --no-interaction --extras azure
 
 FROM python:3.12-slim
 

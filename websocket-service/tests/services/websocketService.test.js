@@ -1,11 +1,11 @@
 const websocketService = require("../../src/services/websocketService");
-const azureBlobService = require("../../src/services/azureBlobService");
+const blobStorage = require("../../src/services/blobStorage");
 const connectionManager = require("../../src/services/connectionManager");
 const logger = require("../../src/logger");
 const { PlaybackStatus, PlaybackRefusal } = require("../../src/constants");
 
 // Mock dependencies
-jest.mock("../../src/services/azureBlobService");
+jest.mock("../../src/services/blobStorage");
 jest.mock("../../src/services/connectionManager");
 
 describe("WebSocketService", () => {
@@ -67,8 +67,8 @@ describe("WebSocketService", () => {
       return undefined;
     });
 
-    // Mock azureBlobService
-    azureBlobService.getBlobData.mockResolvedValue(
+    // Mock blobStorage
+    blobStorage.getBlobData.mockResolvedValue(
       Buffer.from("mock audio data")
     );
 
@@ -94,8 +94,8 @@ describe("WebSocketService", () => {
       expect(connectionManager.getConnection).toHaveBeenCalledWith(
         "test-client"
       );
-      expect(azureBlobService.getBlobData).toHaveBeenCalledTimes(1);
-      expect(azureBlobService.getBlobData).toHaveBeenCalledWith(
+      expect(blobStorage.getBlobData).toHaveBeenCalledTimes(1);
+      expect(blobStorage.getBlobData).toHaveBeenCalledWith(
         "container",
         "audio.wav"
       );
@@ -125,7 +125,7 @@ describe("WebSocketService", () => {
       const nestedUrl =
         "https://storage.example.com/container/folder/subfolder/audio.wav";
       await websocketService.playAudioContent("test-client", nestedUrl);
-      expect(azureBlobService.getBlobData).toHaveBeenCalledWith(
+      expect(blobStorage.getBlobData).toHaveBeenCalledWith(
         "container",
         "folder/subfolder/audio.wav"
       );
@@ -312,7 +312,7 @@ describe("WebSocketService", () => {
 
       // Test successful streaming with position updates
       const testData = Buffer.alloc(640, "a");
-      azureBlobService.getBlobData.mockResolvedValue(testData);
+      blobStorage.getBlobData.mockResolvedValue(testData);
       mockWebSocket.send.mockImplementation((data, options, callback) => {
         setTimeout(() => callback && callback(), 0);
       });
@@ -325,7 +325,7 @@ describe("WebSocketService", () => {
 
       // Test streaming completion
       const smallData = Buffer.alloc(320, "a");
-      azureBlobService.getBlobData.mockResolvedValue(smallData);
+      blobStorage.getBlobData.mockResolvedValue(smallData);
       await websocketService.playAudioContent(
         "test-client",
         "https://storage.example.com/container/test.wav"
@@ -359,14 +359,14 @@ describe("WebSocketService", () => {
 
       // Test Azure blob service errors
       const blobError = new Error("Blob service error");
-      azureBlobService.getBlobData.mockRejectedValue(blobError);
+      blobStorage.getBlobData.mockRejectedValue(blobError);
       await expect(
         websocketService.playAudioContent(
           "test-client",
           "https://storage.example.com/container/test.wav"
         )
       ).rejects.toThrow("Blob service error");
-      azureBlobService.getBlobData.mockResolvedValue(
+      blobStorage.getBlobData.mockResolvedValue(
         Buffer.from("mock audio data")
       );
 

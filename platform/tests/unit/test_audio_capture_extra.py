@@ -18,7 +18,7 @@ class TestAudioCaptureServiceEnabled:
 
         mock_settings = MagicMock()
         mock_settings.audio_capture_enabled = True
-        mock_settings.audio_capture_upload_to_azure = False
+        mock_settings.audio_capture_upload_to_storage = False
         mock_settings.audio_capture_container = "test-container"
         mock_settings.audio_capture_delete_local_after_upload = False
         mock_settings.azure_storage_connection_string = ""
@@ -34,7 +34,7 @@ class TestAudioCaptureServiceEnabled:
 
         mock_settings = MagicMock()
         mock_settings.audio_capture_enabled = True
-        mock_settings.audio_capture_upload_to_azure = False
+        mock_settings.audio_capture_upload_to_storage = False
         mock_settings.audio_capture_container = "test-container"
         mock_settings.audio_capture_delete_local_after_upload = False
         mock_settings.azure_storage_connection_string = ""
@@ -50,7 +50,7 @@ class TestAudioCaptureServiceEnabled:
 
         mock_settings = MagicMock()
         mock_settings.audio_capture_enabled = False
-        mock_settings.audio_capture_upload_to_azure = False
+        mock_settings.audio_capture_upload_to_storage = False
         mock_settings.audio_capture_container = "test-container"
         mock_settings.audio_capture_delete_local_after_upload = False
         mock_settings.azure_storage_connection_string = ""
@@ -65,7 +65,7 @@ class TestAudioCaptureServiceEnabled:
 
         mock_settings = MagicMock()
         mock_settings.audio_capture_enabled = True
-        mock_settings.audio_capture_upload_to_azure = False
+        mock_settings.audio_capture_upload_to_storage = False
         mock_settings.audio_capture_container = "test-container"
         mock_settings.audio_capture_delete_local_after_upload = False
         mock_settings.azure_storage_connection_string = ""
@@ -80,7 +80,7 @@ class TestAudioCaptureServiceEnabled:
 
         mock_settings = MagicMock()
         mock_settings.audio_capture_enabled = True
-        mock_settings.audio_capture_upload_to_azure = False
+        mock_settings.audio_capture_upload_to_storage = False
         mock_settings.audio_capture_container = "test-container"
         mock_settings.audio_capture_delete_local_after_upload = False
         mock_settings.azure_storage_connection_string = ""
@@ -97,7 +97,7 @@ class TestAudioCaptureServiceEnabled:
 
         mock_settings = MagicMock()
         mock_settings.audio_capture_enabled = False
-        mock_settings.audio_capture_upload_to_azure = False
+        mock_settings.audio_capture_upload_to_storage = False
         mock_settings.audio_capture_container = "test-container"
         mock_settings.audio_capture_delete_local_after_upload = False
         mock_settings.azure_storage_connection_string = ""
@@ -113,7 +113,7 @@ class TestAudioCaptureServiceEnabled:
 
         mock_settings = MagicMock()
         mock_settings.audio_capture_enabled = True
-        mock_settings.audio_capture_upload_to_azure = False
+        mock_settings.audio_capture_upload_to_storage = False
         mock_settings.audio_capture_container = "test-container"
         mock_settings.audio_capture_delete_local_after_upload = False
         mock_settings.azure_storage_connection_string = ""
@@ -130,7 +130,7 @@ class TestAudioCaptureServiceEnabled:
 
         mock_settings = MagicMock()
         mock_settings.audio_capture_enabled = True
-        mock_settings.audio_capture_upload_to_azure = False
+        mock_settings.audio_capture_upload_to_storage = False
         mock_settings.audio_capture_container = "test-container"
         mock_settings.audio_capture_delete_local_after_upload = False
         mock_settings.azure_storage_connection_string = ""
@@ -146,7 +146,7 @@ class TestAudioCaptureServiceEnabled:
 
         mock_settings = MagicMock()
         mock_settings.audio_capture_enabled = False
-        mock_settings.audio_capture_upload_to_azure = False
+        mock_settings.audio_capture_upload_to_storage = False
         mock_settings.audio_capture_container = "test-container"
         mock_settings.audio_capture_delete_local_after_upload = True
         mock_settings.azure_storage_connection_string = ""
@@ -163,7 +163,7 @@ class TestAudioCaptureFlushUpload:
 
         mock_settings = MagicMock()
         mock_settings.audio_capture_enabled = True
-        mock_settings.audio_capture_upload_to_azure = False
+        mock_settings.audio_capture_upload_to_storage = False
         mock_settings.audio_capture_container = "test-container"
         mock_settings.audio_capture_delete_local_after_upload = False
         mock_settings.azure_storage_connection_string = ""
@@ -174,3 +174,50 @@ class TestAudioCaptureFlushUpload:
         result = await service.flush_and_upload()
         # No upload configured — returns None
         assert result is None
+
+
+class TestAudioCaptureProviderUpload:
+    def _settings(self, tmp_path) -> MagicMock:
+        s = MagicMock()
+        s.audio_capture_enabled = True
+        s.audio_capture_upload_to_storage = True
+        s.audio_capture_container = "audio-recording"
+        s.audio_capture_delete_local_after_upload = True
+        s.audio_capture_dir = str(tmp_path)
+        return s
+
+    @pytest.mark.asyncio
+    async def test_finalize_uploads_wav_through_provider_and_deletes_local_copy(self, tmp_path) -> None:
+        import os
+        from unittest.mock import AsyncMock, patch
+
+        from app.services.audio.audio_capture import AudioCaptureService
+
+        provider = MagicMock()
+        provider.upload_file = AsyncMock(return_value="https://storage.test/audio-recording/x.wav")
+        with patch("app.services.audio.audio_capture.get_blob_storage_provider", return_value=provider):
+            service = AudioCaptureService("conf-up", settings=self._settings(tmp_path))
+        service.write_chunk(b"\x00\x01" * 500)
+
+        url = await service.finalize()
+
+        assert url == "https://storage.test/audio-recording/x.wav"
+        container, blob_name, _stream, content_type = provider.upload_file.await_args.args
+        assert (container, content_type) == ("audio-recording", "audio/wav")
+        assert blob_name.endswith(".wav") and "conf-up" in blob_name
+        assert not os.path.exists(service.file_path)
+
+    @pytest.mark.asyncio
+    async def test_unavailable_provider_raises(self, tmp_path) -> None:
+        from unittest.mock import patch
+
+        from app.services.audio.audio_capture import AudioCaptureService
+
+        with (
+            patch(
+                "app.services.audio.audio_capture.get_blob_storage_provider",
+                side_effect=RuntimeError("storage unavailable"),
+            ),
+            pytest.raises(RuntimeError, match="storage unavailable"),
+        ):
+            AudioCaptureService("conf-down", settings=self._settings(tmp_path))

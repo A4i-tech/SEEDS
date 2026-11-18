@@ -34,8 +34,8 @@ class SasUrlResponse(BaseModel):
     url: str
 
 
-class SasTokenResponse(BaseModel):
-    sas_token: str
+class UploadedAudioResponse(BaseModel):
+    audio_url: str
 
 
 class QuizOptionItem(BaseModel):
@@ -92,6 +92,8 @@ class AudioContent(ContentBase):
     audio_content: list[AudioTrack] = Field(default_factory=list)
     description: str | None = None
     is_processed: bool = False
+    # Ready-to-play signed URL. Set only by GET /content/{id}.
+    primary_audio_url: str | None = None
     version: str | None = None
     # Only set on PATCH /content when isAudioUploaded=true (a fresh processing job was queued).
     job_id: str | None = None

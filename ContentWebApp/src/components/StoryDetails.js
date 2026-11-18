@@ -1,7 +1,6 @@
 import React from "react";
 import { useState, useEffect } from "react";
-import { SEEDS_URL } from "../Constants";
-import { getAuthHeaders } from "../utils/authHelpers";
+import { contentService } from "../services/contentService";
 
 const StoryDetails = ({ type, story }) => {
   const [audioSrc, setAudioSrc] = useState("");
@@ -16,31 +15,22 @@ const StoryDetails = ({ type, story }) => {
   const primaryAudio = story.primary_audio_url;
 
   useEffect(() => {
-    const fetchSASUrl = async (url) => {
+    const fetchDefaultUrl = async (variant) => {
       try {
-        const response = await fetch(`${SEEDS_URL}/content/sasUrl?url=${encodeURIComponent(url)}`, {
-          method: "GET",
-          headers: getAuthHeaders(),
-        });
-        const data = await response.json();
-        return data.url;
+        return await contentService.getAudioUrl(storyId, variant);
       } catch (error) {
-        console.error("Error fetching SAS URL:", error);
-        return ""; // Return empty string on error
+        console.error("Error fetching audio URL:", error);
+        return "";
       }
     };
 
-    const defaultSrc = `https://seedsblob.blob.core.windows.net/output-container/${storyId}/1.0.wav`;
-    const defaultAnswerSrc = `https://seedsblob.blob.core.windows.net/output-container/${storyId}/answer/1.0.wav`;
-    const defaultQuestionSrc = `https://seedsblob.blob.core.windows.net/output-container/${storyId}/question/1.0.wav`;
-
-    const resolvedPrimary = primaryAudio || defaultSrc;
-
     if (type === "riddle") {
-      fetchSASUrl(defaultQuestionSrc).then(setAudioSrc);
-      fetchSASUrl(defaultAnswerSrc).then(setAnswerAudioSrc);
+      fetchDefaultUrl("question").then(setAudioSrc);
+      fetchDefaultUrl("answer").then(setAnswerAudioSrc);
+    } else if (primaryAudio) {
+      setAudioSrc(primaryAudio);
     } else {
-      fetchSASUrl(resolvedPrimary).then(setAudioSrc);
+      fetchDefaultUrl("final").then(setAudioSrc);
     }
   }, [storyId, type, primaryAudio]);
 

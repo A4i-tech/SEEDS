@@ -1,6 +1,6 @@
 // src/services/azureBlobService.js
 
-const { blobServiceClient } = require("../config/azureConfig");
+const { getBlobServiceClient } = require("../config/azureConfig");
 
 /**
  * Retrieves the entire blob data as a Buffer.
@@ -9,7 +9,7 @@ const { blobServiceClient } = require("../config/azureConfig");
  * @returns {Buffer} - Buffer containing the blob data.
  */
 async function getBlobData(containerName, blobName) {
-  const containerClient = blobServiceClient.getContainerClient(containerName);
+  const containerClient = getBlobServiceClient().getContainerClient(containerName);
   const blobClient = containerClient.getBlobClient(blobName);
 
   // Download the blob content
