@@ -24,6 +24,8 @@ const remediation = {
   error: '',
   translation_error: '',
   artifacts: {},
+  language: 'auto',
+  detected_language: '',
   stage_index: 3,
   stage_count: 3,
   progress: { message: '', percent: 0 },
@@ -124,5 +126,33 @@ describe('JobsScreen delete', () => {
     await waitFor(() =>
       expect(downloadRemediationArtifact).toHaveBeenCalledWith('job-1', 'translated_pdf', 'book.translated.pdf'),
     )
+  })
+})
+
+describe('JobsScreen download all', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    useAuthStore.setState({ status: 'authenticated', role: 'tenant' })
+    vi.mocked(getSyncJobs).mockResolvedValue([])
+    vi.mocked(getActiveSyncJobs).mockResolvedValue([])
+    vi.mocked(downloadRemediationArtifact).mockResolvedValue(undefined)
+  })
+
+  it('downloads every available artifact from the Download all item', async () => {
+    vi.mocked(getRemediationJobs).mockResolvedValue([{ ...remediation, artifacts: { docx: 'u', pdf: 'u' } }])
+    renderWithProviders(<JobsScreen />)
+    await screen.findByText('book.pdf')
+    fireEvent.click(screen.getByRole('button', { name: 'Download' }))
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Download all' }))
+    await waitFor(() => expect(downloadRemediationArtifact).toHaveBeenCalledTimes(2))
+  })
+
+  it('offers no Download all when there is a single artifact', async () => {
+    vi.mocked(getRemediationJobs).mockResolvedValue([{ ...remediation, artifacts: { docx: 'u' } }])
+    renderWithProviders(<JobsScreen />)
+    await screen.findByText('book.pdf')
+    fireEvent.click(screen.getByRole('button', { name: 'Download' }))
+    await screen.findByRole('menuitem', { name: 'Download Word' })
+    expect(screen.queryByRole('menuitem', { name: 'Download all' })).toBeNull()
   })
 })

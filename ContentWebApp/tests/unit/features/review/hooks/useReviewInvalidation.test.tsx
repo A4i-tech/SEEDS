@@ -35,6 +35,8 @@ const job = {
   error: '',
   translation_error: '',
   artifacts: {},
+  language: 'auto',
+  detected_language: '',
   stage_index: 3,
   stage_count: 3,
   progress: { message: '', percent: 0 },

@@ -55,3 +55,22 @@ describe('DraftPage', () => {
     expect(onChange).not.toHaveBeenCalled()
   })
 })
+
+describe('DraftPage raw blocks', () => {
+  beforeEach(() => {
+    Object.defineProperty(document, 'fonts', {
+      value: { addEventListener: vi.fn(), removeEventListener: vi.fn() },
+      configurable: true,
+    })
+  })
+
+  it('edits a table as text and writes it back untouched around the other text', () => {
+    const onChange = vi.fn()
+    const page = 'Intro\n\n| A | B |\n| --- | --- |\n| 1 | 2 |'
+    renderWithProviders(<DraftPage jobId="job-1" pageIndex={0} markdown={page} ariaLabel="Draft" onChange={onChange} />)
+    const raw = screen.getByLabelText('Edit table or math as text')
+    fireEvent.change(raw, { target: { value: '| A | B |\n| --- | --- |\n| 9 | 2 |' } })
+    fireEvent.blur(raw)
+    expect(onChange).toHaveBeenCalledWith('Intro\n\n| A | B |\n| --- | --- |\n| 9 | 2 |')
+  })
+})

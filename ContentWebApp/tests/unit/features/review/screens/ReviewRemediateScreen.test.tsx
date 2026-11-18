@@ -28,6 +28,8 @@ const job = {
   error: '',
   translation_error: '',
   artifacts: {},
+  language: 'auto',
+  detected_language: '',
   stage_index: 3,
   stage_count: 3,
   progress: { message: '', percent: 0 },
@@ -136,5 +138,36 @@ describe('ReviewRemediateScreen', () => {
     scan.scrollTop = 500
     fireEvent.scroll(scan)
     expect(draft.scrollTop).toBe(1000)
+  })
+})
+
+describe('ReviewRemediateScreen header', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    Object.defineProperty(document, 'fonts', {
+      value: { addEventListener: vi.fn(), removeEventListener: vi.fn() },
+      configurable: true,
+    })
+    useAuthStore.setState({ status: 'authenticated', role: 'tenant' })
+    vi.mocked(getArtifactMarkdown).mockResolvedValue('text')
+    vi.mocked(getReviewSummary).mockResolvedValue(summary)
+  })
+
+  it('shows the language and the verified state', async () => {
+    vi.mocked(getReviewJob).mockResolvedValue({ ...job, status: 'verified', language: 'Tamil', detected_language: '' })
+    renderWithProviders(<ReviewRemediateScreen />)
+    expect(await screen.findByText('Language: Tamil')).toBeTruthy()
+    expect(screen.getByText('Verified and saved to Library')).toBeTruthy()
+  })
+
+  it('shows the flag text after the reason', async () => {
+    vi.mocked(getReviewJob).mockResolvedValue(job)
+    vi.mocked(getReviewSummary).mockResolvedValue({
+      ...summary,
+      flagged_items: [{ id: 'f1', page: 1, type: 'paragraph', text: 'cut off', reason: 'Incomplete text', needs_check: true }],
+    })
+    vi.mocked(getArtifactMarkdown).mockResolvedValue('<!-- page 1 -->\n\nBody')
+    renderWithProviders(<ReviewRemediateScreen />)
+    expect(await screen.findByText('Incomplete text: cut off')).toBeTruthy()
   })
 })

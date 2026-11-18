@@ -14,6 +14,7 @@ export function DownloadMenu({
 }) {
   const { t } = useTranslation();
   const download = useDownloadArtifact(job);
+  const entries = availableDownloads(job.artifacts);
   return (
     <Menu position="bottom-end">
       <Menu.Target>
@@ -28,7 +29,10 @@ export function DownloadMenu({
         )}
       </Menu.Target>
       <Menu.Dropdown>
-        {availableDownloads(job.artifacts).map((entry) => (
+        {entries.length > 1 && (
+          <Menu.Item onClick={() => entries.forEach((entry) => download.mutate(entry))}>{t('jobs.downloadAll')}</Menu.Item>
+        )}
+        {entries.map((entry) => (
           <Menu.Item key={entry.key} onClick={() => download.mutate(entry)}>
             {t(`makeAccessible.downloads.${entry.key}`)}
           </Menu.Item>

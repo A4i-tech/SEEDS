@@ -33,6 +33,8 @@ export const remediationJobSchema = z.object({
   draft_remediated_md: text,
   error: text,
   translation_error: text,
+  language: text,
+  detected_language: text,
   artifacts: z.record(z.string(), z.string()),
   stage_index: z.number(),
   stage_count: z.number(),

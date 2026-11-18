@@ -12,6 +12,7 @@ import { DownloadMenu } from '@features/jobs/components/DownloadMenu';
 import { pageContent, replacePage, splitIntoPages } from '../utils/remediationPages';
 import { AppBreadcrumbs } from '@shared/components/AppBreadcrumbs';
 import { PageTitle } from '@shared/components/PageTitle';
+import { StatusBadge } from '@shared/components/StatusBadge';
 
 export function ReviewRemediateScreen() {
   const { t } = useTranslation();
@@ -49,6 +50,14 @@ export function ReviewRemediateScreen() {
           <Text variant="eyebrow">{t('review.remediateEyebrow')}</Text>
           <PageTitle title={t('review.remediateTitle')} />
           <Text c="dimmed">{t('review.remediateHint')}</Text>
+          {state.status === 'done' && (
+            <Group gap="md">
+              <Text size="sm">
+                {t('review.language', { language: state.data.job.detected_language || state.data.job.language })}
+              </Text>
+              {state.data.job.status === 'verified' && <StatusBadge tone="done" label={t('review.verifiedSaved')} />}
+            </Group>
+          )}
         </Stack>
         {state.status === 'done' && (
           <Group gap="md">
@@ -108,7 +117,7 @@ export function ReviewRemediateScreen() {
                   <Stack gap="md">
                     {pageFlags.map((flag) => (
                       <Alert key={flag.id} role="note">
-                        {flag.reason}
+                        {flag.text ? `${flag.reason}: ${flag.text}` : flag.reason}
                       </Alert>
                     ))}
                     <DraftPage

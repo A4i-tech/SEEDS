@@ -2,6 +2,7 @@ import { Stack } from '@mantine/core';
 import { joinSegments, splitSegments, type Segment } from '../utils/remediationFigures';
 import { FigureBlock } from './FigureBlock';
 import { MarkdownEditor } from './MarkdownEditor';
+import { RawBlock } from './RawBlock';
 
 export function DraftPage({
   jobId,
@@ -23,7 +24,13 @@ export function DraftPage({
   return (
     <Stack gap="md">
       {segments.map((segment, index) =>
-        segment.type === 'text' ? (
+        segment.type === 'raw' ? (
+          <RawBlock
+            key={`${pageIndex}:${index}`}
+            markdown={segment.markdown}
+            onChange={(next) => update(index, { type: 'raw', markdown: next })}
+          />
+        ) : segment.type === 'text' ? (
           <MarkdownEditor
             key={`${pageIndex}:${index}`}
             value={segment.markdown}
