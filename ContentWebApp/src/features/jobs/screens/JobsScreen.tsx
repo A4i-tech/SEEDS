@@ -9,7 +9,7 @@ import { DataTable } from '@shared/components/DataTable';
 import { StatusBadge } from '@shared/components/StatusBadge';
 import { LoadError } from '@shared/components/LoadError';
 import { useRole } from '@features/auth/store/useAuthStore';
-import { DownloadMenu } from '@shared/components/DownloadMenu';
+import { DownloadMenu } from '../components/DownloadMenu';
 import { StageProgress } from '../components/StageProgress';
 import { availableDownloads } from '../utils/artifacts';
 import { selectValue } from '@shared/utils/select';
