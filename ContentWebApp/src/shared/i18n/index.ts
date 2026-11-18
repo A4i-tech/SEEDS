@@ -345,6 +345,8 @@ void i18n.use(initReactI18next).init({
           language: 'Language: {{language}}',
           verifiedSaved: 'Verified and saved to Library',
           rawBlock: 'Edit table or math as text',
+          tableHeader: 'Table header, column {{column}}',
+          tableCell: 'Table row {{row}}, column {{column}}',
           pagesNeedCheck: '{{count}} pages need a check',
           scanTitle: 'Original scan',
           scanAlt: 'Original scan, page {{page}}',
