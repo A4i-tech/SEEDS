@@ -5,6 +5,7 @@ import uuid
 from datetime import UTC, datetime
 from typing import Any
 
+from bson import ObjectId
 from pymongo.asynchronous.database import AsyncDatabase
 
 from app.repositories.base_repository import BaseRepository
@@ -26,11 +27,13 @@ class ContentJobRepository(BaseRepository):
         await db[cls.COLLECTION].create_index("status")
         await db[cls.COLLECTION].create_index("content_id")
 
-    async def create(self, content_id: str, status: str = "pending") -> str:
-        """Insert a job for *content_id* and return its string _id."""
+    async def create(self, content_id: str, tenant_id: str, staged: bool, status: str = "pending") -> str:
+        """Insert a job for *content_id* of *tenant_id* and return its string _id."""
         job_doc: dict[str, Any] = {
             "_id": str(uuid.uuid4()),
             "content_id": content_id,
+            "tenant_id": ObjectId(tenant_id),
+            "staged": staged,
             "status": status,
             "created_at": datetime.now(UTC),
         }

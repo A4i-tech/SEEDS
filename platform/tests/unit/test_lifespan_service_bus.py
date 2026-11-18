@@ -18,6 +18,8 @@ ENSURE_INDEXES_TARGETS = [
     "app.repositories.translation_audit_repository.TranslationAuditRepository",
     "app.repositories.content_job_repository.ContentJobRepository",
     "app.repositories.textbook_remediation_repository.TextbookRemediationRepository",
+    "app.repositories.content_repository.ContentRepository",
+    "app.repositories.quiz_repository.QuizRepository",
     "app.repositories.content_request_repository.ContentRequestRepository",
     "app.repositories.integration_client_repository.IntegrationClientRepository",
     "app.repositories.user_refresh_token_repository.UserRefreshTokenRepository",

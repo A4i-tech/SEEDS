@@ -30,8 +30,12 @@ def _oid(id_str: str | None) -> ObjectId | None:
 class ContentRepository(BaseRepository):
     COLLECTION = "contentsV3"
 
-    def __init__(self, db: AsyncDatabase) -> None:
-        self._col = db[self.COLLECTION]
+    def __init__(self, db: AsyncDatabase, collection: str = COLLECTION) -> None:
+        self._col = db[collection]
+
+    @classmethod
+    async def ensure_indexes(cls, db: AsyncDatabase) -> None:
+        await db[cls.COLLECTION].create_index([("tenant_id", 1), ("creation_time", -1), ("_id", -1)])
 
     # ------------------------------------------------------------------
     # Internal query builder
@@ -65,8 +69,8 @@ class ContentRepository(BaseRepository):
         doc = await self._col.find_one({"_id": ObjectId(content_id)})
         return Content.from_mongo(doc) if doc else None
 
-    async def find_raw_by_id(self, content_id: str) -> dict | None:
-        return await self._col.find_one({"_id": ObjectId(content_id)})
+    async def find_raw_by_id_and_tenant(self, content_id: str, tenant_id: str) -> dict | None:
+        return await self._col.find_one({"_id": ObjectId(content_id), "tenant_id": ObjectId(tenant_id)})
 
     async def find_by_id_and_tenant(
         self,
@@ -161,10 +165,8 @@ class ContentRepository(BaseRepository):
     # Writes
     # ------------------------------------------------------------------
 
-    async def insert_partner_content(self, doc: dict) -> str:
-        """Insert a partner content document as stamped by the caller; return its string _id."""
-        await self._col.insert_one(doc)
-        return str(doc["_id"])
+    async def publish(self, doc: dict) -> None:
+        await self._col.replace_one({"_id": doc["_id"]}, doc, upsert=True)
 
     async def list_partner_content(
         self, tenant_id: str, filters: dict[str, object], cursor: str, limit: int
@@ -216,6 +218,9 @@ class ContentRepository(BaseRepository):
             q, {"$set": {"is_deleted": True, "updated_at": datetime.now(UTC)}}
         )
         return result.matched_count
+
+    async def is_deleted(self, content_id: str) -> bool:
+        return await self._col.count_documents({"_id": ObjectId(content_id), "is_deleted": True}, limit=1) > 0
 
     async def save_processed(self, content_id: str, fields: dict) -> int:
         result = await self._col.update_one(

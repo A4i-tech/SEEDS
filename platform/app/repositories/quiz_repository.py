@@ -21,6 +21,10 @@ class QuizRepository(BaseRepository):
     def __init__(self, db: AsyncDatabase) -> None:
         self._col = db[self.COLLECTION]
 
+    @classmethod
+    async def ensure_indexes(cls, db: AsyncDatabase) -> None:
+        await db[cls.COLLECTION].create_index([("tenant_id", 1), ("creation_time", -1), ("_id", -1)])
+
     # ------------------------------------------------------------------
     # Internal query builder (mirrors ContentRepository._tenant_query)
     # ------------------------------------------------------------------
@@ -110,8 +114,8 @@ class QuizRepository(BaseRepository):
         query: dict = {**self._tenant_query(tenant_id, None), **{k: v for k, v in filters.items() if v}}
         return await self._page_by_creation_time(self._col, query, cursor, limit)
 
-    async def find_raw_by_id(self, content_id: str) -> dict | None:
-        return await self._col.find_one({"_id": ObjectId(content_id)})
+    async def find_raw_by_id_and_tenant(self, content_id: str, tenant_id: str) -> dict | None:
+        return await self._col.find_one({"_id": ObjectId(content_id), "tenant_id": ObjectId(tenant_id)})
 
     async def update_by_id_and_tenant(
         self,

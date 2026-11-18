@@ -19,6 +19,7 @@ from app.models.requests.content_requests import (
 )
 from app.models.responses.content import AudioContent, QuizContent, WebsiteExtractResponse
 from app.platform.auth.dependencies import get_db
+from app.platform.error_handling import ForbiddenError
 from app.repositories.content_job_repository import ContentJobRepository
 from app.repositories.content_repository import ContentRepository
 from app.repositories.quiz_repository import QuizRepository
@@ -47,8 +48,8 @@ class ContentService:
         self._job_repo = ContentJobRepository(db)
         self._website_extractor = WebsiteExtractor()
 
-    async def enqueue_content_job(self, content_id: str) -> str:
-        return await self._job_repo.create(content_id)
+    async def enqueue_content_job(self, content_id: str, tenant_id: str) -> str:
+        return await self._job_repo.create(content_id, tenant_id, False)
 
     async def get_job(self, job_id: str) -> dict[str, Any] | None:
         return await self._job_repo.find_by_id(job_id)
@@ -184,6 +185,9 @@ class ContentService:
             updates["is_processed"] = False
 
         created_by = ObjectId(user_id)
+        current = await self._content_repo.find_by_id_and_tenant(body.id, tenant_id)
+        if current and current["created_by"] != created_by:
+            raise ForbiddenError()
         result = await self._content_repo.update_by_id_and_tenant(
             body.id, tenant_id, created_by, updates, school_id
         )
@@ -239,8 +243,8 @@ class ContentService:
         return await self._quiz_repo.insert(doc)
 
 
-    async def get_raw_content_by_id(self, content_id: str) -> dict[str, Any] | None:
-        return await self._content_repo.find_raw_by_id(content_id)
+    async def get_raw_content_by_id(self, content_id: str, tenant_id: str) -> dict[str, Any] | None:
+        return await self._content_repo.find_raw_by_id_and_tenant(content_id, tenant_id)
 
     async def save_processed(self, content_id: str, fields: dict[str, Any]) -> None:
         await self._content_repo.save_processed(content_id, fields)

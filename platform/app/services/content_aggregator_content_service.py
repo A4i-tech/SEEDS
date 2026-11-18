@@ -16,6 +16,7 @@ from app.models.requests.content_aggregator_content_requests import (
     PartnerContentCreate,
     PartnerContentListQuery,
     PartnerContentUpdate,
+    PartnerQuizCreate,
 )
 from app.models.requests.integration_headers import IdempotencyKey
 from app.models.responses.content import PaginationInfo, QuizContent
@@ -63,28 +64,33 @@ class ContentAggregatorContentService:
         owner_id = await self._client_repo.find_object_id(client_id)
         now = datetime.now(UTC)
         payload_hash = hashlib.sha256(body.model_dump_json().encode()).hexdigest()
+        is_quiz = isinstance(body, PartnerQuizCreate)
         jobs: dict[str, str] = {}
         for tenant_id in tenant_ids:
             tenant_oid = ObjectId(tenant_id)
-            if await self._request_repo.claim(tenant_oid, client_id, key, payload_hash):
-                doc = body.model_dump() | {
-                    "tenant_id": tenant_oid,
-                    "school_id": None,
-                    "created_by": owner_id,
-                    "creation_time": int(now.timestamp()),
-                    "is_deleted": False,
-                    "created_at": now,
-                    "updated_at": now,
-                }
-                if body.type == "quiz":
-                    content_id = await self._quiz_repo.insert(doc)
-                    job_id = await self._job_repo.create(content_id, "completed")
+            content_id = str(ObjectId())
+            doc = body.model_dump() | {
+                "_id": ObjectId(content_id),
+                "tenant_id": tenant_oid,
+                "school_id": None,
+                "created_by": owner_id,
+                "source": "partner",
+                "request_id": content_id,
+                "creation_time": int(now.timestamp()),
+                "is_deleted": False,
+                "created_at": now,
+                "updated_at": now,
+            }
+            if not is_quiz:
+                doc |= {"is_processed": False, "version": "v3"}
+            if await self._request_repo.claim(tenant_oid, client_id, key, payload_hash, doc):
+                if is_quiz:
+                    await self._quiz_repo.insert(doc)
+                    job_id = await self._job_repo.create(content_id, tenant_id, False, "completed")
+                    await self._request_repo.release(content_id)
                 else:
-                    content_id = await self._content_repo.insert_partner_content(
-                        doc | {"is_processed": False, "version": "v3"}
-                    )
-                    job_id = await self._job_repo.create(content_id)
-                await self._request_repo.set_result(tenant_oid, client_id, key, content_id, job_id)
+                    job_id = await self._job_repo.create(content_id, tenant_id, True)
+                await self._request_repo.set_job(tenant_oid, client_id, key, job_id)
                 jobs[tenant_id] = job_id
                 logger.info(
                     "content_aggregator: accepted request_id=%s client_id=%s tenant_id=%s idempotency_key=%s type=%s",
@@ -151,7 +157,7 @@ class ContentAggregatorContentService:
         )
         doc = await self._content_repo.update_by_id_and_tenant(content_id, tenant_id, owner_id, updates)
         if doc:
-            job_id = await self._job_repo.create(content_id) if has_audio else ""
+            job_id = await self._job_repo.create(content_id, tenant_id, False) if has_audio else ""
             return PartnerContentUpdateResponse(**Content.from_mongo(doc).model_dump(), job_id=job_id)
         quiz = await self._quiz_repo.update_by_id_and_tenant(
             content_id, tenant_id, owner_id, {k: v for k, v in fields.items() if k not in _AUDIO_ONLY_FIELDS}
@@ -162,9 +168,11 @@ class ContentAggregatorContentService:
 
     async def delete(self, tenant_id: str, client_id: str, content_id: str) -> PartnerDeleteResponse:
         owner_id = await self._client_repo.find_object_id(client_id)
-        matched = await self._content_repo.soft_delete_by_id_and_tenant(
-            content_id, tenant_id, owner_id
-        ) or await self._quiz_repo.soft_delete_by_id_and_tenant(content_id, tenant_id, owner_id)
+        matched = await self._request_repo.staged.soft_delete_by_id_and_tenant(content_id, tenant_id, owner_id)
+        if not matched:
+            is_content = await self._content_repo.find_raw_by_id_and_tenant(content_id, tenant_id)
+            repo = self._content_repo if is_content else self._quiz_repo
+            matched = await repo.soft_delete_by_id_and_tenant(content_id, tenant_id, owner_id)
         if not matched:
             raise NotFoundError("Content", content_id)
         await self._job_repo.cancel_pending(content_id)
@@ -175,10 +183,12 @@ class ContentAggregatorContentService:
         job = await self._job_repo.find_by_id(job_id)
         if not job:
             raise NotFoundError("Job", job_id)
-        content = await self._content_repo.find_raw_by_id(job["content_id"]) or await self._quiz_repo.find_raw_by_id(
-            job["content_id"]
+        content = (
+            await self._content_repo.find_raw_by_id_and_tenant(job["content_id"], tenant_id)
+            or await self._quiz_repo.find_raw_by_id_and_tenant(job["content_id"], tenant_id)
+            or await self._request_repo.staged.find_raw_by_id_and_tenant(job["content_id"], tenant_id)
         )
-        if not content or content["tenant_id"] != ObjectId(tenant_id) or content["created_by"] != owner_id:
+        if not content or content["created_by"] != owner_id:
             raise NotFoundError("Job", job_id)
         return PartnerJobStatusResponse(
             job_id=job_id,

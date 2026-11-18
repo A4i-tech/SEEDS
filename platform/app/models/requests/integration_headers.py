@@ -4,8 +4,6 @@ from typing import Annotated
 
 from pydantic import BaseModel, Field, ValidationInfo, field_validator
 
-from app.platform.error_handling import AppError
-
 IdempotencyKey = Annotated[str, Field(min_length=1, max_length=255, pattern=r"\S")]
 
 
@@ -22,7 +20,7 @@ class TenantIdsHeader(BaseModel):
     def _check(cls, ids: list[str], info: ValidationInfo) -> list[str]:
         ctx = info.context
         if any(t not in set(ctx["allowed"]) for t in ids):
-            raise AppError("TENANT_NOT_ALLOWED", "tenant not allowed for this client", 403)
+            raise ValueError("tenant not allowed for this client")
         if ctx["single"] and len(ids) != 1:
-            raise AppError("TENANT_NOT_ALLOWED", "exactly one tenant id is required", 403)
+            raise ValueError("exactly one tenant id is required")
         return ids

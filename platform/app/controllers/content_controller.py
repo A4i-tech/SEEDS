@@ -334,7 +334,7 @@ async def create_content(
         logger.error("create_content failed", extra={"tenant_id": tenant_id, "user_id": user_id, "err": str(exc)})
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    job_id = await service.enqueue_content_job(content_id)
+    job_id = await service.enqueue_content_job(content_id, tenant_id)
     logger.info("content_controller: created content_id=%s job_id=%s", content_id, job_id)
     return JobScheduledResponse(message="Processing New Content job scheduled!", job_id=job_id)
 
@@ -367,7 +367,7 @@ async def update_content(
         raise NotFoundError("Content", str(body.id))
 
     if is_audio_uploaded and isinstance(result, AudioContent):
-        result.job_id = await service.enqueue_content_job(result.id)
+        result.job_id = await service.enqueue_content_job(result.id, tenant_id)
     return result
 
 
@@ -408,7 +408,7 @@ async def create_quiz(
     school_id = _write_school_id(user)
 
     quiz_id = await service.create_quiz(body, tenant_id, user_id, school_id)
-    job_id = await service.enqueue_content_job(quiz_id)
+    job_id = await service.enqueue_content_job(quiz_id, tenant_id)
     return JobScheduledResponse(message="Processing New Content job scheduled!", job_id=job_id)
 
 

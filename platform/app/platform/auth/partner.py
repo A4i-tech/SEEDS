@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import math
 import time
 from collections.abc import Awaitable, Callable
@@ -8,8 +9,9 @@ from typing import Annotated
 from fastapi import Depends, Header, Request
 from fastapi.security import OAuth2PasswordBearer
 from limits import parse
-from limits.storage import MemoryStorage
+from limits.storage import storage_from_string
 from limits.strategies import MovingWindowRateLimiter
+from pydantic import ValidationError as ModelValidationError
 from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.content_aggregator import IntegrationClientStatus, PartnerAccess
@@ -23,7 +25,7 @@ from app.repositories.integration_client_repository import IntegrationClientRepo
 from app.services.content_aggregator._jwt import decode_access_token
 
 _partner_oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/v1/auth/token")
-_limiter = MovingWindowRateLimiter(MemoryStorage())
+_limiter = MovingWindowRateLimiter(storage_from_string(get_settings().redis_url or "memory://"))
 
 
 def require_partner(scope: str, *, single: bool = True) -> Callable[..., Awaitable[PartnerAccess]]:
@@ -45,15 +47,19 @@ def require_partner(scope: str, *, single: bool = True) -> Callable[..., Awaitab
                 (parse(settings.content_aggregator_client_rate_limit), client_id),
                 (parse(settings.content_aggregator_global_rate_limit), "global"),
             ):
-                if not _limiter.hit(rate, "partner", key):
-                    reset_time = _limiter.get_window_stats(rate, "partner", key).reset_time
+                if not await asyncio.to_thread(_limiter.hit, rate, "partner", key):
+                    stats = await asyncio.to_thread(_limiter.get_window_stats, rate, "partner", key)
+                    reset_time = stats.reset_time
                     raise RateLimitedError(max(math.ceil(reset_time - time.time()), 1))
             if scope not in claims["scopes"] or scope not in client.allowed_scopes:
                 raise AppError("SCOPE_INSUFFICIENT", f"scope '{scope}' required", 403)
-            header = TenantIdsHeader.model_validate(
-                {"ids": x_tenant_ids},
-                context={"allowed": set(claims["tenant_ids"]) & set(client.tenant_ids), "single": single},
-            )
+            try:
+                header = TenantIdsHeader.model_validate(
+                    {"ids": x_tenant_ids},
+                    context={"allowed": set(claims["tenant_ids"]) & set(client.tenant_ids), "single": single},
+                )
+            except ModelValidationError as exc:
+                raise AppError("TENANT_NOT_ALLOWED", str(exc.errors()[0]["ctx"]["error"]), 403) from exc
         except AppError as exc:
             get_counter("auth.failures").add(1, {"reason": exc.code.lower()})
             log_denial(

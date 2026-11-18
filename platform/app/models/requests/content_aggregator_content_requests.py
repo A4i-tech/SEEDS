@@ -9,7 +9,6 @@ from typing_extensions import TypedDict
 
 from app.models.content import TextContent
 from app.models.responses.content import QuizQuestion
-from app.platform.error_handling import AppError
 from app.services.language_registry import SUPPORTED_LANGUAGE_CODES
 
 PartnerAudioType = Literal["story", "audio", "song", "poem", "snippet"]
@@ -17,12 +16,7 @@ PartnerAudioType = Literal["story", "audio", "song", "poem", "snippet"]
 
 def _supported_language(language: str) -> str:
     if language not in SUPPORTED_LANGUAGE_CODES:
-        raise AppError(
-            "UNSUPPORTED_LANGUAGE",
-            f"'{language}' is not a supported language",
-            400,
-            {"valid": sorted(SUPPORTED_LANGUAGE_CODES)},
-        )
+        raise ValueError(f"'{language}' is not a supported language, valid: {sorted(SUPPORTED_LANGUAGE_CODES)}")
     return language
 
 

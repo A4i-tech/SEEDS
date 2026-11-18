@@ -39,7 +39,6 @@ class ContentRequest(BaseModel):
     client_id: str
     key: str
     payload_hash: str
-    content_id: str = ""
     job_id: str = ""
     created_at: datetime
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import UTC, datetime
+from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 import pytest
@@ -9,7 +10,8 @@ from bson import ObjectId
 from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 
-from app.controllers.content_aggregator_content_controller import router
+from app.consumers.content_job_consumer import _process_audio_content_job
+from app.controllers.content_request_controller import router
 from app.platform.auth.dependencies import get_db
 from app.platform.auth.partner import _limiter as partner_limiter
 from app.platform.error_handling import register_error_handlers
@@ -17,6 +19,7 @@ from app.platform.security import limiter, setup_security
 from app.platform.settings import get_settings
 from app.platform.telemetry import configure_telemetry
 from app.repositories.content_job_repository import ContentJobRepository
+from app.repositories.content_repository import ContentRepository
 from app.repositories.content_request_repository import ContentRequestRepository
 from app.services.content_aggregator._jwt import encode_access_token
 from tests.support.mongomock_async import AsyncMongoMockClient
@@ -104,31 +107,49 @@ def _headers(
     }
 
 
-async def _create_processed(client, db, client_id: str = "c-1") -> str:
-    content_id, job_id = await _create(client, db, client_id)
-    await db["content_jobs"].update_one({"_id": job_id}, {"$set": {"status": "completed"}})
-    await db["contentsV3"].update_one({"_id": ObjectId(content_id)}, {"$set": {"is_processed": True}})
-    return content_id
-
-
-async def _create(client, db, client_id: str = "c-1") -> tuple[str, str]:
+async def _stage(client, db, client_id: str = "c-1") -> tuple[str, str]:
     response = await client.post("/v1/content", json=BODY, headers=_headers(client_id))
     job_id = response.json()["jobs"][TENANT]
     job = await db["content_jobs"].find_one({"_id": job_id})
     return job["content_id"], job_id
 
 
-async def test_create_stores_in_contents_v3_and_enqueues_one_job(client, db):
+async def _process(db, job_id: str) -> None:
+    async def processed(audio_url, content_id, blob_provider):
+        return audio_url, 1.0
+
+    job_doc = await db["content_jobs"].find_one({"_id": job_id})
+    with patch("app.consumers.content_job_consumer._process_audio_item", processed):
+        await _process_audio_content_job(
+            job_doc, ContentJobRepository(db), ContentRepository(db), ContentRequestRepository(db), MagicMock()
+        )
+
+
+async def _create(client, db, client_id: str = "c-1") -> tuple[str, str]:
+    content_id, job_id = await _stage(client, db, client_id)
+    await _process(db, job_id)
+    return content_id, job_id
+
+
+async def test_create_stages_the_item_and_publishes_it_to_contents_v3_once_processed(client, db):
     response = await client.post("/v1/content", json=BODY, headers=_headers("hexis-adapter"))
 
     assert response.status_code == 200
     assert list(response.json()["jobs"]) == [TENANT]
+    assert await db["contentsV3"].count_documents({}) == 0
+    staged = await db["content_requests"].find_one({})
+    assert staged["title"]["english"] == "My Story"
+    await _process(db, response.json()["jobs"][TENANT])
+    assert await db["contentsV3"].count_documents({}) == 1
     doc = await db["contentsV3"].find_one({})
     assert doc["title"]["english"] == "My Story"
     assert doc["tenant_id"] == ObjectId(TENANT)
     assert doc["school_id"] is None
     assert doc["created_by"] == (await db["integrationClients"].find_one({"client_id": "hexis-adapter"}))["_id"]
-    assert doc["is_processed"] is False
+    assert doc["is_processed"] is True
+    assert set(await db["content_requests"].find_one({})) == {
+        "_id", "tenant_id", "client_id", "key", "payload_hash", "job_id", "created_at"
+    }
     job = await db["content_jobs"].find_one({})
     assert job["content_id"] == str(doc["_id"])
     assert await db["contentAggregators"].count_documents({}) == 0
@@ -140,7 +161,7 @@ async def test_create_fans_out_one_item_and_job_per_tenant(client, db):
     response = await client.post("/v1/content", json=BODY, headers=headers)
 
     assert set(response.json()["jobs"]) == {TENANT, OTHER_TENANT}
-    assert await db["contentsV3"].count_documents({}) == 2
+    assert await db["content_requests"].count_documents({}) == 2
     assert await db["content_jobs"].count_documents({}) == 2
 
 
@@ -248,7 +269,7 @@ async def test_list_hides_other_tenants_and_deleted_items(client, db):
 
 
 async def test_patch_without_audio_updates_details_and_queues_no_job(client, db):
-    content_id = await _create_processed(client, db)
+    content_id, _ = await _create(client, db)
 
     response = await client.patch(f"/v1/content/{content_id}", json={"description": "updated"}, headers=_headers())
 
@@ -259,7 +280,7 @@ async def test_patch_without_audio_updates_details_and_queues_no_job(client, db)
 
 
 async def test_patch_with_audio_marks_unprocessed_and_queues_a_job(client, db):
-    content_id = await _create_processed(client, db)
+    content_id, _ = await _create(client, db)
     audio = {"audio_content": [{"audio_url": "https://x.example/b.mp3"}]}
 
     response = await client.patch(f"/v1/content/{content_id}", json=audio, headers=_headers())
@@ -293,7 +314,8 @@ async def test_patch_after_a_failed_job_is_allowed(client, db):
 
 
 async def test_another_partner_patching_during_an_open_job_gets_404_not_409(client, db):
-    content_id, _ = await _create(client, db, "c-1")
+    content_id, job_id = await _create(client, db, "c-1")
+    await db["content_jobs"].update_one({"_id": job_id}, {"$set": {"status": "running"}})
 
     response = await client.patch(f"/v1/content/{content_id}", json={"description": "x"}, headers=_headers("c-2"))
 
@@ -301,7 +323,7 @@ async def test_another_partner_patching_during_an_open_job_gets_404_not_409(clie
 
 
 async def test_patch_rejects_unknown_field_and_missing_item(client, db):
-    content_id = await _create_processed(client, db)
+    content_id, _ = await _create(client, db)
 
     assert (await client.patch(f"/v1/content/{content_id}", json={"nope": 1}, headers=_headers())).status_code == 422
     insecure = {"audio_content": [{"audio_url": "http://x.example/a.mp3"}]}
@@ -320,7 +342,7 @@ async def test_delete_soft_deletes_then_get_is_404(client, db):
 
 
 async def test_job_status_follows_the_job(client, db):
-    content_id, job_id = await _create(client, db)
+    content_id, job_id = await _stage(client, db)
 
     pending = await client.get(f"/v1/content/job/{job_id}", headers=_headers())
     assert pending.json()["status"] == "pending"
@@ -333,7 +355,7 @@ async def test_job_status_follows_the_job(client, db):
 
 
 async def test_job_status_unknown_or_other_tenant_is_404(client, db):
-    _, job_id = await _create(client, db)
+    _, job_id = await _stage(client, db)
     other = _headers("c-other", tenant_ids=(OTHER_TENANT,), sent=OTHER_TENANT)
 
     assert (await client.get(f"/v1/content/job/{ABSENT}", headers=_headers())).status_code == 404
@@ -383,7 +405,7 @@ async def test_partner_cannot_change_another_partners_content(client, db):
 
 
 async def test_job_status_of_another_partner_is_404(client, db):
-    _, job_id = await _create(client, db, "c-1")
+    _, job_id = await _stage(client, db, "c-1")
 
     assert (await client.get(f"/v1/content/job/{job_id}", headers=_headers("c-2"))).status_code == 404
 
@@ -437,13 +459,13 @@ async def test_tenant_in_the_record_but_not_in_the_token_is_forbidden(client, db
 
 async def test_job_status_of_a_tenant_side_job_is_404(client, db):
     teacher_story = await _tenant_side_story(db, ObjectId())
-    job_id = await ContentJobRepository(db).create(teacher_story)
+    job_id = await ContentJobRepository(db).create(teacher_story, TENANT, False)
 
     assert (await client.get(f"/v1/content/job/{job_id}", headers=_headers())).status_code == 404
 
 
 async def test_job_status_of_a_job_without_contents_v3_item_is_404(client, db):
-    job_id = await ContentJobRepository(db).create(str(ObjectId()))
+    job_id = await ContentJobRepository(db).create(str(ObjectId()), TENANT, False)
 
     assert (await client.get(f"/v1/content/job/{job_id}", headers=_headers())).status_code == 404
 
@@ -468,7 +490,7 @@ async def test_create_accepts_every_audio_type(client, db, content_type):
     response = await client.post("/v1/content", json={**BODY, "type": content_type}, headers=_headers())
 
     assert response.status_code == 200
-    assert (await db["contentsV3"].find_one({}))["type"] == content_type
+    assert (await db["content_requests"].find_one({}))["type"] == content_type
 
 
 async def test_create_quiz_stores_in_quiz_data_with_the_owner_and_a_completed_job(client, db):
@@ -514,9 +536,9 @@ async def test_get_returns_the_quiz_with_its_questions(client):
     assert response.json()["questions"][0]["correct_option_id"] == "a"
 
 
-async def test_list_returns_quizzes_only_for_exp_name_quiz(client):
+async def test_list_returns_quizzes_only_for_exp_name_quiz(client, db):
     await _create_quiz(client)
-    await client.post("/v1/content", json=BODY, headers=_headers())
+    await _create(client, db)
 
     quizzes = await client.get("/v1/content", params={"exp_name": "quiz"}, headers=_headers())
     stories = await client.get("/v1/content", headers=_headers())
@@ -576,8 +598,18 @@ async def test_repeated_post_with_the_same_key_replays_the_first_response(client
 
     assert second.status_code == 200
     assert second.json() == first.json()
-    assert await db["contentsV3"].count_documents({}) == 1
+    assert await db["content_requests"].count_documents({}) == 1
     assert await db["content_jobs"].count_documents({}) == 1
+
+
+async def test_created_item_carries_its_source_and_request_id(client, db):
+    response = await client.post("/v1/content", json=BODY, headers=_headers(idempotency_key="k-1"))
+    await _process(db, response.json()["jobs"][TENANT])
+
+    request = await db["content_requests"].find_one({"key": "k-1"})
+    item = await db["contentsV3"].find_one({})
+    assert item["source"] == "partner"
+    assert item["request_id"] == str(request["_id"])
 
 
 async def test_same_key_with_a_different_payload_is_409_and_creates_nothing(client, db):
@@ -588,14 +620,14 @@ async def test_same_key_with_a_different_payload_is_409_and_creates_nothing(clie
 
     assert response.status_code == 409
     assert response.json()["code"] == "IDEMPOTENCY_CONFLICT"
-    assert await db["contentsV3"].count_documents({}) == 1
+    assert await db["content_requests"].count_documents({}) == 1
 
 
 async def test_same_key_is_independent_per_client(client, db):
     await client.post("/v1/content", json=BODY, headers=_headers("c-1", idempotency_key="k-1"))
     await client.post("/v1/content", json=BODY, headers=_headers("c-2", idempotency_key="k-1"))
 
-    assert await db["contentsV3"].count_documents({}) == 2
+    assert await db["content_requests"].count_documents({}) == 2
 
 
 async def test_retry_after_a_partial_fan_out_creates_only_the_missing_tenant(client, db):
@@ -607,7 +639,7 @@ async def test_retry_after_a_partial_fan_out_creates_only_the_missing_tenant(cli
 
     assert retried.json()["jobs"][TENANT] == first.json()["jobs"][TENANT]
     assert set(retried.json()["jobs"]) == {TENANT, OTHER_TENANT}
-    assert await db["contentsV3"].count_documents({}) == 2
+    assert await db["content_requests"].count_documents({}) == 2
 
 
 async def test_concurrent_identical_posts_create_one_item(client, db):
@@ -616,12 +648,12 @@ async def test_concurrent_identical_posts_create_one_item(client, db):
     responses = await asyncio.gather(*[client.post("/v1/content", json=BODY, headers=headers) for _ in range(2)])
 
     assert {r.status_code for r in responses} <= {200, 409}
-    assert await db["contentsV3"].count_documents({}) == 1
+    assert await db["content_requests"].count_documents({}) == 1
     assert await db["content_jobs"].count_documents({}) == 1
 
 
 async def test_delete_cancels_the_pending_job_so_the_consumer_never_claims_it(client, db):
-    content_id, job_id = await _create(client, db)
+    content_id, job_id = await _stage(client, db)
 
     deleted = await client.delete(f"/v1/content/{content_id}", headers=_headers())
 
@@ -629,10 +661,21 @@ async def test_delete_cancels_the_pending_job_so_the_consumer_never_claims_it(cl
     status = await client.get(f"/v1/content/job/{job_id}", headers=_headers())
     assert status.json()["status"] == "cancelled"
     assert await ContentJobRepository(db).claim_next_pending() is None
+    assert await db["contentsV3"].count_documents({}) == 0
+
+
+async def test_item_deleted_before_processing_never_reaches_contents_v3(client, db):
+    content_id, job_id = await _stage(client, db)
+    await client.delete(f"/v1/content/{content_id}", headers=_headers())
+
+    await _process(db, job_id)
+
+    assert await db["contentsV3"].count_documents({}) == 0
+    assert (await db["content_jobs"].find_one({"_id": job_id}))["status"] == "cancelled"
 
 
 async def test_delete_leaves_completed_jobs_as_they_were(client, db):
-    content_id = await _create_processed(client, db)
+    content_id, _ = await _create(client, db)
 
     await client.delete(f"/v1/content/{content_id}", headers=_headers())
 
@@ -640,7 +683,7 @@ async def test_delete_leaves_completed_jobs_as_they_were(client, db):
 
 
 async def test_delete_by_another_partner_does_not_cancel_the_job(client, db):
-    content_id, job_id = await _create(client, db, "c-1")
+    content_id, job_id = await _stage(client, db, "c-1")
 
     response = await client.delete(f"/v1/content/{content_id}", headers=_headers("c-2"))
 
@@ -648,13 +691,21 @@ async def test_delete_by_another_partner_does_not_cancel_the_job(client, db):
     assert (await db["content_jobs"].find_one({"_id": job_id}))["status"] == "pending"
 
 
-async def test_unsupported_language_is_400_with_the_valid_codes(client, db):
+async def test_patch_with_an_unsupported_language_is_422_and_changes_nothing(client, db):
+    content_id, _ = await _create(client, db)
+
+    response = await client.patch(f"/v1/content/{content_id}", json={"language": "xx"}, headers=_headers())
+
+    assert response.status_code == 422
+    assert (await db["contentsV3"].find_one({"_id": ObjectId(content_id)}))["language"] == BODY["language"]
+
+
+async def test_unsupported_language_is_422_naming_the_valid_codes(client, db):
     response = await client.post("/v1/content", json={**BODY, "language": "xx"}, headers=_headers())
 
-    assert response.status_code == 400
-    assert response.json()["code"] == "UNSUPPORTED_LANGUAGE"
-    assert "kn" in response.json()["details"]["valid"]
-    assert await db["contentsV3"].count_documents({}) == 0
+    assert response.status_code == 422
+    assert "'kn'" in response.text
+    assert await db["content_requests"].count_documents({}) == 0
 
 
 async def test_client_over_its_limit_gets_429_with_retry_after(client, monkeypatch):
