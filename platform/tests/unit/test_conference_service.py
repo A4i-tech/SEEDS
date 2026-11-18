@@ -528,3 +528,51 @@ class TestConferenceEventDispatcher:
             event_data={"type": "some_other_event"},
             conference_manager=mgr,
         )
+
+
+
+class TestPlaybackSpeedFallbackStatus:
+    def test_new_conference_starts_at_1x(self) -> None:
+        state = _make_conf_call().state.audio_content_state
+        assert state.speed == 1.0
+        assert state.actual_speed == 1.0
+
+    @pytest.mark.asyncio
+    async def test_fallback_status_keeps_requested_speed(self) -> None:
+        from app.models.playback_state import ContentStatus
+        from app.services.confevents.playback_state_update_event import PlaybackStateUpdateEvent
+
+        call = _make_conf_call()
+        call.state.audio_content_state.speed = 2.0
+        with patch.object(call, "update_state", AsyncMock()):
+            await PlaybackStateUpdateEvent(conf_call=call, content_state=ContentStatus.PLAYING, actual_speed=1.0).execute_event()
+
+        assert call.state.audio_content_state.speed == 2.0
+        assert call.state.audio_content_state.actual_speed == 1.0
+
+    @pytest.mark.asyncio
+    async def test_dispatch_routes_actual_speed_without_overwriting_requested(self) -> None:
+        import json
+
+        from app.providers.websocket_client import WebsocketClientProvider
+
+        call = _make_conf_call()
+        call.state.audio_content_state.speed = 1.5
+        queued = []
+        call.queue_event = AsyncMock(side_effect=queued.append)
+        provider = WebsocketClientProvider()
+        provider._conference_manager = MagicMock()
+        provider._conference_manager.get_conference = MagicMock(return_value=call)
+
+        await provider._dispatch_message(json.dumps({
+            "websocket_id": "conf1",
+            "type": "playback-state-update",
+            "message": "Playing",
+            "speed": 1.0,
+            "actual_speed": 1.0,
+        }))
+        with patch.object(call, "update_state", AsyncMock()):
+            await queued[0].execute_event()
+
+        assert call.state.audio_content_state.speed == 1.5
+        assert call.state.audio_content_state.actual_speed == 1.0

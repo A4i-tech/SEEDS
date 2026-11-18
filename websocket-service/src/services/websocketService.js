@@ -623,7 +623,8 @@ function sendPlaybackStatus(id, status, refusal) {
       conn.state.lastRefusal = refusal || null;
     }
 
-    const speed = audioState?.speed || 1.0;
+    const speed = conn?.state?.speed || 1.0;
+    const actualSpeed = audioState?.speed || 1.0;
     const totalLogicalLength = (audioState?.baseDurationSeconds || 0) * AUDIO_BYTES_PER_SECOND;
     const positionSec = audioState?.blobData
       ? parseFloat((scalePosition(audioState.position || 0, audioState.blobData.length, totalLogicalLength) / AUDIO_BYTES_PER_SECOND).toFixed(2))
@@ -637,9 +638,10 @@ function sendPlaybackStatus(id, status, refusal) {
       position_seconds: positionSec,
       duration_seconds: durationSec,
       speed,
+      actual_speed: actualSpeed,
     };
     if (refusal) payload.refusal = refusal;
-    logger.info(`sendPlaybackStatus [${id}]: status=${status}, position=${payload.position_seconds}, duration=${payload.duration_seconds}, speed=${payload.speed}, blobData=${audioState?.blobData ? audioState.blobData.length + ' bytes' : 'null'}`);
+    logger.info(`sendPlaybackStatus [${id}]: status=${status}, position=${payload.position_seconds}, duration=${payload.duration_seconds}, speed=${payload.speed}, actual_speed=${payload.actual_speed}, blobData=${audioState?.blobData ? audioState.blobData.length + ' bytes' : 'null'}`);
 
     ws.send(
       JSON.stringify(payload),

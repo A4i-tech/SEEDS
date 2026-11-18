@@ -232,6 +232,7 @@ describe("WebSocketService", () => {
           position_seconds: 0,
           duration_seconds: 0,
           speed: 1,
+          actual_speed: 1,
         }),
         expect.any(Function)
       );
@@ -268,6 +269,7 @@ describe("WebSocketService", () => {
           position_seconds: 0,
           duration_seconds: 0,
           speed: 1,
+          actual_speed: 1,
         }),
         expect.any(Function)
       );
@@ -348,6 +350,7 @@ describe("WebSocketService", () => {
           position_seconds: 2.2,
           duration_seconds: 4,
           speed: 1,
+          actual_speed: 1,
         }),
         expect.any(Function)
       );
@@ -369,6 +372,7 @@ describe("WebSocketService", () => {
           position_seconds: 4,
           duration_seconds: 4,
           speed: 1,
+          actual_speed: 1,
           refusal: PlaybackRefusal.SEEK_DEFERRED_SYSTEM_AUDIO,
         }),
         expect.any(Function)
@@ -447,6 +451,7 @@ describe("WebSocketService", () => {
         baseDurationSeconds: 3.0,
       };
       mockState.currentAudioType = "audioContent";
+      mockState.speed = 1.5;
 
       websocketService.pauseAudioContent("test-client");
 
@@ -458,6 +463,7 @@ describe("WebSocketService", () => {
       expect(sentPayload.position_seconds).toBeCloseTo(2.0, 2);
       expect(sentPayload.duration_seconds).toBe(3.0);
       expect(sentPayload.speed).toBe(1.5);
+      expect(sentPayload.actual_speed).toBe(1.5);
     });
   });
 
@@ -822,6 +828,69 @@ describe("WebSocketService", () => {
       // speed — it must not clobber B's result.
       expect(mockState.audioContentState.speed).toBe(2.0);
       expect(mockState.audioContentState.blobData.length).toBe(16000);
+    });
+  });
+
+  describe("playback status under missing-variant fallback", () => {
+    const lastStatus = () =>
+      JSON.parse(mockControlWebSocket.send.mock.calls.at(-1)[0]);
+
+    test("setPlaybackSpeed with a missing variant reports the requested speed separately from the 1.0x actual speed", async () => {
+      mockState.audioContentState = {
+        containerName: "container",
+        baseBlobName: "test.wav",
+        blobData: Buffer.alloc(32000),
+        position: 0,
+        playing: true,
+        speed: 1.0,
+        variantCache: new Map([[1.0, Buffer.alloc(32000)]]),
+        baseDurationSeconds: 2.0,
+      };
+      mockState.currentAudioType = "audioContent";
+      azureBlobService.getBlobData.mockRejectedValueOnce(new Error("not found"));
+
+      await websocketService.setPlaybackSpeed("test-client", 2.0);
+
+      expect(lastStatus()).toMatchObject({ speed: 2, actual_speed: 1 });
+      expect(websocketService.getSessionSpeed("test-client")).toBe(2.0);
+    });
+
+    test("playAudioContent with a missing variant keeps reporting the requested session speed", async () => {
+      mockState.speed = 1.5;
+      azureBlobService.getBlobData
+        .mockResolvedValueOnce(Buffer.alloc(32000))
+        .mockRejectedValueOnce(new Error("not found"));
+
+      await websocketService.playAudioContent("test-client", "https://storage.example.com/container/a.wav");
+
+      expect(lastStatus()).toMatchObject({ speed: 1.5, actual_speed: 1 });
+    });
+
+    test("switching from a fallback item to one with a variant plays the requested speed", async () => {
+      mockState.speed = 2.0;
+      azureBlobService.getBlobData
+        .mockResolvedValueOnce(Buffer.alloc(32000))
+        .mockRejectedValueOnce(new Error("not found"))
+        .mockResolvedValueOnce(Buffer.alloc(32000))
+        .mockResolvedValueOnce(Buffer.alloc(16000));
+
+      await websocketService.playAudioContent("test-client", "https://storage.example.com/container/old.wav");
+      expect(lastStatus()).toMatchObject({ speed: 2, actual_speed: 1 });
+
+      await websocketService.playAudioContent("test-client", "https://storage.example.com/container/new.wav");
+
+      expect(azureBlobService.getBlobData).toHaveBeenLastCalledWith("container", "new__speed_2.0.wav");
+      expect(mockState.audioContentState.speed).toBe(2.0);
+      expect(lastStatus()).toMatchObject({ speed: 2, actual_speed: 2 });
+    });
+
+    test("a new conference with no speed set reports 1x requested and actual", async () => {
+      delete mockState.speed;
+      azureBlobService.getBlobData.mockResolvedValueOnce(Buffer.alloc(32000));
+
+      await websocketService.playAudioContent("test-client", "https://storage.example.com/container/a.wav");
+
+      expect(lastStatus()).toMatchObject({ speed: 1, actual_speed: 1 });
     });
   });
 

@@ -209,7 +209,7 @@ class WebsocketClientProvider:
         message = data.get("message", "")
         position_seconds = data.get("position_seconds")
         duration_seconds = data.get("duration_seconds")
-        speed = data.get("speed")
+        actual_speed = data.get("actual_speed")
         refusal = data.get("refusal")
 
         if not self._conference_manager:
@@ -230,7 +230,7 @@ class WebsocketClientProvider:
                 content_state=content_state,
                 position_seconds=position_seconds,
                 duration_seconds=duration_seconds,
-                speed=speed,
+                actual_speed=actual_speed,
                 refusal=refusal,
             ))
         elif msg_type == MessageType.AUDIO_DATA:
