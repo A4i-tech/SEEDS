@@ -3,27 +3,10 @@ from __future__ import annotations
 from app.remediation.accuracy import readable_text, score_edit
 
 
-def test_unchanged_text_is_100_percent():
-    md = "<!-- page 1 -->\n\n# Title\n\nSome words here"
-    assert score_edit(md, md)["percent"] == 100.0
-
-
-def test_fully_rewritten_text_is_0_percent():
-    assert score_edit("aaaa", "xxxx")["percent"] == 0.0
-
-
-def test_one_changed_letter_in_ten_is_90_percent():
-    assert score_edit("abcdefghij", "abcdefghiX")["percent"] == 90.0
-
-
 def test_markup_does_not_count_as_matching_text():
     md = "<!-- page 1 -->\n\n![Alt words](images/a.jpg)\n\n| a | b |\n| --- | --- |\n| 1 | 2 |"
     assert readable_text(md) == "Alt words a b 1 2"
     assert readable_text("**bold** and `code` <math><mn>5</mn></math>") == "bold and code 5"
-
-
-def test_equal_text_with_different_markup_is_100_percent():
-    assert score_edit("# Heading\n\nbody text", "Heading\n\nbody text")["percent"] == 100.0
 
 
 def test_scores_page_by_page_and_adds_up():

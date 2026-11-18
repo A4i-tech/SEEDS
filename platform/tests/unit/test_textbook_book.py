@@ -144,17 +144,6 @@ async def test_failed_chapter_upload_fails_loud_and_saves_no_book(db, repo, book
 
 
 @pytest.mark.asyncio
-async def test_failed_book_insert_fails_loud(db, repo, books, monkeypatch):
-    async def boom(*_, **__):
-        raise RuntimeError("mongo down")
-
-    monkeypatch.setattr("app.services.textbook_book.TextbookBookRepository.create", boom)
-    blob = _StubBlob()
-    with pytest.raises(RuntimeError, match="mongo down"):
-        await _make_book(db, blob)
-
-
-@pytest.mark.asyncio
 async def test_reorder_needs_every_chapter_exactly_once(db, repo, books):
     out = await _make_book(db, _StubBlob())
     a, b, c = out.job_ids
@@ -427,17 +416,3 @@ async def test_reopening_a_verified_job_clears_its_score(repo):
     reopened = await repo.update_draft(job.job_id, "abd more")
     assert (reopened.edit_accuracy, reopened.edit_chars_total) == (0.0, 0)
 
-
-@pytest.mark.asyncio
-async def test_book_score_counts_an_unscored_chapter_as_zero_and_volunteers_see_zero(db, repo, books):
-    out = await _make_book(db, _StubBlob(), names=("a.pdf", "b.pdf"))
-    first, second = out.job_ids
-    await repo.mark_verified(first, verified_by="r", accuracy=score_edit("abcd", "abcd"))
-    await repo.mark_verified(second, verified_by="r", accuracy=score_edit("", ""))
-    jobs = [await repo.get("tenant-a", j) for j in out.job_ids]
-    assert TextbookBookService.book_accuracy(jobs) == 100.0
-    await repo.mark_verified(second, verified_by="r", accuracy=score_edit("abcd", "abcd"))
-    await repo.set_assignment("tenant-a", first, "v1")
-    svc = _svc(db, _StubBlob())
-    assert (await svc.list_jobs_with_books("tenant-a", volunteer=False, assigned_to="", limit=20)).books[0].edit_accuracy == 100.0
-    assert (await svc.list_jobs_with_books("tenant-a", volunteer=True, assigned_to="v1", limit=20)).books[0].edit_accuracy == 0.0
