@@ -39,7 +39,9 @@ export function useRemediationUpload() {
     languagesError,
     upload: upload.mutateAsync,
     isUploading: upload.isPending,
-    uploadBook: uploadBook.mutateAsync,
+    uploadBook: uploadBook.mutate,
     isUploadingBook: uploadBook.isPending,
+    bookError: uploadBook.error?.message,
+    resetBookError: uploadBook.reset,
   };
 }

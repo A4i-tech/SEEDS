@@ -164,7 +164,7 @@ describe('JobsScreen delete', () => {
   })
 
   it('opens a course sync on its progress page', async () => {
-    vi.mocked(getRemediationJobs).mockResolvedValue([])
+    vi.mocked(getRemediationJobsAndBooks).mockResolvedValue({ jobs: [], books: [] })
     renderWithProviders(<JobsScreen />)
     fireEvent.click(await screen.findByRole('button', { name: 'View' }))
     expect(navigate).toHaveBeenCalledWith({ to: '/jobs/$jobId', params: { jobId: 'sync-1' } })

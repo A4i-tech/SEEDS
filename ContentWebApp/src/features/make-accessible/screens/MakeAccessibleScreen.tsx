@@ -1,6 +1,5 @@
-import { Alert, Anchor, Button, Group, Paper, Select, SimpleGrid, Stack, Text, TextInput } from '@mantine/core';
+import { Alert, Button, Group, Paper, Select, SimpleGrid, Stack, Text, TextInput } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
-import { useNavigate } from '@tanstack/react-router';
 import { CircleAlert, Upload } from 'lucide-react';
 import { useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -38,15 +37,13 @@ export function MakeAccessibleScreen() {
 
 function UploadForm() {
   const { t } = useTranslation();
-  const navigate = useNavigate();
-  const { languageOptions, languagesError, upload, isUploading, uploadBook, isUploadingBook } = useRemediationUpload();
+  const { languageOptions, languagesError, upload, isUploading, uploadBook, isUploadingBook, bookError, resetBookError } = useRemediationUpload();
   const [file, setFile] = useState<File | null>(null);
   const [items, setItems] = useState<OrganiserItem[]>([]);
   const [filesById, setFilesById] = useState<Record<string, File>>({});
   const [title, setTitle] = useState('');
   const [titleTouched, setTitleTouched] = useState(false);
   const [selectionError, setSelectionError] = useState('');
-  const [bookError, setBookError] = useState<string | null>(null);
   const [targetLanguage, setTargetLanguage] = useState('');
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -71,8 +68,7 @@ function UploadForm() {
   const selectFiles = (incoming: FileList) => {
     const picked = Array.from(incoming);
     setSelectionError('');
-    setBookError(null);
-    if (picked.length === 0) return;
+    resetBookError();
     if (picked.length === 1) {
       selectSingle(picked[0]);
       return;
@@ -104,7 +100,7 @@ function UploadForm() {
   };
 
   const changeItems = (next: OrganiserItem[]) => {
-    setBookError(null);
+    resetBookError();
     if (next.length === 1) {
       selectSingle(filesById[next[0].id]);
       browseRef.current?.focus();
@@ -118,33 +114,24 @@ function UploadForm() {
     try {
       await upload({ file, targetLanguage });
     } catch {
-      return; // the hook already showed the error
+      return;
     }
     setFile(null);
   };
 
-  const handleUploadBook = async () => {
+  const handleUploadBook = () => {
     setTitleTouched(true);
-    setBookError(null);
     if (titleBlank) return;
     const count = items.length;
-    try {
-      await uploadBook({ files: bookFiles, title: title.trim(), targetLanguage });
-    } catch (err) {
-      setBookError((err as Error).message);
-      return;
-    }
-    clearBook();
-    notifications.show({
-      message: (
-        <Group gap="xs">
-          <Text span>{t('makeAccessible.bookQueued', { count })}</Text>
-          <Anchor component="button" type="button" onClick={() => void navigate({ to: '/jobs' })}>
-            {t('makeAccessible.bookQueuedLink')}
-          </Anchor>
-        </Group>
-      ),
-    });
+    uploadBook(
+      { files: bookFiles, title: title.trim(), targetLanguage },
+      {
+        onSuccess: () => {
+          clearBook();
+          notifications.show({ message: t('makeAccessible.bookQueued', { count }) });
+        },
+      },
+    );
   };
 
   const tooBig = isBook ? bookFiles.some(isTooBig) : file !== null && isTooBig(file);
@@ -223,7 +210,7 @@ function UploadForm() {
             onChange={(e) => setTitle(e.currentTarget.value)}
             onBlur={() => setTitleTouched(true)}
           />
-          {bookError !== null && (
+          {bookError && (
             <Alert color="red" role="alert">
               {bookError} {t('makeAccessible.bookFailed')}
             </Alert>

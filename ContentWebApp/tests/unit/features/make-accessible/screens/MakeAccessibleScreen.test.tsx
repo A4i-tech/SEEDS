@@ -149,12 +149,7 @@ describe('MakeAccessibleScreen', () => {
     expect(screen.queryByRole('listitem')).toBeNull()
     expect(screen.queryByRole('textbox', { name: /Book name/ })).toBeNull()
 
-    const { message } = vi.mocked(notifications.show).mock.calls[0][0]
-    renderWithProviders(<>{message}</>)
-    expect(screen.getByText(i18n.t('makeAccessible.bookQueued', { count: 2 }))).toBeInTheDocument()
-    navigate.mockClear()
-    await userEvent.click(screen.getByRole('button', { name: i18n.t('makeAccessible.bookQueuedLink') }))
-    expect(navigate).toHaveBeenCalledWith({ to: '/jobs' })
+    expect(notifications.show).toHaveBeenCalledWith({ message: i18n.t('makeAccessible.bookQueued', { count: 2 }) })
   })
 
   it('switches to the one-file flow and focuses Choose PDF files when one row is left', async () => {

@@ -1,3 +1,4 @@
+import { notifications } from '@mantine/notifications'
 import { waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -8,6 +9,7 @@ import { getActiveSyncJobs, getSyncJobs } from '@features/jobs/api/syncJobs'
 
 import { renderHookWithProviders } from '../../../test-utils/renderWithProviders'
 
+vi.mock('@mantine/notifications', () => ({ notifications: { show: vi.fn() } }))
 vi.mock('@features/jobs/api/remediationJobs', () => ({ getRemediationJobsAndBooks: vi.fn() }))
 vi.mock('@features/jobs/api/syncJobs', () => ({
   getSyncJobs: vi.fn(),
@@ -55,6 +57,27 @@ describe('useJobs', () => {
     vi.mocked(getRemediationJobsAndBooks).mockResolvedValue({ jobs: [job()], books: [] })
     renderHookWithProviders(() => useJobs())
     await waitFor(() => expect(getRemediationJobsAndBooks).toHaveBeenCalledWith(200))
+  })
+
+  it('notifies when a book has chapters outside the loaded jobs', async () => {
+    vi.mocked(getRemediationJobsAndBooks).mockResolvedValue({
+      jobs: [job()],
+      books: [{ ...books[0], job_ids: ['job-1', 'job-9', 'job-10'] }],
+    })
+    renderHookWithProviders(() => useJobs())
+    await waitFor(() =>
+      expect(notifications.show).toHaveBeenCalledWith({
+        color: 'red',
+        message: 'Atlas is missing 2 chapters from the latest jobs, so it may look incomplete',
+      }),
+    )
+  })
+
+  it('stays quiet when every chapter is loaded', async () => {
+    vi.mocked(getRemediationJobsAndBooks).mockResolvedValue({ jobs: [job()], books })
+    const { result } = renderHookWithProviders(() => useJobs())
+    await waitFor(() => expect(result.current.status).toBe('done'))
+    expect(notifications.show).not.toHaveBeenCalled()
   })
 
   it('surfaces a failed listing', async () => {

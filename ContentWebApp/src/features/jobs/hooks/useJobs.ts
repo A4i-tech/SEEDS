@@ -1,5 +1,8 @@
+import { useEffect } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore, useRole } from '@features/auth/store/useAuthStore';
+import { notifications } from '@mantine/notifications';
+import i18n from '@shared/i18n';
 import { combineStates, toApiState } from '@shared/utils/apiState';
 import { notifyApiError } from '@shared/utils/notifyApiError';
 import { assignRemediationJob, deleteRemediationJob, getRemediationJobsAndBooks } from '../api/remediationJobs';
@@ -68,6 +71,15 @@ export function useJobs() {
     enabled: syncEnabled,
     refetchInterval: 5000,
   });
+
+  useEffect(() => {
+    if (!remediation.data) return;
+    const loaded = new Set(remediation.data.jobs.map((job) => job.job_id));
+    remediation.data.books.forEach((book) => {
+      const count = book.job_ids.filter((id) => !loaded.has(id)).length;
+      if (count) notifications.show({ color: 'red', message: i18n.t('jobs.book.missingChapters', { title: book.title, count }) });
+    });
+  }, [remediation.data]);
 
   const state = combineStates({ remediation: toApiState(remediation), sync: toApiState(sync) });
   if (state.status !== 'done') return state;

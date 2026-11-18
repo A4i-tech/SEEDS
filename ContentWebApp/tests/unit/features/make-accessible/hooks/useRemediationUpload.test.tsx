@@ -60,27 +60,21 @@ describe('useRemediationUpload', () => {
     const { result } = renderHookWithProviders(() => useRemediationUpload())
     const files = [new File(['%PDF-'], 'a.pdf'), new File(['%PDF-'], 'b.pdf')]
 
-    await act(async () => {
-      await result.current.uploadBook({ files, title: 'Science', targetLanguage: 'ta' })
-    })
+    act(() => result.current.uploadBook({ files, title: 'Science', targetLanguage: 'ta' }))
 
+    await waitFor(() => expect(navigate).toHaveBeenCalledWith({ to: '/jobs' }))
     expect(vi.mocked(createBook).mock.calls[0].slice(0, 3)).toEqual([files, 'Science', 'ta'])
-    expect(navigate).toHaveBeenCalledWith({ to: '/jobs' })
     expect(notifications.show).not.toHaveBeenCalled()
   })
 
-  it('rejects a failed book upload without navigating', async () => {
+  it('exposes a failed book upload without navigating', async () => {
     vi.mocked(createBook).mockRejectedValue(new Error('Too many chapters'))
     const { result } = renderHookWithProviders(() => useRemediationUpload())
 
-    await act(async () => {
-      await expect(
-        result.current.uploadBook({ files: [new File(['x'], 'a.pdf')], title: 'Science', targetLanguage: '' }),
-      ).rejects.toThrow('Too many chapters')
-    })
+    act(() => result.current.uploadBook({ files: [new File(['x'], 'a.pdf')], title: 'Science', targetLanguage: '' }))
 
+    await waitFor(() => expect(result.current.bookError).toBe('Too many chapters'))
     expect(navigate).not.toHaveBeenCalled()
-    await waitFor(() => expect(result.current.isUploadingBook).toBe(false))
   })
 
   it('exposes the language options', async () => {

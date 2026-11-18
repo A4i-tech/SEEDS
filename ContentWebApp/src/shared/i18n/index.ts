@@ -114,6 +114,7 @@ void i18n.use(initReactI18next).init({
           book: {
             tag: 'Book',
             chapters: '{{count}} chapters',
+            missingChapters: '{{title}} is missing {{count}} chapters from the latest jobs, so it may look incomplete',
             toggle: 'Chapters of {{title}}',
             verifiedOf: '{{verified}} of {{total}} verified',
             progress: 'Chapters verified',
@@ -441,7 +442,6 @@ void i18n.use(initReactI18next).init({
           uploadBook: 'Upload {{count}} PDFs as one book',
           uploadingBook: 'Uploading book…',
           bookQueued: 'Queued {{count}} PDFs as one book',
-          bookQueuedLink: 'Go to Jobs',
           bookFailed: 'The book was not uploaded. Your files and order are kept. Fix the problem and try again.',
           volunteerNote: 'Volunteers cannot upload textbooks. You see the chapters assigned to you.',
           uploaded: 'Upload started: {{name}}. Track progress in Jobs.',

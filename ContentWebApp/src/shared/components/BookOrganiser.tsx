@@ -17,7 +17,7 @@ interface BookOrganiserProps {
   allowRemove: boolean;
 }
 
-// oxlint-disable-next-line react/only-export-components -- callers sort items outside the component
+// oxlint-disable-next-line react/only-export-components
 export const sortByName = (items: OrganiserItem[]) =>
   [...items].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
 
@@ -31,7 +31,6 @@ export function BookOrganiser({ items, onChange, allowRemove }: BookOrganiserPro
   const pendingFocus = useRef<{ id: string; actions: Action[] } | null>(null);
   const total = items.length;
 
-  // Moving DOM nodes drops focus.
   useEffect(() => {
     if (!pendingFocus.current) return;
     const { id, actions } = pendingFocus.current;
@@ -123,7 +122,6 @@ export function BookOrganiser({ items, onChange, allowRemove }: BookOrganiserPro
                 ...(dropTarget && { borderTop: '4px solid var(--seeds-btn-primary-bg)' }),
               }}
               draggable
-              data-dragging={dragFrom === index || undefined}
               data-drop-target={dropTarget || undefined}
               aria-describedby={tooBig ? problemId : undefined}
               onKeyDown={(event) => handleKeyDown(event, index)}
