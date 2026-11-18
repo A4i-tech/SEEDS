@@ -195,7 +195,7 @@ describe('JobsScreen download all', () => {
   })
 
   it('downloads every available artifact from the Download all item', async () => {
-    vi.mocked(getRemediationJobs).mockResolvedValue([{ ...remediation, artifacts: { docx: 'u', pdf: 'u' } }])
+    vi.mocked(getRemediationJobsAndBooks).mockResolvedValue({ jobs: [{ ...remediation, artifacts: { docx: 'u', pdf: 'u' } }], books: [] })
     renderWithProviders(<JobsScreen />)
     await screen.findByText('book.pdf')
     fireEvent.click(screen.getByRole('button', { name: 'Download' }))
@@ -204,7 +204,7 @@ describe('JobsScreen download all', () => {
   })
 
   it('offers no Download all when there is a single artifact', async () => {
-    vi.mocked(getRemediationJobs).mockResolvedValue([{ ...remediation, artifacts: { docx: 'u' } }])
+    vi.mocked(getRemediationJobsAndBooks).mockResolvedValue({ jobs: [{ ...remediation, artifacts: { docx: 'u' } }], books: [] })
     renderWithProviders(<JobsScreen />)
     await screen.findByText('book.pdf')
     fireEvent.click(screen.getByRole('button', { name: 'Download' }))

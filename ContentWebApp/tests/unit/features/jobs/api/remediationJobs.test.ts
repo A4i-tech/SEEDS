@@ -16,6 +16,8 @@ const job = {
   draft_remediated_md: '',
   error: '',
   translation_error: '',
+  language: '',
+  detected_language: '',
   artifacts: {},
   stage_index: 3,
   stage_count: 3,
