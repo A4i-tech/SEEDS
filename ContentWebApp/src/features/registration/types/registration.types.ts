@@ -57,6 +57,10 @@ export const volunteerRegisterSchema = z.object({
 
 export type VolunteerRegister = z.infer<typeof volunteerRegisterSchema>;
 
+export const volunteerSchema = z.object({ id: z.string(), name: z.string(), email: text });
+
+export type Volunteer = z.infer<typeof volunteerSchema>;
+
 export const teacherUpdateSchema = z.object({
   name: z.string(),
   phone_number: phoneNumber,
@@ -116,4 +120,5 @@ export const registrationKeys = {
   students: ['registration', 'students'] as const,
   teachers: ['registration', 'teachers'] as const,
   schools: ['registration', 'schools'] as const,
+  volunteers: ['registration', 'volunteers'] as const,
 };
