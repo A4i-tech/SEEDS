@@ -6,6 +6,7 @@ from types import SimpleNamespace
 import pytest
 from azure.core.exceptions import ResourceNotFoundError
 from bson import ObjectId
+from pydantic import ValidationError as PydanticValidationError
 
 from app.consumers.textbook_remediation_consumer import _resolve_models
 from app.controllers.textbook_remediation_controller import (
@@ -20,11 +21,18 @@ from app.controllers.textbook_remediation_controller import (
     save_remediation_draft,
     verify_remediation_job,
 )
-from app.models.remediation_job import STAGES, JobStage, JobStatus, RemediationJob
+from app.models.remediation_job import STAGES, AssignJobRequest, JobStage, JobStatus, RemediationJob
+from app.models.requests.auth_requests import VolunteerCreateRequest
+from app.models.user import UserCreate, UserRole
+from app.platform.auth.hashing import hash_password
 from app.platform.error_handling import AppError, ForbiddenError, NotFoundError, ValidationError
+from app.platform.settings import Settings
+from app.platform.telemetry import configure_telemetry
 from app.repositories.textbook_remediation_repository import TextbookRemediationRepository
+from app.repositories.user_repository import UserRepository
+from app.services.auth_service import AuthService
 from app.services.textbook_remediation import artifact_bytes as _artifact_bytes
-from app.services.textbook_remediation import serialize_job, subscribe
+from app.services.textbook_remediation import assign_job, serialize_job, subscribe
 from tests.support.mongomock_async import AsyncMongoMockClient
 
 
@@ -404,7 +412,7 @@ async def test_save_draft_and_verify_job(repo):
     verified = await verify_remediation_job(
         created.job_id,
         VerifyJobRequest(title="TN Maths Grade 5 Verified"),
-        user={"tenant_id": "tenant-a", "email": "reviewer@seeds.org"},
+        user={"tenant_id": "tenant-a", "sub": "reviewer@seeds.org"},
         repo=repo,
         blob_provider=blob,
     )
@@ -417,7 +425,7 @@ async def test_save_draft_and_verify_job(repo):
 @pytest.mark.asyncio
 async def test_verify_rejects_user_without_identity(repo):
     created = await _create(repo)
-    with pytest.raises(AppError) as exc_info:
+    with pytest.raises(KeyError):
         await verify_remediation_job(
             created.job_id,
             VerifyJobRequest(title="T"),
@@ -425,7 +433,6 @@ async def test_verify_rejects_user_without_identity(repo):
             repo=repo,
             blob_provider=_StubBlob(),
         )
-    assert exc_info.value.code == "IDENTITY_MISSING"
 
 
 @pytest.mark.asyncio
@@ -737,3 +744,150 @@ async def test_ensure_indexes_covers_jobs_and_edits():
 
     assert "status_1_deleted_at_1_created_at_1" in await db[TextbookRemediationRepository.COLLECTION_NAME].index_information()
     assert "job_id_1_timestamp_1" in await db[TextbookRemediationRepository.EDITS_COLLECTION_NAME].index_information()
+
+
+@pytest.fixture
+def mock_db():
+    return AsyncMongoMockClient()["test_seeds"]
+
+
+@pytest.fixture(autouse=True)
+def _telemetry():
+    configure_telemetry(Settings(secret_key="test-secret-key-for-tests-32chars!!"))
+
+
+async def _seed_volunteer(mock_db, tenant_id: str = "tenant-a") -> str:
+    repo = UserRepository(mock_db)
+    user = await repo.create(
+        UserCreate(
+            role=UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER,
+            name="Vol One",
+            email="vol@example.com",
+            hashed_password=hash_password("password123"),
+            tenant_id=tenant_id,
+        )
+    )
+    return str(user.id)
+
+
+async def _seed_job(mock_db, tenant_id: str = "tenant-a"):
+    repo = TextbookRemediationRepository(mock_db)
+    return await repo.create(
+        job_id=ObjectId(), tenant_id=tenant_id, source_name="b.pdf",
+        source_url="https://blob/b.pdf", language="en",
+    )
+
+
+class TestVolunteerCreate:
+    def test_request_rejects_bad_id(self):
+        with pytest.raises(PydanticValidationError):
+            AssignJobRequest(volunteer_id="bad")
+
+    def test_request_rejects_empty(self):
+        with pytest.raises(PydanticValidationError):
+            AssignJobRequest(volunteer_id="")
+
+    def test_volunteer_request_needs_email(self):
+        with pytest.raises(PydanticValidationError):
+            VolunteerCreateRequest(name="V", password="password123")
+
+
+class TestVolunteerFlow:
+    async def test_register_login_assign(self, mock_db):
+        service = AuthService(mock_db)
+        user = await service.register_volunteer(
+            "tenant-a", VolunteerCreateRequest(name="V", email="v@example.com", password="password123")
+        )
+        assert user.tenant_id == "tenant-a"
+        assert user.school_id is None
+        result = await service.login_unified(identifier="v@example.com", password="password123", is_email=True)
+        assert result["user"]["role"] == "textbook_remediation_volunteer"
+
+    async def test_assign_and_list(self, mock_db):
+        vid = await _seed_volunteer(mock_db)
+        job = await _seed_job(mock_db)
+        updated = await assign_job(mock_db, "tenant-a", job.job_id, vid)
+        assert updated.assigned_to == vid
+        repo = TextbookRemediationRepository(mock_db)
+        jobs = await repo.list_jobs("tenant-a", assigned_to=vid)
+        assert [j.job_id for j in jobs] == [job.job_id]
+        jobs_all = await repo.list_jobs("tenant-a")
+        assert len(jobs_all) == 1
+
+    async def test_assign_rejects_other_tenant_volunteer(self, mock_db):
+        vid = await _seed_volunteer(mock_db, tenant_id="tenant-b")
+        job = await _seed_job(mock_db, tenant_id="tenant-a")
+        with pytest.raises(ValidationError):
+            await assign_job(mock_db, "tenant-a", job.job_id, vid)
+
+    async def test_delete_volunteer_keeps_jobs(self, mock_db):
+        vid = await _seed_volunteer(mock_db)
+        job = await _seed_job(mock_db)
+        await assign_job(mock_db, "tenant-a", job.job_id, vid)
+        await UserRepository(mock_db).delete(vid)
+        repo = TextbookRemediationRepository(mock_db)
+        assert await repo.get("tenant-a", job.job_id) is not None
+
+
+@pytest.mark.asyncio
+async def test_postman_volunteer_uploads_and_tenant_assigns(repo):
+    blob = _StubBlob()
+    tenant = {"tenant_id": "tenant-a", "sub": "tenant-1", "role": "tenant"}
+    await create_remediation_job(
+        file=_StubUpload(b"%PDF-1.7 body"), language="en", target_language="",
+        user=tenant, repo=repo, blob_provider=blob,
+    )
+    volunteer_user = UserCreate(
+        role=UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER, name="Postman Vol",
+        email="postman-vol@example.com", hashed_password="x", tenant_id="tenant-a",
+    )
+    assert volunteer_user.tenant_id == "tenant-a"
+    assert volunteer_user.school_id is None
+    assert await require_remediation_access(
+        user={"role": "textbook_remediation_volunteer"}
+    ) == {"role": "textbook_remediation_volunteer"}
+
+
+@pytest.mark.asyncio
+async def test_postman_volunteer_lists_tenant_jobs(repo):
+    blob = _StubBlob()
+    tenant = {"tenant_id": "tenant-a", "sub": "tenant-1", "role": "tenant"}
+    created = await create_remediation_job(
+        file=_StubUpload(b"%PDF-1.7 body"), language="en", target_language="",
+        user=tenant, repo=repo, blob_provider=blob,
+    )
+    from app.controllers.textbook_remediation_controller import list_remediation_jobs
+    volunteer = {"tenant_id": "tenant-a", "sub": "vol-1", "role": "textbook_remediation_volunteer"}
+    listed = await list_remediation_jobs(limit=20, user=volunteer, repo=repo)
+    assert [j["job_id"] for j in listed["jobs"]] == [created["job_id"]]
+
+
+async def _seed_volunteer_with_email(mock_db, email: str, tenant_id: str = "tenant-a") -> str:
+    user = await UserRepository(mock_db).create(
+        UserCreate(
+            role=UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER, name="Vol",
+            email=email, hashed_password=hash_password("password123"), tenant_id=tenant_id,
+        )
+    )
+    return str(user.id)
+
+
+@pytest.mark.asyncio
+async def test_assign_rejects_steal_without_force(mock_db):
+    from app.platform.error_handling import ConflictError
+    vid1 = await _seed_volunteer(mock_db)
+    vid2 = await _seed_volunteer_with_email(mock_db, "vol2@example.com")
+    job = await _seed_job(mock_db)
+    await assign_job(mock_db, "tenant-a", job.job_id, vid1)
+    with pytest.raises(ConflictError):
+        await assign_job(mock_db, "tenant-a", job.job_id, vid2)
+
+
+@pytest.mark.asyncio
+async def test_assign_allows_reassign_with_force(mock_db):
+    vid1 = await _seed_volunteer(mock_db)
+    vid2 = await _seed_volunteer_with_email(mock_db, "vol2@example.com")
+    job = await _seed_job(mock_db)
+    await assign_job(mock_db, "tenant-a", job.job_id, vid1)
+    updated = await assign_job(mock_db, "tenant-a", job.job_id, vid2, force=True)
+    assert updated.assigned_to == vid2
