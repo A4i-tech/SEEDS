@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { toApiState } from '@shared/utils/apiState';
 import { getArtifactMarkdown, getSourcePage, getSourcePdf, reviewKeys } from '../api/review';
 import { pageContent, splitIntoPages, toPlainText } from '../utils/remediationPages';
+import type { FrameSync } from '../hooks/useSyncedScroll';
 import { ReviewFrame } from './ReviewFrame';
 
 function useObjectUrl(blob: Blob | undefined) {
@@ -60,11 +61,13 @@ export function OriginalScan({
   pageIndex,
   pageNum,
   hasPageImages,
+  sync,
 }: {
   jobId: string;
   pageIndex: number;
   pageNum: number;
   hasPageImages: boolean;
+  sync: FrameSync;
 }) {
   const { t } = useTranslation();
   const [showOcr, setShowOcr] = useState(false);
@@ -76,7 +79,7 @@ export function OriginalScan({
           {showOcr ? t('review.showScan') : t('review.showOcr')}
         </Button>
       </Group>
-      <ReviewFrame label={t('review.scanTitle')}>
+      <ReviewFrame label={t('review.scanTitle')} sync={sync}>
         {showOcr && <OcrText jobId={jobId} pageIndex={pageIndex} />}
         {!showOcr && hasPageImages && <ScanImage jobId={jobId} pageNum={pageNum} />}
         {!showOcr && !hasPageImages && <ScanPdf jobId={jobId} pageNum={pageNum} />}

@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { useBlocker, useParams } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
 import { useReviewRemediate } from '../hooks/useReviewRemediate';
+import { useSyncedScroll } from '../hooks/useSyncedScroll';
 import { DraftPage } from '../components/DraftPage';
 import { OriginalScan } from '../components/OriginalScan';
 import { ReviewFrame } from '../components/ReviewFrame';
@@ -19,11 +20,17 @@ export function ReviewRemediateScreen() {
   const [text, setText] = useState<string | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
   const [pageIdx, setPageIdx] = useState(0);
+  const scroll = useSyncedScroll();
   const base = state.status === 'done' ? state.data.job.draft_remediated_md || state.data.corrected : '';
   const current = text ?? base;
   const dirty = current !== (saved ?? base);
   const pages = useMemo(() => splitIntoPages(current), [current]);
   const pageNum = pages[pageIdx]?.pageNum ?? pageIdx + 1;
+
+  const goToPage = (idx: number) => {
+    setPageIdx(idx);
+    scroll.reset();
+  };
 
   const shouldBlock = () => dirty && !approve.isPending;
   useBlocker({ shouldBlockFn: shouldBlock, enableBeforeUnload: shouldBlock });
@@ -81,6 +88,7 @@ export function ReviewRemediateScreen() {
                 pageIndex={pageIdx}
                 pageNum={pageNum}
                 hasPageImages={state.data.job.source_page_count > 0}
+                sync={scroll.frame(0)}
               />
             </Grid.Col>
             <Grid.Col span={{ base: 12, md: 6 }}>
@@ -90,13 +98,13 @@ export function ReviewRemediateScreen() {
                   {nextFlagged !== undefined && (
                     <Group gap="xs">
                       <Text size="sm">{t('review.pagesNeedCheck', { count: flaggedIdx.length })}</Text>
-                      <Button variant="subtle" size="compact-sm" onClick={() => setPageIdx(nextFlagged)}>
+                      <Button variant="subtle" size="compact-sm" onClick={() => goToPage(nextFlagged)}>
                         {t('review.nextFlagged')}
                       </Button>
                     </Group>
                   )}
                 </Group>
-                <ReviewFrame label={t('review.draft')}>
+                <ReviewFrame label={t('review.draft')} sync={scroll.frame(1)}>
                   <Stack gap="md">
                     {pageFlags.map((flag) => (
                       <Alert key={flag.id} role="note">
@@ -115,7 +123,7 @@ export function ReviewRemediateScreen() {
               </Stack>
             </Grid.Col>
           </Grid>
-          <Pagination total={pages.length} value={pageIdx + 1} onChange={(page) => setPageIdx(page - 1)} />
+          <Pagination total={pages.length} value={pageIdx + 1} onChange={(page) => goToPage(page - 1)} />
         </>
       )}
     </Stack>

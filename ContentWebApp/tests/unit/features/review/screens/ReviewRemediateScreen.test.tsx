@@ -122,4 +122,19 @@ describe('ReviewRemediateScreen', () => {
     expect(options.shouldBlockFn()).toBe(false)
     expect(options.enableBeforeUnload()).toBe(false)
   })
+
+  it('scrolls the draft when the original scan is scrolled', async () => {
+    vi.mocked(getReviewJob).mockResolvedValue(job)
+    renderWithProviders(<ReviewRemediateScreen />)
+    await screen.findByText('book.pdf')
+    const scan = await screen.findByRole('region', { name: 'Original scan' })
+    const draft = screen.getByRole('region', { name: 'Draft' })
+    Object.defineProperty(scan, 'scrollHeight', { value: 1500, configurable: true })
+    Object.defineProperty(scan, 'clientHeight', { value: 500, configurable: true })
+    Object.defineProperty(draft, 'scrollHeight', { value: 2500, configurable: true })
+    Object.defineProperty(draft, 'clientHeight', { value: 500, configurable: true })
+    scan.scrollTop = 500
+    fireEvent.scroll(scan)
+    expect(draft.scrollTop).toBe(1000)
+  })
 })
