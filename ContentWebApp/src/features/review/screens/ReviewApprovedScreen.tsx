@@ -1,6 +1,7 @@
 import { Button, Group, Stack, Text } from '@mantine/core';
 import { useLocation, useNavigate } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
+import { AppBreadcrumbs } from '@shared/components/AppBreadcrumbs';
 import { PageTitle } from '@shared/components/PageTitle';
 
 declare module '@tanstack/history' {
@@ -16,7 +17,7 @@ export function ReviewApprovedScreen() {
 
   return (
     <Stack gap="md" maw={640}>
-      <Text variant="eyebrow">{t('review.title')}</Text>
+      <AppBreadcrumbs crumbs={[{ label: t('review.title'), to: '/review' }, { label: t('review.approvedTitle') }]} />
       <PageTitle title={t('review.approvedTitle')} />
       {state.title && <Text variant="rowTitle">{state.title}</Text>}
       <Text c="dimmed">{t('review.approvedBody')}</Text>

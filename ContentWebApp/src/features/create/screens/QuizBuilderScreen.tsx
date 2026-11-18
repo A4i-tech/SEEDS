@@ -10,7 +10,7 @@ import { ComingSoon } from '@shared/components/ComingSoon';
 import { LocalizedFields } from '../components/LocalizedFields';
 import { useCreateQuiz } from '../hooks/useCreateQuiz';
 import { localizedFieldsSchema, requireLocal, toLocalizedFields } from '../utils/localized';
-import { BackLink } from '@shared/components/BackLink';
+import { AppBreadcrumbs } from '@shared/components/AppBreadcrumbs';
 import { PageTitle } from '@shared/components/PageTitle';
 
 const starterSchema = z.enum(['blank', 'ai', 'source']);
@@ -56,7 +56,7 @@ export function QuizBuilderScreen() {
 
   return (
     <Stack gap="md">
-      <BackLink to="/create" label={t('create.back')} />
+      <AppBreadcrumbs crumbs={[{ label: t('nav.create'), to: '/create' }, { label: t('create.quizTitle') }]} />
       <PageTitle title={t('create.quizTitle')} />
       <SegmentedControl
         orientation={isMobile ? 'vertical' : 'horizontal'}

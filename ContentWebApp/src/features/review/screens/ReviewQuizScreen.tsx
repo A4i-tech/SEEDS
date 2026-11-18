@@ -5,7 +5,7 @@ import { CONTENT_UI } from '@features/library/types/content.types';
 import type { ContentItem } from '@features/library/types/content.types';
 import { QuizPreview } from '@features/library/components/ContentPreview';
 import { useReviewQuiz } from '../hooks/useReviewQuiz';
-import { BackLink } from '@shared/components/BackLink';
+import { AppBreadcrumbs } from '@shared/components/AppBreadcrumbs';
 import { PageTitle } from '@shared/components/PageTitle';
 
 export function ReviewQuizScreen() {
@@ -16,7 +16,7 @@ export function ReviewQuizScreen() {
 
   return (
     <Stack gap="md">
-      <BackLink to="/review" label={t('review.title')} />
+      <AppBreadcrumbs crumbs={[{ label: t('review.title'), to: '/review' }, { label: t('review.quizTitle') }]} />
       <Text variant="eyebrow">{t('review.quizEyebrow')}</Text>
       <PageTitle title={t('review.quizTitle')} />
       <Text c="dimmed">{t('review.quizHint')}</Text>

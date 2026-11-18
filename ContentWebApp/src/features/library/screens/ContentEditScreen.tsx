@@ -11,7 +11,7 @@ import { getContentById, updateContent } from '../api/library';
 import { getUploadSasUrl, uploadMp3ToSasUrl } from '@features/create/api/content';
 import { CONTENT_UI, contentUpdateSchema, libraryKeys } from '../types/content.types';
 import type { ContentItem, ContentUpdate } from '../types/content.types';
-import { BackLink } from '@shared/components/BackLink';
+import { AppBreadcrumbs } from '@shared/components/AppBreadcrumbs';
 import { PageTitle } from '@shared/components/PageTitle';
 
 type EditValues = {
@@ -131,7 +131,7 @@ export function ContentEditScreen() {
 
   return (
     <Stack gap="md" maw={640}>
-      <BackLink to="/library" label={t('library.title')} />
+      <AppBreadcrumbs crumbs={[{ label: t('library.title'), to: '/library' }, { label: t('library.editTitle') }]} />
       <PageTitle title={t('library.editTitle')} />
       <Text c="dimmed">{t('library.editHint')}</Text>
 

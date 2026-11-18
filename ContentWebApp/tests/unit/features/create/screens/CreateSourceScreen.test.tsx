@@ -6,6 +6,7 @@ import { CreateSourceScreen } from '@features/create/screens/CreateSourceScreen'
 
 vi.mock('@tanstack/react-router', () => ({
   useNavigate: () => vi.fn(),
+  Link: ({ to, children }: { to: string; children: React.ReactNode }) => <a href={to}>{children}</a>,
 }))
 
 vi.mock('@shared/services/languages', () => ({

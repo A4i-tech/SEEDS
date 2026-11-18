@@ -7,7 +7,7 @@ import { LoadError } from '@shared/components/LoadError';
 import { useLocalizeSites } from '../hooks/useLocalizeSites';
 import type { Website } from '../types/localize.types';
 import { PageTitle } from '@shared/components/PageTitle';
-import { BackLink } from '@shared/components/BackLink';
+import { AppBreadcrumbs } from '@shared/components/AppBreadcrumbs';
 import { commonFirst } from '../utils/languages';
 
 const statusValues = ['Active', 'Inactive'];
@@ -52,7 +52,7 @@ function SiteForm({ site }: { site: SiteDraft }) {
   return (
     <form onSubmit={handleSave}>
       <Stack gap="md" maw={640}>
-        <BackLink to="/localize" label={t('nav.localize')} />
+        <AppBreadcrumbs crumbs={[{ label: t('nav.localize'), to: '/localize' }, { label: t(edit ? 'localize.editTitle' : 'localize.addTitle') }]} />
         <PageTitle title={t(edit ? 'localize.editTitle' : 'localize.addTitle')} />
         <Text c="dimmed">{t('localize.addDescription')}</Text>
         <TextInput label={t('localize.name')} {...form.getInputProps('name')} />

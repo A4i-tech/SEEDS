@@ -160,6 +160,13 @@ describe('JobsScreen delete', () => {
     expect(navigate).toHaveBeenCalledWith({ to: '/make-accessible/$jobId', params: { jobId: 'job-1' } })
   })
 
+  it('opens a course sync on its progress page', async () => {
+    vi.mocked(getRemediationJobs).mockResolvedValue([])
+    renderWithProviders(<JobsScreen />)
+    fireEvent.click(await screen.findByRole('button', { name: 'View' }))
+    expect(navigate).toHaveBeenCalledWith({ to: '/jobs/$jobId', params: { jobId: 'sync-1' } })
+  })
+
   it('downloads an artifact from the row menu', async () => {
     vi.mocked(getRemediationJobs).mockResolvedValue([{ ...remediation, artifacts: { docx: 'u', translated_pdf: 'u' } }])
     vi.mocked(getSyncJobs).mockResolvedValue([])

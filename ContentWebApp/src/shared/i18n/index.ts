@@ -181,7 +181,6 @@ void i18n.use(initReactI18next).init({
           retry: 'Retry',
           view: 'View',
           edit: 'Edit',
-          done: 'Done',
           delete: 'Delete',
           readOnly: 'Read-only',
           readOnlyNote: 'Read-only. Use Edit to change text, audio, or platforms.',
@@ -209,6 +208,7 @@ void i18n.use(initReactI18next).init({
           noBlocks: 'No content blocks synced for this course.',
           syncCourse: 'Sync course',
           blockNoPreview: 'No preview available for this block type.',
+          blockInteractive: 'This is an interactive exercise — open it in Subodha to attempt it.',
           questionLabel: 'Question',
           choiceN: 'Choice {{n}}',
           save: 'Save',
@@ -240,7 +240,6 @@ void i18n.use(initReactI18next).init({
         },
         create: {
           title: 'Create',
-          back: 'Create',
           dropHint: 'Drag and drop an .mp3 file here, or choose a file',
           description: 'Ways to generate experiences. Blank form stays on Home / Library as + Add Content.',
           howToStart: 'How do you want to start?',

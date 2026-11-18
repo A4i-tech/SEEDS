@@ -68,7 +68,7 @@ test.describe('tenant password change', () => {
       await gotoLibrary(page);
       current = changedPassword;
     }
-    await page.goto('/account/settings');
+    await page.goto('/account/profile');
 
     try {
       if (current === canonical) {
@@ -80,7 +80,7 @@ test.describe('tenant password change', () => {
       }
     } finally {
       if (current === changedPassword) {
-        await page.goto('/account/settings');
+        await page.goto('/account/profile');
         await page.locator('input[type="password"]').nth(0).fill(changedPassword);
         await page.locator('input[type="password"]').nth(1).fill(canonical);
         await page.getByRole('button', { name: 'Save new password', exact: true }).click();
@@ -95,24 +95,24 @@ test.describe('tenant password change', () => {
 
     await login(page, PERSONAS['tenantPasswordTest']!.identifier, PERSONAS['tenantPasswordTest']!.password);
     await gotoLibrary(page);
-    await page.goto('/account/settings');
+    await page.goto('/account/profile');
 
     await page.locator('input[type="password"]').nth(0).fill(wrongCurrentPassword);
     await page.locator('input[type="password"]').nth(1).fill(attemptedNewPassword);
     await page.getByRole('button', { name: 'Save new password', exact: true }).click();
     await expect(page.getByText(/current password is incorrect/i)).toBeVisible({ timeout: 10000 });
-    expect(new URL(page.url()).pathname).toBe('/account/settings');
+    expect(new URL(page.url()).pathname).toBe('/account/profile');
   });
 
   test("TC-AUTH-009 fails when the new password is empty", async ({ page }) => {
     await login(page, PERSONAS['tenant']!.identifier, PERSONAS['tenant']!.password);
     await gotoLibrary(page);
-    await page.goto('/account/settings');
+    await page.goto('/account/profile');
 
     await page.locator('input[type="password"]').nth(0).fill(PERSONAS['tenant']!.password);
     await page.getByRole('button', { name: 'Save new password', exact: true }).click();
     await expect(page.getByText('Password changed successfully.')).toBeHidden({ timeout: 10000 });
-    expect(new URL(page.url()).pathname).toBe('/account/settings');
+    expect(new URL(page.url()).pathname).toBe('/account/profile');
   });
 });
 

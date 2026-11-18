@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { renderWithProviders } from '../../../test-utils/renderWithProviders'
@@ -39,20 +39,21 @@ describe('ReviewTextScreen', () => {
 
   it('shows the source name in the breadcrumb and never the job id', async () => {
     renderWithProviders(<ReviewTextScreen />)
-    expect(await screen.findByText('book.pdf')).toBeTruthy()
+    await screen.findByRole('heading', { name: 'book.pdf' })
+    expect(within(screen.getByRole('navigation')).getByText('book.pdf')).toBeTruthy()
     expect(screen.queryByText('job-1')).toBeNull()
   })
 
   it('renders the diff as plain text', async () => {
     renderWithProviders(<ReviewTextScreen />)
-    await screen.findByText('book.pdf')
+    await screen.findByRole('heading', { name: 'book.pdf' })
     expect(screen.getAllByRole('document')[0].textContent).not.toContain('<image')
   })
 
   it('marks removed and added lines in the read-only source pane', async () => {
     vi.mocked(getArtifactMarkdown).mockImplementation(async (_jobId, name) => (name === 'raw' ? 'old line' : 'new line'))
     renderWithProviders(<ReviewTextScreen />)
-    await screen.findByText('book.pdf')
+    await screen.findByRole('heading', { name: 'book.pdf' })
     const pane = screen.getByLabelText('Source (original, read-only)')
     expect(pane).toHaveTextContent('− old line')
     expect(pane).toHaveTextContent('+ new line')
@@ -61,7 +62,7 @@ describe('ReviewTextScreen', () => {
 
   it('labels the draft button Save draft and offers the formatting toolbar', async () => {
     renderWithProviders(<ReviewTextScreen />)
-    await screen.findByText('book.pdf')
+    await screen.findByRole('heading', { name: 'book.pdf' })
     expect(screen.getByRole('button', { name: 'Save draft' })).toBeTruthy()
     expect(await screen.findByRole('button', { name: 'Bold' })).toBeTruthy()
   })

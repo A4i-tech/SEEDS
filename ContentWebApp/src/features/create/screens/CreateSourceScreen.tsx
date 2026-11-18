@@ -9,6 +9,7 @@ import { DataTable } from '@shared/components/DataTable';
 import { LocalizedFields } from '../components/LocalizedFields';
 import { useCreateQuiz } from '../hooks/useCreateQuiz';
 import { localizedFieldsSchema, requireLocal, toLocalizedFields } from '../utils/localized';
+import { AppBreadcrumbs } from '@shared/components/AppBreadcrumbs';
 import { PageTitle } from '@shared/components/PageTitle';
 
 const pageNumber = z.string().transform((value) => (value === '' ? '0' : value));
@@ -82,6 +83,7 @@ export function CreateSourceScreen() {
       })}
     >
       <Stack gap="md">
+        <AppBreadcrumbs crumbs={[{ label: t('nav.create'), to: '/create' }, { label: t('create.sourceTitle') }]} />
         <PageTitle title={t('create.sourceTitle')} />
         <Text c="dimmed">{t('create.sourceHint')}</Text>
         <Paper p="md" radius="md">
