@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import IO
 
 from bson import ObjectId
+from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.remediation_job import (
     ARTIFACTS,
@@ -25,12 +26,14 @@ from app.models.responses.remediation import (
     RemediationJobResponse,
     ReviewSummaryResponse,
 )
-from app.platform.error_handling import NotFoundError, ValidationError
+from app.models.user import UserRole
+from app.platform.error_handling import ConflictError, NotFoundError, ValidationError
 from app.platform.settings import get_settings
 from app.providers.blob_storage import BlobStorageProvider
 from app.remediation.render import compile_docx_tex_pdf
 from app.remediation.translate import run_translation
 from app.repositories.textbook_remediation_repository import TextbookRemediationRepository
+from app.repositories.user_repository import UserRepository
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +66,7 @@ def serialize_job(job: RemediationJob) -> dict[str, object]:
         title=job.title,
         error=job.error,
         created_at=job.created_at,
+        assigned_to=job.assigned_to,
         finished_at=job.finished_at,
         target_language=job.target_language,
         translation_error=job.translation_error,
@@ -110,6 +114,40 @@ async def create_job(
         language=language,
         target_language=target_language,
     )
+
+
+async def assign_job(
+    db: AsyncDatabase,
+    tenant_id: str,
+    job_id: str,
+    volunteer_id: str,
+    force: bool = False,
+) -> RemediationJob:
+    repo = TextbookRemediationRepository(db)
+    user_repo = UserRepository(db)
+    volunteer = await user_repo.find_active_by_tenant_and_role(
+        tenant_id, volunteer_id, UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER.value
+    )
+    if volunteer is None:
+        raise ValidationError(
+            "volunteer_id must be an active textbook remediation volunteer in this tenant"
+        )
+
+    current = await repo.get(tenant_id, job_id)
+    if current is None:
+        raise NotFoundError("Remediation job", job_id)
+    if current.assigned_to and current.assigned_to != volunteer_id and not force:
+        raise ConflictError(f"job {job_id} is already assigned; pass force to reassign")
+
+    updated = await repo.set_assignment(tenant_id, job_id, volunteer_id)
+    if updated is None:
+        raise NotFoundError("Remediation job", job_id)
+    if force and current.assigned_to and current.assigned_to != volunteer_id:
+        logger.warning(
+            "remediation job reassigned",
+            extra={"job_id": job_id, "from": current.assigned_to, "to": volunteer_id},
+        )
+    return updated
 
 
 def _resolve_artifact(job: RemediationJob, name: str) -> tuple[ArtifactName, str]:

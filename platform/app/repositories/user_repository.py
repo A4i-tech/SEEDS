@@ -4,9 +4,11 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+from fastapi import Depends
 from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.user import User, UserCreate
+from app.platform.auth.dependencies import get_db
 from app.repositories.base_repository import BaseRepository
 
 
@@ -70,6 +72,20 @@ class UserRepository(BaseRepository):
         cursor = self._col.find({"tenant_id": self._to_id(tenant_id)})
         docs = await cursor.to_list(length=None)
         return [User.from_mongo(d) for d in docs]
+
+    async def find_active_by_tenant_and_role(
+        self, tenant_id: str, user_id: str, role: str
+    ) -> User | None:
+        """Find an active user scoped to a tenant and role."""
+        doc = await self._col.find_one(
+            {
+                "_id": self._to_id(user_id),
+                "tenant_id": self._to_id(tenant_id),
+                "role": role,
+                "is_active": True,
+            }
+        )
+        return User.from_mongo(doc) if doc else None
 
     async def find_all_by_role(self, role: str) -> list[User]:
         """Return every user with the given role."""
@@ -137,3 +153,7 @@ class UserRepository(BaseRepository):
         """Delete a user by _id. Returns True when a document was deleted."""
         result = await self._col.delete_one({"_id": self._to_id(id)})
         return result.deleted_count > 0
+
+
+def get_user_repository(db: AsyncDatabase = Depends(get_db)) -> UserRepository:
+    return UserRepository(db)
