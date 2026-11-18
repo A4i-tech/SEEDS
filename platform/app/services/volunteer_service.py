@@ -19,8 +19,10 @@ class VolunteerService:
 
     async def register_volunteer(self, tenant_id: str, body: VolunteerCreateRequest) -> User:
         existing = await self._users.find_by_email(body.email)
+
         if existing is not None:
             raise ConflictError(f"email {body.email}")
+
         return await self._users.create(
             UserCreate(
                 role=UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER,

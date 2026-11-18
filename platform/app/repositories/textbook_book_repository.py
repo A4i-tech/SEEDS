@@ -35,6 +35,7 @@ class TextbookBookRepository:
             "job_ids": job_ids, "created_at": datetime.now(UTC).isoformat(), "deleted_at": None, "built": {},
         }
         await self._col.insert_one(doc)
+
         return TextbookBook.from_doc(doc)
 
     async def get(self, tenant_id: str, book_id: str) -> TextbookBook | None:

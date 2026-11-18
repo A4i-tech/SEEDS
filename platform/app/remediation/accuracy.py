@@ -36,24 +36,32 @@ def percent(distance: int, length: int) -> float:
 def readable_text(markdown: str) -> str:
     text = _LINK.sub(r"\1", _COMMENT.sub("", markdown))
     text = _MARKS.sub(" ", _TAG.sub(" ", _RULE.sub("", text)))
+
     return unicodedata.normalize("NFC", _SPACE.sub(" ", text)).strip()
 
 
 def _pages(markdown: str) -> dict[str, str]:
     parts = _PAGE_MARKER.split(markdown)
     pages = {"0": parts[0]} if parts[0].strip() else {}
+
     for number, body in zip(parts[1::2], parts[2::2], strict=True):
         pages[number] = pages.get(number, "") + body
+
     return pages
 
 
 def score_edit(previous: str, new: str) -> Accuracy:
     before, after = _pages(previous), _pages(new)
+
     if before.keys() != after.keys():
         before, after = {"0": previous}, {"0": new}
+
     scores: list[PageScore] = []
+
     for page in sorted(before, key=int):
         a, b = readable_text(before[page]), readable_text(after[page])
         scores.append({"page": page, "distance": Levenshtein.distance(a, b), "length": max(len(a), len(b))})
+
     distance, length = sum(s["distance"] for s in scores), sum(s["length"] for s in scores)
+
     return {"percent": percent(distance, length), "distance": distance, "length": length, "pages": scores}

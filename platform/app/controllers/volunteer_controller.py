@@ -29,6 +29,7 @@ async def create_volunteer(
     service: VolunteerService = Depends(get_volunteer_service),
 ) -> UserPublicResponse:
     user = await service.register_volunteer(current_user["sub"], body)
+
     return UserPublicResponse.from_domain(user)
 
 
@@ -38,4 +39,5 @@ async def list_volunteers(
     service: VolunteerService = Depends(get_volunteer_service),
 ) -> list[UserPublicResponse]:
     users = await service.list_volunteers(current_user["sub"])
+
     return [UserPublicResponse.from_domain(u) for u in users]

@@ -8,6 +8,7 @@ from app.services.textbook_upload_validation import validate_language
 
 MAX_BOOK_FILES = 50
 
+
 class BuiltBook(BaseModel):
     fingerprint: str = ""
     artifacts: dict[str, str] = Field(default_factory=dict)

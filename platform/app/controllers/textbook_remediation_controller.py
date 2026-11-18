@@ -55,6 +55,7 @@ async def list_remediation_jobs(
 ) -> RemediationJobListResponse:
     tenant_id = str(user["tenant_id"])
     volunteer = user["role"] == UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER.value
+
     return await service.list_jobs_with_books(
         tenant_id, volunteer=volunteer, assigned_to=str(user["sub"]) if volunteer else "", limit=limit,
     )
@@ -85,6 +86,7 @@ async def stream_remediation_job(
     service: TextbookRemediationService = Depends(get_textbook_remediation_service),
 ) -> StreamingResponse:
     await service.require_job(user, job_id)
+
     return StreamingResponse(service.events(user, job_id), media_type="text/event-stream")
 
 
