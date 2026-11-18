@@ -68,10 +68,9 @@ export function LocalizeReviewScreen() {
   const { state: sitesState, sites, languages, languageName } = useLocalizeSites();
   const prefill = useSearch({ strict: false });
   const [stored, setStored] = useLocalStorage({ key: SCOPE_KEY, defaultValue: EMPTY_SCOPE, getInitialValueInEffect: false });
-  const [picked, setPicked] = useState<ReviewScope | null>(null);
-  const scope = picked ?? (prefill.siteId ? prefill : stored);
+  const [scope, setCurrent] = useState(prefill.siteId ? prefill : stored);
   const setScope = (next: ReviewScope) => {
-    setPicked(next);
+    setCurrent(next);
     setStored(next);
   };
   const site = sites.find((s) => s.site_id === scope.siteId) ?? sites[0];
@@ -135,6 +134,7 @@ function SiteReview({ site, sites, languages, languageName, scope, setScope }: S
     }
     openConfirmDialog({
       title: t('localize.approveAllTitle'),
+      body: t('localize.approveAllBody'),
       confirmLabel: t('localize.approveAll'),
       cancelLabel: t('dialog.cancel'),
       onConfirm: () => approveAll({ ids, whole: stage === 'all' && q === '' }),
