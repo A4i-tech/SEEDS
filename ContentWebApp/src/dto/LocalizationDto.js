@@ -29,8 +29,10 @@ export const buildSdkSnippet = (site) =>
 
 export const fromTranslationResponse = (doc) => {
   return {
-    ...doc,
     id: doc.id,
+    key: doc.key,
+    route: doc.route,
+    translations: doc.translations,
     siteId: doc.site_id,
     sourceText: doc.source_text,
     lowConfidence: doc.low_confidence,
@@ -62,3 +64,14 @@ export const toTranslationRejectRequest = ({ lang, reason = "" }) => ({ lang, re
 export const toExtractRequest = ({ siteId, items }) => ({ site_id: siteId, items });
 
 export const toBulkApproveRequest = ({ route, lang }) => ({ route, lang });
+
+export const toTranslationImportRequest = ({ lang, overwriteBlank, state, rows }) => ({
+  lang,
+  overwrite_blank: overwriteBlank,
+  state,
+  rows,
+});
+
+// A language with no entry yet is untranslated; its text is blank by definition.
+export const translatedText = (doc, lang) =>
+  lang in doc.translations ? doc.translations[lang].text : "";

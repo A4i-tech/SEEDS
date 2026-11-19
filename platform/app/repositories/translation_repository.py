@@ -8,11 +8,14 @@ from pymongo import UpdateOne
 from pymongo.asynchronous.database import AsyncDatabase
 from pymongo.results import BulkWriteResult
 
+from app.platform.error_handling import ValidationError
 from app.repositories.base_repository import BaseRepository
 
 logger = logging.getLogger(__name__)
 
 MAX_TRANSLATION_ROWS = 20_000
+IMPORT_PROVIDER = "Import"
+TM_PROVIDER = "TranslationMemory"
 
 
 class TranslationRepository(BaseRepository):
@@ -57,13 +60,19 @@ class TranslationRepository(BaseRepository):
     async def find_by_keys(self, site_id: str, keys: list[str]) -> list[dict[str, Any]]:
         return await self._col.find({"site_id": site_id, "key": {"$in": keys}}).to_list(length=None)
 
+    async def find_by_route_keys(
+        self, site_id: str, identities: list[tuple[str, str]]
+    ) -> list[dict[str, Any]]:
+        query = {"site_id": site_id, "$or": [{"route": route, "key": key} for route, key in identities]}
+        return await self._col.find(query).to_list(length=None)
+
     async def find_by_site(self, site_id: str, status: str | None = None) -> list[dict[str, Any]]:
         query: dict[str, Any] = {"site_id": site_id}
         if status:
             query["status"] = status
-        docs = await self._col.find(query).limit(MAX_TRANSLATION_ROWS).to_list(length=MAX_TRANSLATION_ROWS)
-        if len(docs) == MAX_TRANSLATION_ROWS:
-            logger.warning("find_by_site hit MAX_TRANSLATION_ROWS cap", extra={"site_id": site_id})
+        docs = await self._col.find(query).limit(MAX_TRANSLATION_ROWS + 1).to_list(length=MAX_TRANSLATION_ROWS + 1)
+        if len(docs) > MAX_TRANSLATION_ROWS:
+            raise ValidationError(f"Site has more than {MAX_TRANSLATION_ROWS} translations; narrow by route")
         return docs
 
     async def save_translation(
@@ -92,7 +101,7 @@ class TranslationRepository(BaseRepository):
         }
         if auto_approved:
             set_fields["status"] = "approved"
-            set_fields["approved_by"] = "system:TranslationMemory"
+            set_fields["approved_by"] = f"system:{TM_PROVIDER}"
             set_fields["approved_at"] = now
         await self._col.update_one(
             {"site_id": site_id, "route": route, "key": key},
@@ -127,9 +136,9 @@ class TranslationRepository(BaseRepository):
             logger.warning("get_analytics hit MAX_TRANSLATION_ROWS cap", extra={"site_id": site_id})
         for doc in docs:
             providers = {t.get("provider") for t in (doc.get("translations") or {}).values()}
-            if providers - {"TranslationMemory"}:
+            if providers - {TM_PROVIDER, IMPORT_PROVIDER}:
                 ai_generated += 1
-            if "TranslationMemory" in providers:
+            if TM_PROVIDER in providers:
                 tm_reused += 1
 
         return {
@@ -202,5 +211,5 @@ class TranslationRepository(BaseRepository):
 
         await self._col.update_one({"_id": self._to_id(translation_id)}, {"$set": set_fields})
 
-    async def bulk_approve(self, ops: list[UpdateOne]) -> BulkWriteResult:
+    async def bulk_write(self, ops: list[UpdateOne]) -> BulkWriteResult:
         return await self._col.bulk_write(ops, ordered=False)

@@ -8,7 +8,9 @@ import {
   toTranslationApproveRequest,
   toTranslationRejectRequest,
   toBulkApproveRequest,
+  toTranslationImportRequest,
   fromTranslationResponse,
+  translatedText,
 } from "../dto/LocalizationDto";
 
 const GENERATE_TIMEOUT_MS = 5 * 60 * 1000;
@@ -51,6 +53,13 @@ export const translationService = {
       headers: getAuthHeaders(),
     });
     return response.map(fromTranslationResponse);
+  },
+
+  async listForReview({ siteId, route, lang }) {
+    const docs = await this.listTranslations({ siteId, route });
+    if (!lang || docs.every((doc) => translatedText(doc, lang))) return docs;
+    await this.generateForReview({ siteId, route, lang });
+    return this.listTranslations({ siteId, route });
   },
 
   async getTranslation(id) {
@@ -96,11 +105,23 @@ export const translationService = {
   },
 
   async bulkApproveTranslations({ siteId, route, lang }) {
-    return request(`${SEEDS_URL}/translations/bulk-approve?${buildQueryString({ site_id: siteId })}`, {
+    return request(
+      `${SEEDS_URL}/translations/bulk-approve?${buildQueryString({ site_id: siteId })}`,
+      {
+        timeoutMs: GENERATE_TIMEOUT_MS,
+        method: "POST",
+        headers: getAuthHeaders(),
+        body: JSON.stringify(toBulkApproveRequest({ route, lang })),
+      }
+    );
+  },
+
+  async importTranslations({ siteId, lang, overwriteBlank, state, rows }) {
+    return request(`${SEEDS_URL}/translations/import?${buildQueryString({ site_id: siteId })}`, {
       timeoutMs: GENERATE_TIMEOUT_MS,
       method: "POST",
       headers: getAuthHeaders(),
-      body: JSON.stringify(toBulkApproveRequest({ route, lang })),
+      body: JSON.stringify(toTranslationImportRequest({ lang, overwriteBlank, state, rows })),
     });
   },
 };

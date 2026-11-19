@@ -257,7 +257,7 @@ test("approved translations are rendered via swapText", async () => {
         hash = (hash << 5) - hash + text.charCodeAt(i);
         hash |= 0;
       }
-      return "t" + Math.abs(hash).toString(36);
+      return "t" + Math.abs(hash).toString(16);
     })("Approved Phrase")
   `);
   fetchMock.mockImplementation((url) => {
@@ -280,7 +280,7 @@ test("approved translations are rendered via swapText", async () => {
 
 function sdkHash(dom, text) {
   return dom.window.eval(`
-    (function hashText(t){var h=0;for(var i=0;i<t.length;i++){h=(h<<5)-h+t.charCodeAt(i);h|=0;}return "t"+Math.abs(h).toString(36);})(${JSON.stringify(text)})
+    (function hashText(t){var h=0;for(var i=0;i<t.length;i++){h=(h<<5)-h+t.charCodeAt(i);h|=0;}return "t"+Math.abs(h).toString(16);})(${JSON.stringify(text)})
   `);
 }
 

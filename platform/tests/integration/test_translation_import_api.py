@@ -1,0 +1,182 @@
+from __future__ import annotations
+
+import pytest
+from httpx import ASGITransport, AsyncClient
+
+from app.main import app
+from app.models.requests.translation_requests import MAX_IMPORT_ROWS
+from app.platform.auth.dependencies import get_db
+from app.platform.auth.jwt import create_access_token
+from app.repositories.translation_repository import TranslationRepository
+from app.repositories.website_repository import WebsiteRepository
+from tests.support.mongomock_async import AsyncMongoMockClient
+
+pytestmark = pytest.mark.asyncio
+
+URL = "/translations/import?site_id=site1"
+LANGS = [{"code": "kn", "enabled": True}]
+
+
+@pytest.fixture
+async def mock_db():
+    client = AsyncMongoMockClient()
+    db = client["seeds_test"]
+    yield db
+    await client.close()
+
+
+@pytest.fixture
+async def client(mock_db):
+    async def _override_db():
+        return mock_db
+
+    app.dependency_overrides[get_db] = _override_db
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as c:
+        yield c
+    app.dependency_overrides.clear()
+
+
+def _headers(role: str = "tenant", user_id: str = "t1") -> dict[str, str]:
+    token = create_access_token({"sub": user_id, "role": role, "tenant_id": "t1"})
+    return {"Authorization": f"Bearer {token}"}
+
+
+def _body(**overrides):
+    body = {
+        "lang": "kn",
+        "overwrite_blank": False,
+        "state": "pending",
+        "rows": [{"route": "/", "key": "k-hello-world", "source": "Hello World", "text": "ಹಲೋ", "row": 1}],
+    }
+    return {**body, **overrides}
+
+
+async def _seed_site(mock_db):
+    await WebsiteRepository.ensure_indexes(mock_db)
+    await WebsiteRepository(mock_db).create("t1", None, "acme.com", "site1", languages=LANGS)
+    repo = TranslationRepository(mock_db)
+    await repo.upsert_source("site1", "/", "k-hello-world", "en", "Hello World")
+    return repo
+
+
+async def test_import_requires_auth(client):
+    assert (await client.post(URL, json=_body())).status_code == 401
+
+
+async def test_import_forbids_school_admin_and_teacher(client):
+    assert (await client.post(URL, json=_body(), headers=_headers("school_admin"))).status_code == 403
+    assert (await client.post(URL, json=_body(), headers=_headers("teacher"))).status_code == 403
+
+
+async def test_import_writes_rows_and_returns_per_row_results(client, mock_db):
+    repo = await _seed_site(mock_db)
+    body = _body()
+    body["rows"].append({"route": "/", "key": "tbad", "source": "Nope", "text": "x", "row": 2})
+
+    resp = await client.post(URL, json=body, headers=_headers())
+
+    assert resp.status_code == 200
+    assert resp.json() == {
+        "updated": 1,
+        "created": 1,
+        "unchanged": 0,
+        "skipped_blank": 0,
+        "failed": 0,
+        "errors": [],
+    }
+    docs = {d["key"]: d for d in await repo.find_by_route("site1", "/")}
+    assert docs["k-hello-world"]["translations"]["kn"]["text"] == "ಹಲೋ"
+    assert docs["tbad"]["translations"]["kn"]["text"] == "x"
+
+
+async def test_import_denies_a_different_tenants_site_without_writing(client, mock_db):
+    repo = await _seed_site(mock_db)
+
+    resp = await client.post(URL, json=_body(), headers=_headers(user_id="t2"))
+
+    assert resp.status_code == 404
+    assert (await repo.find_by_route("site1", "/"))[0]["translations"] == {}
+
+
+async def test_import_rejects_a_language_not_enabled_on_the_site(client, mock_db):
+    await _seed_site(mock_db)
+
+    resp = await client.post(URL, json=_body(lang="te"), headers=_headers())
+
+    assert resp.status_code == 422
+
+
+async def test_import_rejects_an_unknown_state_and_oversized_payload(client, mock_db):
+    await _seed_site(mock_db)
+
+    assert (await client.post(URL, json=_body(state="rejected"), headers=_headers())).status_code == 422
+    too_many = _body(rows=[{"route": "/", "key": "k", "source": "s", "text": "t", "row": 1}] * (MAX_IMPORT_ROWS + 1))
+    assert (await client.post(URL, json=too_many, headers=_headers())).status_code == 422
+
+
+async def test_import_route_does_not_shadow_translation_id_routes(client, mock_db):
+    repo = await _seed_site(mock_db)
+    doc_id = str((await repo.find_by_route("site1", "/"))[0]["_id"])
+
+    resp = await client.get(f"/translations/{doc_id}", headers=_headers())
+
+    assert resp.status_code == 200
+
+
+async def test_import_accepts_exactly_the_maximum_number_of_rows(client, mock_db):
+    await _seed_site(mock_db)
+    rows = [{"route": "/", "key": f"k{i}", "source": f"s{i}", "text": "", "row": i + 1} for i in range(MAX_IMPORT_ROWS)]
+
+    resp = await client.post(URL, json=_body(rows=rows), headers=_headers())
+
+    assert resp.status_code == 200
+    assert resp.json()["skipped_blank"] == MAX_IMPORT_ROWS
+    assert resp.json()["failed"] == 0
+
+
+async def test_import_rejects_the_whole_request_when_any_row_has_an_invalid_route(client, mock_db):
+    repo = await _seed_site(mock_db)
+    body = _body()
+    body["rows"].append({"route": "/about?x=1", "key": "k-other", "source": "Other", "text": "x", "row": 2})
+
+    resp = await client.post(URL, json=body, headers=_headers())
+
+    assert resp.status_code == 422
+    assert resp.json()["details"]["validation_errors"][0]["loc"] == ["body", "rows", 1, "route"]
+    assert len(await repo.find_by_route("site1", "/")) == 1
+    assert (await repo.find_by_route("site1", "/"))[0]["translations"] == {}
+
+
+async def test_import_rejects_rows_with_missing_or_misspelled_fields_instead_of_guessing(client, mock_db):
+    await _seed_site(mock_db)
+    row = {"rout": "/", "key": "k", "source": "s", "text": "t", "row": 1}
+
+    resp = await client.post(URL, json=_body(rows=[row]), headers=_headers())
+
+    assert resp.status_code == 422
+    error = resp.json()["details"]["validation_errors"][0]
+    assert error["loc"] == ["body", "rows", 0, "route"]
+    assert error["type"] == "missing"
+
+
+async def test_import_rejects_a_zero_csv_row_number(client, mock_db):
+    await _seed_site(mock_db)
+    row = {"route": "/", "key": "k", "source": "s", "text": "t", "row": 0}
+
+    assert (await client.post(URL, json=_body(rows=[row]), headers=_headers())).status_code == 422
+
+
+async def test_import_reports_the_csv_row_number_sent_by_the_client(client, mock_db):
+    await _seed_site(mock_db)
+    rows = [
+        {"route": "/", "key": "tbad", "source": "Nope", "text": "t", "row": 41},
+        {"route": "/", "key": "tbad", "source": "Nope", "text": "t", "row": 42},
+    ]
+
+    resp = await client.post(URL, json=_body(rows=rows), headers=_headers())
+
+    assert resp.status_code == 200
+    assert resp.json()["errors"] == [
+        {"row": 42, "route": "/", "key": "tbad", "reason": "duplicate_row"}
+    ]

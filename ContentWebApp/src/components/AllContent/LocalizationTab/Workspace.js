@@ -15,6 +15,9 @@ import { Pagination } from "../../ContentAggregatorDetails/Pagination";
 import { translationService } from "../../../services/translationService";
 import { toSegment } from "../../../utils/segments";
 import { useToast } from "./Toast";
+import TranslationImportDialog from "./TranslationImportDialog";
+import { buildTranslationCsv } from "../../../utils/translationCsv";
+import { downloadCsv } from "../../../utils/exportHelpers";
 
 function EmptyState({ title, message, action }) {
   return (
@@ -65,7 +68,8 @@ function TabButton({ label, count, active, onClick }) {
 
 function StatusBadge({ seg }) {
   const stage = seg.stage === "approved" || seg.stage === "rejected" ? seg.stage : "pending";
-  const label = stage === "approved" ? "Approved" : stage === "rejected" ? "Rejected" : "Pending Review";
+  const label =
+    stage === "approved" ? "Approved" : stage === "rejected" ? "Rejected" : "Pending Review";
   return (
     <span className="role-badge" style={BADGE_STYLE[stage]}>
       {label}
@@ -94,7 +98,9 @@ function TransRow({ seg, idx, onEdit, onApprove, onReject, onCopy }) {
       <td className="table-cell table-cell-truncate">
         <div ref={sourceRef}>
           {expanded ? (
-            <span style={{ display: "block", whiteSpace: "normal", overflowWrap: "anywhere" }}>{seg.sourceText}</span>
+            <span style={{ display: "block", whiteSpace: "normal", overflowWrap: "anywhere" }}>
+              {seg.sourceText}
+            </span>
           ) : (
             <MiddleEllipsis text={seg.sourceText} />
           )}
@@ -140,8 +146,18 @@ function TransRow({ seg, idx, onEdit, onApprove, onReject, onCopy }) {
         <RowActions
           horizontal
           actions={[
-            seg.stage !== "approved" && { key: "approve", label: "Approve", variant: "view", onClick: () => onApprove(seg.id) },
-            seg.stage !== "rejected" && { key: "reject", label: "Reject", variant: "delete", onClick: () => onReject(seg.id) },
+            seg.stage !== "approved" && {
+              key: "approve",
+              label: "Approve",
+              variant: "view",
+              onClick: () => onApprove(seg.id),
+            },
+            seg.stage !== "rejected" && {
+              key: "reject",
+              label: "Reject",
+              variant: "delete",
+              onClick: () => onReject(seg.id),
+            },
             { key: "copy", label: "Copy", variant: "sync", onClick: () => onCopy(text) },
           ].filter(Boolean)}
         />
@@ -150,42 +166,41 @@ function TransRow({ seg, idx, onEdit, onApprove, onReject, onCopy }) {
   );
 }
 
-export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pagesError = null }) {
+export function WorkspaceScreen({
+  scope,
+  languages,
+  sites,
+  onScope,
+  pages,
+  pagesError = "",
+  onDataChanged,
+}) {
   const { siteId, route, lang } = scope;
   const { toast } = useToast();
   const [docs, setDocs] = useState(null);
-  const [docsError, setDocsError] = useState(null);
+  const [docsError, setDocsError] = useState("");
   const [query, setQuery] = useState("");
-  const [savedAt, setSavedAt] = useState(null);
+  const [savedAt, setSavedAt] = useState(0);
   const [statusTab, setStatusTab] = useState("all");
   const rowsPerPage = 10;
   const [pageOffset, setPageOffset] = useState(0);
+  const [importOpen, setImportOpen] = useState(false);
+  const [reloadTick, setReloadTick] = useState(0);
 
   const load = useCallback(() => {
     let cancelled = false;
     if (!siteId || !route) {
       setDocs([]);
-      setDocsError(null);
+      setDocsError("");
       return () => {
         cancelled = true;
       };
     }
     setDocs(null);
-    setDocsError(null);
+    setDocsError("");
     translationService
-      .listTranslations({ siteId, route })
-      .then(async (d) => {
-        let list = d;
-        const missing = lang && list.some((doc) => !doc?.translations?.[lang]?.text);
-        if (missing) {
-          try {
-            await translationService.generateForReview({ siteId, route, lang });
-            if (cancelled) return;
-            list = await translationService.listTranslations({ siteId, route });
-          } catch (e) {
-            if (!cancelled) toast({ message: e.message, tone: "crit" });
-          }
-        }
+      .listForReview({ siteId, route, lang })
+      .then((list) => {
         if (!cancelled) setDocs(list);
       })
       .catch((e) => {
@@ -196,10 +211,10 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
     return () => {
       cancelled = true;
     };
-  }, [siteId, route, lang, toast]);
-  useEffect(() => {
-    return load();
-  }, [load]);
+  }, [siteId, route, lang]);
+  const reload = useCallback(() => setReloadTick((n) => n + 1), []);
+
+  useEffect(() => load(), [load, reloadTick]);
 
   const segments = useMemo(() => (docs ? docs.map((d) => toSegment(d, lang)) : []), [docs, lang]);
   const tabCounts = useMemo(
@@ -240,7 +255,7 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
       ds
         ? ds.map((d) => {
             if (d.id !== id) return d;
-            const t = d.translations?.[lang] || {};
+            const t = d.translations[lang] || {};
             return { ...d, translations: { ...d.translations, [lang]: { ...t, status } } };
           })
         : ds
@@ -289,7 +304,9 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
     }
   };
   const approveAll = async () => {
-    const ids = filtered.filter((s) => s.stage !== "approved" && s.stage !== "rejected").map((s) => s.id);
+    const ids = filtered
+      .filter((s) => s.stage !== "approved" && s.stage !== "rejected")
+      .map((s) => s.id);
     if (!ids.length) return toast({ message: "Nothing to approve", tone: "info" });
     if (statusTab === "all" && !query.trim()) {
       try {
@@ -299,17 +316,22 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
           lang,
         });
         if (failed) {
-          toast({ message: `Approved ${approved}, skipped ${skipped}, ${failed} failed`, tone: "crit" });
+          toast({
+            message: `Approved ${approved}, skipped ${skipped}, ${failed} failed`,
+            tone: "crit",
+          });
         } else {
           toast({ message: `Approved ${approved}, skipped ${skipped}`, tone: "good" });
         }
-        load();
+        reload();
       } catch (e) {
         toast({ message: e.message, tone: "crit" });
       }
       return;
     }
-    const results = await Promise.allSettled(ids.map((id) => translationService.approveTranslation(id, lang)));
+    const results = await Promise.allSettled(
+      ids.map((id) => translationService.approveTranslation(id, lang))
+    );
     const succeeded = ids.filter((_, i) => results[i].status === "fulfilled");
     const failed = ids.length - succeeded.length;
     succeeded.forEach((id) => patchLangStatus(id, "approved"));
@@ -318,6 +340,25 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
       toast({ message: `Approved ${succeeded.length}, ${failed} failed`, tone: "crit" });
     } else {
       toast({ message: `Approved ${succeeded.length} segments`, tone: "good" });
+    }
+  };
+
+  const exportCsv = async () => {
+    try {
+      const exported = (
+        await Promise.all(
+          pages.map((page) => translationService.listTranslations({ siteId, route: page.route }))
+        )
+      ).flat();
+      if (!exported.length) return toast({ message: "Nothing to export", tone: "info" });
+      const site = sites.find((s) => s.siteId === siteId);
+      if (!site) throw new Error("Site not found");
+      const slug = (site.name || site.domain).replace(/[^a-z0-9]+/gi, "-");
+      const languageName = languages.find((l) => l.code === lang)?.name;
+      downloadCsv(buildTranslationCsv({ docs: exported, lang, languageName }), `${slug}-${lang}`);
+      toast({ message: `Exported ${exported.length} rows`, tone: "good" });
+    } catch (e) {
+      toast({ message: e.message, tone: "crit" });
     }
   };
 
@@ -342,6 +383,22 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
           />
           <button type="button" className="tertiary-button" onClick={approveAll} disabled={!ready}>
             Approve all
+          </button>
+          <button
+            type="button"
+            className="tertiary-button"
+            onClick={() => setImportOpen(true)}
+            disabled={!siteId}
+          >
+            Import
+          </button>
+          <button
+            type="button"
+            className="tertiary-button"
+            onClick={exportCsv}
+            disabled={!siteId || !lang}
+          >
+            Export
           </button>
         </div>
       </div>
@@ -403,20 +460,29 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
           message="Choose a project and website above to start reviewing its translations."
         />
       ) : docs === null ? (
-        <SkeletonTheme baseColor="var(--color-skeleton-base)" highlightColor="var(--color-skeleton-highlight)">
+        <SkeletonTheme
+          baseColor="var(--color-skeleton-base)"
+          highlightColor="var(--color-skeleton-highlight)"
+        >
           <Skeleton count={6} height={48} style={{ marginBottom: 8 }} />
         </SkeletonTheme>
       ) : docsError ? (
         <EmptyState
           title={docsError === "forbidden" ? "Permission denied" : "Couldn't load translations"}
           message={
-            docsError === "forbidden" ? "Your account doesn't have access to Translate & Review." : docsError
+            docsError === "forbidden"
+              ? "Your account doesn't have access to Translate & Review."
+              : docsError
           }
         />
       ) : filtered.length === 0 ? (
         <EmptyState
           title="Nothing here"
-          message={segments.length ? "No segments match your search." : "This page hasn't been translated yet."}
+          message={
+            segments.length
+              ? "No segments match your search."
+              : "This page hasn't been translated yet."
+          }
         />
       ) : (
         <>
@@ -424,10 +490,16 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
             <table className="content-table" style={{ minWidth: 1200 }}>
               <thead>
                 <tr>
-                  <th className="table-header" style={{ width: 56 }}>#</th>
-                  <th className="table-header" style={{ width: 260 }}>Source</th>
+                  <th className="table-header" style={{ width: 56 }}>
+                    #
+                  </th>
+                  <th className="table-header" style={{ width: 260 }}>
+                    Source
+                  </th>
                   <th className="table-header">Translation</th>
-                  <th className="table-header" style={{ width: 140 }}>Status</th>
+                  <th className="table-header" style={{ width: 140 }}>
+                    Status
+                  </th>
                   <th className="table-header table-header-actions" style={ACTIONS_COLUMN_STYLE}>
                     Actions
                   </th>
@@ -450,14 +522,35 @@ export function WorkspaceScreen({ scope, languages, sites, onScope, pages, pages
           </div>
           <p className="placeholder-text">
             Showing {clampedOffset * rowsPerPage + 1} to{" "}
-            {Math.min(clampedOffset * rowsPerPage + rowsPerPage, filtered.length)} of {filtered.length}
+            {Math.min(clampedOffset * rowsPerPage + rowsPerPage, filtered.length)} of{" "}
+            {filtered.length}
           </p>
-          <Pagination current={clampedOffset} total={pageCount} onChange={(i) => setPageOffset(i)} />
+          <Pagination
+            current={clampedOffset}
+            total={pageCount}
+            onChange={(i) => setPageOffset(i)}
+          />
 
           <p className="placeholder-text" style={{ marginTop: 8 }}>
-            {savedAt ? <>Last saved {new Date(savedAt).toLocaleTimeString()}</> : "All changes auto-saved"}
+            {savedAt ? (
+              <>Last saved {new Date(savedAt).toLocaleTimeString()}</>
+            ) : (
+              "All changes auto-saved"
+            )}
           </p>
         </>
+      )}
+      {importOpen && (
+        <TranslationImportDialog
+          siteId={siteId}
+          languages={languages}
+          defaultLang={lang}
+          onClose={() => setImportOpen(false)}
+          onImported={() => {
+            reload();
+            onDataChanged();
+          }}
+        />
       )}
     </div>
   );

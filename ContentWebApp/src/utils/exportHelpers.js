@@ -2,6 +2,22 @@
  * Export utility functions for downloading data as CSV or JSON files
  */
 
+export const downloadBlob = (blob, filename) => {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.style.display = "none";
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+};
+
+export const downloadCsv = (csvContent, filename) => {
+  downloadBlob(new Blob([csvContent], { type: "text/csv;charset=utf-8;" }), `${filename}.csv`);
+};
+
 /**
  * Convert array of objects to CSV and trigger download
  * @param {Array} data - Array of objects to export
@@ -36,16 +52,7 @@ export const exportToCSV = (data, headers, filename) => {
   const csvContent = [headerRow, ...dataRows].join("\n");
 
   // Create blob and trigger download
-  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `${filename}.csv`;
-  link.style.display = "none";
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  downloadCsv(csvContent, filename);
 };
 
 /**
@@ -64,13 +71,5 @@ export const exportToJSON = (data, filename) => {
 
   // Create blob and trigger download
   const blob = new Blob([jsonContent], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `${filename}.json`;
-  link.style.display = "none";
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  downloadBlob(blob, `${filename}.json`);
 };
