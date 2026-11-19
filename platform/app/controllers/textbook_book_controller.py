@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Annotated, Literal
 
-from fastapi import APIRouter, Depends, File, Form, Response, UploadFile
+from fastapi import APIRouter, Depends, Form, Response, UploadFile
 
 from app.models.responses.remediation import BookResponse, CreateBookResponse
 from app.models.textbook_book import CreateBookRequest, ReorderBookRequest
@@ -12,14 +12,17 @@ from app.services.textbook_book import TextbookBookService, get_textbook_book_se
 router = APIRouter(prefix="/textbook-remediation/books", tags=["Textbook Remediation"])
 
 
+class CreateBookForm(CreateBookRequest):
+    files: list[UploadFile]
+
+
 @router.post("", status_code=202, response_model=CreateBookResponse, summary="Upload the chapter PDFs of one book in reading order")
 async def create_book(
-    payload: Annotated[CreateBookRequest, Form()],
-    files: list[UploadFile] = File(..., description="Chapter PDFs, in book order"),
+    form: Annotated[CreateBookForm, Form()],
     user: dict[str, object] = Depends(require_tenant),
     service: TextbookBookService = Depends(get_textbook_book_service),
 ) -> CreateBookResponse:
-    return await service.create_book(str(user["tenant_id"]), payload, files)
+    return await service.create_book(str(user["tenant_id"]), form, form.files)
 
 
 @router.put("/{book_id}/order", response_model=BookResponse, summary="Set the chapter order of a book")

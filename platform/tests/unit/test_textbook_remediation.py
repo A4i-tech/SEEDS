@@ -11,7 +11,6 @@ from pydantic import ValidationError as PydanticValidationError
 from app.consumers.textbook_remediation_consumer import _resolve_models
 from app.controllers.textbook_remediation_controller import (
     assign_remediation_job,
-    create_remediation_job,
     get_remediation_artifact,
     get_remediation_image,
     get_remediation_job,
@@ -236,10 +235,9 @@ async def test_remediation_access_allows_the_content_roles_and_blocks_teachers()
 async def test_create_job_uploads_the_pdf_and_stores_its_url(repo, db):
     blob = _StubBlob()
     service = TextbookRemediationService(db, blob)
-    result = await create_remediation_job(
+    result = await service.create(
+        "tenant-a", file=_StubUpload(b"%PDF-1.7 body"),
         payload=CreateJobRequest(language="kn", target_language=""),
-        file=_StubUpload(b"%PDF-1.7 body"),
-        user={"tenant_id": "tenant-a"}, service=service,
     )
     job = await repo.get("tenant-a", result.job_id)
     assert job.source_url == f"https://blob/textbook-remediation/{job.job_id}/source.pdf"
@@ -251,10 +249,9 @@ async def test_create_job_uploads_the_pdf_and_stores_its_url(repo, db):
 @pytest.mark.asyncio
 async def test_create_job_stores_the_target_language_when_given(repo, db):
     service = TextbookRemediationService(db, _StubBlob())
-    result = await create_remediation_job(
+    result = await service.create(
+        "tenant-a", file=_StubUpload(b"%PDF-1.7 body"),
         payload=CreateJobRequest(language="kn", target_language="hi"),
-        file=_StubUpload(b"%PDF-1.7 body"),
-        user={"tenant_id": "tenant-a"}, service=service,
     )
     job = await repo.get("tenant-a", result.job_id)
     assert job.target_language == "hi"
@@ -274,10 +271,7 @@ async def test_create_job_rejects_bad_input(repo, db, upload, language, message)
     with pytest.raises(ValidationError, match=message):
         payload = CreateJobRequest(language=language)
         service = TextbookRemediationService(db, _StubBlob())
-        await create_remediation_job(
-            payload=payload, file=upload,
-            user={"tenant_id": "tenant-a"}, service=service,
-        )
+        await service.create("tenant-a", file=upload, payload=payload)
 
 
 @pytest.mark.asyncio

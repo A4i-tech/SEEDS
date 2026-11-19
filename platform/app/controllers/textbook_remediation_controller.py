@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
+from fastapi import APIRouter, Depends, Form, Query, UploadFile
 from fastapi.responses import StreamingResponse
 
 from app.models.remediation_job import AssignJobRequest
@@ -29,6 +29,10 @@ from app.services.textbook_remediation import (
 
 router = APIRouter(prefix="/textbook-remediation", tags=["Textbook Remediation"])
 
+
+class CreateJobForm(CreateJobRequest):
+    file: UploadFile
+
 require_remediation_access = require_role(
     UserRole.TENANT.value,
     UserRole.SCHOOL_ADMIN.value,
@@ -39,12 +43,11 @@ require_remediation_access = require_role(
 
 @router.post("/jobs", status_code=202, response_model=CreateRemediationJobResponse, summary="Upload a textbook PDF and queue it for remediation")
 async def create_remediation_job(
-    payload: Annotated[CreateJobRequest, Form()],
-    file: UploadFile = File(..., description="The textbook PDF"),
+    form: Annotated[CreateJobForm, Form()],
     user: dict[str, object] = Depends(require_remediation_access),
     service: TextbookRemediationService = Depends(get_textbook_remediation_service),
 ) -> CreateRemediationJobResponse:
-    return await service.create(str(user["tenant_id"]), file=file, payload=payload)
+    return await service.create(str(user["tenant_id"]), file=form.file, payload=form)
 
 
 @router.get("/jobs", response_model=RemediationJobListResponse, summary="List remediation jobs")
