@@ -84,7 +84,7 @@ describe('JobsScreen delete', () => {
     await waitFor(() => expect(getRemediationJobsAndBooks).toHaveBeenCalledTimes(2))
   })
 
-  it('renders Fix as an outlined button and keeps View a link-style action', async () => {
+  it('shows no Fix action on a failed row and keeps View a link-style action', async () => {
     vi.mocked(getRemediationJobsAndBooks).mockResolvedValue({
       jobs: [{ ...remediation, job_id: 'job-2', source_name: 'bad.pdf', status: 'failed', error: 'boom' }],
       books: [],
@@ -92,7 +92,7 @@ describe('JobsScreen delete', () => {
     vi.mocked(getSyncJobs).mockResolvedValue([sync])
     renderWithProviders(<JobsScreen />)
     await screen.findByText('bad.pdf')
-    expect(screen.getByRole('button', { name: /Fix/ })).toHaveAttribute('data-variant', 'outline')
+    expect(screen.queryByRole('button', { name: /Fix/ })).toBeNull()
     expect(screen.getByRole('button', { name: 'View' })).not.toHaveAttribute('data-variant', 'outline')
   })
 

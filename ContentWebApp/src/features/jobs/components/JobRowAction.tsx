@@ -1,4 +1,4 @@
-import { Anchor, Button, Group } from '@mantine/core';
+import { Anchor, Group } from '@mantine/core';
 import { useDisclosure } from '@mantine/hooks';
 import { useNavigate } from '@tanstack/react-router';
 import { useTranslation } from 'react-i18next';
@@ -34,16 +34,10 @@ export function JobRowAction({ row }: { row: JobRow }) {
       onConfirm: () => remove.mutate(row.id),
     });
   const action = JOB_ACTION[row.status];
-  const emphasised = row.status === 'failed' || row.status === 'needs-review';
   return (
     <Group gap="sm" wrap="nowrap">
-      {emphasised && (
-        <Button variant="outline" size="compact-md" onClick={() => void go()}>
-          {t(action.labelKey)}
-        </Button>
-      )}
       <RowActions>
-        {!emphasised && (
+        {row.status !== 'failed' && (
           <Anchor component="button" type="button" variant="rowAction" onClick={() => void go()}>
             {t(action.labelKey)}
           </Anchor>
