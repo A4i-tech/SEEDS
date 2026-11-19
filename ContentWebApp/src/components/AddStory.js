@@ -178,9 +178,14 @@ const AddStory = ({ content, contentType, onContentTypeChange }) => {
         setAudioSrc(`${AUDIO_BASE_URL}/${content.id}/question.mp3`);
         setAnswerAudioSrc(`${AUDIO_BASE_URL}/${content.id}/answer.mp3`);
       }
-      fetchTitlesUnderTheme(quizMetadata.language, quizMetadata.theme.english);
     }
-  }, [content, contentType, fetchTitlesUnderTheme]);
+  }, [content?.id, contentType]);
+
+  useEffect(() => {
+    if (content) {
+      fetchTitlesUnderTheme(content.language, content.theme.english);
+    }
+  }, [content, fetchTitlesUnderTheme]);
 
   const [file, setFile] = useState();
   const [answerFile, setAnswerFile] = useState();
