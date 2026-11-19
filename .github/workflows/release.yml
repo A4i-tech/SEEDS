@@ -23,7 +23,6 @@ jobs:
           owner: ${{ github.repository_owner }}
           repositories: ${{ github.event.repository.name }}
           permission-contents: write
-          permission-issues: read
           permission-pull-requests: read
       - uses: actions/checkout@v4
         with:
@@ -51,27 +50,10 @@ jobs:
           if gh release view "$tag" >/dev/null 2>&1; then
             exit 0
           fi
-          if git rev-parse -q --verify HEAD^2 >/dev/null; then
-            pr_numbers=$(git log --format=%s HEAD^1..HEAD^2 | sed -nE 's/^Merge pull request #([0-9]+) from .*|.*\(#([0-9]+)\)$/\1\2/p')
-          else
-            pr_numbers=""
-          fi
-          issues=$(
-            for pr in $pr_numbers; do
-              gh api graphql -F number="$pr" -f query='
-                query($number: Int!) {
-                  repository(owner: "${{ github.repository_owner }}", name: "${{ github.event.repository.name }}") {
-                    pullRequest(number: $number) {
-                      closingIssuesReferences(first: 10) { nodes { url } }
-                    }
-                  }
-                }' --jq '.data.repository.pullRequest.closingIssuesReferences.nodes[].url'
-            done | sort -u
-          )
-          if [ -z "$issues" ]; then
-            notes="## $tag"$'\n\n'"No linked issues in this release."
-          else
-            notes="## $tag"$'\n\n'"$(printf '%s\n' "$issues" | sed 's/^/- /')"
+          sha="${{ github.sha }}"
+          notes=$(gh api "repos/${{ github.repository }}/commits/$sha/pulls" --jq ".[] | select(.merge_commit_sha == \"$sha\") | .body // empty")
+          if [ -z "$notes" ]; then
+            notes=$(gh api "repos/${{ github.repository }}/releases/generate-notes" -f tag_name="$tag" --jq .body)
           fi
           gh release create "$tag" --target "${{ github.sha }}" --notes "$notes"
 
