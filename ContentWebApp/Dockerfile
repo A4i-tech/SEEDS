@@ -11,20 +11,19 @@ RUN npm ci
 COPY . .
 
 # ---- Set build-time environment variables ----
-# These env vars will be baked into the React static build
 ARG REACT_APP_API_BASE_URL
 ARG REACT_APP_GOOGLE_SITE_VERIFICATION
 
-ENV REACT_APP_API_BASE_URL=$REACT_APP_API_BASE_URL
-ENV REACT_APP_GOOGLE_SITE_VERIFICATION=$REACT_APP_GOOGLE_SITE_VERIFICATION
-# Build React app
+ENV VITE_API_BASE_URL=$REACT_APP_API_BASE_URL
+ENV VITE_GOOGLE_SITE_VERIFICATION=$REACT_APP_GOOGLE_SITE_VERIFICATION
+# Build app
 RUN npm run build
 
 # ---- Production stage ----
 FROM nginxinc/nginx-unprivileged:1.27-alpine
 
-# Copy React build output to Nginx
-COPY --from=builder /app/build /usr/share/nginx/html
+# Copy build output to Nginx
+COPY --from=builder /app/dist /usr/share/nginx/html
 
 # Copy custom nginx configuration
 COPY nginx.conf /etc/nginx/conf.d/default.conf
