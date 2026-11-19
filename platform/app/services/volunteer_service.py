@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Any
-
 from fastapi import Depends
 from pymongo.asynchronous.database import AsyncDatabase
 
@@ -14,7 +12,7 @@ from app.repositories.user_repository import UserRepository
 
 
 class VolunteerService:
-    def __init__(self, db: AsyncDatabase[Any]) -> None:
+    def __init__(self, db: AsyncDatabase) -> None:
         self._users = UserRepository(db)
 
     async def register_volunteer(self, tenant_id: str, body: VolunteerCreateRequest) -> User:
@@ -37,5 +35,5 @@ class VolunteerService:
         return await self._users.find_all_by_tenant_and_role(tenant_id, UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER.value)
 
 
-def get_volunteer_service(db: AsyncDatabase[Any] = Depends(get_db)) -> VolunteerService:
+def get_volunteer_service(db: AsyncDatabase = Depends(get_db)) -> VolunteerService:
     return VolunteerService(db)
