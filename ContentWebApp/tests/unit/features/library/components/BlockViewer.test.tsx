@@ -98,6 +98,19 @@ describe('BlockViewer', () => {
     expect(screen.getByRole('button', { name: 'Prev' })).toBeEnabled()
   })
 
+  it('renders mathjaxinline tags in problem choices as math', () => {
+    const problem = block({
+      type: 'problem',
+      question: 'Which are polynomials?',
+      choices: [{ value: 'a', text: '[mathjaxinline] x^2+x-1 [/mathjaxinline]' }],
+    })
+    const { container } = renderWithProviders(
+      <BlockViewer course={course([problem])} courseId="course-1" index={0} onSelect={vi.fn()} />,
+    )
+    expect(container.querySelector('.katex')).toBeTruthy()
+    expect(container.textContent).not.toContain('[mathjaxinline]')
+  })
+
   it('drops the problem edit state when moving to another block', () => {
     const problem = (id: string, question: string) =>
       block({ block_id: id, type: 'problem', question, choices: [{ value: 'a', text: 'A' }] })

@@ -6,6 +6,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { updateProblemBlock } from '../api/library';
 import type { CourseBlock, CourseDetail } from '../api/library';
 import { libraryKeys } from '../types/content.types';
+import { MathText } from './MathText';
 
 export function ProblemBlock({ block, courseId }: { block: CourseBlock; courseId: string }) {
   const { t } = useTranslation();
@@ -43,10 +44,12 @@ export function ProblemBlock({ block, courseId }: { block: CourseBlock; courseId
   if (!editing) {
     return (
       <Stack gap="xs">
-        <Text variant="rowTitle">{block.question}</Text>
+        <Text variant="rowTitle">
+          <MathText>{block.question}</MathText>
+        </Text>
         {block.choices.map((c) => (
           <Text key={c.value} size="sm" c="dimmed">
-            {c.text}
+            <MathText>{c.text}</MathText>
           </Text>
         ))}
         <Group gap="xs">
