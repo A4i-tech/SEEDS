@@ -5,32 +5,116 @@ import { OnboardingCard } from "../../src/components/AllContent/LocalizationTab/
 jest.mock("../../src/components/AllContent/LocalizationTab/SnippetBlock", () => ({ SnippetBlock: () => null }));
 jest.mock("../../src/components/AllContent/LocalizationTab/DevToolsSection", () => ({ DevToolsSection: () => null }));
 
-function renderCard(loc) {
-  render(<ToastProvider><OnboardingCard loc={loc} /></ToastProvider>);
-  fireEvent.change(screen.getByLabelText("Website URL"), { target: { value: "https://new.example.org/x" } });
-  fireEvent.click(screen.getByRole("button", { name: "Register Website" }));
-}
+const renderCard = (overrides = {}) => {
+  const handleCreateSite = jest.fn().mockResolvedValue({ domain: "example-school.org", siteId: "s1", apiBase: "https://api" });
+  const loc = { handleCreateSite, languages: [{ code: "en", name: "English" }, { code: "fr", name: "French" }], ...overrides };
+  const { rerender } = render(<ToastProvider><OnboardingCard loc={loc} /></ToastProvider>);
+  const setLanguages = (languages) =>
+    rerender(<ToastProvider><OnboardingCard loc={{ ...loc, languages }} /></ToastProvider>);
+  return { loc, setLanguages };
+};
 
-test("registers the site by domain without any project", async () => {
-  const loc = {
-    handleCreateSite: jest.fn(async (v) => ({ id: "s1", domain: v.domain, siteId: "x", snippet: "" })),
-  };
-  renderCard(loc);
-  await waitFor(() =>
-    expect(loc.handleCreateSite).toHaveBeenCalledWith({ domain: "new.example.org", name: "", status: "Active" })
-  );
-  expect(await screen.findByText("Website Connected")).toBeInTheDocument();
+test("derives a name from the domain when the Name field is left empty", async () => {
+  const { loc } = renderCard();
+  fireEvent.change(screen.getByLabelText(/website url/i), { target: { value: "https://example-school.org" } });
+  fireEvent.click(screen.getByLabelText("English"));
+  fireEvent.click(screen.getByRole("button", { name: /register website/i }));
+  await waitFor(() => expect(loc.handleCreateSite).toHaveBeenCalled());
+  expect(loc.handleCreateSite.mock.calls[0][0].name).toBe("Example School");
+  expect(loc.handleCreateSite.mock.calls[0][0].languages).toEqual([{ code: "en", enabled: true }]);
 });
 
-test("a failed registration shows the backend message and stays on the form", async () => {
-  const loc = { handleCreateSite: jest.fn().mockRejectedValue(new Error("Website with domain 'new.example.org' already exists")) };
-  renderCard(loc);
-  expect((await screen.findAllByText("Website with domain 'new.example.org' already exists")).length).toBeGreaterThan(0);
-  expect(screen.getByRole("button", { name: "Register Website" })).toBeInTheDocument();
+test("uses the typed Name field verbatim when provided", async () => {
+  const { loc } = renderCard();
+  fireEvent.change(screen.getByLabelText(/website url/i), { target: { value: "https://example-school.org" } });
+  fireEvent.change(screen.getByLabelText(/^name$/i), { target: { value: "My School" } });
+  fireEvent.click(screen.getByLabelText("English"));
+  fireEvent.click(screen.getByRole("button", { name: /register website/i }));
+  await waitFor(() => expect(loc.handleCreateSite).toHaveBeenCalled());
+  expect(loc.handleCreateSite.mock.calls[0][0].name).toBe("My School");
+  expect(loc.handleCreateSite.mock.calls[0][0].languages).toEqual([{ code: "en", enabled: true }]);
 });
 
-test("a failure without a message falls back to a generic error", async () => {
-  const loc = { handleCreateSite: jest.fn().mockRejectedValue({}) };
-  renderCard(loc);
-  expect((await screen.findAllByText("Failed to register website")).length).toBeGreaterThan(0);
+test("registration is blocked when no language is selected", () => {
+  renderCard();
+  fireEvent.change(screen.getByLabelText(/website url/i), { target: { value: "https://example-school.org" } });
+  expect(screen.getByRole("button", { name: /register website/i })).toBeDisabled();
+});
+
+test("sends only selected languages that are still in the current language list", async () => {
+  const { loc, setLanguages } = renderCard();
+  fireEvent.change(screen.getByLabelText(/website url/i), { target: { value: "https://example-school.org" } });
+  fireEvent.click(screen.getByLabelText("English"));
+  fireEvent.click(screen.getByLabelText("French"));
+  setLanguages([{ code: "fr", name: "French" }]);
+  fireEvent.click(screen.getByRole("button", { name: /register website/i }));
+  await waitFor(() => expect(loc.handleCreateSite).toHaveBeenCalled());
+  expect(loc.handleCreateSite.mock.calls[0][0].languages).toEqual([{ code: "fr", enabled: true }]);
+});
+
+test("blocks registration when no selected language is in the current language list", () => {
+  const { loc, setLanguages } = renderCard();
+  fireEvent.change(screen.getByLabelText(/website url/i), { target: { value: "https://example-school.org" } });
+  fireEvent.click(screen.getByLabelText("English"));
+  setLanguages([{ code: "fr", name: "French" }]);
+  const button = screen.getByRole("button", { name: /register website/i });
+  expect(button).toBeDisabled();
+  fireEvent.submit(button);
+  expect(loc.handleCreateSite).not.toHaveBeenCalled();
+});
+
+test("tells the user languages are still loading", () => {
+  renderCard({ languages: [], isLoadingWorkspace: true });
+  expect(screen.getByText("Loading available languages…")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /register website/i })).toBeDisabled();
+});
+
+test("tells the user the language list failed to load", () => {
+  renderCard({ languages: [], workspaceLoadError: new Error("network down") });
+  expect(screen.getByText("Unable to load languages. Please try again.")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /register website/i })).toBeDisabled();
+});
+
+test("tells the user when no languages are available", () => {
+  renderCard({ languages: [] });
+  expect(
+    screen.getByText("No languages are currently available. Please contact support.")
+  ).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: /register website/i })).toBeDisabled();
+});
+
+test("shows language names but submits language codes", async () => {
+  const { loc } = renderCard();
+  expect(screen.getByLabelText("English")).toBeInTheDocument();
+  expect(screen.getByLabelText("French")).toBeInTheDocument();
+  expect(screen.queryByLabelText("en")).not.toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText(/website url/i), { target: { value: "https://example-school.org" } });
+  fireEvent.click(screen.getByLabelText("English"));
+  fireEvent.click(screen.getByLabelText("French"));
+  fireEvent.click(screen.getByRole("button", { name: /register website/i }));
+  await waitFor(() => expect(loc.handleCreateSite).toHaveBeenCalled());
+  expect(loc.handleCreateSite.mock.calls[0][0].languages).toEqual([
+    { code: "en", enabled: true },
+    { code: "fr", enabled: true },
+  ]);
+});
+
+test("falls back to the language code when a language has no name", () => {
+  renderCard({ languages: [{ code: "xx" }] });
+  expect(screen.getByLabelText("xx")).toBeInTheDocument();
+});
+
+test("a site-list failure does not hide languages that did load", () => {
+  renderCard({ workspaceLoadError: new Error("sites failed") });
+  expect(screen.queryByText("Unable to load languages. Please try again.")).not.toBeInTheDocument();
+  expect(screen.getAllByRole("checkbox")).toHaveLength(2);
+});
+
+test("registration proceeds once a language is checked", async () => {
+  const { loc } = renderCard();
+  fireEvent.change(screen.getByLabelText(/website url/i), { target: { value: "https://example-school.org" } });
+  fireEvent.click(screen.getByLabelText("French"));
+  fireEvent.click(screen.getByRole("button", { name: /register website/i }));
+  await waitFor(() => expect(loc.handleCreateSite).toHaveBeenCalled());
+  expect(loc.handleCreateSite.mock.calls[0][0].languages).toEqual([{ code: "fr", enabled: true }]);
 });
