@@ -32,6 +32,9 @@ jobs:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
           RULESET_ID: ${{ vars.MAIN_RULESET_ID }}
         run: |
+          resp=$(gh api -i "repos/${{ github.repository }}/rulesets/$RULESET_ID")
+          printf '%s\n' "$resp" | grep -iE '^(HTTP|x-accepted-github-permissions)'
+          gh api "repos/${{ github.repository }}/rulesets/$RULESET_ID" --jq 'keys | join(",")'
           bypass=$(gh api "repos/${{ github.repository }}/rulesets/$RULESET_ID" --jq 'if .bypass_actors == null then "missing" else (.bypass_actors | length | tostring) end')
           methods=$(gh api "repos/${{ github.repository }}/rulesets/$RULESET_ID" --jq '[.rules[] | select(.type=="pull_request") | .parameters.allowed_merge_methods[]] | sort | join(",")')
           if [ "$bypass" = "missing" ]; then
