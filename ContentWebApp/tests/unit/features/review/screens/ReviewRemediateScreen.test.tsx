@@ -163,6 +163,13 @@ describe('ReviewRemediateScreen header', () => {
     expect(screen.getByText('Verified and saved to Library')).toBeTruthy()
   })
 
+  it('replaces Verify & publish with a disabled Published button once verified', async () => {
+    vi.mocked(getReviewJob).mockResolvedValue({ ...job, status: 'verified' })
+    renderWithProviders(<ReviewRemediateScreen />)
+    expect(await screen.findByRole('button', { name: 'Published' })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: 'Verify & publish' })).toBeNull()
+  })
+
   it('shows the flag text after the reason', async () => {
     vi.mocked(getReviewJob).mockResolvedValue(job)
     vi.mocked(getReviewSummary).mockResolvedValue({

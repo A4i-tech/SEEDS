@@ -15,7 +15,6 @@ describe('canAccess', () => {
     ['content_creator', '/registration', false],
     ['content_creator', '/library/$kind/$id', true],
     ['content_creator', '/ivr-view', true],
-    ['content_creator', '/review/text/$jobId', true],
     ['content_creator', '/home', true],
     ['content_creator', '/account/profile', true],
     ['textbook_remediation_volunteer', '/jobs', true],

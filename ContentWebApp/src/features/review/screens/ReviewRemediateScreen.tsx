@@ -70,17 +70,21 @@ export function ReviewRemediateScreen() {
             >
               {t('review.saveDraft')}
             </Button>
-            <Button
-              loading={approve.isPending}
-              onClick={() =>
-                approve.mutate({
-                  title: state.data.job.source_name.replace(/\.pdf$/i, ' (Accessible)'),
-                  draft: dirty ? current : null,
-                })
-              }
-            >
-              {t('review.verifyPublish')}
-            </Button>
+            {state.data.job.status === 'verified' ? (
+              <Button disabled>{t('review.published')}</Button>
+            ) : (
+              <Button
+                loading={approve.isPending}
+                onClick={() =>
+                  approve.mutate({
+                    title: state.data.job.source_name.replace(/\.pdf$/i, ' (Accessible)'),
+                    draft: dirty ? current : null,
+                  })
+                }
+              >
+                {t('review.verifyPublish')}
+              </Button>
+            )}
           </Group>
         )}
       </Group>

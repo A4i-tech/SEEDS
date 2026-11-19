@@ -101,7 +101,7 @@ export function BlockViewer({
           <Text variant="eyebrow">
             {blockLabel(block)} · {block.type}
           </Text>
-          <BlockBody block={block} courseId={courseId} />
+          <BlockBody key={block.block_id} block={block} courseId={courseId} />
         </Stack>
       </Paper>
     </>

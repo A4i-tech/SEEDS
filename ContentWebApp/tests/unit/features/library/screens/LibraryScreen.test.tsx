@@ -144,4 +144,16 @@ describe('LibraryScreen ownership actions', () => {
     expect(screen.getAllByRole('button', { name: 'Edit' })).toHaveLength(1)
     expect(screen.getAllByRole('button', { name: 'Delete' })).toHaveLength(1)
   })
+
+  it('shows Sync All to a tenant', () => {
+    useAuthStore.setState({ status: 'authenticated', role: 'tenant', schoolId: '' })
+    renderLibrary([own])
+    expect(screen.getByRole('button', { name: 'Sync All' })).toBeTruthy()
+  })
+
+  it('hides Sync All from a school admin', () => {
+    useAuthStore.setState({ status: 'authenticated', role: 'school_admin', schoolId: 's1' })
+    renderLibrary([own])
+    expect(screen.queryByRole('button', { name: 'Sync All' })).toBeNull()
+  })
 })

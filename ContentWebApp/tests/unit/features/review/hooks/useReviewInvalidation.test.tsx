@@ -13,7 +13,6 @@ import {
   reviewKeys,
   saveReviewDraft,
 } from '@features/review/api/review'
-import { useReviewText } from '@features/review/hooks/useReviewText'
 import { useReviewRemediate } from '@features/review/hooks/useReviewRemediate'
 
 vi.mock('@tanstack/react-router', () => ({ useNavigate: () => vi.fn() }))
@@ -55,13 +54,6 @@ function QueueProbe() {
   return null
 }
 
-let textApprove!: () => Promise<void>
-function TextHookRunner() {
-  const { approve } = useReviewText('job-1')
-  textApprove = () => approve.mutateAsync()
-  return null
-}
-
 let remediateApprove!: (draft?: string | null) => Promise<void>
 function RemediateHookRunner() {
   const { approve } = useReviewRemediate('job-1')
@@ -90,18 +82,6 @@ beforeEach(() => {
 })
 
 describe('review approve invalidates the queue', () => {
-  it('text review refetches the queue after approve', async () => {
-    renderWithProviders(
-      <>
-        <QueueProbe />
-        <TextHookRunner />
-      </>,
-    )
-    await waitFor(() => expect(getRemediationJobs).toHaveBeenCalledTimes(1))
-    await textApprove()
-    await waitFor(() => expect(getRemediationJobs).toHaveBeenCalledTimes(2))
-  })
-
   it('remediate review refetches the queue after approve', async () => {
     renderWithProviders(
       <>

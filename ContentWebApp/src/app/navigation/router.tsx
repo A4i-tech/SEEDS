@@ -23,7 +23,6 @@ import { CreateUploadScreen } from '@features/create/screens/CreateUploadScreen'
 import { CreateSourceScreen } from '@features/create/screens/CreateSourceScreen';
 import { QuizBuilderScreen } from '@features/create/screens/QuizBuilderScreen';
 import { ReviewQueueScreen } from '@features/review/screens/ReviewQueueScreen';
-import { ReviewTextScreen } from '@features/review/screens/ReviewTextScreen';
 import { ReviewAudioScreen } from '@features/review/screens/ReviewAudioScreen';
 import { ReviewAudioEditScreen } from '@features/review/screens/ReviewAudioEditScreen';
 import { ReviewQuizScreen } from '@features/review/screens/ReviewQuizScreen';
@@ -135,7 +134,6 @@ const routeTree = rootRoute.addChildren([
     protectedRoute('/localize/sites/$siteId/edit', LocalizeAddScreen),
     protectedRoute('/localize/review', LocalizeReviewScreen, reviewScopeSchema),
     protectedRoute('/review', ReviewQueueScreen),
-    protectedRoute('/review/text/$jobId', ReviewTextScreen),
     protectedRoute('/review/audio/$id', ReviewAudioScreen),
     protectedRoute('/review/audio/$id/edit', ReviewAudioEditScreen),
     protectedRoute('/review/quiz/$id', ReviewQuizScreen),

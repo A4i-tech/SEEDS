@@ -8,6 +8,7 @@ import { TextLink } from '../components/RowCard';
 import { AttentionSection } from '../components/AttentionSection';
 import { RecentContentSection } from '../components/RecentContentSection';
 import { PageTitle } from '@shared/components/PageTitle';
+import { useRole } from '@features/auth/store/useAuthStore';
 
 const tiles = [
   { key: 'create', to: '/create' },
@@ -21,6 +22,7 @@ const tiles = [
 export function HomeScreen() {
   const { t } = useTranslation();
   const jobsState = useJobs();
+  const isTenant = useRole() === 'tenant';
   const { state: libraryState, content, syncAll, syncingAll } = useLibrary();
   const rows = jobsState.status === 'done' ? jobsState.data : [];
 
@@ -32,13 +34,15 @@ export function HomeScreen() {
           <Text>{t('home.subtitle')}</Text>
         </Stack>
         <Group gap="md">
-          <Button
-            variant="outline"
-            loading={syncingAll}
-            onClick={() => void syncAll()}
-          >
-            {t('library.syncAll')}
-          </Button>
+          {isTenant && (
+            <Button
+              variant="outline"
+              loading={syncingAll}
+              onClick={() => void syncAll()}
+            >
+              {t('library.syncAll')}
+            </Button>
+          )}
           <Button
             leftSection={<Plus size={16} aria-hidden />}
             component={Link}

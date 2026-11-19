@@ -98,6 +98,21 @@ describe('BlockViewer', () => {
     expect(screen.getByRole('button', { name: 'Prev' })).toBeEnabled()
   })
 
+  it('drops the problem edit state when moving to another block', () => {
+    const problem = (id: string, question: string) =>
+      block({ block_id: id, type: 'problem', question, choices: [{ value: 'a', text: 'A' }] })
+    const blocks = [problem('p1', 'First question'), problem('p2', 'Second question')]
+    const view = (index: number) => (
+      <BlockViewer course={course(blocks)} courseId="course-1" index={index} onSelect={vi.fn()} />
+    )
+    const { rerender } = renderWithProviders(view(0))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+    expect(screen.getByRole('button', { name: 'Save' })).toBeTruthy()
+    rerender(view(1))
+    expect(screen.queryByRole('button', { name: 'Save' })).toBeNull()
+    expect(screen.getByText('Second question')).toBeTruthy()
+  })
+
   it('renders markdown blocks', () => {
     renderWithProviders(
       <BlockViewer

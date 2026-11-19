@@ -2,6 +2,7 @@ import { Alert, Anchor, Badge, Button, Chip, Group, Stack, Text, TextInput } fro
 import { Plus } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { Link, useNavigate } from '@tanstack/react-router';
+import { useRole } from '@features/auth/store/useAuthStore';
 import { useTranslation } from 'react-i18next';
 import i18n from '@shared/i18n';
 import type { DataTableColumn } from '@shared/components/DataTable';
@@ -77,6 +78,7 @@ function courseRow(course: Course): LibraryRow {
 export function LibraryScreen() {
   const { t } = useTranslation();
   const navigate = useNavigate();
+  const isTenant = useRole() === 'tenant';
   const { state, content, courses, reload, removeContent, removeCourse, syncAll, syncingAll, refreshIvr } =
     useLibrary();
   const { canDeleteCourse, canModifyContent } = useLibraryAccess();
@@ -174,9 +176,11 @@ export function LibraryScreen() {
           <Button variant="subtle" component={Link} to={'/ivr-view'}>
             {t('library.viewIvr')}
           </Button>
-          <Button variant="outline" loading={syncingAll} onClick={() => void syncAll()}>
-            {t('library.syncAll')}
-          </Button>
+          {isTenant && (
+            <Button variant="outline" loading={syncingAll} onClick={() => void syncAll()}>
+              {t('library.syncAll')}
+            </Button>
+          )}
           <Button leftSection={<Plus size={16} aria-hidden />} component={Link} to={'/create'}>
             {t('library.addContent')}
           </Button>
