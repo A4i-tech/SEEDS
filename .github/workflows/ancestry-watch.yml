@@ -67,6 +67,10 @@ jobs:
         env:
           WEBHOOK_URL: ${{ secrets.RELEASE_WEBHOOK_URL }}
         run: |
+          if [ -z "$WEBHOOK_URL" ]; then
+            echo "RELEASE_WEBHOOK_URL is not set, the failure alert cannot be delivered." >&2
+            exit 1
+          fi
           run_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           jq -nc --arg text "Ancestry watch is failing. Run: $run_url" '{
             type: "message",
