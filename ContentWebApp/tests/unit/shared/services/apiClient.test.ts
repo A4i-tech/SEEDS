@@ -232,6 +232,19 @@ describe('apiClient', () => {
     await expect(apiClient.getBlob('/x')).rejects.toMatchObject({ status: 404 });
   });
 
+  it('surfaces the server message when a blob download fails', async () => {
+    const message = 'Chapters not verified: Unit 2. Verify them, then download again.';
+    fetchMock.mockResolvedValue(jsonResponse({ error: message, message, code: 'conflict' }, 409));
+    await expect(apiClient.getBlob('/books/b1/artifacts/docx')).rejects.toMatchObject({ status: 409, message });
+  });
+
+  it('leaves the multipart content type to the browser', async () => {
+    fetchMock.mockResolvedValue(jsonResponse({ book_id: 'b' }, 202));
+    await apiClient.postForm('/books', new FormData());
+    const headers = fetchMock.mock.calls[0][1].headers as Record<string, string>;
+    expect(Object.keys(headers).map((key) => key.toLowerCase())).not.toContain('content-type');
+  });
+
   it('serializes scalar params into the query string', async () => {
     fetchMock.mockResolvedValue(jsonResponse({}));
     await apiClient.get('/x', { params: { limit: 10, cursor: 'abc' } });

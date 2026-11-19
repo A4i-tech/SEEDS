@@ -2,7 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from '@tanstack/react-router';
-import { createRemediationJob } from '../api/remediation';
+import { createBook, createRemediationJob } from '../api/remediation';
 import { useLanguages } from '@shared/hooks/useLanguages';
 import { jobKeys } from '@features/jobs/types/job.types';
 import { notifyApiError } from '@shared/utils/notifyApiError';
@@ -25,5 +25,23 @@ export function useRemediationUpload() {
     onError: notifyApiError,
   });
 
-  return { languageOptions, languagesError, upload: upload.mutateAsync, isUploading: upload.isPending };
+  const uploadBook = useMutation({
+    mutationFn: ({ files, title, targetLanguage }: { files: File[]; title: string; targetLanguage: string }) =>
+      createBook(files, title, targetLanguage),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: jobKeys.all });
+      void navigate({ to: '/jobs' });
+    },
+  });
+
+  return {
+    languageOptions,
+    languagesError,
+    upload: upload.mutateAsync,
+    isUploading: upload.isPending,
+    uploadBook: uploadBook.mutate,
+    isUploadingBook: uploadBook.isPending,
+    bookError: uploadBook.error?.message,
+    resetBookError: uploadBook.reset,
+  };
 }

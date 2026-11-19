@@ -38,6 +38,9 @@ const job = {
   metrics: { processed_pages: 4, diagrams_described: 0, tables_fixed: 0, flagged_items_count: 0 },
   created_at: '2026-01-01',
   finished_at: '',
+  assigned_to: '',
+  book_id: '',
+  edit_accuracy: 0,
 }
 
 const summary = {

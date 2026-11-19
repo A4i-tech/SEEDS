@@ -1,12 +1,17 @@
 import { z } from 'zod';
 import { apiClient } from '@shared/services/apiClient';
-import { remediationJobSchema } from '../types/job.types';
+import { saveBlob } from '@shared/utils/saveBlob';
+import { bookSchema, remediationJobSchema } from '../types/job.types';
 
-const jobsResponseSchema = z.object({ jobs: z.array(remediationJobSchema) });
+const jobsResponseSchema = z.object({ jobs: z.array(remediationJobSchema), books: z.array(bookSchema) });
+
+export async function getRemediationJobsAndBooks(limit: number) {
+  const { data } = await apiClient.get('/textbook-remediation/jobs', { params: { limit } });
+  return jobsResponseSchema.parse(data);
+}
 
 export async function getRemediationJobs(limit: number) {
-  const { data } = await apiClient.get('/textbook-remediation/jobs', { params: { limit } });
-  return jobsResponseSchema.parse(data).jobs;
+  return (await getRemediationJobsAndBooks(limit)).jobs;
 }
 
 export async function deleteRemediationJob(jobId: string) {
@@ -24,10 +29,5 @@ export async function downloadRemediationArtifact(jobId: string, name: string, f
   const blob = await apiClient.getBlob(
     `/textbook-remediation/jobs/${encodeURIComponent(jobId)}/artifacts/${encodeURIComponent(name)}`,
   );
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = filename;
-  link.click();
-  URL.revokeObjectURL(url);
+  saveBlob(blob, filename);
 }
