@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 
 from app.models.requests.translation_requests import (
     BulkApproveRequest,
+    RuleRequest,
     TranslationApproveRequest,
     TranslationRejectRequest,
     TranslationUpdateRequest,
@@ -13,6 +14,7 @@ from app.models.requests.translation_requests import (
 from app.models.responses.common import StatusResponse
 from app.models.responses.translation import (
     AuditEntryResponse,
+    RuleResponse,
     TranslationResponse,
     TranslationVersionResponse,
 )
@@ -150,6 +152,60 @@ async def get_audit_trail(
         site_id, _tenant_id(user), route=route, key=key, action=action, limit=limit
     )
     return [AuditEntryResponse.from_doc(entry) for entry in entries]
+
+
+@router.get(
+    "/rules",
+    summary="List a site's exclusion and override rules",
+    response_model=list[RuleResponse],
+)
+async def list_rules(
+    site_id: str,
+    service: TranslationService = Depends(get_translation_service),
+    user: dict[str, Any] = Depends(require_translation_reviewer),
+) -> list[RuleResponse]:
+    rules = await service.list_rules(site_id, _tenant_id(user))
+    return [RuleResponse.from_doc(rule) for rule in rules]
+
+
+@router.post(
+    "/rules",
+    summary="Add an exclusion or override rule to a site",
+    response_model=RuleResponse,
+    status_code=201,
+)
+async def add_rule(
+    site_id: str,
+    body: RuleRequest,
+    service: TranslationService = Depends(get_translation_service),
+    user: dict[str, Any] = Depends(require_translation_reviewer),
+) -> RuleResponse:
+    rule = await service.add_rule(site_id, _tenant_id(user), body.model_dump(), _reviewer_id(user))
+    return RuleResponse.from_doc(rule)
+
+
+@router.put(
+    "/rules/{rule_id}",
+    summary="Replace a rule",
+    response_model=RuleResponse,
+)
+async def update_rule(
+    rule_id: str,
+    body: RuleRequest,
+    service: TranslationService = Depends(get_translation_service),
+    user: dict[str, Any] = Depends(require_translation_reviewer),
+) -> RuleResponse:
+    rule = await service.update_rule(rule_id, _tenant_id(user), body.model_dump(), _reviewer_id(user))
+    return RuleResponse.from_doc(rule)
+
+
+@router.delete("/rules/{rule_id}", summary="Delete a rule", status_code=204)
+async def delete_rule(
+    rule_id: str,
+    service: TranslationService = Depends(get_translation_service),
+    user: dict[str, Any] = Depends(require_translation_reviewer),
+) -> None:
+    await service.delete_rule(rule_id, _tenant_id(user), _reviewer_id(user))
 
 
 @router.get(

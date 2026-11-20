@@ -26,7 +26,7 @@ class VolunteerService:
                 role=UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER,
                 name=body.name,
                 email=body.email,
-                hashed_password=hash_password(body.password),
+                hashed_password=await hash_password(body.password),
                 tenant_id=tenant_id,
             )
         )

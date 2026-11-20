@@ -8,12 +8,41 @@ from app.platform.settings import get_settings
 from app.services.quality_scorer import is_low_confidence
 
 
+class SharedMatch(BaseModel):
+    rule_id: str
+    translation: str
+
+
+class RuleResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: str = Field(validation_alias="_id")
+    kind: str
+    text: str
+    lang: str
+    translation: str
+    updated_at: Any
+    updated_by: str
+
+    @field_validator("id", mode="before")
+    @classmethod
+    def _coerce_id(cls, v: Any) -> str:
+        return str(v)
+
+    @classmethod
+    def from_doc(cls, doc: dict) -> RuleResponse:
+        return cls.model_validate(doc)
+
+
 class TranslationResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True, extra="allow")
 
     id: str = Field(validation_alias="_id")
     translations: dict[str, Any] | None = None
     low_confidence: bool = False
+    exclusion_rule_id: str = ""
+    exclusion_pattern: str = ""
+    shared: dict[str, SharedMatch] = {}
 
     @field_validator("id", mode="before")
     @classmethod
