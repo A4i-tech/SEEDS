@@ -334,7 +334,7 @@ async def create_content(
         logger.error("create_content failed", extra={"tenant_id": tenant_id, "user_id": user_id, "err": str(exc)})
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-    job_id = await service.enqueue_content_job(content_id)
+    job_id = await service.enqueue_content_job(content_id, tenant_id)
     logger.info("content_controller: created content_id=%s job_id=%s", content_id, job_id)
     return JobScheduledResponse(message="Processing New Content job scheduled!", job_id=job_id)
 
@@ -353,11 +353,12 @@ async def update_content(
     service: ContentService = Depends(get_content_service),
 ) -> ContentItem:
     tenant_id = user.get("tenant_id", "")
+    user_id = user["sub"]
     school_id = _write_school_id(user)
     body.id = content_id
 
     try:
-        result = await service.update_content(body, tenant_id, school_id, is_audio_uploaded)
+        result = await service.update_content(body, tenant_id, user_id, school_id, is_audio_uploaded)
     except ValueError as exc:
         logger.error("update_content failed", extra={"tenant_id": tenant_id, "content_id": str(body.id), "err": str(exc)})
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -366,7 +367,7 @@ async def update_content(
         raise NotFoundError("Content", str(body.id))
 
     if is_audio_uploaded and isinstance(result, AudioContent):
-        result.job_id = await service.enqueue_content_job(result.id)
+        result.job_id = await service.enqueue_content_job(result.id, tenant_id)
     return result
 
 
@@ -382,9 +383,10 @@ async def delete_content(
     service: ContentService = Depends(get_content_service),
 ) -> DeleteMatchedResponse:
     tenant_id = user.get("tenant_id", "")
+    user_id = user["sub"]
     school_id = _write_school_id(user)
 
-    matched = await service.delete_content(content_id, tenant_id, school_id)
+    matched = await service.delete_content(content_id, tenant_id, user_id, school_id)
     if matched:
         return {"matched": matched}
     raise NotFoundError("Content", content_id)
@@ -406,7 +408,7 @@ async def create_quiz(
     school_id = _write_school_id(user)
 
     quiz_id = await service.create_quiz(body, tenant_id, user_id, school_id)
-    job_id = await service.enqueue_content_job(quiz_id)
+    job_id = await service.enqueue_content_job(quiz_id, tenant_id)
     return JobScheduledResponse(message="Processing New Content job scheduled!", job_id=job_id)
 
 

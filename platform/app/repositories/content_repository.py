@@ -30,8 +30,12 @@ def _oid(id_str: str | None) -> ObjectId | None:
 class ContentRepository(BaseRepository):
     COLLECTION = "contentsV3"
 
-    def __init__(self, db: AsyncDatabase) -> None:
-        self._col = db[self.COLLECTION]
+    def __init__(self, db: AsyncDatabase, collection: str = COLLECTION) -> None:
+        self._col = db[collection]
+
+    @classmethod
+    async def ensure_indexes(cls, db: AsyncDatabase) -> None:
+        await db[cls.COLLECTION].create_index([("tenant_id", 1), ("creation_time", -1), ("_id", -1)])
 
     # ------------------------------------------------------------------
     # Internal query builder
@@ -65,8 +69,8 @@ class ContentRepository(BaseRepository):
         doc = await self._col.find_one({"_id": ObjectId(content_id)})
         return Content.from_mongo(doc) if doc else None
 
-    async def find_raw_by_id(self, content_id: str) -> dict | None:
-        return await self._col.find_one({"_id": ObjectId(content_id)})
+    async def find_raw_by_id_and_tenant(self, content_id: str, tenant_id: str) -> dict | None:
+        return await self._col.find_one({"_id": ObjectId(content_id), "tenant_id": ObjectId(tenant_id)})
 
     async def find_by_id_and_tenant(
         self,
@@ -161,6 +165,16 @@ class ContentRepository(BaseRepository):
     # Writes
     # ------------------------------------------------------------------
 
+    async def publish(self, doc: dict) -> None:
+        await self._col.replace_one({"_id": doc["_id"]}, doc, upsert=True)
+
+    async def list_partner_content(
+        self, tenant_id: str, filters: dict[str, object], cursor: str, limit: int
+    ) -> list[dict]:
+        """Tenant-scoped partner list with a creation_time plus _id cursor."""
+        query: dict = {**self._tenant_query(tenant_id, None), **{k: v for k, v in filters.items() if v}}
+        return await self._page_by_creation_time(self._col, query, cursor, limit)
+
     async def insert_raw(self, doc: dict) -> str:
         """Insert a raw content document, coercing tenant_id/school_id/created_by to ObjectId."""
         if doc.get("tenant_id"):
@@ -176,10 +190,15 @@ class ContentRepository(BaseRepository):
         self,
         content_id: str,
         tenant_id: str,
+        created_by: ObjectId,
         updates: dict,
         school_id: str | None = None,
     ) -> dict | None:
-        q = {**self._tenant_query(tenant_id, school_id, strict=True), "_id": ObjectId(content_id)}
+        q = {
+            **self._tenant_query(tenant_id, school_id, strict=True),
+            "_id": ObjectId(content_id),
+            "created_by": created_by,
+        }
         updates["updated_at"] = datetime.now(UTC)
         return await self._col.find_one_and_update(q, {"$set": updates}, return_document=True)
 
@@ -187,13 +206,24 @@ class ContentRepository(BaseRepository):
         self,
         content_id: str,
         tenant_id: str,
+        created_by: ObjectId,
         school_id: str | None = None,
     ) -> int:
-        q = {**self._tenant_query(tenant_id, school_id, strict=True), "_id": ObjectId(content_id)}
+        q = {
+            **self._tenant_query(tenant_id, school_id, strict=True),
+            "_id": ObjectId(content_id),
+            "created_by": created_by,
+        }
         result = await self._col.update_one(
             q, {"$set": {"is_deleted": True, "updated_at": datetime.now(UTC)}}
         )
         return result.matched_count
 
-    async def save_processed(self, content_id: str, fields: dict) -> None:
-        await self._col.update_one({"_id": ObjectId(content_id)}, {"$set": fields})
+    async def is_deleted(self, content_id: str) -> bool:
+        return await self._col.count_documents({"_id": ObjectId(content_id), "is_deleted": True}, limit=1) > 0
+
+    async def save_processed(self, content_id: str, fields: dict) -> int:
+        result = await self._col.update_one(
+            {"_id": ObjectId(content_id), "is_deleted": {"$ne": True}}, {"$set": fields}
+        )
+        return result.matched_count

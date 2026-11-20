@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 
+from bson import ObjectId
 from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.content_aggregator import IntegrationClient
@@ -27,6 +28,10 @@ class IntegrationClientRepository(BaseRepository):
             logger.warning("content_aggregator auth: unknown client_id=%s", client_id)
             raise UnauthorizedError("Invalid client credentials")
         return IntegrationClient.from_mongo(doc)
+
+    async def find_object_id(self, client_id: str) -> ObjectId:
+        doc = await self._col.find_one({"client_id": client_id}, {"_id": 1})
+        return doc["_id"]
 
     async def create(self, client: IntegrationClient) -> None:
         await self._col.insert_one(client.model_dump())

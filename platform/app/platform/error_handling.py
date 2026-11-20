@@ -78,6 +78,17 @@ class ConflictError(AppError):
         super().__init__("CONFLICT", f"{resource} already exists", 409)
 
 
+class RateLimitedError(AppError):
+    def __init__(self, retry_after: int) -> None:
+        super().__init__(
+            "RATE_LIMIT_EXCEEDED",
+            "Too many requests. Please try again later.",
+            429,
+            {"retry_after": retry_after},
+        )
+        self.retry_after = retry_after
+
+
 class ValidationError(AppError):
     def __init__(self, message: str) -> None:
         super().__init__("VALIDATION_ERROR", message, 422)
@@ -123,6 +134,12 @@ async def _app_error_handler(request: Request, exc: AppError) -> JSONResponse:
         status_code=exc.status_code,
         content=_error_envelope(exc.code, exc.message, request_id, exc.details),
     )
+
+
+async def _rate_limited_handler(request: Request, exc: RateLimitedError) -> JSONResponse:
+    response = await _app_error_handler(request, exc)
+    response.headers["Retry-After"] = str(exc.retry_after)
+    return response
 
 
 async def _validation_error_handler(
@@ -180,6 +197,7 @@ async def _unhandled_exception_handler(
 def register_error_handlers(app: FastAPI) -> None:
     """Wire all exception handlers onto *app*."""
     app.add_exception_handler(AppError, _app_error_handler)
+    app.add_exception_handler(RateLimitedError, _rate_limited_handler)
     app.add_exception_handler(RequestValidationError, _validation_error_handler)
     app.add_exception_handler(InvalidId, _invalid_id_handler)
     app.add_exception_handler(Exception, _unhandled_exception_handler)

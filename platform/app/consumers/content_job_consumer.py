@@ -77,6 +77,7 @@ from pymongo.asynchronous.database import AsyncDatabase
 
 from app.repositories.content_job_repository import ContentJobRepository
 from app.repositories.content_repository import ContentRepository
+from app.repositories.content_request_repository import ContentRequestRepository
 
 logger = logging.getLogger(__name__)
 
@@ -346,6 +347,7 @@ async def _process_audio_content_job(
     job_doc: dict,
     job_repo: ContentJobRepository,
     content_repo: ContentRepository,
+    request_repo: ContentRequestRepository,
     blob_provider,
 ) -> None:
     """Process a single audio content job with retry and dead-letter handling.
@@ -360,13 +362,15 @@ async def _process_audio_content_job(
     """
     job_id = job_doc.get("_id")
     content_id = job_doc.get("content_id")
+    tenant_id = str(job_doc["tenant_id"])
+    source_repo = request_repo.staged if job_doc["staged"] else content_repo
 
     await job_repo.mark_running(job_id)
 
     last_exc: Exception | None = None
     for attempt in range(1, MAX_RETRIES + 1):
         try:
-            content_doc = await content_repo.find_raw_by_id(content_id)
+            content_doc = await source_repo.find_raw_by_id_and_tenant(content_id, tenant_id)
             if not content_doc:
                 raise RuntimeError(f"Content document not found: {content_id}")
 
@@ -374,6 +378,10 @@ async def _process_audio_content_job(
             audio_content = content_doc.get("audio_content", [])
             updated_audio = []
             for item in audio_content:
+                if await source_repo.is_deleted(content_id):
+                    await job_repo.mark_cancelled(job_id)
+                    logger.info("content_job: cancelled job_id=%s content_id=%s (content deleted)", job_id, content_id)
+                    return
                 audio_url = item.get("audio_url", "")
                 if not audio_url:
                     updated_audio.append(item)
@@ -394,6 +402,10 @@ async def _process_audio_content_job(
 
             # TTS for pull-model content
             if content_doc.get("is_pull_model"):
+                if await source_repo.is_deleted(content_id):
+                    await job_repo.mark_cancelled(job_id)
+                    logger.info("content_job: cancelled job_id=%s content_id=%s (content deleted)", job_id, content_id)
+                    return
                 await _process_tts_for_content(content_doc, blob_provider)
 
             # Save updated content
@@ -406,12 +418,18 @@ async def _process_audio_content_job(
             if "theme" in content_doc:
                 update_fields["theme"] = content_doc["theme"]
 
-            await content_repo.save_processed(content_id, update_fields)
-            await job_repo.mark_completed(job_id)
-            logger.info(
-                "content_job: completed job_id=%s content_id=%s (attempt %d)",
-                job_id, content_id, attempt,
-            )
+            if await source_repo.save_processed(content_id, update_fields):
+                if job_doc["staged"]:
+                    await content_repo.publish(await source_repo.find_raw_by_id_and_tenant(content_id, tenant_id))
+                    await request_repo.release(content_id)
+                await job_repo.mark_completed(job_id)
+                logger.info(
+                    "content_job: completed job_id=%s content_id=%s (attempt %d)",
+                    job_id, content_id, attempt,
+                )
+            else:
+                await job_repo.mark_cancelled(job_id)
+                logger.info("content_job: cancelled job_id=%s content_id=%s (content deleted)", job_id, content_id)
             return  # success — exit retry loop
 
         except _TRANSIENT_ERRORS as exc:
@@ -487,6 +505,7 @@ class ContentJobConsumer:
         blob_provider = None
         job_repo = ContentJobRepository(self._db)
         content_repo = ContentRepository(self._db)
+        request_repo = ContentRequestRepository(self._db)
 
         while self._running:
             # Re-attempt init each cycle so we recover when blob storage comes back
@@ -509,7 +528,7 @@ class ContentJobConsumer:
                 if job_doc:
                     try:
                         await asyncio.wait_for(
-                            _process_audio_content_job(job_doc, job_repo, content_repo, blob_provider),
+                            _process_audio_content_job(job_doc, job_repo, content_repo, request_repo, blob_provider),
                             timeout=JOB_TIMEOUT_SECONDS,
                         )
                     except TimeoutError:
