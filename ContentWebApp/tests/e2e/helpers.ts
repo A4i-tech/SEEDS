@@ -144,8 +144,7 @@ export async function saveUpload(page: Page): Promise<number> {
     (res) => /\/content(\/|$|\?)/.test(res.url()) && ['POST', 'PATCH'].includes(res.request().method()),
   );
   await page.getByRole('button', { name: 'Save to Library' }).click();
-  const confirm = page.getByRole('button', { name: 'Save upload' });
-  if (await confirm.isVisible()) await confirm.click();
+  await page.getByRole('button', { name: 'Save upload' }).click();
   const response = await responsePromise;
   return response.status();
 }

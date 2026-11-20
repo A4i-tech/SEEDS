@@ -22,7 +22,7 @@ async function openTeachers(page: Page): Promise<void> {
     { timeout: 10000 },
   );
   await page.getByRole('link', { name: 'Registration' }).click();
-  await page.getByRole('tab', { name: 'Teachers' }).click();
+  await page.getByRole('button', { name: 'Manage teachers' }).click();
   await page.getByRole('button', { name: 'Add teacher' }).waitFor();
   const res = await teachersFetched;
   if (!res.ok()) {

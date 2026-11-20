@@ -17,7 +17,7 @@ async function openStudents(page: Page): Promise<void> {
     { timeout: 10000 },
   );
   await page.getByRole('link', { name: 'Registration' }).click();
-  await page.getByRole('tab', { name: 'Students' }).click();
+  await page.getByRole('button', { name: 'Manage students' }).click();
   await page.getByRole('button', { name: 'Add student' }).waitFor();
   await studentsFetched;
 }

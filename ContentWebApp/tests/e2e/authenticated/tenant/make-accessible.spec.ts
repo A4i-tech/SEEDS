@@ -1,6 +1,9 @@
 import { expect, test } from '@playwright/test';
+import { PERSONAS } from '../../fixtures/instances';
+import { login } from '../../helpers';
 
 test('TC-MA-001 tenant can open make accessible and see the upload dropzone', async ({ page }) => {
+  await login(page, PERSONAS.tenant.identifier, PERSONAS.tenant.password);
   await page.goto('/make-accessible');
   await expect(page.getByRole('heading', { name: 'Make Accessible' })).toBeVisible({ timeout: 15000 });
   await expect(page.getByRole('button', { name: 'Drag files here to upload' })).toBeVisible({ timeout: 15000 });

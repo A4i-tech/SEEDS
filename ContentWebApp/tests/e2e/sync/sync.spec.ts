@@ -109,7 +109,7 @@ test('TC-SYNC-002/003 Jobs page shows past runs with status and per-course detai
     return;
   }
 
-  await expect(jobRows(page).first().locator('[class*="Badge-root"]')).toBeVisible();
+  await expect(jobRows(page).first().locator('[class*="Badge-root"]').first()).toBeVisible();
   const [firstSyncId] = syncJobIds;
   if (!firstSyncId) return;
   const outcome = await openPerCourseDetail(page, firstSyncId);
