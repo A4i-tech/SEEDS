@@ -36,6 +36,7 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 _VONAGE_RATE_LIMIT = 3  # max outbound call POSTs per second
+_VONAGE_REST_RATE_LIMIT = 15
 
 
 class VonageParticipantInfo(BaseModel):

@@ -14,10 +14,11 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 class UnmuteParticipantEvent(ConferenceEvent):
-    def __init__(self, phone_number: str, conf_call: ConferenceCall, stream_system_message: bool = True) -> None:
+    def __init__(self, phone_number: str, conf_call: ConferenceCall, stream_system_message: bool = True, persist_state: bool = True) -> None:
         self.phone_number = phone_number
         self.conf_call = conf_call
         self.stream_system_message = stream_system_message
+        self.persist_state = persist_state
 
     async def execute_event(self) -> None:
         if self.phone_number not in self.conf_call.state.participants:
@@ -31,4 +32,5 @@ class UnmuteParticipantEvent(ConferenceEvent):
         if self.stream_system_message and teacher and self.phone_number != teacher.phone_number:
             await self.conf_call.stream_system_message(SystemAudioMessages.STUDENT_IS_UNMUTED)
         self.conf_call.state.action_history.append(ActionHistory(timestamp=datetime.now().isoformat(), action_type=ActionType.TEACHER_MUTE_UNMUTE_STUDENT, metadata={"phone_number": self.phone_number, "is_muted": False}, owner=self.conf_call.state.teacher_phone_number or ""))
-        await self.conf_call.update_state()
+        if self.persist_state:
+            await self.conf_call.update_state()

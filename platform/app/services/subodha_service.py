@@ -20,7 +20,7 @@ from app.aggregators.subodha_adapter import SubodhaAdapter
 from app.aggregators.sync_job_models import SyncItemResult, SyncStats
 from app.platform.auth.dependencies import get_db
 from app.platform.settings import get_settings
-from app.providers.blob_storage import BlobStorageProvider
+from app.providers.blob_storage import BlobStorageProvider, get_blob_storage_provider
 from app.providers.subodha_client import SubodhaClient, SubodhaCourse, get_subodha_client
 from app.repositories.content_aggregator_item_override_repository import (
     ContentAggregatorItemOverrideRepository,
@@ -63,7 +63,7 @@ async def fetch_and_store_assets(
     settings = get_settings()
     container = settings.subodha_asset_container
     safe_course_id = re.sub(r"[:/+]", "_", course_id)
-    blob_provider = BlobStorageProvider()
+    blob_provider = get_blob_storage_provider()
     semaphore = asyncio.Semaphore(settings.subodha_asset_concurrency)
     url_map: dict[str, str] = {}
     stats = {"saved": 0, "failed": 0}

@@ -19,13 +19,22 @@ logger = logging.getLogger(__name__)
 # can load it, regardless of which syntax wraps it.
 _BLOB_URL_RE = re.compile(r"https://[^\s)\"'<>]+\.blob\.core\.windows\.net/[^\s)\"'<>]+")
 
+_MAX_CONCURRENCY = 10
+_BLOCK_SEMAPHORE = asyncio.Semaphore(_MAX_CONCURRENCY)
+_SIGN_SEMAPHORE = asyncio.Semaphore(_MAX_CONCURRENCY)
+
+
+async def _sign_one_url(blob: BlobStorageProvider, url: str) -> str:
+    async with _SIGN_SEMAPHORE:
+        return await blob.get_sas_url_from_blob_url(url, expiry_hours=1)
+
 
 async def _sign_blob_urls(text: str, blob: BlobStorageProvider) -> str:
     urls = list(set(_BLOB_URL_RE.findall(text)))
     if not urls:
         return text
     signed = await asyncio.gather(
-        *(blob.get_sas_url_from_blob_url(url, expiry_hours=1) for url in urls), return_exceptions=True
+        *(_sign_one_url(blob, url) for url in urls), return_exceptions=True
     )
     for original, result in zip(urls, signed, strict=True):
         if isinstance(result, Exception):
@@ -132,6 +141,11 @@ async def _resolve_html(node: CanonicalNode, blob: BlobStorageProvider) -> str:
     return await _sign_blob_urls(data.decode("utf-8"), blob)
 
 
+async def _convert_block(node: CanonicalNode, blob: BlobStorageProvider) -> LegacyBlock:
+    async with _BLOCK_SEMAPHORE:
+        return await _to_legacy_block(node, blob)
+
+
 async def _to_legacy_block(node: CanonicalNode, blob: BlobStorageProvider) -> LegacyBlock:
     student_view_data = None
     html = ""
@@ -200,7 +214,7 @@ async def to_course_doc(nodes: list[CanonicalNode], blob: BlobStorageProvider) -
             items_by_parent.setdefault(n.parent_id, []).append(n)
 
     outline, item_nodes = _build_outline(containers_by_parent, items_by_parent, root.source_id)
-    blocks = list(await asyncio.gather(*(_to_legacy_block(n, blob) for n in item_nodes)))
+    blocks = list(await asyncio.gather(*(_convert_block(n, blob) for n in item_nodes)))
 
     return LegacyCourseDoc(
         source_id=root.source_id, source_type=root.source_type, content_hash=meta.get("content_hash"),

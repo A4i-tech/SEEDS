@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 
 from app.models.action_history import ActionHistory, ActionType
 from app.models.system_audio_messages import SystemAudioMessages
+from app.providers.vonage_api import _VONAGE_REST_RATE_LIMIT
 from app.services.confevents.base_event import ConferenceEvent
 
 if TYPE_CHECKING:
@@ -25,19 +26,21 @@ class MuteAllEvent(ConferenceEvent):
         if not teacher:
             return
         students = self.conf_call.state.get_students()
-        tasks = [self._mute_student(s.phone_number) for s in students if not s.is_muted]
-        phone_list = [s.phone_number for s in students if not s.is_muted]
+        targets = [s.phone_number for s in students if not s.is_muted]
         muted_count = 0
         failed_phones: list[str] = []
-        if tasks:
-            results = await asyncio.gather(*tasks, return_exceptions=True)
-            for i, res in enumerate(results):
+        for i in range(0, len(targets), _VONAGE_REST_RATE_LIMIT):
+            batch = targets[i:i + _VONAGE_REST_RATE_LIMIT]
+            results = await asyncio.gather(*(self._mute_student(p) for p in batch), return_exceptions=True)
+            for phone, res in zip(batch, results, strict=True):
                 if isinstance(res, Exception):
-                    failed_phones.append(phone_list[i] if i < len(phone_list) else "unknown")
+                    failed_phones.append(phone)
                 elif res:
                     muted_count += 1
-            if self.stream_system_message and muted_count > 0:
-                await self.conf_call.stream_system_message(SystemAudioMessages.STUDENT_IS_MUTED)
+            if i + _VONAGE_REST_RATE_LIMIT < len(targets):
+                await asyncio.sleep(1.0)
+        if self.stream_system_message and muted_count > 0:
+            await self.conf_call.stream_system_message(SystemAudioMessages.STUDENT_IS_MUTED)
         self.conf_call.state.action_history.append(ActionHistory(timestamp=datetime.now().isoformat(), action_type=ActionType.LEADER_MUTE_ALL_VIA_DTMF if self.initiator_phone else ActionType.TEACHER_MUTE_ALL, metadata={"muted_count": muted_count, "total_students": len(students), "failed_phones": failed_phones}, owner=self.initiator_phone or self.conf_call.state.teacher_phone_number or ""))
         await self.conf_call.update_state()
 
@@ -45,5 +48,5 @@ class MuteAllEvent(ConferenceEvent):
         from app.services.confevents.mute_participant_event import (
             MuteParticipantEvent,  # noqa: PLC0415
         )
-        await MuteParticipantEvent(phone_number=phone_number, conf_call=self.conf_call, stream_system_message=False).execute_event()
+        await MuteParticipantEvent(phone_number=phone_number, conf_call=self.conf_call, stream_system_message=False, persist_state=False).execute_event()
         return True

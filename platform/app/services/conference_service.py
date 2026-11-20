@@ -30,6 +30,7 @@ from app.models.conference_state import ConferenceCallState
 from app.models.participant import CallStatus, Participant, Role
 from app.platform.auth.dependencies import get_db
 from app.platform.settings import get_settings
+from app.services.caller_state_service import caller_state_service
 from app.services.confevents.base_event import ConferenceEvent
 
 if TYPE_CHECKING:
@@ -387,6 +388,7 @@ class ConferenceCallManager:
         self._ws_base_url = ws_base_url
         self._conferences: dict[str, ConferenceCall] = {}
         self._redis_store: Any = None
+        self._pending_deletes: set[asyncio.Task[None]] = set()
 
     # ------------------------------------------------------------------
     # Redis helpers
@@ -491,7 +493,16 @@ class ConferenceCallManager:
 
     def delete_conference(self, conf_id: str) -> None:
         self._conferences.pop(conf_id, None)
-        asyncio.create_task(self._get_redis().delete(conf_id))
+        caller_state_service.delete_conference(conf_id)
+        task = asyncio.create_task(self._get_redis().delete(conf_id))
+        self._pending_deletes.add(task)
+        task.add_done_callback(self._pending_deletes.discard)
+
+        def _log_failure(done: asyncio.Task[None]) -> None:
+            if not done.cancelled() and done.exception() is not None:
+                logger.error("conference_service: redis delete failed conf_id=%s — %s", conf_id, done.exception())
+
+        task.add_done_callback(_log_failure)
 
     def get_conference_from_phone_number(self, phone_number: str) -> ConferenceCall | None:
         for conf in self._conferences.values():
