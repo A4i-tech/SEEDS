@@ -100,22 +100,23 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Test runtime-env.sh
-        run: sh .github/scripts/test-runtime-env.sh ${{ matrix.context }}
-
       - name: Build image
         run: docker build -t app ${{ matrix.context }}
 
-      - name: Image takes its config at start
+      - name: Image ships no config and fails loud without it
         run: |
           set -euo pipefail
-          vars=$(sed -n 's/^VARS="\(.*\)"$/\1/p' ${{ matrix.context }}/runtime-env.sh)
-          envs=""
-          for v in $vars; do envs="$envs -e $v=ci-marker-$v"; done
-          if docker run --rm app; then echo "container started without config"; exit 1; fi
-          CID=$(docker run -d -p 8080:8080 $envs app)
-          curl -fsS --retry 10 --retry-delay 1 --retry-all-errors -o /dev/null localhost:8080/ || { docker logs "$CID"; exit 1; }
-          docker exec "$CID" sh -c "grep -rq ci-marker-REACT_APP_API_BASE_URL /usr/share/nginx/html"
-          ! docker exec "$CID" sh -c "grep -rq __REACT_APP /usr/share/nginx/html"
-          js=$(docker exec "$CID" sh -c "cd /usr/share/nginx/html && ls static/js/main.*.js | head -1")
-          for path in index.html "$js"; do curl -sI "localhost:8080/$path" | grep -qi "^cache-control: no-cache" || { echo "no-cache missing on $path"; exit 1; }; done
+          CID=$(docker run -d -p 8080:8080 app)
+          sleep 15
+          [ "$(docker inspect -f '{{.State.Health.Status}}' "$CID")" = unhealthy ] || { echo "healthy without env.js"; exit 1; }
+          docker rm -f "$CID" >/dev/null
+
+      - name: Image serves a mounted env.js
+        run: |
+          set -euo pipefail
+          printf 'window.__ENV__ = { REACT_APP_API_BASE_URL: "ci-marker" };
+' > /tmp/env.js
+          CID=$(docker run -d -p 8080:8080 -v /tmp/env.js:/etc/app-config/env.js:ro app)
+          curl -fsS --retry 10 --retry-delay 1 --retry-all-errors localhost:8080/env.js | grep -q ci-marker || { docker logs "$CID"; exit 1; }
+          curl -sI localhost:8080/env.js | grep -qi "^cache-control: no-store"
+          ! docker exec "$CID" grep -rq ci-marker /usr/share/nginx/html

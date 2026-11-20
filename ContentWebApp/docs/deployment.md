@@ -5,18 +5,16 @@
 Staging runs on kube-dev, not Render/Fly.io. A push to `a4i/staging` runs `.github/workflows/build-staging-images.yml`, which builds the `content-webapp` Docker image and pushes `ghcr.io/a4i-tech/seeds/content-webapp:staging`. ArgoCD Image Updater on kube-dev watches that tag and rolls the new digest out automatically, no manual deploy step.
 
 ## 2. Runtime Configuration
-The image holds no environment values. Set these as container environment variables when the container starts:
+The image holds no environment values. The deploy target mounts a file at `/etc/app-config/env.js`. The app loads it as `/env.js`.
+```js
+window.__ENV__ = {
+  REACT_APP_API_BASE_URL: "<value>",
+  REACT_APP_STORAGE_ACCOUNT_NAME: "<value>",
+  REACT_APP_GOOGLE_SITE_VERIFICATION: "<value>",
+};
 ```
-REACT_APP_API_BASE_URL=<value>
-REACT_APP_STORAGE_ACCOUNT_NAME=<value>
-REACT_APP_GOOGLE_SITE_VERIFICATION=<value>
-```
 
-The build puts a placeholder in the bundle for each variable. The start script `runtime-env.sh` replaces each placeholder with the variable value, then starts nginx.
-
-If a variable is missing or empty, the container exits with an error that names the variable. Set it and restart.
-
-A value must not contain a space, `"`, `\`, `<`, `&`, `|`, or a control character.
+If the file is missing, the container health check fails and the container never becomes Ready. Mount the file and restart.
 
 Every browser can read these values. Never put a secret in them.
 
@@ -28,7 +26,7 @@ Set each value in every environment before the first deploy of this image. Take 
 | `REACT_APP_STORAGE_ACCOUNT_NAME` | CONTENT_WEBAPP_STORAGE_ACCOUNT_NAME |
 | `REACT_APP_GOOGLE_SITE_VERIFICATION` | CONTENT_WEBAPP_REACT_APP_GOOGLE_SITE_VERIFICATION |
 
-To change one, update the value where the container runs (the kube-dev secret or the Azure App Setting) and restart the container.
+To change one, update the mounted file and restart the container.
 
 ## 3. Testing Endpoints
 

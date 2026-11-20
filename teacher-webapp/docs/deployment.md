@@ -11,17 +11,15 @@
 - Select the appropriate branch for deployment (e.g., `main` or `a4i/main`)
 
 ## 3. Runtime Configuration
-The image holds no environment values. Set these as container environment variables when the container starts:
+The image holds no environment values. The deploy target mounts a file at `/etc/app-config/env.js`. The app loads it as `/env.js`.
+```js
+window.__ENV__ = {
+  REACT_APP_API_BASE_URL: "<value>",
+  REACT_APP_STORAGE_ACCOUNT_NAME: "<value>",
+};
 ```
-REACT_APP_API_BASE_URL=<value>
-REACT_APP_STORAGE_ACCOUNT_NAME=<value>
-```
 
-The build puts a placeholder in the bundle for each variable. The start script `runtime-env.sh` replaces each placeholder with the variable value, then starts nginx.
-
-If a variable is missing or empty, the container exits with an error that names the variable. Set it and restart.
-
-A value must not contain a space, `"`, `\`, `<`, `&`, `|`, or a control character.
+If the file is missing, the container health check fails and the container never becomes Ready. Mount the file and restart.
 
 Every browser can read these values. Never put a secret in them.
 

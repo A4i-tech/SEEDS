@@ -11,18 +11,13 @@ RUN npm ci
 COPY . .
 
 # Build React app
-ENV REACT_APP_API_BASE_URL=__REACT_APP_API_BASE_URL__ \
-    REACT_APP_STORAGE_ACCOUNT_NAME=__REACT_APP_STORAGE_ACCOUNT_NAME__ \
-    REACT_APP_GOOGLE_SITE_VERIFICATION=__REACT_APP_GOOGLE_SITE_VERIFICATION__
-RUN npm run build
+RUN npm run build && rm build/env.js
 
 # ---- Production stage ----
 FROM nginxinc/nginx-unprivileged:1.27-alpine
 
-USER root
-COPY --from=builder /app/build /opt/app
-COPY --chmod=755 runtime-env.sh /usr/local/bin/runtime-env.sh
-RUN chown 101:0 /usr/share/nginx/html
+# Copy React build output to Nginx
+COPY --from=builder /app/build /usr/share/nginx/html
 
 # Copy custom nginx configuration
 COPY nginx.conf /etc/nginx/conf.d/default.conf
@@ -31,5 +26,7 @@ USER 101
 
 EXPOSE 8080
 
-# nosemgrep: dockerfile.security.missing-user.missing-user -- base image already runs as non-root
-CMD ["sh", "-c", "runtime-env.sh && exec nginx -g 'daemon off;'"]
+# Unhealthy until the deploy target mounts /etc/app-config/env.js.
+HEALTHCHECK --interval=5s --timeout=3s --start-period=5s CMD wget -q -O /dev/null http://127.0.0.1:8080/env.js || exit 1
+
+CMD ["nginx", "-g", "daemon off;"]
