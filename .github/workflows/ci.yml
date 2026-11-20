@@ -114,8 +114,7 @@ jobs:
       - name: Image serves a mounted env.js
         run: |
           set -euo pipefail
-          printf 'window.__ENV__ = { REACT_APP_API_BASE_URL: "ci-marker" };
-' > /tmp/env.js
+          echo 'window.__ENV__ = { REACT_APP_API_BASE_URL: "ci-marker" };' > /tmp/env.js
           CID=$(docker run -d -p 8080:8080 -v /tmp/env.js:/etc/app-config/env.js:ro app)
           curl -fsS --retry 10 --retry-delay 1 --retry-all-errors localhost:8080/env.js | grep -q ci-marker || { docker logs "$CID"; exit 1; }
           curl -sI localhost:8080/env.js | grep -qi "^cache-control: no-store"
