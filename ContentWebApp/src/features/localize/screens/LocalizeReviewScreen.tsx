@@ -12,19 +12,21 @@ import { DataTable } from '@shared/components/DataTable';
 import { StatusBadge } from '@shared/components/StatusBadge';
 import { ApiError } from '@shared/services/apiClient';
 import { selectValue } from '@shared/utils/select';
+import { RulesModal } from '../components/RulesModal';
 import { SourceText } from '../components/SourceText';
 import { useLocalizeSites } from '../hooks/useLocalizeSites';
 import { useLocalizePages } from '../hooks/useLocalizePages';
 import { useLocalizeReview } from '../hooks/useLocalizeReview';
+import { useLocalizeRules } from '../hooks/useLocalizeRules';
 import type { ReviewScope, Website } from '../types/localize.types';
 import type { Segment } from '../utils/segments';
 import { PageTitle } from '@shared/components/PageTitle';
 
-type StageFilter = 'all' | 'pending' | 'approved';
+type StageFilter = 'all' | 'pending' | 'approved' | 'excluded';
 
-const stageOptions: StageFilter[] = ['pending', 'approved', 'all'];
+const stageOptions: StageFilter[] = ['pending', 'approved', 'all', 'excluded'];
 
-const STAGE_TONE = { approved: 'done', pending: 'needs-review' } as const;
+const STAGE_TONE = { approved: 'done', pending: 'needs-review', excluded: 'running' } as const;
 
 function TranslationCell({ seg, onSave }: { seg: Segment; onSave: (id: string, text: string) => void }) {
   const { t } = useTranslation();
@@ -38,6 +40,7 @@ function TranslationCell({ seg, onSave }: { seg: Segment; onSave: (id: string, t
         autosize
         minRows={2}
         value={text}
+        disabled={seg.stage === 'excluded'}
         onChange={(e) => setText(e.currentTarget.value)}
         onBlur={commit}
         aria-label={t('localize.columns.translation')}
@@ -86,6 +89,7 @@ function SiteReview({ site, sites, languages, languageName, scope, setScope }: S
   const { t } = useTranslation();
   const [stage, setStage] = useState<StageFilter>('all');
   const [query, setQuery] = useState('');
+  const [rulesOpen, setRulesOpen] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
@@ -107,10 +111,13 @@ function SiteReview({ site, sites, languages, languageName, scope, setScope }: S
     approvingAll,
   } = useLocalizeReview({ siteId, route: activeRoute, lang });
 
+  const rules = useLocalizeRules(siteId);
+
   const counts = {
     pending: segments.filter((seg) => seg.stage === 'pending').length,
     approved: segments.filter((seg) => seg.stage === 'approved').length,
-    all: segments.length,
+    all: segments.filter((seg) => seg.stage !== 'excluded').length,
+    excluded: segments.filter((seg) => seg.stage === 'excluded').length,
   };
 
   const isLoading = generating || pagesState.status === 'loading' || (activeRoute !== '' && state.status === 'loading');
@@ -119,7 +126,7 @@ function SiteReview({ site, sites, languages, languageName, scope, setScope }: S
   const q = query.trim().toLowerCase();
   const rows = segments.filter(
     (seg) =>
-      (stage === 'all' || seg.stage === stage) &&
+      (stage === 'all' ? seg.stage !== 'excluded' : seg.stage === stage) &&
       (!q || seg.sourceText.toLowerCase().includes(q) || seg.translation.toLowerCase().includes(q)),
   );
 
@@ -162,10 +169,17 @@ function SiteReview({ site, sites, languages, languageName, scope, setScope }: S
       key: 'status',
       header: t('localize.columns.status'),
       render: (row) => (
-        <StatusBadge
-          tone={STAGE_TONE[row.stage]}
-          label={t(`localize.stageOptions.${row.stage}`)}
-        />
+        <Stack gap={4} align="flex-start">
+          <StatusBadge
+            tone={STAGE_TONE[row.stage]}
+            label={row.shared ? t('localize.shared') : t(`localize.stageOptions.${row.stage}`)}
+          />
+          {row.stage === 'excluded' && (
+            <Text size="xs" c="dimmed">
+              {row.pattern}
+            </Text>
+          )}
+        </Stack>
       ),
     },
   ];
@@ -180,10 +194,22 @@ function SiteReview({ site, sites, languages, languageName, scope, setScope }: S
           <PageTitle title={t('localize.reviewTitle')} />
           <Text c="dimmed">{t('localize.reviewDescription')}</Text>
         </Stack>
-        <Button disabled={!ready || approvingAll} loading={approvingAll} onClick={approveVisible}>
-          {t('localize.approveAll')}
-        </Button>
+        <Group gap="sm">
+          <Button variant="outline" disabled={siteId === ''} onClick={() => setRulesOpen(true)}>
+            {t('localize.rules')}
+          </Button>
+          <Button disabled={!ready || approvingAll} loading={approvingAll} onClick={approveVisible}>
+            {t('localize.approveAll')}
+          </Button>
+        </Group>
       </Group>
+      {rulesOpen && (
+        <RulesModal
+          rules={rules}
+          languages={langCodes.map((code) => ({ value: code, label: languageName(code) }))}
+          onClose={() => setRulesOpen(false)}
+        />
+      )}
       <Flex gap="md" direction={{ base: 'column', md: 'row' }} align={{ base: 'stretch', md: 'flex-end' }}>
         <Select
           aria-label={t('localize.site')}
@@ -257,11 +283,25 @@ function SiteReview({ site, sites, languages, languageName, scope, setScope }: S
         }}
         emptyMessage={t('localize.reviewEmpty')}
         actions={(row) =>
-          row.stage !== 'approved' && (
+          row.stage !== 'excluded' && (
             <Group gap="md" wrap="nowrap">
-              <Anchor component="button" type="button" variant="rowAction" onClick={() => approve(row.id)}>
-                {t('localize.approve')}
-              </Anchor>
+              {row.stage === 'pending' && (
+                <Anchor component="button" type="button" variant="rowAction" onClick={() => approve(row.id)}>
+                  {t('localize.approve')}
+                </Anchor>
+              )}
+              {!row.shared && row.translation !== '' && (
+                <Anchor
+                  component="button"
+                  type="button"
+                  variant="rowAction"
+                  onClick={() =>
+                    rules.create({ kind: 'override', text: row.sourceText, lang, translation: row.translation })
+                  }
+                >
+                  {t('localize.applyToAll')}
+                </Anchor>
+              )}
             </Group>
           )
         }

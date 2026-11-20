@@ -590,6 +590,123 @@ def _all_translation_entries_have_status(doc: dict) -> bool:
     )
 
 
+async def _extract(service, *items, route="/h"):
+    await service.extract_items(
+        "site1", [{"key": k, "text": t, "route": route, "source_lang": "en"} for k, t in items]
+    )
+
+
+async def _add_rule(service, kind, text, lang="", translation=""):
+    return await service.add_rule(
+        "site1", TENANT, {"kind": kind, "text": text, "lang": lang, "translation": translation}, "rev"
+    )
+
+
+async def test_excluded_text_never_reaches_the_provider_and_is_served_as_source(
+    translation_service, fake_provider
+):
+    await _add_rule(translation_service, "exclusion", r"\frac{*}{*}")
+    await _extract(translation_service, ("m", r"\frac{1}{2}"), ("t", "Hello"))
+
+    result = await translation_service.runtime_translate("site1", "/h", "hi")
+
+    assert result == {"m": r"\frac{1}{2}", "t": "Hello"}
+    assert [call[0] for call in fake_provider.calls] == ["Hello"]
+
+
+async def test_excluded_text_is_served_as_source_even_when_already_approved(
+    translation_repo, translation_service
+):
+    await _extract(translation_service, ("t", "Hello"))
+    await translation_repo.save_translation("site1", "/h", "t", "hi", "नमस्ते", "P", auto_approved=True)
+    assert (await translation_service.runtime_translate("site1", "/h", "hi")) == {"t": "नमस्ते"}
+
+    rule = await _add_rule(translation_service, "exclusion", "Hello")
+    assert (await translation_service.runtime_translate("site1", "/h", "hi")) == {"t": "Hello"}
+
+    await translation_service.delete_rule(str(rule["_id"]), TENANT, "rev")
+    assert (await translation_service.runtime_translate("site1", "/h", "hi")) == {"t": "नमस्ते"}
+
+
+async def test_override_is_served_without_provider_call_or_row_entry(
+    translation_repo, translation_service, fake_provider
+):
+    await _add_rule(translation_service, "override", "Dates", "hi", "तारीख")
+    await _extract(translation_service, ("d", "Dates"))
+
+    result = await translation_service.runtime_translate("site1", "/h", "hi")
+
+    assert result == {"d": "तारीख"}
+    assert fake_provider.calls == []
+    assert (await translation_repo.find_by_route("site1", "/h"))[0]["translations"] == {}
+
+
+async def test_pages_own_approved_translation_wins_over_an_override(
+    translation_repo, translation_service
+):
+    await _add_rule(translation_service, "override", "Dates", "hi", "तारीख")
+    await _extract(translation_service, ("d", "Dates"))
+    await translation_repo.save_translation("site1", "/h", "d", "hi", "खजूर", "P", auto_approved=True)
+
+    assert (await translation_service.runtime_translate("site1", "/h", "hi")) == {"d": "खजूर"}
+
+
+async def test_override_beats_a_pending_page_translation_and_other_languages_are_untouched(
+    translation_repo, translation_service
+):
+    await _add_rule(translation_service, "override", "Dates", "hi", "तारीख")
+    await _extract(translation_service, ("d", "Dates"))
+    await translation_repo.save_translation("site1", "/h", "d", "hi", "खजूर", "P")
+
+    assert (await translation_service.runtime_translate("site1", "/h", "hi")) == {"d": "तारीख"}
+    assert (await translation_service.runtime_translate("site1", "/h", "mr")) == {"d": "Dates"}
+
+
+async def test_override_is_served_on_first_party_sites_too(
+    translation_repo, translation_service, monkeypatch
+):
+    from types import SimpleNamespace
+
+    from app.services import translation_service as module
+
+    monkeypatch.setattr(
+        module, "get_settings", lambda: SimpleNamespace(first_party_site_ids="site1", low_confidence_threshold=0.5)
+    )
+    await _add_rule(translation_service, "override", "Dates", "hi", "तारीख")
+    await _extract(translation_service, ("d", "Dates"))
+    await translation_repo.save_translation("site1", "/h", "d", "hi", "खजूर", "P")
+
+    assert (await translation_service.runtime_translate("site1", "/h", "hi")) == {"d": "तारीख"}
+
+
+async def test_deleting_an_override_returns_the_row_to_per_page_review(
+    translation_repo, translation_service
+):
+    rule = await _add_rule(translation_service, "override", "Dates", "hi", "तारीख")
+    await _extract(translation_service, ("d", "Dates"))
+    assert (await translation_service.runtime_translate("site1", "/h", "hi")) == {"d": "तारीख"}
+
+    await translation_service.delete_rule(str(rule["_id"]), TENANT, "rev")
+    result = await translation_service.runtime_translate("site1", "/h", "hi")
+
+    assert result == {"d": "Dates"}
+    assert (await translation_repo.find_by_route("site1", "/h"))[0]["translations"]["hi"]["status"] == "pending"
+
+
+async def test_get_or_translate_never_sends_excluded_text_to_the_provider(
+    translation_service, fake_provider
+):
+    await _add_rule(translation_service, "exclusion", "Hello")
+    await _add_rule(translation_service, "override", "Dates", "hi", "तारीख")
+    await _extract(translation_service, ("a", "Hello"), ("b", "Dates"), ("c", "World"))
+
+    result = await translation_service.get_or_translate("site1", "/h", "hi")
+
+    assert result["a"] == "Hello"
+    assert result["b"] == "तारीख"
+    assert [call[0] for call in fake_provider.calls] == ["World"]
+
+
 def test_only_translation_repository_and_migration_021_write_translations_collection():
     import pathlib
     import re

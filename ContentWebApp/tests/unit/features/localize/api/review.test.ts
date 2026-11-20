@@ -11,7 +11,7 @@ const mockedGet = vi.mocked(apiClient.get);
 const mockedPut = vi.mocked(apiClient.put);
 const mockedPost = vi.mocked(apiClient.post);
 
-const item = (overrides = {}) => ({ id: 't1', ...overrides });
+const item = (overrides = {}) => ({ id: 't1', exclusion_rule_id: '', exclusion_pattern: '', shared: {}, ...overrides });
 
 describe('localize review api (translationService port)', () => {
   beforeEach(() => {
