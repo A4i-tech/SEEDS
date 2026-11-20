@@ -10,13 +10,6 @@ RUN npm ci
 # Copy source code
 COPY . .
 
-# ---- Set build-time environment variables ----
-ARG REACT_APP_API_BASE_URL
-ARG REACT_APP_GOOGLE_SITE_VERIFICATION
-
-ENV VITE_API_BASE_URL=$REACT_APP_API_BASE_URL
-ENV VITE_GOOGLE_SITE_VERIFICATION=$REACT_APP_GOOGLE_SITE_VERIFICATION
-# Build app
 RUN npm run build
 
 # ---- Production stage ----
@@ -25,8 +18,9 @@ FROM nginxinc/nginx-unprivileged:1.27-alpine
 # Copy build output to Nginx
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Copy custom nginx configuration
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# nginx fills the template from REACT_APP_* env vars at start and exits if one is missing
+ENV NGINX_ENVSUBST_FILTER=^REACT_APP_
+COPY default.conf.template /etc/nginx/templates/default.conf.template
 
 USER 101
 

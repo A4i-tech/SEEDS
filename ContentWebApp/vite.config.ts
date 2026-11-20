@@ -14,7 +14,6 @@ export default defineConfig({
   },
   test: {
     environment: 'jsdom',
-    env: { VITE_API_BASE_URL: 'http://localhost:4000' },
     setupFiles: ['./tests/unit/setup.ts'],
     testTimeout: 30_000,
     exclude: [...configDefaults.exclude, 'tests/e2e/**'],

@@ -1,0 +1,37 @@
+server {
+    listen 8080;
+    server_name _;
+
+    # An unset or empty variable makes these lines invalid, so nginx exits at start.
+    set $api_base_url ${REACT_APP_API_BASE_URL};
+    set $google_site_verification "${REACT_APP_GOOGLE_SITE_VERIFICATION}";
+
+    sub_filter '</head>' '<meta name="google-site-verification" content="$google_site_verification" /></head>';
+
+    location = /env.js {
+        default_type application/javascript;
+        add_header Cache-Control "no-store";
+        return 200 "window.__ENV__={REACT_APP_API_BASE_URL:'$api_base_url'};";
+    }
+
+    # Serve static files from the build directory
+    location / {
+        root /usr/share/nginx/html;
+        
+        # Try to serve the requested file
+        # If not found, serve index.html (for SPA routing)
+        try_files $uri $uri/ /index.html;
+    }
+
+    location = /index.html {
+        root /usr/share/nginx/html;
+        add_header Cache-Control "no-cache";
+    }
+
+    # Cache busting for versioned assets
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+        root /usr/share/nginx/html;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+}

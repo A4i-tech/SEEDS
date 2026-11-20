@@ -9,12 +9,11 @@ React admin and content dashboard for SEEDS: library, creation, localization, ac
 ## Setup
 
 ```
-cp env.example .env
 npm ci
 npm run dev
 ```
 
-`VITE_API_BASE_URL` is required. It is baked in at build time (the Docker image maps it from `REACT_APP_API_BASE_URL`), and the app throws at startup when it is unset.
+The app reads `window.__ENV__` from `/env.js`. In dev, Vite serves `public/env.js`. In Docker, nginx builds `/env.js` from the `REACT_APP_*` container environment variables and exits at start when `REACT_APP_API_BASE_URL` is missing.
 
 ## Scripts
 

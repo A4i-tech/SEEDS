@@ -27,3 +27,5 @@ class ResizeObserverStub {
 }
 window.ResizeObserver = ResizeObserverStub
 window.HTMLElement.prototype.scrollIntoView = vi.fn()
+
+window.__ENV__ = { REACT_APP_API_BASE_URL: 'http://localhost:4000' };
