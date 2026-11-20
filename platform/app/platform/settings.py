@@ -59,6 +59,12 @@ class Settings(BaseSettings):
     tts_subscription_key: str = Field(default="", repr=False)
     tts_region: str = ""
 
+    tts_provider: str = "openai"
+    tts_base_url: str = ""
+    tts_api_key: str = Field(default="", repr=False)
+    tts_model: str = ""
+    tts_voice: str = ""
+
     azure_blob_sas_enabled: bool = True
     azure_storage_account_name: str = ""
     azure_storage_account_key: str = Field(default="", repr=False)
@@ -170,6 +176,43 @@ class Settings(BaseSettings):
     subodha_collection_name: str = "subodhaCourses"
     subodha_jobs_collection_name: str = "subodhaSyncJobs"
     subodha_asset_container: str = "subodha"
+
+    @field_validator("tts_provider", mode="before")
+    @classmethod
+    def _check_tts_provider(cls, v: object) -> str:
+        value = str(v).strip().lower()
+        if value not in ("azure", "openai"):
+            raise ValueError(f"TTS_PROVIDER={v!r} is not supported. Set TTS_PROVIDER to 'azure' or 'openai'.")
+        return value
+
+    @model_validator(mode="after")
+    def _check_tts_config(self) -> Settings:
+        if self.tts_provider == "openai":
+            fields = (
+                ("TTS_MODEL", self.tts_model),
+                ("TTS_VOICE", self.tts_voice),
+                ("TTS_API_KEY (or OPENAI_API_KEY)", self.tts_api_key or self.openai_api_key),
+            )
+            missing = [n for n, val in fields if not val]
+            if missing:
+                raise ValueError(
+                    f"TTS_PROVIDER=openai requires {' and '.join(missing)}. "
+                    "Set them, or set TTS_PROVIDER=azure."
+                )
+        elif not self.speech_key or not self.speech_region:
+            raise ValueError(
+                "TTS_PROVIDER=azure requires AZURE_SPEECH_KEY and AZURE_SPEECH_REGION "
+                "(or legacy TTS_SUBSCRIPTION_KEY and TTS_REGION). Set them, or set TTS_PROVIDER=openai."
+            )
+        return self
+
+    @property
+    def speech_key(self) -> str:
+        return self.azure_speech_key or self.tts_subscription_key
+
+    @property
+    def speech_region(self) -> str:
+        return self.azure_speech_region or self.tts_region
 
     @field_validator("translation_provider")
     @classmethod

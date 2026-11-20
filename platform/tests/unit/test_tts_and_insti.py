@@ -19,7 +19,7 @@ from tests.support import mongomock_async
 
 class TestTTSServiceHelpers:
     def test_get_tts_attributes_english(self) -> None:
-        from app.services.tts_service import _get_tts_attributes
+        from app.providers.tts_provider import _get_tts_attributes
 
         result = _get_tts_attributes("en")
         assert result is not None
@@ -28,7 +28,7 @@ class TestTTSServiceHelpers:
         assert "Neerja" in voice or "Neural" in voice
 
     def test_get_tts_attributes_kannada(self) -> None:
-        from app.services.tts_service import _get_tts_attributes
+        from app.providers.tts_provider import _get_tts_attributes
 
         result = _get_tts_attributes("kn")
         assert result is not None
@@ -37,7 +37,7 @@ class TestTTSServiceHelpers:
         assert "Sapna" in voice or "Neural" in voice
 
     def test_get_tts_attributes_hindi(self) -> None:
-        from app.services.tts_service import _get_tts_attributes
+        from app.providers.tts_provider import _get_tts_attributes
 
         result = _get_tts_attributes("hi")
         assert result is not None
@@ -45,7 +45,7 @@ class TestTTSServiceHelpers:
         assert lang_code == "hi-IN"
 
     def test_get_tts_attributes_marathi(self) -> None:
-        from app.services.tts_service import _get_tts_attributes
+        from app.providers.tts_provider import _get_tts_attributes
 
         result = _get_tts_attributes("mr")
         assert result is not None
@@ -53,7 +53,7 @@ class TestTTSServiceHelpers:
         assert lang_code == "mr-IN"
 
     def test_get_tts_attributes_tamil(self) -> None:
-        from app.services.tts_service import _get_tts_attributes
+        from app.providers.tts_provider import _get_tts_attributes
 
         result = _get_tts_attributes("ta")
         assert result is not None
@@ -61,7 +61,7 @@ class TestTTSServiceHelpers:
         assert lang_code == "ta-IN"
 
     def test_get_tts_attributes_bengali(self) -> None:
-        from app.services.tts_service import _get_tts_attributes
+        from app.providers.tts_provider import _get_tts_attributes
 
         result = _get_tts_attributes("bn")
         assert result is not None
@@ -69,7 +69,7 @@ class TestTTSServiceHelpers:
         assert lang_code == "bn-IN"
 
     def test_get_tts_attributes_odia(self) -> None:
-        from app.services.tts_service import _get_tts_attributes
+        from app.providers.tts_provider import _get_tts_attributes
 
         result = _get_tts_attributes("or")
         assert result is not None
@@ -77,19 +77,19 @@ class TestTTSServiceHelpers:
         assert lang_code == "or-IN"
 
     def test_get_tts_attributes_unsupported_returns_none(self) -> None:
-        from app.services.tts_service import _get_tts_attributes
+        from app.providers.tts_provider import _get_tts_attributes
 
         result = _get_tts_attributes("klingon")
         assert result is None
 
     def test_get_tts_attributes_case_insensitive(self) -> None:
-        from app.services.tts_service import _get_tts_attributes
+        from app.providers.tts_provider import _get_tts_attributes
 
         result = _get_tts_attributes("EN")
         assert result is not None
 
     def test_build_ssml_contains_voice(self) -> None:
-        from app.services.tts_service import _build_ssml
+        from app.providers.tts_provider import _build_ssml
 
         ssml = _build_ssml("Hello world", "en-IN", "en-IN-NeerjaNeural")
         assert "en-IN-NeerjaNeural" in ssml
@@ -99,13 +99,13 @@ class TestTTSServiceHelpers:
         assert "<prosody" in ssml
 
     def test_build_ssml_custom_rate(self) -> None:
-        from app.services.tts_service import _build_ssml
+        from app.providers.tts_provider import _build_ssml
 
         ssml = _build_ssml("Test", "hi-IN", "hi-IN-SwaraNeural", rate="slow")
         assert 'rate="slow"' in ssml
 
     def test_build_ssml_default_rate(self) -> None:
-        from app.services.tts_service import _build_ssml
+        from app.providers.tts_provider import _build_ssml
 
         ssml = _build_ssml("Test", "en-IN", "en-IN-NeerjaNeural")
         assert 'rate="1.0"' in ssml
