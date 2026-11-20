@@ -10,23 +10,21 @@ RUN npm ci
 # Copy source code
 COPY . .
 
-# Build React app
-RUN npm run build && rm build/env.js
+RUN npm run build
 
 # ---- Production stage ----
 FROM nginxinc/nginx-unprivileged:1.27-alpine
 
-# Copy React build output to Nginx
-COPY --from=builder /app/build /usr/share/nginx/html
+# Copy build output to Nginx
+COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Copy custom nginx configuration
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# nginx fills the template from REACT_APP_* env vars at start and exits if one is missing
+ENV NGINX_ENVSUBST_FILTER=^REACT_APP_
+COPY default.conf.template /etc/nginx/templates/default.conf.template
 
 USER 101
 
 EXPOSE 8080
 
-# Unhealthy until the deploy target mounts /etc/app-config/env.js.
-HEALTHCHECK --interval=5s --timeout=3s --start-period=5s CMD wget -q -O /dev/null http://127.0.0.1:8080/env.js || exit 1
-
+# nosemgrep: dockerfile.security.missing-user.missing-user -- base image already runs as non-root
 CMD ["nginx", "-g", "daemon off;"]

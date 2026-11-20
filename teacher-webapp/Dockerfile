@@ -9,7 +9,7 @@ RUN npm ci
 
 COPY . .
 
-RUN npm run build && rm build/env.js
+RUN npm run build
 
 # ---- Serve stage ----
 FROM nginxinc/nginx-unprivileged:1.27-alpine
@@ -17,14 +17,12 @@ FROM nginxinc/nginx-unprivileged:1.27-alpine
 # Copy build output to nginx html directory
 COPY --from=builder /app/build /usr/share/nginx/html
 
-# Copy custom nginx configuration
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# nginx fills the template from REACT_APP_* env vars at start and exits if one is missing
+ENV NGINX_ENVSUBST_FILTER=^REACT_APP_
+COPY default.conf.template /etc/nginx/templates/default.conf.template
 
 USER 101
 
 EXPOSE 8080
-
-# Unhealthy until the deploy target mounts /etc/app-config/env.js.
-HEALTHCHECK --interval=5s --timeout=3s --start-period=5s CMD wget -q -O /dev/null http://127.0.0.1:8080/env.js || exit 1
 
 CMD ["nginx", "-g", "daemon off;"]

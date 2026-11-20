@@ -148,10 +148,14 @@ async def login_unified(
 
     if is_email:
         user = await repo.find_by_email(identifier)
-        allowed_roles = (UserRole.TENANT, UserRole.SCHOOL_ADMIN)
+        allowed_roles = (
+            UserRole.TENANT,
+            UserRole.SCHOOL_ADMIN,
+            UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER,
+        )
     else:
         user = await repo.find_by_phone(identifier)
-        allowed_roles = UserRole.CONTENT_CREATOR
+        allowed_roles = (UserRole.CONTENT_CREATOR,)
 
     if user is None or user.role not in allowed_roles or not user.hashed_password:
         logger.warning("auth: login failed — user not found or wrong role")

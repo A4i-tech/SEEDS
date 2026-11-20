@@ -12,6 +12,7 @@ on:
 
 jobs:
   test:
+    name: test (${{ matrix.service.name }}, ${{ matrix.service.context }}, ${{ matrix.service.lang }})
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -23,14 +24,17 @@ jobs:
           - name: content-webapp
             context: ContentWebApp
             lang: node
+            node_version: "22"
 
           - name: teacher-webapp
             context: teacher-webapp
             lang: node
+            node_version: "20"
 
           - name: websocket-service
             context: websocket-service
             lang: node
+            node_version: "20"
 
     steps:
       - name: Checkout repository
@@ -47,7 +51,7 @@ jobs:
         if: matrix.service.lang == 'node'
         uses: ./.github/actions/setup-node
         with:
-          node-version: "20"
+          node-version: ${{ matrix.service.node_version }}
           directory: ${{ matrix.service.context }}
 
       - name: Lint (Python)
@@ -103,19 +107,15 @@ jobs:
       - name: Build image
         run: docker build -t app ${{ matrix.context }}
 
-      - name: Image ships no config and fails loud without it
+      - name: Container exits at start when config is missing
         run: |
-          set -euo pipefail
-          CID=$(docker run -d -p 8080:8080 app)
-          sleep 15
-          [ "$(docker inspect -f '{{.State.Health.Status}}' "$CID")" = unhealthy ] || { echo "healthy without env.js"; exit 1; }
-          docker rm -f "$CID" >/dev/null
+          if docker run --rm app; then echo "container started without config"; exit 1; fi
 
-      - name: Image serves a mounted env.js
+      - name: Container serves env.js from env vars
         run: |
           set -euo pipefail
-          echo 'window.__ENV__ = { REACT_APP_API_BASE_URL: "ci-marker" };' > /tmp/env.js
-          CID=$(docker run -d -p 8080:8080 -v /tmp/env.js:/etc/app-config/env.js:ro app)
-          curl -fsS --retry 10 --retry-delay 1 --retry-all-errors localhost:8080/env.js | grep -q ci-marker || { docker logs "$CID"; exit 1; }
+          envs="-e REACT_APP_API_BASE_URL=ci-marker -e REACT_APP_STORAGE_ACCOUNT_NAME=ci-marker -e REACT_APP_GOOGLE_SITE_VERIFICATION=ci-marker"
+          CID=$(docker run -d -p 8080:8080 $envs app)
+          curl -fsS --retry 10 --retry-delay 1 --retry-all-errors localhost:8080/env.js | grep -q "REACT_APP_API_BASE_URL:'ci-marker'" || { docker logs "$CID"; exit 1; }
           curl -sI localhost:8080/env.js | grep -qi "^cache-control: no-store"
           ! docker exec "$CID" grep -rq ci-marker /usr/share/nginx/html
