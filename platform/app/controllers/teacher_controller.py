@@ -54,7 +54,7 @@ async def update_teacher(
     if body.phone_number:
         updates["phone"] = body.phone_number
     if body.password:
-        updates["hashed_password"] = hash_password(body.password)
+        updates["hashed_password"] = await hash_password(body.password)
 
     updated = await service.update_teacher(teacher_id, updates, caller_school)
     return UserPublicResponse.from_domain(updated)
