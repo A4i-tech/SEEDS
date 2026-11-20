@@ -2,8 +2,9 @@
 Application lifespan: startup / shutdown hooks.
 
 Startup:
-  - Always:   init_database(), init conference_manager
-  - consumer / all mode: start all consumers as asyncio background tasks
+  - Always:   init_database()
+  - api / all mode: init conference_manager and the websocket-service control channel
+  - consumer / all mode: start consumers (all, or those listed in ENABLED_CONSUMERS) as asyncio background tasks
 Shutdown:
   - Cancel & await all consumer tasks
   - close_database(), close conference_manager redis
@@ -99,6 +100,15 @@ def _init_conference_manager() -> ConferenceCallManager:
     return _conference_manager
 
 
+def _enabled_consumers() -> set[str]:
+    return {name.strip() for name in get_settings().enabled_consumers.split(",") if name.strip()}
+
+
+def _consumer_enabled(name: str) -> bool:
+    enabled = _enabled_consumers()
+    return not enabled or name in enabled
+
+
 def _make_consumer_tasks(conference_manager: Any) -> list[asyncio.Task]:  # type: ignore[type-arg]
     """
     Lazily import and start each consumer as an isolated asyncio task.
@@ -164,6 +174,11 @@ def _make_consumer_tasks(conference_manager: Any) -> list[asyncio.Task]:  # type
     except Exception as exc:  # noqa: BLE001
         logger.error("Failed to initialise SyncJobConsumer: %s", exc)
 
+    missing = _enabled_consumers() - {type(consumer).__name__ for _, consumer in consumer_specs}
+    if missing:
+        raise RuntimeError(f"ENABLED_CONSUMERS lists consumers that could not be initialised: {sorted(missing)}")
+    consumer_specs = [(name, consumer) for name, consumer in consumer_specs if _consumer_enabled(type(consumer).__name__)]
+
     tasks: list[asyncio.Task] = []  # type: ignore[type-arg]
     for name, consumer in consumer_specs:
         try:
@@ -194,7 +209,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         TextbookRemediationRepository,
     )
 
-    if settings.app_mode in ("consumer", "all"):
+    if settings.app_mode in ("consumer", "all") and _consumer_enabled("TextbookRemediationConsumer"):
         reconciled = await TextbookRemediationRepository(get_database()).reconcile_interrupted_jobs()
         if reconciled:
             logger.info("Reconciled %d interrupted textbook remediation jobs", reconciled)
@@ -228,12 +243,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await UserRefreshTokenRepository.ensure_indexes(get_database())
     await IntegrationTokenRepository.ensure_indexes(get_database())
 
-    # Init conference manager (available in all modes)
-    try:
-        conf_mgr = _init_conference_manager()
-    except Exception as exc:  # noqa: BLE001
-        logger.warning("Conference manager init failed (non-fatal in test mode): %s", exc)
-        conf_mgr = None  # type: ignore[assignment]
+    # Init conference manager (api / all modes only; consumer-only mode has no conferences)
+    conf_mgr = None
+    if settings.app_mode != "consumer":
+        try:
+            conf_mgr = _init_conference_manager()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Conference manager init failed (non-fatal in test mode): %s", exc)
 
     from app.providers.service_bus import service_bus_provider  # noqa: PLC0415
 
@@ -241,9 +257,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     consumer_tasks: list[asyncio.Task] = []  # type: ignore[type-arg]
     if settings.app_mode in ("consumer", "all"):
-        reconciled = await get_sync_job_service(get_database()).reconcile_interrupted_jobs()
-        if reconciled:
-            logger.info("Reconciled %d interrupted content aggregator sync jobs", reconciled)
+        if _consumer_enabled("SyncJobConsumer"):
+            reconciled = await get_sync_job_service(get_database()).reconcile_interrupted_jobs()
+            if reconciled:
+                logger.info("Reconciled %d interrupted content aggregator sync jobs", reconciled)
         try:
             consumer_tasks = _make_consumer_tasks(conf_mgr)
         except Exception as exc:  # noqa: BLE001

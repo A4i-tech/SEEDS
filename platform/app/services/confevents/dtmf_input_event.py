@@ -10,6 +10,7 @@ from app.models.participant import Participant, Role
 from app.models.playback_state import ContentStatus
 from app.models.system_audio_messages import SystemAudioMessages
 from app.services.confevents.base_event import ConferenceEvent
+from app.services.fsm.instantiation.speed_control import decrease_speed, increase_speed
 
 if TYPE_CHECKING:
     from app.services.conference_service import ConferenceCall
@@ -72,8 +73,10 @@ class DTMFInputEvent(ConferenceEvent):
             elif self.digit == "*":
                 if audio_state.status not in CONTENT_ACTIVE_STATUSES:
                     return
-                await SetPlaybackSpeedEvent(conf_call=self.conf_call, speed=max(0.5, round(audio_state.speed - 0.25, 2)), initiator_phone=self.phone_number).execute_event()
+                new_speed, _ = decrease_speed(audio_state.speed)
+                await SetPlaybackSpeedEvent(conf_call=self.conf_call, speed=new_speed, initiator_phone=self.phone_number).execute_event()
             elif self.digit == "#":
                 if audio_state.status not in CONTENT_ACTIVE_STATUSES:
                     return
-                await SetPlaybackSpeedEvent(conf_call=self.conf_call, speed=min(2.0, round(audio_state.speed + 0.25, 2)), initiator_phone=self.phone_number).execute_event()
+                new_speed, _ = increase_speed(audio_state.speed)
+                await SetPlaybackSpeedEvent(conf_call=self.conf_call, speed=new_speed, initiator_phone=self.phone_number).execute_event()
