@@ -1,9 +1,3 @@
-import path from 'node:path';
-
-export function authFile(persona: string): string {
-  return path.join(import.meta.dirname, '..', '..', '..', 'playwright', '.auth', `${persona}.json`);
-}
-
  interface Instance {
   baseURL: string;
 }

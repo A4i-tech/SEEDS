@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { defineConfig, devices } from '@playwright/test';
-import { authFile, getInstance } from './fixtures/instances';
+import { getInstance } from './fixtures/instances';
 
 const instanceName = process.env.E2E_INSTANCE || 'local';
 const instance = getInstance(instanceName);
@@ -37,29 +37,6 @@ export default defineConfig({
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
       testDir: '.',
-      testIgnore: /authenticated\//,
-    },
-    {
-      // Depends on 'chromium' so it always runs after auth.spec.ts's password-change
-      // tests restore the tenantPasswordTest persona's password - see auth.spec.ts.
-      name: 'setup',
-      testDir: './auth',
-      testMatch: /auth\.setup\.ts/,
-      dependencies: ['chromium'],
-    },
-    {
-      name: 'chromium-tenant-authenticated',
-      use: { ...devices['Desktop Chrome'], storageState: authFile('tenant') },
-      testDir: './authenticated',
-      testIgnore: /school\//,
-      dependencies: ['setup'],
-    },
-    {
-      name: 'chromium-school-authenticated',
-      use: { ...devices['Desktop Chrome'], storageState: authFile('school') },
-      testDir: './authenticated',
-      testIgnore: /tenant\//,
-      dependencies: ['setup'],
     },
   ],
 });
