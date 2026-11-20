@@ -2,8 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import base64
-import sys
-import time
+from pathlib import Path
 
 import pytest
 
@@ -139,67 +138,110 @@ def test_render_remediation_raises_and_removes_docx_on_pandoc_failure(monkeypatc
     assert not (out_dir / "remediated.docx").exists()
 
 
-async def _run_sleeping_pipeline(tmp_path, monkeypatch, **kwargs):
+class _FakeRunner:
+    def __init__(self, run):
+        self.run = run
+
+    async def flatten(self, ctx):
+        from dataclasses import replace
+
+        from omni_ingest.core.model import ByteContent, ResolvedResource
+
+        yield replace(ctx, resource=ResolvedResource(uri="in.txt", content=ByteContent.from_bytes(b"x")))
+
+
+def _patch_runner(monkeypatch, run):
     import app.remediation.run_pipeline as pipeline_mod
 
-    started: dict[str, object] = {}
-    real_exec = asyncio.create_subprocess_exec
-
-    class _Settings:
-        openai_api_key = ""
-        mistral_ocr_api_key = ""
-        mistral_ocr_endpoint = ""
-        mistral_ocr_model = ""
-        azure_openai_api_key = ""
-        azure_openai_endpoint = ""
-        openai_api_version = ""
-        default_chat_completion_model = ""
-        azure_translation_key = ""
-        azure_translation_region = ""
-
-    monkeypatch.setattr(pipeline_mod, "get_settings", lambda: _Settings())
-
-    async def fake_exec(*args, **exec_kwargs):
-        proc = await real_exec(sys.executable, "-c", "import time; time.sleep(30)", **exec_kwargs)
-        started["proc"] = proc
-        return proc
-
-    monkeypatch.setattr(pipeline_mod.asyncio, "create_subprocess_exec", fake_exec)
-
-    task = asyncio.ensure_future(
-        pipeline_mod.run_pipeline(tmp_path / "pipeline.yaml", tmp_path / "in.txt", tmp_path, [], **kwargs)
-    )
-    for _ in range(200):
-        if "proc" in started:
-            break
-        await asyncio.sleep(0.05)
-    assert "proc" in started, "child process never started"
-    return task, started
+    monkeypatch.setattr(pipeline_mod, "create_pipeline_from_config", lambda *a, **k: _FakeRunner(run))
+    return pipeline_mod
 
 
 @pytest.mark.asyncio
-async def test_run_pipeline_kills_child_on_cancellation(tmp_path, monkeypatch):
-    task, started = await _run_sleeping_pipeline(tmp_path, monkeypatch, timeout=30)
+async def test_run_pipeline_forwards_progress_and_returns_context(tmp_path, monkeypatch):
+    from omni_ingest.core import event
+    from omni_ingest.core.model import StepResult, StepStatus
 
-    start = time.monotonic()
+    async def run(ctx):
+        step = object()
+        event.publish(event.PipelineStepBeginEvent(run_id=ctx.run_id, tenant_id=ctx.tenant_id, step_name="ocr", step=step))
+        await asyncio.sleep(0)
+        event.publish(event.PipelineStepBeginEvent(run_id=object(), tenant_id=ctx.tenant_id, step_name="other-job", step=step))
+        await asyncio.sleep(0)
+        return [StepResult(status=StepStatus.SUCCESS)]
+
+    pipeline_mod = _patch_runner(monkeypatch, run)
+    seen: list[dict] = []
+
+    async def on_progress(evt):
+        seen.append(evt)
+
+    out = await pipeline_mod.run_pipeline(tmp_path / "p.yaml", tmp_path / "in.txt", tmp_path, {}, on_progress=on_progress)
+
+    assert [e["step_name"] for e in seen] == ["ocr"]
+    assert out["metadata"]["workspace"] == str(tmp_path)
+
+
+@pytest.mark.asyncio
+async def test_run_pipeline_failure_names_step_and_run_id(tmp_path, monkeypatch):
+    from omni_ingest.core import event
+    from omni_ingest.core.model import StepResult, StepStatus
+
+    async def run(ctx):
+        event.publish(event.PipelineStepBeginEvent(run_id=ctx.run_id, tenant_id=ctx.tenant_id, step_name="safe_extract", step=object()))
+        await asyncio.sleep(0)
+        return [StepResult(status=StepStatus.FAILURE, error="boom")]
+
+    pipeline_mod = _patch_runner(monkeypatch, run)
+
+    with pytest.raises(RuntimeError, match=r"safe_extract.*boom.*run ID"):
+        await pipeline_mod.run_pipeline(tmp_path / "p.yaml", tmp_path / "in.txt", tmp_path, {})
+
+
+@pytest.mark.asyncio
+async def test_run_pipeline_cancel_stops_run(tmp_path, monkeypatch):
+    started = asyncio.Event()
+
+    async def run(ctx):
+        started.set()
+        await asyncio.sleep(30)
+
+    pipeline_mod = _patch_runner(monkeypatch, run)
+    task = asyncio.create_task(pipeline_mod.run_pipeline(tmp_path / "p.yaml", tmp_path / "in.txt", tmp_path, {}))
+    await started.wait()
     task.cancel()
+
     with pytest.raises(asyncio.CancelledError):
         await task
 
-    assert started["proc"].returncode is not None
-    assert time.monotonic() - start < 5
+
+@pytest.mark.asyncio
+async def test_detach_content_writes_under_workspace(tmp_path):
+    from omni_ingest.core.model import ByteContent, KnowledgeItem, ResolvedResource
+    from omni_ingest.core.pipeline import IngestionContext
+
+    from app.remediation.detach_content import DetachContentAgent
+
+    image = KnowledgeItem(content=ByteContent.from_bytes(b"img-bytes", "image/png"), metadata={"kind": "image"})
+    ctx = IngestionContext(resource=ResolvedResource(uri="in.pdf", content=ByteContent.from_bytes(b"pdf")), items=[image], metadata={"workspace": str(tmp_path)})
+
+    await DetachContentAgent().run(ctx)
+
+    assert (tmp_path / "out" / "detached").is_dir()
+    assert ctx.resource.content.data == b""
+    assert image.content.data == b""
+    assert Path(image.metadata["content_path"]).read_bytes() == b"img-bytes"
 
 
 @pytest.mark.asyncio
-async def test_run_pipeline_kills_child_on_timeout(tmp_path, monkeypatch):
-    task, started = await _run_sleeping_pipeline(tmp_path, monkeypatch, timeout=0.3)
+async def test_run_pipeline_times_out(tmp_path, monkeypatch):
+    async def run(ctx):
+        await asyncio.sleep(30)
 
-    start = time.monotonic()
+    pipeline_mod = _patch_runner(monkeypatch, run)
+
     with pytest.raises(RuntimeError, match="timed out"):
-        await task
-
-    assert started["proc"].returncode is not None
-    assert time.monotonic() - start < 5
+        await pipeline_mod.run_pipeline(tmp_path / "p.yaml", tmp_path / "in.txt", tmp_path, {}, timeout=0.2)
 
 
 def test_figure_block_with_mangled_id_uses_next_unused_page_figure():
@@ -227,3 +269,47 @@ def test_page_without_ocr_text_drops_invented_text_blocks():
 
     assert "Physical Quantities" not in body
     assert corpus.unresolved_records[0]["type"] == "invented_text"
+
+
+def test_page_markers_and_spoken_notes_do_not_reach_the_document(tmp_path):
+    out = tmp_path / "out.txt"
+    render.markdown_to_format("<!-- page 1 -->\n\nHello\n\n<!-- spoken: x\nplus y -->\n\nBye", "plain", out)
+    text = out.read_text(encoding="utf-8")
+    assert "<!" not in text
+    assert "page 1" not in text
+    assert "Hello" in text
+    assert "Bye" in text
+
+
+def test_mathml_becomes_tex_math_not_visible_tags(tmp_path):
+    out = tmp_path / "out.tex"
+    mathml = '<math display="block"><mrow><mn>3</mn><mi>x</mi><mo>=</mo><mn>12</mn></mrow></math>'
+    render.markdown_to_format(f"Solve:\n\n{mathml}", "latex", out)
+    text = out.read_text(encoding="utf-8")
+    assert "<mo>" not in text
+    assert "3x = 12" in text
+
+
+# An mfrac with three children is invalid MathML. Pandoc cannot read it.
+_BROKEN_MFRAC = (
+    '<math xmlns="http://www.w3.org/1998/Math/MathML"><mi>Speed</mi><mo>=</mo><mfrac><mrow><mi>Total</mi>'
+    "<mi>distance</mi></mrow><mi>Time</mi><mo> </mo><mi>required</mi></mfrac></math>"
+)
+
+
+def test_unreadable_mathml_falls_back_to_the_spoken_note(tmp_path):
+    out = tmp_path / "out.txt"
+    note = "<!-- spoken: Speed equals total distance divided by time required -->"
+    render.markdown_to_format(f"<!-- page 12 -->\n\nMaths\n\n{_BROKEN_MFRAC}\n{note}\n", "plain", out)
+    text = out.read_text(encoding="utf-8")
+    assert "Speed equals total distance divided by time required" in text
+    assert "<" not in text
+    assert "page 12" not in text
+
+
+def test_unreadable_mathml_with_no_spoken_note_keeps_its_words(tmp_path):
+    out = tmp_path / "out.txt"
+    render.markdown_to_format(_BROKEN_MFRAC, "plain", out)
+    text = out.read_text(encoding="utf-8")
+    assert "<" not in text
+    assert "Speed = Total distance Time required" in text

@@ -1,0 +1,44 @@
+name: Build Staging Images
+
+on:
+    workflow_call:
+    workflow_dispatch:
+
+env:
+    REGISTRY: ghcr.io
+
+jobs:
+    build:
+        runs-on: ubuntu-latest
+        strategy:
+            matrix:
+                service:
+                    - name: platform-service
+                      context: platform
+                      image: platform
+
+                    - name: content-webapp-service
+                      context: ContentWebApp
+                      image: content-webapp
+
+                    - name: teacher-webapp-service
+                      context: teacher-webapp
+                      image: teacher-webapp
+
+                    - name: websocket-service
+                      context: websocket-service
+                      image: websocket-service
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+
+            - name: Build & push image
+              uses: ./.github/actions/deploy-docker
+              with:
+                  context: ${{ matrix.service.context }}
+                  image: ${{ matrix.service.image }}
+                  registry: ${{ env.REGISTRY }}
+                  repository: ${{ github.repository }}
+                  github_token: ${{ secrets.GITHUB_TOKEN }}
+                  username: ${{ github.actor }}
+                  environment_tag: staging

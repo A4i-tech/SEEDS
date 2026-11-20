@@ -13,7 +13,6 @@ on:
         description: "E2E_INSTANCE to run against (local is not reachable from a GitHub-hosted runner, so it is not offered here)"
         type: choice
         options:
-          - onrender
           - dev
         default: dev
 
@@ -36,7 +35,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
 
       - name: Install dependencies
         run: npm ci

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-import base64
+import functools
 import hashlib
 import html
 import json
@@ -8,6 +8,7 @@ import logging
 import re
 import shutil
 import subprocess
+import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -66,6 +67,25 @@ def as_jpeg(raw: bytes) -> tuple[bytes, str]:
         return raw, ext
 
 
+_HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
+_MATHML_RE = re.compile(r"(<math\b.*?</math>)(?:\s*<!--\s*spoken:\s*(.*?)\s*-->)?", re.DOTALL)
+_TAG_RE = re.compile(r"<[^>]+>")
+
+
+@functools.lru_cache(maxsize=512)
+def _mathml_to_tex(mathml: str) -> str:
+    return pypandoc.convert_text(mathml, "markdown+tex_math_dollars", format="html").strip()
+
+
+def _math_to_text(match: re.Match[str]) -> str:
+    tex = _mathml_to_tex(match.group(1))
+
+    if "$" in tex:
+        return tex
+
+    return match.group(2) or " ".join(_TAG_RE.sub(" ", match.group(1)).split())
+
+
 def markdown_to_format(
     text: str,
     to: str,
@@ -73,11 +93,15 @@ def markdown_to_format(
     resource_root: Path | None = None,
     reference_docx: Path | None = None,
 ) -> None:
+    text = _HTML_COMMENT_RE.sub("", _MATHML_RE.sub(_math_to_text, text))
     extra_args = ["--standalone"]
+
     if resource_root is not None:
         extra_args.append(f"--resource-path={resource_root}")
+
     if reference_docx is not None:
         extra_args.append(f"--reference-doc={reference_docx}")
+
     pypandoc.convert_text(
         text,
         to,
@@ -89,6 +113,7 @@ def markdown_to_format(
 
 _UNSAFE_LATEX_RE = re.compile(r"\\(input|include|write18)\b[^\n]*")
 _IMAGE_MARKER = re.compile(r"<image\b[^>]*>")
+_CONTROL_CHARS_RE = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
 
 
 def _scrub_latex_commands(text: str) -> str:
@@ -118,17 +143,21 @@ def convert_docx_to_pdf(docx_path: Path, out_dir: Path) -> Path | None:
     if not soffice:
         logger.warning("LibreOffice not found on PATH; no .pdf artifact for %s", docx_path)
         return None
-    proc = subprocess.Popen(
-        [soffice, "--headless", "--convert-to", _PDF_UA_FILTER, "--outdir", str(out_dir), str(docx_path)],
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-    )
-    try:
-        _, stderr = proc.communicate(timeout=120)
-    except subprocess.TimeoutExpired:
-        proc.kill()
-        proc.communicate()
-        logger.warning("PDF compilation timed out; no .pdf artifact for %s", docx_path)
-        return None
+    with tempfile.TemporaryDirectory() as profile_dir:
+        proc = subprocess.Popen(
+            [
+                soffice, f"-env:UserInstallation={Path(profile_dir).as_uri()}", "--headless",
+                "--convert-to", _PDF_UA_FILTER, "--outdir", str(out_dir), str(docx_path),
+            ],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        )
+        try:
+            _, stderr = proc.communicate(timeout=120)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.communicate()
+            logger.warning("PDF compilation timed out; no .pdf artifact for %s", docx_path)
+            return None
     if proc.returncode != 0:
         logger.warning("PDF compilation failed; no .pdf artifact for %s: %s", docx_path, stderr.decode("utf-8", "replace"))
         return None
@@ -189,11 +218,31 @@ class _Corpus:
     unresolved_records: list[dict[str, object]] = field(default_factory=list)
 
 
+def _strip_garbled(
+    text: str, records: list[dict[str, object]], page_num: int, image_id: str = ""
+) -> str:
+    if not _CONTROL_CHARS_RE.search(text):
+        return text
+    records.append(
+        {
+            "page": page_num,
+            "type": "garbled_text",
+            "text": text[:200],
+            "reason": "The extracted text has control characters instead of readable symbols. Check the page image.",
+            **({"image_id": image_id} if image_id else {}),
+            "needs_check": True,
+        }
+    )
+    return _CONTROL_CHARS_RE.sub("", text).strip()
+
+
 def _collect_image(
     item: dict[str, object], meta: dict[str, object], page_num: int, images_dir: Path, corpus: _Corpus
 ) -> None:
-    content_b64 = item.get("content")
-    raw_bytes = base64.b64decode(str(content_b64)) if content_b64 else b""
+    content_path = meta.get("content_path")
+    if not content_path:
+        raise RuntimeError(f"Item {item.get('id')} has no content_path; detach_content did not run on it")
+    raw_bytes = Path(str(content_path)).read_bytes()
     data, ext = as_jpeg(raw_bytes)
 
     access = meta.get("accessibility") or {}
@@ -202,16 +251,26 @@ def _collect_image(
     fname = f"{hashlib.md5(raw_bytes).hexdigest()[:12]}_{page_num}_img.{ext}"
     (images_dir / fname).write_bytes(data)
 
+    labels = []
+    for label in access.get("visible_labels") or []:
+        labels.append(
+            {
+                "label": _strip_garbled(str(label.get("label", "")), corpus.unresolved_records, page_num, item_id),
+                "gloss": _strip_garbled(str(label.get("gloss", "")), corpus.unresolved_records, page_num, item_id),
+                "points_at": _strip_garbled(str(label.get("points_at", "")), corpus.unresolved_records, page_num, item_id),
+            }
+        )
+
     fig_data: dict[str, object] = {
         "file": fname,
         "image_name": fname,
         "src": f"images/{fname}",
         "page": page_num,
         "kind": access.get("kind", "figure"),
-        "alt_text": access.get("alt_text", ""),
-        "long_description": access.get("long_description", ""),
-        "observed_result": access.get("observed_result", ""),
-        "visible_labels": access.get("visible_labels", []),
+        "alt_text": _strip_garbled(str(access.get("alt_text", "")), corpus.unresolved_records, page_num, item_id),
+        "long_description": _strip_garbled(str(access.get("long_description", "")), corpus.unresolved_records, page_num, item_id),
+        "observed_result": _strip_garbled(str(access.get("observed_result", "")), corpus.unresolved_records, page_num, item_id),
+        "visible_labels": labels,
         "confidence": access.get("confidence", 1.0),
         "review_needed": bool(access.get("review_needed", False)),
         "review_reason": access.get("review_reason", ""),
@@ -245,7 +304,7 @@ def _collect_page(
     item: dict[str, object], meta: dict[str, object], page_num: int, corpus: _Corpus
 ) -> None:
     raw_text = str(item.get("content") or "")
-    if raw_text and item.get("content_encoding") != "base64":
+    if raw_text and item.get("encoding") != "base64":
         corpus.raw_pages.append((page_num, raw_text))
 
     rem = meta.get("remediation")
@@ -328,6 +387,7 @@ class _MarkdownBuilder:
 
     def render_block(self, page_num: int, block: dict[str, object]) -> None:
         b_text = str(block.get("text") or "").strip()
+        b_text = _strip_garbled(b_text, self._unresolved_records, page_num)
         if block.get("review_needed"):
             self._unresolved_records.append(
                 {
@@ -367,6 +427,11 @@ def _render_heading(builder: _MarkdownBuilder, page_num: int, block: dict[str, o
 def _render_list(builder: _MarkdownBuilder, page_num: int, block: dict[str, object], b_text: str) -> None:
     items = block.get("items") or []
     if items:
+        repeats_items = [line.lstrip("-* ").strip() for line in b_text.splitlines()] == [str(i).strip() for i in items]
+
+        if b_text and not repeats_items:
+            builder.append(b_text)
+
         builder.append("\n".join(f"- {str(i)}" for i in items))
     elif b_text:
         builder.append(b_text)

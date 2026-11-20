@@ -1,0 +1,97 @@
+name: Ancestry Watch
+
+on:
+  push:
+    branches: [a4i/main, a4i/staging]
+  schedule:
+    - cron: "0 * * * *"
+
+concurrency:
+  group: ancestry-watch
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Mint a scoped App token
+        id: app-token
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          app-id: ${{ vars.PROMOTIONS_BOT_APP_ID }}
+          private-key: ${{ secrets.PROMOTIONS_BOT_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ github.event.repository.name }}
+          permission-administration: read
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Confirm a4i/main's own merge rule hasn't been loosened
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          RULESET_ID: ${{ vars.MAIN_RULESET_ID }}
+        run: |
+          rs=$(gh api "repos/${{ github.repository }}/rulesets/$RULESET_ID")
+          enforcement=$(jq -r '.enforcement' <<<"$rs")
+          methods=$(jq -r '[.rules[] | select(.type=="pull_request") | .parameters.allowed_merge_methods[]] | sort | join(",")' <<<"$rs")
+          missing=$(jq -r '[("non_fast_forward","deletion") as $t | select([.rules[].type] | index($t) | not) | $t] | join(",")' <<<"$rs")
+          approvals=$(jq -r '[.rules[] | select(.type=="pull_request") | .parameters.required_approving_review_count] | first // 0' <<<"$rs")
+          scan=$(jq -r '[.rules[] | select(.type=="required_status_checks") | .parameters.required_status_checks[].context] | index("scan")' <<<"$rs")
+          if [ "$enforcement" != "active" ]; then
+            echo "a4i/main ruleset enforcement is $enforcement, expected active." >&2
+            exit 1
+          fi
+          if [ "$methods" != "merge" ]; then
+            echo "a4i/main ruleset allows merge methods beyond merge-commit: $methods" >&2
+            exit 1
+          fi
+          if [ -n "$missing" ]; then
+            echo "a4i/main ruleset is missing rules: $missing" >&2
+            exit 1
+          fi
+          if [ "$approvals" -lt 1 ]; then
+            echo "a4i/main ruleset requires $approvals approving reviews, expected at least 1." >&2
+            exit 1
+          fi
+          if [ "$scan" = "null" ]; then
+            echo "a4i/main ruleset no longer requires the scan check." >&2
+            exit 1
+          fi
+      - name: Confirm commits unique to main are all merge commits (no squash/rebase/direct push)
+        if: ${{ !cancelled() }}
+        env:
+          BASELINE: ${{ vars.ANCESTRY_WATCH_BASELINE }}
+        run: |
+          git fetch origin a4i/main
+          if ! git merge-base --is-ancestor "$BASELINE" origin/a4i/main; then
+            echo "ANCESTRY_WATCH_BASELINE ($BASELINE) is unset, invalid, or not an ancestor of a4i/main." >&2
+            exit 1
+          fi
+          bad=$(git rev-list --first-parent --no-merges "$BASELINE..origin/a4i/main")
+          if [ -n "$bad" ]; then
+            echo "Non-merge commit(s) found on a4i/main's first-parent chain: $bad" >&2
+            exit 1
+          fi
+      - name: Notify Teams on failure
+        if: failure()
+        env:
+          WEBHOOK_URL: ${{ secrets.RELEASE_WEBHOOK_URL }}
+        run: |
+          if [ -z "$WEBHOOK_URL" ]; then
+            echo "RELEASE_WEBHOOK_URL is not set, the failure alert cannot be delivered." >&2
+            exit 1
+          fi
+          run_url="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          jq -nc --arg text "Ancestry watch is failing. Run: $run_url" '{
+            type: "message",
+            attachments: [{
+              contentType: "application/vnd.microsoft.card.adaptive",
+              content: {
+                "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+                type: "AdaptiveCard",
+                version: "1.5",
+                msteams: {width: "Full"},
+                body: [{type: "TextBlock", text: $text, wrap: true}]
+              }
+            }]
+          }' | curl --fail-with-body -sS -X POST -H 'Content-Type: application/json' -d @- "$WEBHOOK_URL" || echo "Webhook notification failed, not failing the run for it." >&2

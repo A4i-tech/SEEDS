@@ -11,7 +11,7 @@ RUN poetry install --only main --no-root --no-interaction
 FROM python:3.12-slim
 
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends ffmpeg libmagic1 libreoffice-writer && \
+    apt-get install -y --no-install-recommends ffmpeg libmagic1 libreoffice-writer fonts-noto-core && \
     rm -rf /var/lib/apt/lists/*
 
 RUN groupadd --gid 1001 appgroup && \
@@ -26,7 +26,8 @@ USER appuser
 
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1
+    PYTHONUNBUFFERED=1 \
+    MALLOC_ARENA_MAX=2
 
 EXPOSE 4000
 
