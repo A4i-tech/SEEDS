@@ -90,6 +90,7 @@ class ContentBase(BaseModel):
 class AudioContent(ContentBase):
     type: Literal["story", "song", "poem", "snippet"]
     audio_content: list[AudioTrack] = Field(default_factory=list)
+    file_url: str = ""
     description: str | None = None
     is_processed: bool = False
     version: str | None = None

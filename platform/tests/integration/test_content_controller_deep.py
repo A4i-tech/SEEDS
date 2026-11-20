@@ -11,6 +11,8 @@ os.environ.setdefault("APP_MODE", "api")
 os.environ.setdefault("ENV", "development")
 
 
+from unittest.mock import AsyncMock, MagicMock, patch
+
 import pytest
 import pytest_asyncio
 from bson import ObjectId
@@ -292,3 +294,81 @@ class TestContentHelperFunctions:
         user = {"role": "school_admin", "school_id": "s3"}
         result = _write_school_filter(user)
         assert result == {"schoolId": "s3"}
+
+
+# ---------------------------------------------------------------------------
+# Txt file on content
+# ---------------------------------------------------------------------------
+
+_TXT_URL = "https://acct.blob.core.windows.net/input-container/book.txt"
+_FIVE_MB = 5 * 1024 * 1024
+
+
+def _txt_provider(size=1):
+    return MagicMock(blob_size_from_url=AsyncMock(return_value=size))
+
+
+class TestTxtFile:
+    @pytest.mark.asyncio
+    async def test_sas_token_accepts_txt_and_rejects_other_types(self, client, mock_db):
+        tenant = await _seed_tenant(mock_db)
+        headers = {"Authorization": f"Bearer {_tenant_token(tenant['_id'])}"}
+        provider = MagicMock(get_upload_sas_url=AsyncMock(return_value="https://sas"))
+        with patch("app.controllers.content_controller.get_blob_storage_provider", return_value=provider):
+            txt = await client.get("/content/sasToken?blob_name=book.txt", headers=headers)
+            pdf = await client.get("/content/sasToken?blob_name=book.pdf", headers=headers)
+        assert txt.status_code == 200
+        assert pdf.status_code == 400
+
+    @pytest.mark.asyncio
+    async def test_create_rejects_non_txt_file_url(self, client, mock_db):
+        tenant = await _seed_tenant(mock_db)
+        headers = {"Authorization": f"Bearer {_tenant_token(tenant['_id'])}"}
+        resp = await client.post(
+            "/content",
+            json={"type": "story", "language": "english", "file_url": _TXT_URL.replace(".txt", ".pdf")},
+            headers=headers,
+        )
+        assert resp.status_code == 422
+
+    @pytest.mark.asyncio
+    async def test_create_rejects_txt_over_5_mb(self, client, mock_db):
+        tenant = await _seed_tenant(mock_db)
+        headers = {"Authorization": f"Bearer {_tenant_token(tenant['_id'])}"}
+        with patch("app.services.content_service.get_blob_storage_provider", return_value=_txt_provider(_FIVE_MB + 1)):
+            resp = await client.post(
+                "/content", json={"type": "story", "language": "english", "file_url": _TXT_URL}, headers=headers
+            )
+        assert resp.status_code == 400
+        assert await mock_db["contentsV3"].count_documents({}) == 0
+
+    @pytest.mark.asyncio
+    async def test_create_stores_file_url(self, client, mock_db):
+        tenant = await _seed_tenant(mock_db)
+        headers = {"Authorization": f"Bearer {_tenant_token(tenant['_id'])}"}
+        with patch("app.services.content_service.get_blob_storage_provider", return_value=_txt_provider(_FIVE_MB)):
+            resp = await client.post(
+                "/content", json={"type": "story", "language": "english", "file_url": _TXT_URL}, headers=headers
+            )
+        assert resp.status_code == 201
+        assert (await mock_db["contentsV3"].find_one({}))["file_url"] == _TXT_URL
+
+    @pytest.mark.asyncio
+    async def test_update_sets_file_url(self, client, mock_db):
+        tenant = await _seed_tenant(mock_db)
+        headers = {"Authorization": f"Bearer {_tenant_token(tenant['_id'])}"}
+        content_id = ObjectId()
+        await mock_db["contentsV3"].insert_one(
+            {
+                "_id": content_id,
+                "tenant_id": ObjectId(tenant["_id"]),
+                "type": "story",
+                "language": "english",
+                "is_deleted": False,
+            }
+        )
+        with patch("app.services.content_service.get_blob_storage_provider", return_value=_txt_provider()):
+            resp = await client.patch(f"/content/{content_id}", json={"id": str(content_id), "file_url": _TXT_URL}, headers=headers)
+        assert resp.status_code == 200
+        assert resp.json()["file_url"] == _TXT_URL
+        assert (await mock_db["contentsV3"].find_one({"_id": content_id}))["file_url"] == _TXT_URL

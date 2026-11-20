@@ -2,11 +2,20 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Annotated, Any
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field, HttpUrl, field_validator
 
 from app.models.responses.content import TitleText
+
+
+def _txt_only(file_url: str) -> str:
+    if not file_url.lower().endswith(".txt"):
+        raise ValueError("Only .txt files are allowed.")
+    return file_url
+
+
+TxtUrl = Annotated[str, AfterValidator(_txt_only)]
 
 
 class ContentCreateRequest(BaseModel):
@@ -17,6 +26,7 @@ class ContentCreateRequest(BaseModel):
     title: TitleText | None = None
     theme: TitleText | None = None
     audio_content: list[Any] | None = None
+    file_url: TxtUrl = ""
     description: str | None = None
     is_pull_model: bool = False
     is_teacher_app: bool = False
@@ -40,6 +50,7 @@ class ContentUpdateRequest(BaseModel):
     type: str | None = None
     language: str | None = None
     audio_content: list[Any] | None = None
+    file_url: TxtUrl = ""
     is_pull_model: bool = False
     is_teacher_app: bool = False
 
@@ -85,6 +96,7 @@ class ContentCreate(BaseModel):
     title: TitleText | None = None
     theme: TitleText | None = None
     audio_content: list[Any] = Field(default_factory=list)
+    file_url: str = ""
     description: str = ""
     is_pull_model: bool = False
     is_teacher_app: bool = False

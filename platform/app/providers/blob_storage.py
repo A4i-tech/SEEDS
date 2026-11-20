@@ -133,6 +133,9 @@ class BlobStorageProvider:
         blob_client = self._client.get_container_client(container).get_blob_client(blob_name)
         return (await blob_client.get_blob_properties()).size
 
+    async def blob_size_from_url(self, blob_url: str) -> int:
+        return await self.blob_size(*_parse_blob_url(blob_url))
+
     async def download_chunks_from_url(self, blob_url: str) -> AsyncIterator[bytes]:
         container, blob_path = _parse_blob_url(blob_url)
         return await self.download_chunks(container, blob_path)

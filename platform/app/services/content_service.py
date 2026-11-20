@@ -18,12 +18,15 @@ from app.models.requests.content_requests import (
 )
 from app.models.responses.content import AudioContent, QuizContent, WebsiteExtractResponse
 from app.platform.auth.dependencies import get_db
+from app.providers.blob_storage import get_blob_storage_provider
 from app.repositories.content_job_repository import ContentJobRepository
 from app.repositories.content_repository import ContentRepository
 from app.repositories.quiz_repository import QuizRepository
 from app.services.website_extractor import WebsiteExtractor
 
 logger = logging.getLogger(__name__)
+
+MAX_TXT_FILE_BYTES = 5 * 1024 * 1024
 
 
 def _sort_key(item: AudioContent | QuizContent) -> tuple:
@@ -142,6 +145,8 @@ class ContentService:
             au = item.get("audio_url", "")
             if au and not au.lower().endswith(".mp3"):
                 raise ValueError("Only .mp3 audio files are allowed.")
+        if body.file_url and await get_blob_storage_provider().blob_size_from_url(body.file_url) > MAX_TXT_FILE_BYTES:
+            raise ValueError("Text file must be 5 MB or smaller.")
 
         given = body.model_dump(
             exclude_unset=True,
@@ -168,8 +173,13 @@ class ContentService:
         school_id: str | None,
         is_audio_uploaded: bool,
     ) -> AudioContent | QuizContent | None:
-        allowed = {"title", "theme", "description", "type", "language", "is_pull_model", "is_teacher_app"}
+        allowed = {
+            "title", "theme", "description", "type", "language", "file_url", "is_pull_model", "is_teacher_app"
+        }
         body_dict = body.model_dump(exclude_unset=True)
+        file_url = body_dict.get("file_url", "")
+        if file_url and await get_blob_storage_provider().blob_size_from_url(file_url) > MAX_TXT_FILE_BYTES:
+            raise ValueError("Text file must be 5 MB or smaller.")
         updates: dict[str, Any] = {k: v for k, v in body_dict.items() if k in allowed}
 
         if is_audio_uploaded:

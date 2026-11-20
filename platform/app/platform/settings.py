@@ -171,6 +171,11 @@ class Settings(BaseSettings):
     subodha_jobs_collection_name: str = "subodhaSyncJobs"
     subodha_asset_container: str = "subodha"
 
+    vembi_base_url: str
+    vembi_api_key: str = Field(repr=False)
+    vembi_callback_secret: str = Field(min_length=1, repr=False)
+    vembi_timeout_seconds: float
+
     @field_validator("translation_provider")
     @classmethod
     def _check_translation_provider(cls, value: str) -> str:

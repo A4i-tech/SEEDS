@@ -5,21 +5,20 @@ from datetime import datetime
 from pymongo.asynchronous.database import AsyncDatabase
 
 from app.models.device_push import DevicePushRecord, PushStatus
-from app.platform.settings import get_settings
 
 
 class DevicePushRepository:
     def __init__(self, db: AsyncDatabase) -> None:
-        self._col = db[get_settings().vembi_pushes_collection_name]
+        self._col = db["devicePushes"]
 
     @classmethod
     async def ensure_indexes(cls, db: AsyncDatabase) -> None:
-        await db[get_settings().vembi_pushes_collection_name].create_index("source_id", unique=True)
+        await db["devicePushes"].create_index([("tenant_id", 1), ("source_id", 1)], unique=True)
 
     async def insert_if_absent(self, record: DevicePushRecord) -> DevicePushRecord:
         doc = await self._col.find_one_and_update(
-            {"source_id": record.source_id},
-            {"$setOnInsert": record.model_dump(exclude={"source_id"})},
+            {"source_id": record.source_id, "tenant_id": record.tenant_id},
+            {"$setOnInsert": record.model_dump(exclude={"source_id", "tenant_id"})},
             upsert=True,
             return_document=True,
         )
@@ -35,8 +34,10 @@ class DevicePushRepository:
 
     async def update_status(
         self, source_id: str, status: PushStatus, synced_at: datetime
-    ) -> DevicePushRecord:
-        await self._col.update_one(
-            {"source_id": source_id}, {"$set": {"status": status, "synced_at": synced_at}}
+    ) -> DevicePushRecord | None:
+        doc = await self._col.find_one_and_update(
+            {"source_id": source_id, "synced_at": {"$lte": synced_at}},
+            {"$set": {"status": status, "synced_at": synced_at}},
+            return_document=True,
         )
-        return await self.find_by_source_id(source_id)
+        return DevicePushRecord.model_validate(doc) if doc else await self.find_by_source_id(source_id)

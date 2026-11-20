@@ -12,6 +12,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+import httpx
 from bson.errors import InvalidId
 from fastapi import Request
 from fastapi.encoders import jsonable_encoder
@@ -152,6 +153,15 @@ async def _invalid_id_handler(request: Request, exc: InvalidId) -> JSONResponse:
     )
 
 
+async def _upstream_error_handler(request: Request, exc: httpx.HTTPError) -> JSONResponse:
+    request_id = _get_request_id()
+    logger.warning("Upstream error (request_id=%s): %s", request_id, type(exc).__name__)
+    return JSONResponse(
+        status_code=503,
+        content=_error_envelope("SERVICE_UNAVAILABLE", "Upstream service unavailable", request_id),
+    )
+
+
 async def _unhandled_exception_handler(
     request: Request, exc: Exception
 ) -> JSONResponse:
@@ -182,4 +192,5 @@ def register_error_handlers(app: FastAPI) -> None:
     app.add_exception_handler(AppError, _app_error_handler)
     app.add_exception_handler(RequestValidationError, _validation_error_handler)
     app.add_exception_handler(InvalidId, _invalid_id_handler)
+    app.add_exception_handler(httpx.HTTPError, _upstream_error_handler)
     app.add_exception_handler(Exception, _unhandled_exception_handler)

@@ -33,13 +33,18 @@ from app.repositories.device_push_repository import DevicePushRepository
 
 
 def _file_url(content: Content) -> str:
-    audio = content.audio_content[0]
-    if not audio.duration_seconds:
+    if not content.audio_content or not content.audio_content[0].duration_seconds:
         raise ValidationError("Content has no audio")
-    return audio.audio_url
+    return content.audio_content[0].audio_url
 
 
-_FILE_PICKERS: dict[DeviceType, Callable[[Content], str]] = {"iris": _file_url, "hexis": _file_url}
+def _text_url(content: Content) -> str:
+    if not content.file_url:
+        raise ValidationError("Content has no text file")
+    return content.file_url
+
+
+_FILE_PICKERS: dict[DeviceType, Callable[[Content], str]] = {"iris": _file_url, "hexis": _text_url}
 
 
 class DevicePushService:
@@ -65,7 +70,7 @@ class DevicePushService:
                 language=content.language,
                 title=content.title.english,
             ),
-            idempotency_key,
+            f"{tenant_id}:{idempotency_key}",
         )
         record = await self._push_repo.insert_if_absent(
             DevicePushRecord(
@@ -102,7 +107,7 @@ class DevicePushService:
     async def apply_callback(self, raw_body: bytes, signature: str) -> DevicePushResponse:
         secret = get_settings().vembi_callback_secret
         expected = "sha256=" + hmac.new(secret.encode(), raw_body, sha256).hexdigest()
-        if not hmac.compare_digest(expected, signature):
+        if not hmac.compare_digest(expected.encode(), signature.encode()):
             raise UnauthorizedError("Invalid signature")
         try:
             callback = DevicePushCallback.model_validate_json(raw_body)

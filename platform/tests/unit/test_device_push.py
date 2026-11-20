@@ -46,12 +46,10 @@ def settings(monkeypatch):
         vembi_api_key="key",
         vembi_callback_secret=SECRET,
         vembi_timeout_seconds=10,
-        vembi_pushes_collection_name="devicePushes",
     )
     for module in (
         "app.services.device_push_service",
         "app.providers.vembi_client",
-        "app.repositories.device_push_repository",
     ):
         monkeypatch.setattr(f"{module}.get_settings", lambda: fake)
     return fake
@@ -194,9 +192,9 @@ async def test_repository_roundtrip(db, settings):
     assert await repo.find_by_source_id("s1")
     assert await repo.find_by_source_id_and_tenant("s1", TENANT)
     assert await repo.find_by_source_id_and_tenant("s1", OTHER_TENANT) is None
-    updated = await repo.update_status("s1", "SUCCESS", datetime(2026, 11, 12, tzinfo=UTC))
+    updated = await repo.update_status("s1", "SUCCESS", datetime(2099, 1, 1, tzinfo=UTC))
     assert updated.status == "SUCCESS"
-    again = await repo.update_status("s1", "SUCCESS", datetime(2026, 11, 12, tzinfo=UTC))
+    again = await repo.update_status("s1", "SUCCESS", datetime(2099, 1, 1, tzinfo=UTC))
     assert again.synced_at == updated.synced_at
     again_stored = await repo.insert_if_absent(record)
     assert again_stored.status == "SUCCESS"
@@ -222,20 +220,29 @@ async def test_iris_push_sends_sas_url_and_stores_record(client, db, vembi_calls
     assert record["status"] == "PROCESSING"
 
 
-async def test_hexis_push_uses_file_url(client, db, blob):
+async def test_hexis_push_sends_text_file(client, db, blob):
     content_id = await _content(db)
 
     response = await _push(client, content_id, device_type="hexis")
 
     assert response.status_code == 200
     blob.get_sas_url_from_blob_url.assert_awaited_once_with(
-        WAV, expiry_hours=1
+        "https://acct.blob.core.windows.net/files/a.txt", expiry_hours=1
     )
+
+
+async def test_hexis_without_text_file_is_rejected(client, db, vembi_calls):
+    content_id = await _content(db, file_url="")
+
+    response = await _push(client, content_id, device_type="hexis")
+
+    assert response.status_code == 422
+    assert vembi_calls == []
 
 
 @pytest.mark.parametrize(
     "audio",
-    [[{"audio_url": WAV}], [{"audio_url": WAV, "duration_seconds": 0}]],
+    [[], [{"audio_url": WAV}], [{"audio_url": WAV, "duration_seconds": 0}]],
 )
 async def test_iris_without_playable_audio_is_rejected(client, db, vembi_calls, audio):
     content_id = await _content(db, audio_content=audio)
@@ -265,12 +272,32 @@ async def test_other_tenant_content_returns_404(client, db, vembi_calls):
     assert vembi_calls == []
 
 
+async def test_same_source_id_for_two_tenants_keeps_two_records(db):
+    repo = DevicePushRepository(db)
+    await DevicePushRepository.ensure_indexes(db)
+    for tenant in (TENANT, OTHER_TENANT):
+        await repo.insert_if_absent(
+            DevicePushRecord(
+                source_id="s1",
+                tenant_id=tenant,
+                content_id="c",
+                device_id="1",
+                device_type="iris",
+                status="PROCESSING",
+                queued_at=datetime.now(UTC),
+            )
+        )
+
+    assert await db["devicePushes"].count_documents({"source_id": "s1"}) == 2
+    assert (await repo.find_by_source_id_and_tenant("s1", OTHER_TENANT)).tenant_id == OTHER_TENANT
+
+
 async def test_idempotency_key_is_sent_to_vembi(client, db, vembi_calls):
     content_id = await _content(db)
 
     await _push(client, content_id, key="abc-123")
 
-    assert vembi_calls[0].headers["idempotency-key"] == "abc-123"
+    assert vembi_calls[0].headers["idempotency-key"] == f"{TENANT}:abc-123"
 
 
 async def test_repeated_key_keeps_one_record_and_its_state(client, db, vembi_calls):
@@ -346,8 +373,8 @@ async def test_final_status_does_not_call_vembi(client, db, vembi_calls, final):
             "device_id": "1",
             "device_type": "hexis",
             "status": final,
-            "queued_at": datetime.now(UTC),
-            "synced_at": datetime.now(UTC),
+            "queued_at": datetime(2026, 1, 1, tzinfo=UTC),
+            "synced_at": datetime(2026, 1, 1, tzinfo=UTC),
         }
     )
 
@@ -374,8 +401,8 @@ async def _queued(db, source_id="src-9"):
             "device_id": "1",
             "device_type": "iris",
             "status": "PROCESSING",
-            "queued_at": datetime.now(UTC),
-            "synced_at": datetime.now(UTC),
+            "queued_at": datetime(2026, 1, 1, tzinfo=UTC),
+            "synced_at": datetime(2026, 1, 1, tzinfo=UTC),
         }
     )
 
@@ -394,6 +421,14 @@ async def test_callback_updates_status_without_token(client, db, status):
 
     assert response.status_code == 200
     assert (await db["devicePushes"].find_one({"source_id": "src-9"}))["status"] == status
+
+
+async def test_callback_with_non_ascii_signature_is_unauthorized(client, db):
+    await _queued(db)
+
+    response = await _callback(client, {"source_id": "src-9", "status": "SUCCESS"}, b"sha256=\xc3\xa9")
+
+    assert response.status_code == 401
 
 
 async def test_callback_with_bad_signature_changes_nothing(client, db):
@@ -426,6 +461,19 @@ async def test_repeat_callback_is_safe(client, db):
     assert await db["devicePushes"].count_documents({"source_id": "src-9"}) == 1
 
 
+async def test_out_of_order_callback_keeps_newer_status(client, db):
+    await _queued(db)
+
+    await _callback(client, {"source_id": "src-9", "status": "SUCCESS", "synced_at": "2026-11-12T10:00:00+00:00"})
+    stale = await _callback(
+        client, {"source_id": "src-9", "status": "PROCESSING", "synced_at": "2026-11-12T09:00:00+00:00"}
+    )
+
+    assert stale.status_code == 200
+    assert stale.json()["status"] == "SUCCESS"
+    assert (await db["devicePushes"].find_one({"source_id": "src-9"}))["status"] == "SUCCESS"
+
+
 async def test_vembi_client_is_shared_and_closes(settings):
     shared = get_vembi_client()
 
@@ -447,6 +495,20 @@ def test_vembi_models_accept_camel_case_and_snake_case():
     )
     assert callback.source_id == "s1"
     assert DevicePushCallback.model_validate_json('{"source_id": "s1", "status": "PROCESSING"}').source_id == "s1"
+
+
+async def test_vembi_outage_returns_503(client, db, vembi_calls):
+    content_id = await _content(db)
+
+    def down(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectTimeout("timeout")
+
+    vembi_calls.client = _vembi(down)
+
+    response = await _push(client, content_id)
+
+    assert response.status_code == 503
+    assert await db["devicePushes"].count_documents({}) == 0
 
 
 async def test_callback_accepts_camel_case_body(client, db):

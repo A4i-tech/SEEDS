@@ -192,13 +192,13 @@ async def get_sas_url(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/sasToken", summary="Get upload SAS token for MP3 blob")
+@router.get("/sasToken", summary="Get upload SAS token for MP3 or TXT blob")
 async def get_sas_token(
     blob_name: str = Query(...),
     user: dict[str, Any] = Depends(_require_content_write),
 ) -> SasTokenResponse:
-    if not blob_name or not blob_name.lower().endswith(".mp3"):
-        raise HTTPException(status_code=400, detail="Only .mp3 files are allowed.")
+    if not blob_name or not blob_name.lower().endswith((".mp3", ".txt")):
+        raise HTTPException(status_code=400, detail="Only .mp3 and .txt files are allowed.")
     try:
         provider = get_blob_storage_provider()
         sas_url = await provider.get_upload_sas_url("input-container", blob_name, expiry_hours=1)

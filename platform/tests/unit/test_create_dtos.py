@@ -85,7 +85,7 @@ class TestContentCreate:
         d = self._minimal().model_dump()
         snake_expected = {
             "tenant_id", "type", "language", "created_by", "school_id",
-            "title", "theme", "audio_content", "description",
+            "title", "theme", "audio_content", "file_url", "description",
             "is_pull_model", "is_teacher_app", "is_deleted", "is_processed",
             "creation_time", "version",
         }
