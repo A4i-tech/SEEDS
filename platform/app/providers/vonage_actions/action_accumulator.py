@@ -5,6 +5,8 @@ Ported from IVRv2/app/actions/vonage_actions/vonage_action_accumulator.py.
 
 from __future__ import annotations
 
+import asyncio
+
 from app.providers.vonage_actions.base.action import Action
 
 
@@ -18,3 +20,6 @@ class VonageActionAccumulator:
 
     def combine(self, actions: list[Action]) -> list[dict]:
         return [x.get(self._sas_gen) for x in actions]
+
+    async def combine_async(self, actions: list[Action]) -> list[dict]:
+        return await asyncio.to_thread(self.combine, actions)
