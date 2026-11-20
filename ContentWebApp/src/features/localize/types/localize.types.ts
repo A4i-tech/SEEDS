@@ -26,6 +26,8 @@ export type WebsiteFields = Pick<Website, 'domain' | 'name' | 'status' | 'langua
 
 const translationEntrySchema = z.object({ text, status: text });
 
+const sharedMatchSchema = z.object({ rule_id: z.string(), translation: z.string() });
+
 export const translationItemSchema = z.object({
   id: z.string(),
   translations: z
@@ -33,6 +35,9 @@ export const translationItemSchema = z.object({
     .nullish()
     .transform((value) => value ?? {}),
   low_confidence: z.boolean().default(false),
+  exclusion_rule_id: z.string(),
+  exclusion_pattern: z.string(),
+  shared: z.record(z.string(), sharedMatchSchema),
   source_text: text,
   route: text,
   key: text,
@@ -49,10 +54,27 @@ export const bulkApproveResultSchema = z.object({
 
 export type BulkApproveResult = z.infer<typeof bulkApproveResultSchema>;
 
+export const ruleKindSchema = z.enum(['exclusion', 'override']);
+
+export const ruleSchema = z.object({
+  id: z.string(),
+  kind: ruleKindSchema,
+  text: z.string(),
+  lang: z.string(),
+  translation: z.string(),
+  updated_at: z.string(),
+  updated_by: z.string(),
+});
+
+export type Rule = z.infer<typeof ruleSchema>;
+
+export type RuleFields = Pick<Rule, 'kind' | 'text' | 'lang' | 'translation'>;
+
 export const localizeKeys = {
   all: ['localize'] as const,
   sites: ['localize', 'sites'] as const,
   reviews: ['localize', 'review'] as const,
   review: (siteId: string, route: string) => ['localize', 'review', siteId, route] as const,
   pages: (siteId: string) => ['localize', 'pages', siteId] as const,
+  rules: (siteId: string) => ['localize', 'rules', siteId] as const,
 };
