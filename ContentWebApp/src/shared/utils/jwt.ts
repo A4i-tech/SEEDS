@@ -5,7 +5,12 @@ export const volunteerRole = 'textbook_remediation_volunteer' as const;
 export const roleSchema = z.enum([...adminRoles, 'content_creator', volunteerRole]);
 export type Role = z.infer<typeof roleSchema>;
 
-const claimsSchema = z.object({ role: z.string(), school_id: z.string().default('') });
+const claimsSchema = z.object({
+  sub: z.string(),
+  role: z.string(),
+  school_id: z.string().default(''),
+  tenant_id: z.string().default(''),
+});
 
 export function decodeJwtPayload(token: string) {
   return claimsSchema.parse(JSON.parse(atob(token.split('.')[1])));

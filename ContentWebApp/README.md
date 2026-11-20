@@ -16,6 +16,8 @@ npm run dev
 
 `VITE_API_BASE_URL` is required. It is baked in at build time (the Docker image maps it from `REACT_APP_API_BASE_URL`), and the app throws at startup when it is unset.
 
+`VITE_UMAMI_URL` and `VITE_UMAMI_WEBSITE_ID` turn on Umami analytics. They are also baked in at build time. When either is empty, the app loads no tracker and sends no events.
+
 ## Scripts
 
 - `npm run dev` starts the Vite dev server

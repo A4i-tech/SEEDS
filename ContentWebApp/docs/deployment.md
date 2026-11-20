@@ -10,6 +10,8 @@ Build-time args come from GitHub Actions repo variables/secrets, not a platform 
 - `REACT_APP_STORAGE_ACCOUNT_NAME` ← repo variable `CONTENT_WEBAPP_STORAGE_ACCOUNT_NAME`
 - `REACT_APP_API_BASE_URL` ← repo secret `CONTENT_WEBAPP_REACT_APP_API_BASE_URL_STAGING`
 - `REACT_APP_GOOGLE_SITE_VERIFICATION` ← repo variable `CONTENT_WEBAPP_REACT_APP_GOOGLE_SITE_VERIFICATION`
+- `VITE_UMAMI_URL` ← repo variable `CONTENT_WEBAPP_UMAMI_URL`
+- `VITE_UMAMI_WEBSITE_ID` ← repo variable `CONTENT_WEBAPP_UMAMI_WEBSITE_ID_STAGING` (production uses `CONTENT_WEBAPP_UMAMI_WEBSITE_ID`)
 
 To change one, update the repo variable/secret and re-run the workflow, there's no separate dashboard to configure.
 
