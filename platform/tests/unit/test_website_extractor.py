@@ -146,3 +146,14 @@ async def test_extract_rejects_redirect_to_blocked_target(monkeypatch):
 
     with pytest.raises(ValidationError):
         await WebsiteExtractor().extract("http://example.com")
+
+
+async def test_extract_rejects_body_over_byte_cap(monkeypatch):
+    from app.platform.settings import get_settings
+
+    monkeypatch.setattr(socket, "getaddrinfo", _fake_addrinfo("93.184.216.34"))
+    oversized = "x" * (get_settings().website_extract_max_bytes + 1)
+    _patch_transport(monkeypatch, lambda request: httpx.Response(200, text=oversized))
+
+    with pytest.raises(ValidationError, match="byte cap"):
+        await WebsiteExtractor().extract("http://example.com")
