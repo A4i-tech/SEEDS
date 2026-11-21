@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import UTC, datetime
+from enum import StrEnum
 from typing import Any
 
 from pymongo.asynchronous.database import AsyncDatabase
@@ -10,6 +11,13 @@ from pymongo.asynchronous.database import AsyncDatabase
 from app.repositories.base_repository import BaseRepository
 
 _ACTIVE_STATUSES = ["running", "failed", "claimed"]
+
+
+class ContentJobType(StrEnum):
+    """Kind of document a content job targets; selects the consumer handler."""
+
+    CONTENT = "content"
+    QUIZ = "quiz"
 
 
 class ContentJobRepository(BaseRepository):
@@ -24,11 +32,12 @@ class ContentJobRepository(BaseRepository):
     async def ensure_indexes(cls, db: AsyncDatabase) -> None:
         await db[cls.COLLECTION].create_index("status")
 
-    async def create(self, content_id: str) -> str:
-        """Insert a pending job for *content_id* and return its string _id."""
+    async def create(self, content_id: str, content_type: ContentJobType) -> str:
+        """Insert a pending *content_type* job for *content_id* and return its string _id."""
         job_doc: dict[str, Any] = {
             "_id": str(uuid.uuid4()),
             "content_id": content_id,
+            "content_type": content_type,
             "status": "pending",
             "created_at": datetime.now(UTC),
         }

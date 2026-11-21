@@ -75,7 +75,7 @@ from pathlib import Path
 
 from pymongo.asynchronous.database import AsyncDatabase
 
-from app.repositories.content_job_repository import ContentJobRepository
+from app.repositories.content_job_repository import ContentJobRepository, ContentJobType
 from app.repositories.content_repository import ContentRepository
 
 logger = logging.getLogger(__name__)
@@ -437,6 +437,42 @@ async def _process_audio_content_job(
     raise last_exc
 
 
+async def _process_quiz_job(job_doc: dict, job_repo: ContentJobRepository) -> None:
+    """Complete a quiz job without processing.
+
+    Quizzes are stored in quizData and need no asynchronous processing today,
+    so the job is marked completed. Add quiz post-create work (e.g. TTS) here.
+    """
+    await job_repo.mark_completed(job_doc.get("_id"))
+    logger.info(
+        "content_job: completed quiz job_id=%s content_id=%s (no-op)",
+        job_doc.get("_id"), job_doc.get("content_id"),
+    )
+
+
+async def _process_content_job(
+    job_doc: dict,
+    job_repo: ContentJobRepository,
+    content_repo: ContentRepository,
+    blob_provider,
+) -> None:
+    """Dispatch a job to its handler by content_type.
+
+    Jobs created before content_type existed default to ContentJobType.CONTENT.
+    Unknown content types are dead-lettered and raise ValueError.
+    """
+    content_type = job_doc.get("content_type", ContentJobType.CONTENT)
+    if content_type == ContentJobType.CONTENT:
+        await _process_audio_content_job(job_doc, job_repo, content_repo, blob_provider)
+    elif content_type == ContentJobType.QUIZ:
+        await _process_quiz_job(job_doc, job_repo)
+    else:
+        reason = f"Unsupported content_type: {content_type!r}"
+        logger.error("content_job: dead-lettering job_id=%s reason=%r", job_doc.get("_id"), reason)
+        await job_repo.mark_failed(job_doc.get("_id"), reason)
+        raise ValueError(reason)
+
+
 # ---------------------------------------------------------------------------
 # Consumer class
 # ---------------------------------------------------------------------------
@@ -495,7 +531,7 @@ class ContentJobConsumer:
                 if job_doc:
                     try:
                         await asyncio.wait_for(
-                            _process_audio_content_job(job_doc, job_repo, content_repo, blob_provider),
+                            _process_content_job(job_doc, job_repo, content_repo, blob_provider),
                             timeout=JOB_TIMEOUT_SECONDS,
                         )
                     except TimeoutError:
