@@ -32,7 +32,13 @@ from app.platform.auth.dependencies import get_db
 from app.platform.auth.hashing import hash_password, verify_password
 from app.platform.auth.jwt import create_access_token, parse_expires_delta
 from app.platform.auth.refresh_tokens import TokenPair
-from app.platform.error_handling import AppError, ConflictError, NotFoundError, UnauthorizedError
+from app.platform.error_handling import (
+    AppError,
+    ConflictError,
+    NotFoundError,
+    UnauthorizedError,
+    ValidationError,
+)
 from app.platform.settings import Settings, get_settings
 from app.platform.telemetry import get_counter
 from app.repositories.classroom_repository import ClassroomRepository
@@ -40,6 +46,8 @@ from app.repositories.user_refresh_token_repository import UserRefreshTokenRepos
 from app.repositories.user_repository import UserRepository
 
 logger = logging.getLogger(__name__)
+
+TEACHER_ROLES = (UserRole.TEACHER, UserRole.CONTENT_CREATOR)
 
 
 def _make_access_token(sub: str, claims: UserClaims, settings: Settings) -> tuple[str, int]:
@@ -200,6 +208,7 @@ async def login_by_phone(
     user = await repo.find_by_phone(phone)
     if (
         user is None
+        or user.role not in TEACHER_ROLES
         or not user.hashed_password
         or not await verify_password(password, user.hashed_password)
     ):
@@ -231,10 +240,9 @@ async def register_teacher(
     Raises ConflictError if email is already taken.
     SECURITY: password is hashed before storage; plaintext is never retained.
     """
-    try:
-        role = UserRole(data.role)
-    except ValueError:
-        raise ConflictError(f"invalid role: {data.role}")
+    if data.role not in TEACHER_ROLES:
+        raise ValidationError(f"role must be one of {[r.value for r in TEACHER_ROLES]}")
+    role = UserRole(data.role)
 
     repo = UserRepository(db)
 
