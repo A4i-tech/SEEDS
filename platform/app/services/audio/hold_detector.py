@@ -29,7 +29,17 @@ class HoldDetector:
     EMBEDDING_RETRY_DELAY_SEC = 0.3
 
     def __init__(self, threshold: float = 0.82) -> None:
-        self.client = None
+        settings = get_settings()
+        self.model = settings.embedding_model
+        base_url = settings.embedding_base_url
+        if settings.openai_api_key or base_url:
+            from openai import AsyncOpenAI  # type: ignore[import-untyped]  # noqa: PLC0415
+
+            self.client: AsyncOpenAI | None = AsyncOpenAI(api_key=settings.openai_api_key or "dummy", base_url=base_url)
+        else:
+            self.client = None
+            logger.warning("HoldDetector: OPENAI_API_KEY not set — rule-based mode only")
+
         self.threshold = float(os.getenv("AUDIO_HOLD_SIMILARITY_THRESHOLD", str(threshold)))
         self.min_chars = int(os.getenv("AUDIO_HOLD_MIN_TEXT_CHARS", "6"))
         self.api_timeout = float(os.getenv("AUDIO_API_TIMEOUT_SECONDS", "8.0"))
@@ -47,19 +57,8 @@ class HoldDetector:
     @classmethod
     async def create(cls, threshold: float = 0.82) -> HoldDetector:
         instance = cls(threshold)
-        instance._init_client()
         await instance._load_embeddings()
         return instance
-
-    def _init_client(self) -> None:
-
-        api_key = get_settings().openai_api_key
-        if not api_key:
-            logger.warning("HoldDetector: OPENAI_API_KEY not set — rule-based mode only")
-            return
-        from openai import AsyncOpenAI  # type: ignore[import-untyped]  # noqa: PLC0415
-
-        self.client = AsyncOpenAI(api_key=api_key)
 
     @staticmethod
     def _normalize_text(text: str) -> str:
@@ -95,7 +94,7 @@ class HoldDetector:
         for attempt in range(1, self.EMBEDDING_MAX_RETRIES + 1):
             try:
                 response = await asyncio.wait_for(
-                    self.client.embeddings.create(input=texts, model="text-embedding-3-small"),
+                    self.client.embeddings.create(input=texts, model=self.model),
                     timeout=self.api_timeout,
                 )
                 return [d.embedding for d in response.data]
