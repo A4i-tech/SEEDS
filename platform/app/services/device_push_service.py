@@ -53,7 +53,7 @@ class DevicePushService:
         self._push_repo = DevicePushRepository(db)
         self._vembi = vembi
 
-    async def push(self, tenant_id: str, body: DevicePushRequest, idempotency_key: str) -> DevicePushResponse:
+    async def push(self, tenant_id: str, body: DevicePushRequest) -> DevicePushResponse:
         doc = await self._content_repo.find_by_id_and_tenant(body.content_id, tenant_id)
         if not doc:
             raise NotFoundError("Content", body.content_id)
@@ -69,8 +69,7 @@ class DevicePushService:
                 file_url=file_url,
                 language=content.language,
                 title=content.title.english,
-            ),
-            f"{tenant_id}:{idempotency_key}",
+            )
         )
         record = await self._push_repo.insert_if_absent(
             DevicePushRecord(

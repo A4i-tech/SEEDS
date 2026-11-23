@@ -16,10 +16,9 @@ class VembiClient:
     async def close(self) -> None:
         await self._client.aclose()
 
-    async def push(self, request: VembiPushRequest, idempotency_key: str) -> VembiPushReply:
+    async def push(self, request: VembiPushRequest) -> VembiPushReply:
         response = await self._client.post(
             "/devices/push",
-            headers={"Idempotency-Key": idempotency_key},
             json=request.model_dump(by_alias=True),
         )
         response.raise_for_status()

@@ -16,11 +16,10 @@ router = APIRouter(prefix="/devices/push", tags=["Device push"])
 @router.post("", summary="Send a content item to Vembi for a Hexis or Iris device")
 async def push_content(
     body: DevicePushRequest,
-    idempotency_key: Annotated[str, Header(alias="Idempotency-Key")],
     user: Mapping[str, str] = Depends(_require_content_write),
     service: DevicePushService = Depends(get_device_push_service),
 ) -> DevicePushResponse:
-    return await service.push(user["tenant_id"], body, idempotency_key)
+    return await service.push(user["tenant_id"], body)
 
 
 @router.post("/callback", summary="Vembi reports the state of a send")

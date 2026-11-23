@@ -120,11 +120,10 @@ async def client(db, user, settings, blob, vembi_calls):
         yield c
 
 
-async def _push(client, content_id, device_type="iris", device_id="2000", key="key-1"):
+async def _push(client, content_id, device_type="iris", device_id="2000"):
     return await client.post(
         "/devices/push",
         json={"content_id": content_id, "device_id": device_id, "device_type": device_type},
-        headers={"Idempotency-Key": key},
     )
 
 
@@ -152,10 +151,9 @@ async def test_vembi_client_push_and_status(settings):
         return httpx.Response(200, json={"sourceId": "s1", "status": "PROCESSING"})
 
     client = _vembi(handler)
-    reply = await client.push(_push_request(), "key-1")
+    reply = await client.push(_push_request())
 
     assert reply.source_id == "s1"
-    assert seen[0].headers["idempotency-key"] == "key-1"
     assert json.loads(seen[0].content) == {
         "deviceId": "2000",
         "deviceType": "iris",
@@ -168,7 +166,7 @@ async def test_vembi_client_push_and_status(settings):
 async def test_vembi_client_errors(settings):
     failing = _vembi(lambda r: httpx.Response(500))
     with pytest.raises(httpx.HTTPStatusError):
-        await failing.push(_push_request(), "key-1")
+        await failing.push(_push_request())
     missing = _vembi(lambda r: httpx.Response(404))
     with pytest.raises(NotFoundError):
         await missing.get_status("nope")
@@ -292,35 +290,16 @@ async def test_same_source_id_for_two_tenants_keeps_two_records(db):
     assert (await repo.find_by_source_id_and_tenant("s1", OTHER_TENANT)).tenant_id == OTHER_TENANT
 
 
-async def test_idempotency_key_is_sent_to_vembi(client, db, vembi_calls):
+async def test_repeated_push_keeps_one_record_and_its_state(client, db, vembi_calls):
     content_id = await _content(db)
-
-    await _push(client, content_id, key="abc-123")
-
-    assert vembi_calls[0].headers["idempotency-key"] == f"{TENANT}:abc-123"
-
-
-async def test_repeated_key_keeps_one_record_and_its_state(client, db, vembi_calls):
-    content_id = await _content(db)
-    first = await _push(client, content_id, key="same")
+    first = await _push(client, content_id)
     await db["devicePushes"].update_one({"source_id": "src-1"}, {"$set": {"status": "SUCCESS"}})
 
-    second = await _push(client, content_id, key="same")
+    second = await _push(client, content_id)
 
     assert first.json()["source_id"] == second.json()["source_id"] == "src-1"
     assert second.json()["status"] == "SUCCESS"
     assert await db["devicePushes"].count_documents({}) == 1
-
-
-async def test_push_without_idempotency_key_is_rejected(client, db, vembi_calls):
-    content_id = await _content(db)
-
-    response = await client.post(
-        "/devices/push", json={"content_id": content_id, "device_id": "2000", "device_type": "iris"}
-    )
-
-    assert response.status_code == 422
-    assert vembi_calls == []
 
 
 async def test_no_sas_token_in_logs(client, db, caplog):
