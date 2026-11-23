@@ -790,7 +790,7 @@ async def _seed_volunteer(mock_db, tenant_id: str = "tenant-a") -> str:
             role=UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER,
             name="Vol One",
             email="vol@example.com",
-            hashed_password=hash_password("password123"),
+            hashed_password=await hash_password("password123"),
             tenant_id=tenant_id,
         )
     )
@@ -919,7 +919,7 @@ async def _seed_volunteer_with_email(mock_db, email: str, tenant_id: str = "tena
     user = await UserRepository(mock_db).create(
         UserCreate(
             role=UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER, name="Vol",
-            email=email, hashed_password=hash_password("password123"), tenant_id=tenant_id,
+            email=email, hashed_password=await hash_password("password123"), tenant_id=tenant_id,
         )
     )
     return str(user.id)
