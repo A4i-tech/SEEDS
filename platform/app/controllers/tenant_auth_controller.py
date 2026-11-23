@@ -8,7 +8,10 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 
-from app.models.requests.auth_requests import TenantChangePasswordRequest, TenantRegisterRequest
+from app.models.requests.auth_requests import (
+    TenantChangePasswordRequest,
+    TenantRegisterRequest,
+)
 from app.models.requests.tenant_requests import TenantAnalyticsRequest
 from app.models.responses.analytics_response import AnalyticsResponse
 from app.models.responses.dashboard import TenantDashboardResponse
