@@ -31,6 +31,7 @@ class VembiPushRequest(VembiModel):
     file_url: str
     language: str
     title: str
+    folder: str = "seeds"
 
 
 class VembiPushReply(VembiModel):

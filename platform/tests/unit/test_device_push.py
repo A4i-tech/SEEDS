@@ -160,6 +160,7 @@ async def test_vembi_client_push_and_status(settings):
         "fileUrl": SAS,
         "language": "kn",
         "title": "T",
+        "folder": "seeds",
     }
 
 
@@ -211,14 +212,14 @@ async def test_iris_push_sends_sas_url_and_stores_record(client, db, vembi_calls
     assert sent["fileUrl"] == SAS
     assert sent["language"] == "kn"
     assert sent["title"] == "Mina Quest"
-    assert "folder" not in sent
+    assert sent["folder"] == "seeds"
     record = await db["devicePushes"].find_one({"source_id": "src-1"})
     assert record["tenant_id"] == TENANT
     assert record["device_type"] == "iris"
     assert record["status"] == "PROCESSING"
 
 
-async def test_hexis_push_sends_text_file(client, db, blob):
+async def test_hexis_push_sends_text_file(client, db, blob, vembi_calls):
     content_id = await _content(db)
 
     response = await _push(client, content_id, device_type="hexis")
@@ -227,6 +228,7 @@ async def test_hexis_push_sends_text_file(client, db, blob):
     blob.get_sas_url_from_blob_url.assert_awaited_once_with(
         "https://acct.blob.core.windows.net/files/a.txt", expiry_hours=1
     )
+    assert json.loads(vembi_calls[0].content)["folder"] == "seeds"
 
 
 async def test_hexis_without_text_file_is_rejected(client, db, vembi_calls):
