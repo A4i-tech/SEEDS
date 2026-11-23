@@ -352,6 +352,8 @@ class _MarkdownBuilder:
         long_desc = str(fig.get("long_description") or "").strip().replace("\n", " ").replace('"', "'")
         title = f' "{long_desc}"' if long_desc else ""
         self._blocks.append(f"![{alt}]({fig['src']}{title})")
+        if long_desc:
+            self._blocks.append(f"*Figure description:* {long_desc}")
 
     def emit_block_figure(self, page_num: int, image_id: str) -> None:
         figure_id = "".join(image_id.split())

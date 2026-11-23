@@ -103,6 +103,7 @@ def test_render_remediation_generates_all_artifacts(tmp_path):
     md_content = (out_dir / "raw.corrected.remediated.md").read_text(encoding="utf-8")
     assert "# Clean Heading" in md_content
     assert "![A simple pixel diagram](images/" in md_content
+    assert "*Figure description:* Full explanation of the diagram." in md_content
     assert "| Col A | Col B |" in md_content
 
     assert res["pages"] == 1
