@@ -60,7 +60,7 @@ async def _seed_teacher(mock_db, email="t@content.com", password="pass1234", ten
         "role": UserRole.TEACHER.value,
         "name": "Content Teacher",
         "email": email,
-        "hashed_password": hash_password(password),
+        "hashed_password": await hash_password(password),
         "tenant_id": tenant_id,
         "school_id": _SCHOOL_ID,
         "is_active": True,
@@ -84,7 +84,7 @@ async def _seed_tenant(mock_db, email="tenant@c.com", password="tenantpass"):
         "name": "Content Tenant",
         "email": email,
         "tenant_name": "ContentOrg",
-        "hashed_password": hash_password(password),
+        "hashed_password": await hash_password(password),
         "is_active": True,
     }
     result = await mock_db["users"].insert_one(doc)

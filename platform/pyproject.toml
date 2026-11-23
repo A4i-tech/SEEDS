@@ -51,6 +51,7 @@ liblouis = [
     { url = "https://github.com/daiverd/liblouis/releases/download/python-wheel-poc-v0.2/liblouis-3.38.0-py3-none-manylinux_2_34_x86_64.whl", markers = "sys_platform == 'linux'" },
     { url = "https://github.com/daiverd/liblouis/releases/download/python-wheel-poc-v0.2/liblouis-3.38.0-py3-none-win_amd64.whl", markers = "sys_platform == 'win32'" },
 ]
+rapidfuzz = "^3.14.6"
 
 [tool.poetry.extras]
 azure = ["azure-ai-translation-text", "azure-servicebus"]
