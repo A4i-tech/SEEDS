@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 import hashlib
 import html
 import json
@@ -66,6 +67,25 @@ def as_jpeg(raw: bytes) -> tuple[bytes, str]:
         return raw, ext
 
 
+_HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
+_MATHML_RE = re.compile(r"(<math\b.*?</math>)(?:\s*<!--\s*spoken:\s*(.*?)\s*-->)?", re.DOTALL)
+_TAG_RE = re.compile(r"<[^>]+>")
+
+
+@functools.lru_cache(maxsize=512)
+def _mathml_to_tex(mathml: str) -> str:
+    return pypandoc.convert_text(mathml, "markdown+tex_math_dollars", format="html").strip()
+
+
+def _math_to_text(match: re.Match[str]) -> str:
+    tex = _mathml_to_tex(match.group(1))
+
+    if "$" in tex:
+        return tex
+
+    return match.group(2) or " ".join(_TAG_RE.sub(" ", match.group(1)).split())
+
+
 def markdown_to_format(
     text: str,
     to: str,
@@ -73,11 +93,15 @@ def markdown_to_format(
     resource_root: Path | None = None,
     reference_docx: Path | None = None,
 ) -> None:
+    text = _HTML_COMMENT_RE.sub("", _MATHML_RE.sub(_math_to_text, text))
     extra_args = ["--standalone"]
+
     if resource_root is not None:
         extra_args.append(f"--resource-path={resource_root}")
+
     if reference_docx is not None:
         extra_args.append(f"--reference-doc={reference_docx}")
+
     pypandoc.convert_text(
         text,
         to,
@@ -403,6 +427,11 @@ def _render_heading(builder: _MarkdownBuilder, page_num: int, block: dict[str, o
 def _render_list(builder: _MarkdownBuilder, page_num: int, block: dict[str, object], b_text: str) -> None:
     items = block.get("items") or []
     if items:
+        repeats_items = [line.lstrip("-* ").strip() for line in b_text.splitlines()] == [str(i).strip() for i in items]
+
+        if b_text and not repeats_items:
+            builder.append(b_text)
+
         builder.append("\n".join(f"- {str(i)}" for i in items))
     elif b_text:
         builder.append(b_text)

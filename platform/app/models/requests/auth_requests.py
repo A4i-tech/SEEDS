@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel
+from typing import Annotated, Literal
+
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, StringConstraints
 
 
 class TeacherLoginRequest(BaseModel):
@@ -14,7 +16,7 @@ class TeacherRegisterRequest(BaseModel):
     phone_number: str
     password: str
     name: str
-    role: str = "teacher"
+    role: Literal["teacher", "content_creator"] = "teacher"
 
 
 class TenantRegisterRequest(BaseModel):
@@ -22,6 +24,14 @@ class TenantRegisterRequest(BaseModel):
     password: str
     tenant_name: str
     name: str = ""
+
+
+class VolunteerCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    email: EmailStr
+    password: str = Field(min_length=8)
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
 
 class TenantChangePasswordRequest(BaseModel):

@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from enum import StrEnum
 
-from pydantic import BaseModel, ConfigDict, Field
+from bson import ObjectId
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.user import PyObjectId
 
@@ -129,11 +130,16 @@ class RemediationJob(BaseModel):
     title: str | None = None
     error: str | None = None
     created_at: str = ""
+    assigned_to: str = ""
     finished_at: str | None = None
     target_language: str | None = None
     translation_error: str | None = None
     deleted_at: str | None = None
     source_page_count: int | None = None
+    book_id: str = ""
+    edit_accuracy: float = 0.0
+    edit_chars_changed: int = 0
+    edit_chars_total: int = 0
 
     def to_doc(self) -> dict[str, object]:
         return self.model_dump(mode="json", by_alias=True)
@@ -141,3 +147,15 @@ class RemediationJob(BaseModel):
     @classmethod
     def from_doc(cls, doc: dict[str, object]) -> RemediationJob:
         return cls.model_validate(doc)
+
+
+class AssignJobRequest(BaseModel):
+    volunteer_id: str
+    force: bool = False
+
+    @field_validator("volunteer_id")
+    @classmethod
+    def _valid_object_id(cls, value: str) -> str:
+        if not ObjectId.is_valid(value):
+            raise ValueError("volunteer_id must be a valid id")
+        return value

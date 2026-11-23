@@ -9,7 +9,7 @@ from app.providers.tts_provider import get_tts_provider
 async def synthesize(
     text: str,
     language: str,
-    voice: str | None = None,
+    voice: str = "",
     rate: str = "1.0",
 ) -> bytes:
     return await get_tts_provider(get_settings()).synthesize(text, language, voice, rate)

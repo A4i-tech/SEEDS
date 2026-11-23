@@ -46,7 +46,7 @@ async def _seed_tenant(mock_db, *, email: str = "tenant@example.com", password: 
             role=UserRole.TENANT,
             name="Tenant One",
             email=email,
-            hashed_password=hash_password(password),
+            hashed_password=await hash_password(password),
         )
     )
 
@@ -139,7 +139,7 @@ class TestLoginAccountEnumeration:
                 role=UserRole.TEACHER,
                 name="Teacher",
                 phone="+15550002222",
-                hashed_password=hash_password("teacher-pass"),
+                hashed_password=await hash_password("teacher-pass"),
                 is_active=False,
             )
         )
@@ -161,7 +161,7 @@ class TestSchoolAdminAndPhoneLoginAlsoIssueRefreshTokens:
                 role=UserRole.SCHOOL_ADMIN,
                 name="Admin",
                 email="admin@example.com",
-                hashed_password=hash_password("admin-pass"),
+                hashed_password=await hash_password("admin-pass"),
                 school_id="school-1",
                 tenant_id="tenant-1",
             )
@@ -182,7 +182,7 @@ class TestSchoolAdminAndPhoneLoginAlsoIssueRefreshTokens:
                 role=UserRole.TEACHER,
                 name="Teacher",
                 phone="+15550001111",
-                hashed_password=hash_password("teacher-pass"),
+                hashed_password=await hash_password("teacher-pass"),
             )
         )
         service = AuthService(mock_db)
@@ -272,7 +272,7 @@ class TestRefreshRebuildsAuthorizationClaims:
                 role=UserRole.SCHOOL_ADMIN,
                 name="School Admin One",
                 email="admin@example.com",
-                hashed_password=hash_password("correct-horse"),
+                hashed_password=await hash_password("correct-horse"),
                 tenant_id="tenant-old",
                 school_id="school-old",
             )

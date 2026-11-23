@@ -10,8 +10,9 @@ import asyncio
 import json
 import logging
 import re
+import tempfile
 from datetime import UTC, datetime, timedelta
-from typing import Any, NotRequired, TypedDict
+from typing import IO, Any, NotRequired, TypedDict
 
 import httpx
 from bs4 import BeautifulSoup
@@ -20,6 +21,7 @@ from app.platform.settings import get_settings
 
 logger = logging.getLogger(__name__)
 
+_MAX_ASSET_BYTES = 100 * 1024 * 1024
 _CONTENT_TYPES_FOR_XBLOCK = {"html", "video", "problem", "drag-and-drop-v2"}
 _STAFF_DEBUG_SELECTOR = ".wrap-instructor-info, .xqa-modal, .staff-modal, .history-modal"
 _MATHTYPE_ANNOTATION_RE = re.compile(r"MathType@MTEF@.*?@[0-9A-Fa-f]{4}@", re.S)
@@ -39,6 +41,11 @@ class SubodhaCourse(TypedDict):
     language: NotRequired[str]
 
 
+def _release(soup: BeautifulSoup) -> None:
+    for node in soup.find_all(True, recursive=False):
+        node.decompose()
+
+
 def _strip_staff_debug(html: str) -> str:
     """Remove staff-only debug/QA panels the LMS nests inside the xblock's own
     content div (not as trailing page siblings, but as siblings within the div
@@ -46,7 +53,9 @@ def _strip_staff_debug(html: str) -> str:
     soup = BeautifulSoup(html, "html.parser")
     for tag in soup.select(_STAFF_DEBUG_SELECTOR):
         tag.decompose()
-    return str(soup)
+    cleaned = str(soup)
+    _release(soup)
+    return cleaned
 
 
 def _extract_html(raw: str) -> str:
@@ -60,16 +69,20 @@ def _extract_html(raw: str) -> str:
     for script in soup.find_all("script", class_="xblock-json-init-args"):
         script.decompose()
     xblock_div = soup.find("div", class_=lambda c: c == "xblock")
-    return xblock_div.decode_contents().strip()
+    content = xblock_div.decode_contents().strip()
+    _release(soup)
+    return content
 
 
 def _extract_video_data(raw: str) -> dict[str, object] | None:
     soup = BeautifulSoup(raw, "html.parser")
     tag = soup.find(attrs={"data-metadata": True})
-    if tag is None:
+    metadata = tag["data-metadata"] if tag else None
+    _release(soup)
+    if metadata is None:
         return None
     try:
-        meta = json.loads(tag["data-metadata"])
+        meta = json.loads(metadata)
     except (ValueError, TypeError):
         return None
     return {
@@ -78,6 +91,10 @@ def _extract_video_data(raw: str) -> dict[str, object] | None:
         "poster": meta.get("poster"),
         "transcriptLanguages": meta.get("transcriptLanguages") or {},
     }
+
+
+def _extract_content_html(raw: str) -> str:
+    return _strip_staff_debug(_extract_html(raw))
 
 
 async def _with_retry(fn, *, label: str = "", retries: int = 5, base_delay: float = 5.0):
@@ -236,10 +253,10 @@ class SubodhaClient:
                     res = await _with_retry(_get, label=f"xblock {block.get('id')}")
                     raw = res.text
                     if block.get("type") == "video":
-                        block["student_view_data"] = _extract_video_data(raw)
+                        block["student_view_data"] = await asyncio.to_thread(_extract_video_data, raw)
                         block["student_view_html"] = ""
                     else:
-                        extracted = _strip_staff_debug(_extract_html(raw))
+                        extracted = await asyncio.to_thread(_extract_content_html, raw)
                         block["student_view_html"] = _MATHTYPE_ANNOTATION_RE.sub("", extracted)
                         block["student_view_data"] = None
                 except Exception as exc:  # noqa: BLE001
@@ -257,11 +274,26 @@ class SubodhaClient:
     # Assets
     # ------------------------------------------------------------------
 
-    async def fetch_asset(self, relative_url: str, session_cookie: str) -> bytes:
-        res = await self._http.get(f"{self._base_url}{relative_url}", headers={"Cookie": session_cookie})
-        res.raise_for_status()
-        logger.info("[subodha-asset] fetched url=%s status=%d bytes=%d", relative_url, res.status_code, len(res.content))
-        return res.content
+    async def fetch_asset(self, relative_url: str, session_cookie: str) -> IO[bytes]:
+        handle = tempfile.TemporaryFile()  # noqa: SIM115
+        try:
+            async with self._http.stream(
+                "GET", f"{self._base_url}{relative_url}", headers={"Cookie": session_cookie}
+            ) as res:
+                res.raise_for_status()
+                size = 0
+                async for chunk in res.aiter_bytes():
+                    size += len(chunk)
+                    if size > _MAX_ASSET_BYTES:
+                        raise ValueError(f"asset too large: {relative_url}")
+                    await asyncio.to_thread(handle.write, chunk)
+                status = res.status_code
+            handle.seek(0)
+        except BaseException:
+            handle.close()
+            raise
+        logger.info("[subodha-asset] fetched url=%s status=%d bytes=%d", relative_url, status, size)
+        return handle
 
 
 _client: SubodhaClient | None = None

@@ -68,7 +68,6 @@ jobs:
             echo "Could not determine promotion PR number." >&2
             exit 1
           fi
-          gh pr merge "$number" --auto --merge
           if [ "$created" = true ]; then
             pr_url=$(gh pr view "$number" --json url --jq .url)
             jq -nc --arg text "Release PR ready for review: $pr_url" '{

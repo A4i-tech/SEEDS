@@ -203,31 +203,31 @@ class TestIVRStateModel:
 
 
 class TestHashing:
-    def test_hash_password_returns_string(self) -> None:
+    async def test_hash_password_returns_string(self) -> None:
         from app.platform.auth.hashing import hash_password
 
-        h = hash_password("mypassword")
+        h = await hash_password("mypassword")
         assert isinstance(h, str)
         assert h.startswith("$2b$")
 
-    def test_verify_password_correct(self) -> None:
+    async def test_verify_password_correct(self) -> None:
         from app.platform.auth.hashing import hash_password, verify_password
 
         plain = "mypassword123"
-        h = hash_password(plain)
-        assert verify_password(plain, h) is True
+        h = await hash_password(plain)
+        assert await verify_password(plain, h) is True
 
-    def test_verify_password_wrong(self) -> None:
+    async def test_verify_password_wrong(self) -> None:
         from app.platform.auth.hashing import hash_password, verify_password
 
-        h = hash_password("correct")
-        assert verify_password("wrong", h) is False
+        h = await hash_password("correct")
+        assert await verify_password("wrong", h) is False
 
-    def test_hash_is_non_deterministic(self) -> None:
+    async def test_hash_is_non_deterministic(self) -> None:
         from app.platform.auth.hashing import hash_password
 
-        h1 = hash_password("same")
-        h2 = hash_password("same")
+        h1 = await hash_password("same")
+        h2 = await hash_password("same")
         # Different salts → different hashes
         assert h1 != h2
 
@@ -300,7 +300,7 @@ class TestNativeAuthProvider:
         from app.platform.auth.hashing import hash_password
         from app.platform.auth.providers.native_provider import get_user_by_credentials
 
-        hashed = hash_password("correctpass")
+        hashed = await hash_password("correctpass")
         user_doc = {"_id": "uid1", "email": "x@y.com", "hashed_password": hashed}
 
         db = MagicMock()
@@ -315,7 +315,7 @@ class TestNativeAuthProvider:
         from app.platform.auth.hashing import hash_password
         from app.platform.auth.providers.native_provider import get_user_by_credentials
 
-        hashed = hash_password("correctpass")
+        hashed = await hash_password("correctpass")
         user_doc = {"_id": "uid1", "email": "x@y.com", "hashed_password": hashed, "name": "Alice"}
 
         db = MagicMock()

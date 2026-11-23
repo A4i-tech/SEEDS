@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 from abc import ABC, abstractmethod
+from concurrent.futures import ThreadPoolExecutor
 from typing import TYPE_CHECKING
 
 import aiohttp
@@ -33,14 +35,16 @@ _VOICE_NAME: dict[str, str] = {
 
 _OPENAI_DEFAULT_BASE_URL = "https://api.openai.com/v1"
 
+_TTS_CONCURRENCY = 8
+_tts_semaphore = asyncio.Semaphore(_TTS_CONCURRENCY)
+_tts_executor = ThreadPoolExecutor(max_workers=_TTS_CONCURRENCY, thread_name_prefix="tts")
 
-def _get_tts_attributes(language: str) -> tuple[str, str] | None:
+
+def _get_tts_attributes(language: str) -> tuple[str, str]:
     lang_code = _TRANSLATION_TO_AZURE.get(language.lower())
-    if not lang_code:
-        return None
-    voice = _VOICE_NAME.get(lang_code)
+    voice = _VOICE_NAME.get(lang_code or "")
     if not voice:
-        return None
+        raise ValueError(f"TTS: unsupported language {language!r}")
     return lang_code, voice
 
 
@@ -77,10 +81,7 @@ class AzureTtsProvider(TtsProvider):
     async def synthesize(
         self, text: str, language: str, voice: str | None = None, rate: str = "1.0"
     ) -> bytes:
-        attrs = _get_tts_attributes(language)
-        if attrs is None:
-            raise ValueError(f"TTS: unsupported language {language!r}")
-        lang_code, default_voice = attrs
+        lang_code, default_voice = _get_tts_attributes(language)
         voice_name = voice or default_voice
 
         logger.info("tts: azure synthesising text_len=%d lang=%s voice=%s", len(text), lang_code, voice_name)
@@ -88,7 +89,8 @@ class AzureTtsProvider(TtsProvider):
 
         try:
             import azure.cognitiveservices.speech as sdk  # type: ignore[import]  # noqa: PLC0415
-        except ImportError:
+        except ImportError as exc:
+            logger.warning("tts: SDK unavailable, using REST fallback - %s", exc)
             return await self._synthesize_via_rest(ssml)
 
         speech_config = sdk.SpeechConfig(subscription=self._key, region=self._region)
@@ -96,7 +98,10 @@ class AzureTtsProvider(TtsProvider):
             sdk.SpeechSynthesisOutputFormat.Audio16Khz32KBitRateMonoMp3
         )
         synthesizer = sdk.SpeechSynthesizer(speech_config=speech_config, audio_config=None)
-        result = synthesizer.speak_ssml_async(ssml).get()
+        async with _tts_semaphore:
+            result = await asyncio.get_running_loop().run_in_executor(
+                _tts_executor, lambda: synthesizer.speak_ssml_async(ssml).get()
+            )
         if result.reason == sdk.ResultReason.SynthesizingAudioCompleted:
             return bytes(result.audio_data)
         raise RuntimeError(f"TTS SDK synthesis failed: {result.cancellation_details.error_details}")
@@ -130,8 +135,7 @@ class OpenAITtsProvider(TtsProvider):
         self, text: str, language: str, voice: str | None = None, rate: str = "1.0"
     ) -> bytes:
         # rate is Azure SSML only; the OpenAI endpoint has no equivalent.
-        if _get_tts_attributes(language) is None:
-            raise ValueError(f"TTS: unsupported language {language!r}")
+        _get_tts_attributes(language)
         if not text or not text.strip():
             raise RuntimeError("TTS: text is empty. Pass non-empty text to synthesize.")
 

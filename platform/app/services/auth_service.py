@@ -148,17 +148,21 @@ async def login_unified(
 
     if is_email:
         user = await repo.find_by_email(identifier)
-        allowed_roles = (UserRole.TENANT, UserRole.SCHOOL_ADMIN)
+        allowed_roles = (
+            UserRole.TENANT,
+            UserRole.SCHOOL_ADMIN,
+            UserRole.TEXTBOOK_REMEDIATION_VOLUNTEER,
+        )
     else:
         user = await repo.find_by_phone(identifier)
-        allowed_roles = UserRole.CONTENT_CREATOR
+        allowed_roles = (UserRole.CONTENT_CREATOR,)
 
     if user is None or user.role not in allowed_roles or not user.hashed_password:
         logger.warning("auth: login failed — user not found or wrong role")
         auth_failures.add(1, {"reason": "user_not_found"})
         raise UnauthorizedError("Invalid credentials")
 
-    if not verify_password(password, user.hashed_password):
+    if not await verify_password(password, user.hashed_password):
         logger.warning("auth: login failed — wrong password for user %s", user.id)
         auth_failures.add(1, {"reason": "wrong_password"})
         raise UnauthorizedError("Invalid credentials")
@@ -197,7 +201,7 @@ async def login_by_phone(
     if (
         user is None
         or not user.hashed_password
-        or not verify_password(password, user.hashed_password)
+        or not await verify_password(password, user.hashed_password)
     ):
         logger.warning("auth: teacher login failed — invalid credentials")
         auth_failures.add(1, {"reason": "invalid_credentials"})
@@ -238,7 +242,7 @@ async def register_teacher(
     if existing is not None:
         raise ConflictError(f"email {data.email}")
 
-    hashed = hash_password(data.password)
+    hashed = await hash_password(data.password)
 
     user = await repo.create(
         UserCreate(
@@ -276,7 +280,7 @@ async def register_tenant(
     if existing is not None:
         raise ConflictError(f"email {data.email}")
 
-    hashed = hash_password(data.password)
+    hashed = await hash_password(data.password)
 
     user = await repo.create(
         UserCreate(
@@ -343,9 +347,9 @@ async def change_password(
     user = await repo.find_by_id(user_id)
     if user is None:
         raise NotFoundError("User", user_id)
-    if not verify_password(current_password, user.hashed_password):
+    if not await verify_password(current_password, user.hashed_password):
         raise UnauthorizedError("Current password is incorrect")
-    await repo.update(user_id, {"hashed_password": hash_password(new_password)})
+    await repo.update(user_id, {"hashed_password": await hash_password(new_password)})
 
 
 async def get_school_admin_profile(

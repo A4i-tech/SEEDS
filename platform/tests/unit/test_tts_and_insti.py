@@ -76,11 +76,11 @@ class TestTTSServiceHelpers:
         lang_code, _ = result
         assert lang_code == "or-IN"
 
-    def test_get_tts_attributes_unsupported_returns_none(self) -> None:
+    def test_get_tts_attributes_unsupported_raises(self) -> None:
         from app.providers.tts_provider import _get_tts_attributes
 
-        result = _get_tts_attributes("klingon")
-        assert result is None
+        with pytest.raises(ValueError, match="unsupported language"):
+            _get_tts_attributes("klingon")
 
     def test_get_tts_attributes_case_insensitive(self) -> None:
         from app.providers.tts_provider import _get_tts_attributes
@@ -170,6 +170,96 @@ class TestTTSServiceHelpers:
                 # No SDK available, no key → should raise RuntimeError
                 with pytest.raises((RuntimeError, Exception)):
                     await synthesize("Hello world", "en")
+
+
+def _fake_sdk(speak) -> MagicMock:
+    sdk = MagicMock()
+    sdk.ResultReason.SynthesizingAudioCompleted = "ok"
+    result = MagicMock(reason="ok", audio_data=b"mp3")
+    synthesizer = MagicMock()
+    synthesizer.speak_ssml_async.side_effect = lambda ssml: speak(result)
+    sdk.SpeechSynthesizer.return_value = synthesizer
+    return sdk
+
+
+@contextlib.contextmanager
+def _patched_speech_sdk(sdk):
+    import importlib
+    import sys
+
+    package = importlib.import_module("azure.cognitiveservices")
+    with (
+        patch.dict(sys.modules, {"azure.cognitiveservices.speech": sdk}),
+        patch.object(package, "speech", sdk, create=True),
+    ):
+        yield
+
+
+class TestTTSOffLoop:
+    @pytest.mark.asyncio
+    async def test_synthesize_runs_sdk_call_off_loop_thread(self) -> None:
+        import threading
+
+        from app.providers.tts_provider import AzureTtsProvider
+
+        seen: list[int] = []
+
+        def speak(result):
+            seen.append(threading.get_ident())
+            return MagicMock(get=lambda: result)
+
+        sdk = _fake_sdk(speak)
+        with _patched_speech_sdk(sdk):
+            assert await AzureTtsProvider("key", "region").synthesize("Hi", "en") == b"mp3"
+        assert seen and seen[0] != threading.get_ident()
+
+    @pytest.mark.asyncio
+    async def test_synthesize_queues_beyond_concurrency_limit(self) -> None:
+        import asyncio
+        import threading
+
+        from app.providers import tts_provider
+        from app.providers.tts_provider import AzureTtsProvider
+
+        active = 0
+        peak = 0
+        lock = threading.Lock()
+
+        def speak(result):
+            nonlocal active, peak
+
+            def get():
+                nonlocal active, peak
+                with lock:
+                    active += 1
+                    peak = max(peak, active)
+                threading.Event().wait(0.05)
+                with lock:
+                    active -= 1
+                return result
+
+            return MagicMock(get=get)
+
+        sdk = _fake_sdk(speak)
+        with (
+            _patched_speech_sdk(sdk),
+            patch.object(tts_provider, "_tts_semaphore", asyncio.Semaphore(2)),
+        ):
+            provider = AzureTtsProvider("key", "region")
+            await asyncio.gather(*(provider.synthesize("Hi", "en") for _ in range(6)))
+        assert peak == 2
+
+    @pytest.mark.asyncio
+    async def test_synthesize_rest_fallback_logs_warning(self, caplog) -> None:
+        from app.providers.tts_provider import AzureTtsProvider
+
+        with (
+            patch.dict("sys.modules", {"azure.cognitiveservices.speech": None}),
+            patch.object(AzureTtsProvider, "_synthesize_via_rest", AsyncMock(return_value=b"rest")),
+            caplog.at_level("WARNING"),
+        ):
+            assert await AzureTtsProvider("key", "region").synthesize("Hi", "en") == b"rest"
+        assert "SDK unavailable, using REST fallback" in caplog.text
 
 
 # ---------------------------------------------------------------------------
