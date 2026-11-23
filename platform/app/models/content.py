@@ -13,7 +13,7 @@ class TextContent(BaseModel):
 
     english: str
     local: str = ""
-    audio_url: str = ""
+    audio_url: str | None = ""
 
     model_config = ConfigDict(populate_by_name=True)
 
