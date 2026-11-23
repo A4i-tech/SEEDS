@@ -258,7 +258,7 @@ class TestIVRStartCallFlow:
         fsm.get_start_fsm_actions.return_value = []
         factory = MagicMock()
         accumulator = MagicMock()
-        accumulator.combine.return_value = []
+        accumulator.combine_async = AsyncMock(return_value=[])
 
         async def vonage_evicts(*_args):
             ivr_service._fsm_cache.pop("fsm_a")
