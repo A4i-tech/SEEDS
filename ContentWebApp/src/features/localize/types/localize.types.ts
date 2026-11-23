@@ -56,6 +56,8 @@ export type BulkApproveResult = z.infer<typeof bulkApproveResultSchema>;
 
 export const ruleKindSchema = z.enum(['exclusion', 'override']);
 
+export type RuleKind = z.infer<typeof ruleKindSchema>;
+
 export const ruleSchema = z.object({
   id: z.string(),
   kind: ruleKindSchema,

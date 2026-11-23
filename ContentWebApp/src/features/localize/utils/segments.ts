@@ -1,6 +1,6 @@
 import type { TranslationItem } from '../types/localize.types';
 
-type SegmentStage = 'pending' | 'approved' | 'excluded';
+type SegmentStage = 'pending' | 'approved' | 'excluded' | 'overridden';
 
 export interface Segment {
   id: string;
@@ -10,15 +10,15 @@ export interface Segment {
   translation: string;
   stage: SegmentStage;
   lowConfidence: boolean;
-  shared: boolean;
   pattern: string;
 }
 
 export function toSegment(item: TranslationItem, lang: string): Segment {
   const entry = item.translations[lang];
   const shared = lang in item.shared;
-  const approved = entry?.status === 'approved' || shared;
-  const stage = item.exclusion_rule_id !== '' ? 'excluded' : approved ? 'approved' : 'pending';
+  let stage: SegmentStage = entry?.status === 'approved' ? 'approved' : 'pending';
+  if (shared) stage = 'overridden';
+  if (item.exclusion_rule_id !== '') stage = 'excluded';
   return {
     id: item.id,
     key: item.key,
@@ -27,7 +27,6 @@ export function toSegment(item: TranslationItem, lang: string): Segment {
     translation: shared ? item.shared[lang].translation : (entry?.text ?? ''),
     stage,
     lowConfidence: item.low_confidence,
-    shared,
     pattern: item.exclusion_pattern,
   };
 }

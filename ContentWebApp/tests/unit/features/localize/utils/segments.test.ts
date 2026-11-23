@@ -26,7 +26,6 @@ describe('toSegment', () => {
       translation: 'namaste',
       stage: 'approved',
       lowConfidence: false,
-      shared: false,
       pattern: '',
     });
   });
@@ -62,16 +61,16 @@ describe('toSegment', () => {
       exclusion_pattern: 'Hel*',
       translations: { hi: { text: 'namaste', status: 'approved' } },
     });
-    expect(toSegment(doc, 'hi')).toMatchObject({ stage: 'excluded', pattern: 'Hel*', shared: false });
+    expect(toSegment(doc, 'hi')).toMatchObject({ stage: 'excluded', pattern: 'Hel*' });
   });
 
-  it('a shared row is approved and shows the override text', () => {
+  it('a shared row is overridden and shows the override text', () => {
     const doc = item({ shared: { hi: { rule_id: 'r1', translation: 'tarikh' } } });
-    expect(toSegment(doc, 'hi')).toMatchObject({ stage: 'approved', shared: true, translation: 'tarikh' });
+    expect(toSegment(doc, 'hi')).toMatchObject({ stage: 'overridden', translation: 'tarikh' });
   });
 
   it('a shared language does not change the stage of another language', () => {
     const doc = item({ shared: { mr: { rule_id: 'r1', translation: 'tarikh' } } });
-    expect(toSegment(doc, 'hi')).toMatchObject({ stage: 'pending', shared: false, translation: '' });
+    expect(toSegment(doc, 'hi')).toMatchObject({ stage: 'pending', translation: '' });
   });
 });

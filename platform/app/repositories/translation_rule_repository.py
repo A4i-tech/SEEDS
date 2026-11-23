@@ -26,9 +26,6 @@ class TranslationRuleRepository(BaseRepository):
     async def find_by_id(self, rule_id: str) -> dict[str, Any] | None:
         return await self._col.find_one({"_id": self._to_id(rule_id)})
 
-    async def find_same(self, site_id: str, kind: str, text: str, lang: str) -> dict[str, Any] | None:
-        return await self._col.find_one({"site_id": site_id, "kind": kind, "text": text, "lang": lang})
-
     async def count_by_site(self, site_id: str) -> int:
         return await self._col.count_documents({"site_id": site_id})
 

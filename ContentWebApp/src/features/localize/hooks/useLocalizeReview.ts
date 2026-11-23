@@ -11,7 +11,7 @@ import {
   updateTranslation,
 } from '../api/review';
 import { toSegment } from '../utils/segments';
-import { localizeKeys, type TranslationItem } from '../types/localize.types';
+import { localizeKeys } from '../types/localize.types';
 import { toApiState } from '@shared/utils/apiState';
 import { notifyApiError } from '@shared/utils/notifyApiError';
 
@@ -60,42 +60,27 @@ export function useLocalizeReview({ siteId, route, lang }: LocalizeReviewScope) 
     generate.mutate();
   }, [missing, scope, generate]);
 
-  const patchItems = (items: TranslationItem[]) => {
-    queryClient.setQueryData<TranslationItem[]>(localizeKeys.review(siteId, route), (current) =>
-      current?.map((item) => items.find((next) => next.id === item.id) ?? item),
-    );
-  };
-
   const saveEdit = useMutation({
     mutationFn: ({ id, text }: { id: string; text: string }) => updateTranslation(id, { lang, text }),
-    onSuccess: (item) => {
-      notifications.show({ message: t('localize.saved') });
-      patchItems([item]);
-    },
-    onError: notifyApiError,
+    ...done('localize.saved'),
   });
 
   const approve = useMutation({
     mutationFn: (id: string) => approveTranslation(id, { lang }),
-    onSuccess: (item) => {
-      notifications.show({ message: t('localize.approved') });
-      patchItems([item]);
-    },
-    onError: notifyApiError,
+    ...done('localize.approved'),
   });
 
   const approveAll = useMutation({
     mutationFn: async ({ ids, whole }: { ids: string[]; whole: boolean }) => {
-      if (whole) return { ...(await bulkApproveTranslations(siteId, { route, lang })), items: [] };
+      if (whole) return bulkApproveTranslations(siteId, { route, lang });
       const results = await Promise.allSettled(ids.map((id) => approveTranslation(id, { lang })));
-      const items = results.flatMap((result) => (result.status === 'fulfilled' ? [result.value] : []));
-      return { approved: items.length, skipped: 0, failed: ids.length - items.length, items };
+      const approved = results.filter((result) => result.status === 'fulfilled').length;
+      return { approved, skipped: 0, failed: ids.length - approved };
     },
-    onSuccess: ({ approved, skipped, failed, items }, { whole }) => {
+    onSuccess: ({ approved, skipped, failed }) => {
       const key = failed || skipped ? 'localize.approvedPartial' : 'localize.approvedCount';
       notifications.show({ message: t(key, { count: approved, approved, skipped, failed }), color: failed ? 'red' : undefined });
-      if (whole) invalidate();
-      else patchItems(items);
+      invalidate();
     },
     onError: notifyApiError,
   });

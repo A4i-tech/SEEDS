@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 import re
-from typing import Literal, Self
+from typing import Annotated, Literal, Self
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, StringConstraints, field_validator, model_validator
 
 
 class TranslationUpdateRequest(BaseModel):
     lang: str
-    text: str
+    text: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
 
 
 class TranslationApproveRequest(BaseModel):
@@ -29,7 +29,7 @@ class RuleRequest(BaseModel):
     kind: Literal["exclusion", "override"]
     text: str = Field(min_length=1, max_length=5000)
     lang: str = ""
-    translation: str = ""
+    translation: Annotated[str, StringConstraints(strip_whitespace=True)] = ""
 
     @field_validator("text")
     @classmethod

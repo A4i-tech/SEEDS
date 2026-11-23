@@ -22,11 +22,13 @@ import type { ReviewScope, Website } from '../types/localize.types';
 import type { Segment } from '../utils/segments';
 import { PageTitle } from '@shared/components/PageTitle';
 
-type StageFilter = 'all' | 'pending' | 'approved' | 'excluded';
+type StageFilter = 'all' | 'pending' | 'approved' | 'excluded' | 'overridden';
 
-const stageOptions: StageFilter[] = ['pending', 'approved', 'all', 'excluded'];
+const stageOptions: StageFilter[] = ['pending', 'approved', 'all', 'excluded', 'overridden'];
 
-const STAGE_TONE = { approved: 'done', pending: 'needs-review', excluded: 'running' } as const;
+const STAGE_TONE = { approved: 'done', pending: 'needs-review', excluded: 'running', overridden: 'done' } as const;
+
+const inAll = (seg: Segment) => seg.stage === 'pending' || seg.stage === 'approved';
 
 function TranslationCell({ seg, onSave }: { seg: Segment; onSave: (id: string, text: string) => void }) {
   const { t } = useTranslation();
@@ -40,7 +42,7 @@ function TranslationCell({ seg, onSave }: { seg: Segment; onSave: (id: string, t
         autosize
         minRows={2}
         value={text}
-        disabled={seg.stage === 'excluded'}
+        disabled={!inAll(seg)}
         onChange={(e) => setText(e.currentTarget.value)}
         onBlur={commit}
         aria-label={t('localize.columns.translation')}
@@ -116,8 +118,9 @@ function SiteReview({ site, sites, languages, languageName, scope, setScope }: S
   const counts = {
     pending: segments.filter((seg) => seg.stage === 'pending').length,
     approved: segments.filter((seg) => seg.stage === 'approved').length,
-    all: segments.filter((seg) => seg.stage !== 'excluded').length,
+    all: segments.filter(inAll).length,
     excluded: segments.filter((seg) => seg.stage === 'excluded').length,
+    overridden: segments.filter((seg) => seg.stage === 'overridden').length,
   };
 
   const isLoading = generating || pagesState.status === 'loading' || (activeRoute !== '' && state.status === 'loading');
@@ -126,7 +129,7 @@ function SiteReview({ site, sites, languages, languageName, scope, setScope }: S
   const q = query.trim().toLowerCase();
   const rows = segments.filter(
     (seg) =>
-      (stage === 'all' ? seg.stage !== 'excluded' : seg.stage === stage) &&
+      (stage === 'all' ? inAll(seg) : seg.stage === stage) &&
       (!q || seg.sourceText.toLowerCase().includes(q) || seg.translation.toLowerCase().includes(q)),
   );
 
@@ -170,10 +173,7 @@ function SiteReview({ site, sites, languages, languageName, scope, setScope }: S
       header: t('localize.columns.status'),
       render: (row) => (
         <Stack gap={4} align="flex-start">
-          <StatusBadge
-            tone={STAGE_TONE[row.stage]}
-            label={row.shared ? t('localize.shared') : t(`localize.stageOptions.${row.stage}`)}
-          />
+          <StatusBadge tone={STAGE_TONE[row.stage]} label={t(`localize.stageOptions.${row.stage}`)} />
           {row.stage === 'excluded' && (
             <Text size="xs" c="dimmed">
               {row.pattern}
@@ -283,26 +283,10 @@ function SiteReview({ site, sites, languages, languageName, scope, setScope }: S
         }}
         emptyMessage={t('localize.reviewEmpty')}
         actions={(row) =>
-          row.stage !== 'excluded' && (
-            <Group gap="md" wrap="nowrap">
-              {row.stage === 'pending' && (
-                <Anchor component="button" type="button" variant="rowAction" onClick={() => approve(row.id)}>
-                  {t('localize.approve')}
-                </Anchor>
-              )}
-              {!row.shared && row.translation !== '' && (
-                <Anchor
-                  component="button"
-                  type="button"
-                  variant="rowAction"
-                  onClick={() =>
-                    rules.create({ kind: 'override', text: row.sourceText, lang, translation: row.translation })
-                  }
-                >
-                  {t('localize.applyToAll')}
-                </Anchor>
-              )}
-            </Group>
+          row.stage === 'pending' && (
+            <Anchor component="button" type="button" variant="rowAction" onClick={() => approve(row.id)}>
+              {t('localize.approve')}
+            </Anchor>
           )
         }
         actionsLabel={t('localize.columns.actions')}

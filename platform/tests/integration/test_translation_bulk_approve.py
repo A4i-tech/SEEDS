@@ -92,9 +92,11 @@ async def test_bulk_approve_denies_a_different_tenants_site(client, mock_db):
 
 
 async def _rules_site(mock_db, langs=("hi",)):
+    from app.repositories.translation_rule_repository import TranslationRuleRepository
     from app.repositories.website_repository import WebsiteRepository
 
     await WebsiteRepository.ensure_indexes(mock_db)
+    await TranslationRuleRepository.ensure_indexes(mock_db)
     await WebsiteRepository(mock_db).create(
         "t1", None, "acme.com", "site1", languages=[{"code": c, "enabled": True} for c in langs]
     )
@@ -168,6 +170,7 @@ async def test_rules_are_hidden_from_another_tenant(client, mock_db):
         {"kind": "exclusion", "text": "x", "translation": "y"},
         {"kind": "exclusion", "text": "**"},
         {"kind": "exclusion", "text": "   "},
+        {"kind": "override", "text": "Foo", "lang": "hi", "translation": "   "},
         {"kind": "exclusion", "text": "a" * 5001},
         {"kind": "other", "text": "x"},
     ],
@@ -303,7 +306,7 @@ async def test_bulk_approve_skips_excluded_rows_and_overridden_languages(client,
 
     resp = await client.post("/translations/bulk-approve?site_id=site1", json={}, headers=_auth())
 
-    assert resp.json() == {"approved": 2, "skipped": 0, "failed": 0}
+    assert resp.json() == {"approved": 2, "skipped": 2, "failed": 0}
     by_route = {d["route"]: d["translations"] for d in await mock_db["translations"].find({}).to_list(length=None)}
     assert by_route["/shared"]["hi"]["status"] == "pending"
     assert by_route["/shared"]["mr"]["status"] == "approved"
@@ -353,3 +356,31 @@ async def test_editing_a_shared_row_saves_and_approves_it_for_that_page_only(cli
     rows = await _rows(client)
     assert rows["/a"]["shared"] == {}
     assert rows["/b"]["shared"]["hi"]["translation"] == "namaste"
+
+
+async def test_reject_on_an_excluded_row_returns_422_and_writes_no_audit(client, mock_db):
+    await _rules_site(mock_db)
+    repo = await _seed(mock_db)
+    await _add(client, {"kind": "exclusion", "text": "Hello"})
+    translation_id = str((await repo.find_by_route("site1", "/h"))[0]["_id"])
+
+    reject = await client.post(
+        f"/translations/{translation_id}/reject", json={"lang": "hi", "reason": "no"}, headers=_auth()
+    )
+
+    assert reject.status_code == 422
+    assert await mock_db["translationAudit"].count_documents({"action": "rejected"}) == 0
+
+
+async def test_blank_text_is_rejected_on_edit_and_on_approve(client, mock_db):
+    await _rules_site(mock_db)
+    repo = await _seed(mock_db)
+    await _add(client, OVERRIDE)
+    translation_id = str((await repo.find_by_route("site1", "/h"))[0]["_id"])
+
+    edit = await client.put(f"/translations/{translation_id}", json={"lang": "hi", "text": "  "}, headers=_auth())
+    await mock_db["translations"].update_one({}, {"$set": {"translations.hi.text": " "}})
+    approve = await client.post(f"/translations/{translation_id}/approve", json={"lang": "hi"}, headers=_auth())
+
+    assert edit.status_code == 422
+    assert approve.status_code == 422
