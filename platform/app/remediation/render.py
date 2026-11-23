@@ -70,6 +70,7 @@ def as_jpeg(raw: bytes) -> tuple[bytes, str]:
 _HTML_COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
 _MATHML_RE = re.compile(r"(<math\b.*?</math>)(?:\s*<!--\s*spoken:\s*(.*?)\s*-->)?", re.DOTALL)
 _TAG_RE = re.compile(r"<[^>]+>")
+_FIGURE_WITH_TITLE_RE = re.compile(r'^(!\[.*?\]\(\S+? "(.*)"\))[ \t]*$', re.MULTILINE)
 
 
 @functools.lru_cache(maxsize=512)
@@ -94,6 +95,7 @@ def markdown_to_format(
     reference_docx: Path | None = None,
 ) -> None:
     text = _HTML_COMMENT_RE.sub("", _MATHML_RE.sub(_math_to_text, text))
+    text = _FIGURE_WITH_TITLE_RE.sub(r"\1\n\n*Figure description:* \2", text)
     extra_args = ["--standalone"]
 
     if resource_root is not None:
@@ -352,8 +354,6 @@ class _MarkdownBuilder:
         long_desc = str(fig.get("long_description") or "").strip().replace("\n", " ").replace('"', "'")
         title = f' "{long_desc}"' if long_desc else ""
         self._blocks.append(f"![{alt}]({fig['src']}{title})")
-        if long_desc:
-            self._blocks.append(f"*Figure description:* {long_desc}")
 
     def emit_block_figure(self, page_num: int, image_id: str) -> None:
         figure_id = "".join(image_id.split())
