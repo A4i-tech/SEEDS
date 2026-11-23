@@ -60,7 +60,7 @@ async def extract(
 
 @router.get(
     "",
-    summary="Get approved translations for a route + language (unapproved falls back to source text)",
+    summary="Get approved translations for a route + language (page-approved text wins, then override text, excluded text stays source, else source text)",
 )
 @limiter.limit("300/minute")
 async def get_translations(
@@ -186,7 +186,7 @@ async def add_rule(
 
 @router.put(
     "/rules/{rule_id}",
-    summary="Replace a rule",
+    summary="Edit a rule",
     response_model=RuleResponse,
 )
 async def update_rule(
@@ -238,7 +238,7 @@ async def get_translation(
 
 @router.put(
     "/{translation_id}",
-    summary="Update a translation's edited text",
+    summary="Update a translation's edited text (also approves it when an override applies)",
     response_model=TranslationResponse,
 )
 async def update_translation(

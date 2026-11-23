@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 from typing import Annotated, Literal, Self
 
 from pydantic import BaseModel, Field, StringConstraints, field_validator, model_validator
@@ -8,7 +7,7 @@ from pydantic import BaseModel, Field, StringConstraints, field_validator, model
 
 class TranslationUpdateRequest(BaseModel):
     lang: str
-    text: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1)]
+    text: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=5000)]
 
 
 class TranslationApproveRequest(BaseModel):
@@ -28,14 +27,14 @@ class BulkApproveRequest(BaseModel):
 class RuleRequest(BaseModel):
     kind: Literal["exclusion", "override"]
     text: str = Field(min_length=1, max_length=5000)
-    lang: str = ""
-    translation: Annotated[str, StringConstraints(strip_whitespace=True)] = ""
+    lang: str = Field(default="", max_length=32)
+    translation: Annotated[str, StringConstraints(strip_whitespace=True, max_length=5000)] = ""
 
     @field_validator("text")
     @classmethod
     def _text_has_literal(cls, value: str) -> str:
         value = value.strip()
-        if not re.sub(r"[*?]", "", value):
+        if not value.strip("*?"):
             raise ValueError("text must contain at least one character that is not * or ?")
         return value
 

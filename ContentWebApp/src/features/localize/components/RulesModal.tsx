@@ -11,19 +11,21 @@ import { ruleKindSchema, type Rule, type RuleFields, type RuleKind } from '../ty
 interface RulesModalProps {
   rules: ReturnType<typeof useLocalizeRules>;
   languages: { value: string; label: string }[];
+  languageName: (code: string) => string;
+  errorMessage: (error: Error) => string;
   onClose: () => void;
 }
 
 const EMPTY_RULE: RuleFields = { kind: 'exclusion', text: '', lang: '', translation: '' };
 
-export function RulesModal({ rules, languages, onClose }: RulesModalProps) {
+export function RulesModal({ rules, languages, languageName, errorMessage, onClose }: RulesModalProps) {
   const { t } = useTranslation();
   const [editingId, setEditingId] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const form = useForm<RuleFields>({ initialValues: EMPTY_RULE });
   const { kind, text, lang, translation } = form.values;
-  const complete = text.trim() !== '' && (kind === 'exclusion' || (lang !== '' && translation !== ''));
+  const complete = text.trim() !== '' && (kind === 'exclusion' || (lang !== '' && translation.trim() !== ''));
 
   const reset = (nextKind: RuleKind) => {
     setEditingId('');
@@ -33,9 +35,9 @@ export function RulesModal({ rules, languages, onClose }: RulesModalProps) {
 
   const save = form.onSubmit((values) => {
     const fields = values.kind === 'exclusion' ? { ...values, lang: '', translation: '' } : values;
-    if (editingId) rules.update({ id: editingId, fields });
-    else rules.create(fields);
-    reset(kind);
+    const onSuccess = () => reset(kind);
+    if (editingId) rules.update({ id: editingId, fields }, { onSuccess });
+    else rules.create(fields, { onSuccess });
   });
 
   const confirmDelete = (rule: Rule) =>
@@ -44,7 +46,10 @@ export function RulesModal({ rules, languages, onClose }: RulesModalProps) {
       body: t('localize.ruleDeleteBody'),
       confirmLabel: t('localize.ruleDelete'),
       cancelLabel: t('dialog.cancel'),
-      onConfirm: () => rules.remove(rule.id),
+      onConfirm: () => {
+        rules.remove(rule.id);
+        if (editingId === rule.id) reset(kind);
+      },
     });
 
   const textColumn: DataTableColumn<Rule> = {
@@ -57,7 +62,7 @@ export function RulesModal({ rules, languages, onClose }: RulesModalProps) {
       ? [textColumn]
       : [
           textColumn,
-          { key: 'lang', header: t('localize.language'), render: (row) => row.lang },
+          { key: 'lang', header: t('localize.language'), render: (row) => languageName(row.lang) },
           { key: 'translation', header: t('localize.ruleTranslation'), render: (row) => row.translation },
         ];
 
@@ -87,6 +92,7 @@ export function RulesModal({ rules, languages, onClose }: RulesModalProps) {
                 <Select
                   label={t('localize.language')}
                   placeholder={t('localize.pickLanguage')}
+                  allowDeselect={false}
                   data={languages}
                   {...form.getInputProps('lang')}
                 />
@@ -110,7 +116,7 @@ export function RulesModal({ rules, languages, onClose }: RulesModalProps) {
             </Group>
           </Stack>
         </form>
-        {rules.state.status === 'error' && <Alert>{rules.state.error.message}</Alert>}
+        {rules.state.status === 'error' && <Alert>{errorMessage(rules.state.error)}</Alert>}
         <DataTable<Rule>
           columns={columns}
           rows={rules.rules.filter((rule) => rule.kind === kind)}
@@ -123,7 +129,7 @@ export function RulesModal({ rules, languages, onClose }: RulesModalProps) {
             setPageSize(size);
             setPage(1);
           }}
-          emptyMessage={t('localize.rulesEmpty')}
+          emptyMessage={rules.state.status === 'done' ? t('localize.rulesEmpty') : ''}
           actions={(row) => (
             <Group gap="md" wrap="nowrap">
               <Anchor

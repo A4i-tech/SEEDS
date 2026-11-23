@@ -1,15 +1,11 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { notifications } from '@mantine/notifications';
-import { useTranslation } from 'react-i18next';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { useAuthStore } from '@features/auth/store/useAuthStore';
 import { createRule, deleteRule, listRules, updateRule } from '../api/rules';
 import { localizeKeys, type RuleFields } from '../types/localize.types';
 import { toApiState } from '@shared/utils/apiState';
-import { notifyApiError } from '@shared/utils/notifyApiError';
+import { useMutationDone } from './useMutationDone';
 
 export function useLocalizeRules(siteId: string) {
-  const { t } = useTranslation();
-  const queryClient = useQueryClient();
   const authStatus = useAuthStore((s) => s.status);
 
   const list = useQuery({
@@ -18,13 +14,7 @@ export function useLocalizeRules(siteId: string) {
     enabled: authStatus === 'authenticated' && siteId !== '',
   });
 
-  const done = (key: string) => ({
-    onSuccess: () => {
-      notifications.show({ message: t(key) });
-      void queryClient.invalidateQueries({ queryKey: localizeKeys.all });
-    },
-    onError: notifyApiError,
-  });
+  const done = useMutationDone([localizeKeys.rules(siteId), localizeKeys.reviews]);
 
   const create = useMutation({
     mutationFn: (fields: RuleFields) => createRule(siteId, fields),

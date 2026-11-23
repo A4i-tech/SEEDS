@@ -549,7 +549,8 @@ void i18n.use(initReactI18next).init({
           },
           rules: 'Rules',
           rulesTitle: 'Translation rules',
-          rulesDescription: 'Rules apply to every page of this site. Use * for any text and ? for one character.',
+          rulesDescription:
+            'Rules apply to every page of this site and match the whole text, case-sensitive. Use * for any text and ? for one character. A page keeps its own approved translation. An override gives one fixed translation.',
           ruleKinds: { exclusion: 'Exclusions', override: 'Overrides' },
           ruleText: 'Text or pattern',
           ruleSourceText: 'Source text',
@@ -560,7 +561,7 @@ void i18n.use(initReactI18next).init({
           ruleSaved: 'Rule saved.',
           ruleDeleted: 'Rule deleted.',
           ruleDeleteTitle: 'Delete this rule?',
-          ruleDeleteBody: 'Matching text goes back to per-page review.',
+          ruleDeleteBody: 'Matching text goes back to per-page review. Pages with their own approved translation keep it.',
           ruleDelete: 'Delete rule',
           rulesEmpty: 'No rules yet.',
         },

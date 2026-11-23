@@ -422,8 +422,8 @@ async def test_extract_items_for_review_succeeds_with_no_origin_or_referer(bound
         "site1",
         [{"key": "t1", "text": "Hello", "route": "/home", "source_lang": "en"}],
     )
-    docs = await bound_service.get_stored_translations("site1", "/home", "hi")
-    assert docs == {"t1": "Hello"}
+    docs = await bound_service._repo.find_by_route("site1", "/home")
+    assert [d["source_text"] for d in docs] == ["Hello"]
 
 
 async def test_extract_items_for_review_still_requires_active_site(bound_service, mock_db):
@@ -660,23 +660,6 @@ async def test_override_beats_a_pending_page_translation_and_other_languages_are
 
     assert (await translation_service.runtime_translate("site1", "/h", "hi")) == {"d": "तारीख"}
     assert (await translation_service.runtime_translate("site1", "/h", "mr")) == {"d": "Dates"}
-
-
-async def test_override_is_served_on_first_party_sites_too(
-    translation_repo, translation_service, monkeypatch
-):
-    from types import SimpleNamespace
-
-    from app.services import translation_service as module
-
-    monkeypatch.setattr(
-        module, "get_settings", lambda: SimpleNamespace(first_party_site_ids="site1", low_confidence_threshold=0.5)
-    )
-    await _add_rule(translation_service, "override", "Dates", "hi", "तारीख")
-    await _extract(translation_service, ("d", "Dates"))
-    await translation_repo.save_translation("site1", "/h", "d", "hi", "खजूर", "P")
-
-    assert (await translation_service.runtime_translate("site1", "/h", "hi")) == {"d": "तारीख"}
 
 
 async def test_deleting_an_override_returns_the_row_to_per_page_review(

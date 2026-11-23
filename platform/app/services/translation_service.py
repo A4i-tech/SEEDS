@@ -37,8 +37,6 @@ from app.services.translation_rules import (
 
 logger = logging.getLogger(__name__)
 
-MAX_RULES_PER_SITE = 1000
-
 
 def _describe(rule: dict[str, Any]) -> str:
     return f"{rule['kind']} {rule['text']!r} lang={rule['lang']} translation={rule['translation']!r}"
@@ -157,17 +155,6 @@ class TranslationService:
                 source_lang=item.get("source_lang", "en"),
                 text=item["text"],
             )
-
-    async def get_stored_translations(self, site_id: str, route: str, lang: str) -> dict[str, str]:
-        docs = await self._repo.find_by_route(site_id, route)
-        result: dict[str, str] = {}
-        for doc in docs:
-            existing = (doc.get("translations") or {}).get(lang)
-            if existing and existing.get("text") and existing.get("status") == "approved":
-                result[doc["key"]] = existing["text"]
-            else:
-                result[doc["key"]] = doc["source_text"]
-        return result
 
     async def _persist_translation(
         self, site_id: str, route: str, doc: dict[str, Any], lang: str,
@@ -597,7 +584,7 @@ class TranslationService:
         await self._ensure_site_owned_by_tenant(rule["site_id"], tenant_id)
         return rule
 
-    async def _audit_rule(self, rule: dict[str, Any], action: str, editor: str, before: str = "") -> None:
+    async def _audit_rule(self, rule: dict[str, Any], action: str, editor: str, detail: str) -> None:
         await self._audit_repo.record(
             site_id=rule["site_id"],
             route="",
@@ -605,7 +592,7 @@ class TranslationService:
             action=action,
             actor=editor,
             lang=rule["lang"] or None,
-            detail=f"{before} -> {_describe(rule)}" if before else _describe(rule),
+            detail=detail,
         )
 
     async def list_rules(self, site_id: str, tenant_id: str) -> list[dict[str, Any]]:
@@ -616,10 +603,8 @@ class TranslationService:
         await self._ensure_site_owned_by_tenant(site_id, tenant_id)
         if fields["kind"] == "override":
             await self._ensure_lang_enabled(site_id, fields["lang"])
-        if await self._rule_repo.count_by_site(site_id) >= MAX_RULES_PER_SITE:
-            raise ValidationError(f"a site can have at most {MAX_RULES_PER_SITE} rules")
         rule = await self._rule_repo.insert(site_id, fields, editor)
-        await self._audit_rule(rule, "rule_added", editor)
+        await self._audit_rule(rule, "rule_added", editor, _describe(rule))
         return rule
 
     async def update_rule(
@@ -628,15 +613,14 @@ class TranslationService:
         old = await self._get_rule_owned_by_tenant(rule_id, tenant_id)
         if fields["kind"] == "override":
             await self._ensure_lang_enabled(old["site_id"], fields["lang"])
-        await self._rule_repo.replace(rule_id, fields, editor)
-        rule = await self._get_rule_owned_by_tenant(rule_id, tenant_id)
-        await self._audit_rule(rule, "rule_updated", editor, before=_describe(old))
+        rule = await self._rule_repo.update(rule_id, old["site_id"], fields, editor)
+        await self._audit_rule(rule, "rule_updated", editor, f"{_describe(old)} -> {_describe(rule)}")
         return rule
 
     async def delete_rule(self, rule_id: str, tenant_id: str, editor: str) -> None:
         rule = await self._get_rule_owned_by_tenant(rule_id, tenant_id)
-        await self._rule_repo.delete(rule_id)
-        await self._audit_rule(rule, "rule_deleted", editor)
+        await self._rule_repo.delete(rule_id, rule["site_id"])
+        await self._audit_rule(rule, "rule_deleted", editor, _describe(rule))
 
     async def get_version_history(self, translation_id: str, tenant_id: str) -> list[dict[str, Any]]:
         await self._get_translation_owned_by_tenant(translation_id, tenant_id)

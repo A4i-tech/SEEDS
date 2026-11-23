@@ -82,3 +82,13 @@ def test_nothing_stored_needs_generation_but_an_empty_source_with_a_draft_does_n
     doc = {"source_text": "", "translations": {"hi": {"text": "pending", "status": "pending"}}}
     assert not needs_generation(RuleSet([]), doc, "hi")
     assert served_text(RuleSet([]), doc, "hi", False) == ""
+
+
+def test_override_is_served_on_first_party_sites_too():
+    doc = {"source_text": "Dates", "translations": {"hi": {"text": "khajoor", "status": "pending"}}}
+    assert served_text(RuleSet([_over("Dates", "tarikh")]), doc, "hi", True) == "tarikh"
+
+
+def test_source_text_is_matched_without_surrounding_whitespace():
+    assert find_exclusion(RuleSet([_excl("Dates")]), "Dates ")
+    assert find_override(RuleSet([_over("Dates", "tarikh")]), " Dates", "hi")

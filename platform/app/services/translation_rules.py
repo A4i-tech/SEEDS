@@ -40,6 +40,7 @@ class RuleSet:
 
 
 def find_exclusion(rules: RuleSet, source_text: str) -> dict[str, Any] | None:
+    source_text = source_text.strip()
     literal = rules.exclusion_literals.get(source_text)
     if literal:
         return literal
@@ -47,6 +48,7 @@ def find_exclusion(rules: RuleSet, source_text: str) -> dict[str, Any] | None:
 
 
 def find_override(rules: RuleSet, source_text: str, lang: str) -> dict[str, Any] | None:
+    source_text = source_text.strip()
     literal = rules.override_literals.get((lang, source_text))
     if literal:
         return literal

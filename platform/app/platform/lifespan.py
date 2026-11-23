@@ -209,7 +209,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         TranslationAuditRepository,
     )
     from app.repositories.translation_repository import TranslationRepository  # noqa: PLC0415
-    from app.repositories.translation_rule_repository import (  # noqa: PLC0415
+    from app.repositories.translation_rule_repository import (
         TranslationRuleRepository,
     )
     from app.repositories.translation_version_repository import (  # noqa: PLC0415

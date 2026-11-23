@@ -26,7 +26,7 @@ type StageFilter = 'all' | 'pending' | 'approved' | 'excluded' | 'overridden';
 
 const stageOptions: StageFilter[] = ['pending', 'approved', 'all', 'excluded', 'overridden'];
 
-const STAGE_TONE = { approved: 'done', pending: 'needs-review', excluded: 'running', overridden: 'done' } as const;
+const STAGE_TONE = { approved: 'done', pending: 'needs-review', excluded: 'neutral', overridden: 'done' } as const;
 
 const inAll = (seg: Segment) => seg.stage === 'pending' || seg.stage === 'approved';
 
@@ -133,6 +133,8 @@ function SiteReview({ site, sites, languages, languageName, scope, setScope }: S
       (!q || seg.sourceText.toLowerCase().includes(q) || seg.translation.toLowerCase().includes(q)),
   );
 
+  const langOptions = langCodes.map((code) => ({ value: code, label: languageName(code) }));
+
   const errorMessage = (error: Error) =>
     error instanceof ApiError && error.status === 403 ? t('localize.permissionDenied') : error.message;
 
@@ -206,7 +208,9 @@ function SiteReview({ site, sites, languages, languageName, scope, setScope }: S
       {rulesOpen && (
         <RulesModal
           rules={rules}
-          languages={langCodes.map((code) => ({ value: code, label: languageName(code) }))}
+          languages={langOptions}
+          languageName={languageName}
+          errorMessage={errorMessage}
           onClose={() => setRulesOpen(false)}
         />
       )}
@@ -240,7 +244,7 @@ function SiteReview({ site, sites, languages, languageName, scope, setScope }: S
             setScope({ siteId, route: activeRoute, lang: selectValue(v) });
             setPage(1);
           }}
-          data={langCodes.map((code) => ({ value: code, label: languageName(code) }))}
+          data={langOptions}
         />
         <TextInput
           aria-label={t('localize.reviewSearch')}

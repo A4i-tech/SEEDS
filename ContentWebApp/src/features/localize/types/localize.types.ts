@@ -35,9 +35,9 @@ export const translationItemSchema = z.object({
     .nullish()
     .transform((value) => value ?? {}),
   low_confidence: z.boolean().default(false),
-  exclusion_rule_id: z.string(),
-  exclusion_pattern: z.string(),
-  shared: z.record(z.string(), sharedMatchSchema),
+  exclusion_rule_id: z.string().default(''),
+  exclusion_pattern: z.string().default(''),
+  shared: z.record(z.string(), sharedMatchSchema).default({}),
   source_text: text,
   route: text,
   key: text,

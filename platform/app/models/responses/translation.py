@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from typing import Any
+from datetime import datetime
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -14,14 +15,12 @@ class SharedMatch(BaseModel):
 
 
 class RuleResponse(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-
     id: str = Field(validation_alias="_id")
-    kind: str
+    kind: Literal["exclusion", "override"]
     text: str
     lang: str
     translation: str
-    updated_at: Any
+    updated_at: datetime
     updated_by: str
 
     @field_validator("id", mode="before")

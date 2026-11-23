@@ -469,9 +469,9 @@ describe('LocalizeReviewScreen', () => {
 
     fireEvent.click(screen.getByRole('tab', { name: /^Excluded/ }))
 
-    expect(await screen.findByText('x = 1')).toBeInTheDocument()
+    expect(await screen.findByText('x = *')).toBeInTheDocument()
     expect(screen.queryByText('Hello')).not.toBeInTheDocument()
-    expect(screen.getByText('x = *')).toBeInTheDocument()
+    expect(screen.getByLabelText('Translation')).toHaveValue('x = 1')
     expect(screen.queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Apply to all pages' })).not.toBeInTheDocument()
     expect(screen.getByLabelText('Translation')).toBeDisabled()

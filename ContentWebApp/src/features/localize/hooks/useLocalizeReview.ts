@@ -14,6 +14,7 @@ import { toSegment } from '../utils/segments';
 import { localizeKeys } from '../types/localize.types';
 import { toApiState } from '@shared/utils/apiState';
 import { notifyApiError } from '@shared/utils/notifyApiError';
+import { useMutationDone } from './useMutationDone';
 
  interface LocalizeReviewScope {
   siteId: string;
@@ -37,13 +38,7 @@ export function useLocalizeReview({ siteId, route, lang }: LocalizeReviewScope) 
     void queryClient.invalidateQueries({ queryKey: localizeKeys.reviews });
   };
 
-  const done = (key: string) => ({
-    onSuccess: () => {
-      notifications.show({ message: t(key) });
-      invalidate();
-    },
-    onError: notifyApiError,
-  });
+  const done = useMutationDone([localizeKeys.reviews]);
 
   const generate = useMutation({
     mutationFn: () => generateForReview(siteId, route, lang),
