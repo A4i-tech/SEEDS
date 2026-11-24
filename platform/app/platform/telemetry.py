@@ -35,11 +35,6 @@ logger = logging.getLogger(__name__)
 _telemetry_configured: bool = False
 _metrics: dict[str, Any] = {}
 
-_QUIET_LOGGERS = (
-    "azure.monitor.opentelemetry.exporter",
-    "azure.core.pipeline.policies.http_logging_policy",
-)
-
 
 # ---------------------------------------------------------------------------
 # Public API
@@ -62,15 +57,9 @@ def configure_telemetry(settings: Settings) -> None:
         return
 
     if settings.applicationinsights_connection_string:
-        for name in _QUIET_LOGGERS:
-            logging.getLogger(name).setLevel(logging.WARNING)
-
         configure_azure_monitor(
             connection_string=settings.applicationinsights_connection_string,
-            instrumentation_options={
-                "fastapi": {"enabled": False},
-                "azure_sdk": {"enabled": False},
-            },
+            instrumentation_options={"fastapi": {"enabled": False}},
             disable_logging=True,
         )
 

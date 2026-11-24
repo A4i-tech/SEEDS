@@ -196,5 +196,11 @@ def configure_logging(log_level: str = "INFO") -> None:
     root.setLevel(numeric_level)
 
     # Quieten noisy third-party loggers
-    for noisy in ("uvicorn.access", "httpx", "httpcore"):
+    for noisy in (
+        "uvicorn.access",
+        "httpx",
+        "httpcore",
+        "azure.monitor.opentelemetry.exporter",
+        "azure.core.pipeline.policies.http_logging_policy",
+    ):
         logging.getLogger(noisy).setLevel(logging.WARNING)
