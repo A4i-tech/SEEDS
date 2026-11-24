@@ -1,14 +1,15 @@
 """
-Contract tests for the object store blob storage provider against a real MinIO server.
+Contract tests for the object store blob storage provider against a real object store server.
 
-Needs MinIO at http://localhost:9000 with the buckets output-container and
-experience-titles. Start it with C:/A4I/mock-services/minio/docker-compose.yml.
-Each MinIO test skips when the server does not answer.
+Run them with: pytest -m object_store_contract. Normal runs deselect them.
+Set OBJECT_STORE_ENDPOINT_URL, OBJECT_STORE_ACCESS_KEY_ID, and OBJECT_STORE_SECRET_ACCESS_KEY.
+Create the buckets in BUCKETS first. A test fails when the server does not answer.
 """
 
 from __future__ import annotations
 
 import io
+import os
 import uuid
 from types import SimpleNamespace
 from urllib.parse import parse_qs, urlparse
@@ -16,27 +17,30 @@ from urllib.parse import parse_qs, urlparse
 import httpx
 import pytest
 
-from app.providers.blob_storage import _parse_blob_url
+from app.providers.blob_storage import BlobNotFoundError, _parse_blob_url
 
-MINIO_URL = "http://localhost:9000"
-BUCKETS = ["output-container", "experience-titles"]
+STORE_URL = os.environ.get("OBJECT_STORE_ENDPOINT_URL", "http://localhost:9000")
+ACCESS_KEY = os.environ.get("OBJECT_STORE_ACCESS_KEY_ID", "test-access-key")
+SECRET_KEY = os.environ.get("OBJECT_STORE_SECRET_ACCESS_KEY", "test-secret-key")
+BUCKETS = ["output-container", "experience-titles", "audio-recording"]
 
 
-def _minio_ready() -> bool:
+def _store_reachable() -> bool:
     try:
-        return httpx.get(f"{MINIO_URL}/minio/health/ready", timeout=2).status_code == 200
+        httpx.get(STORE_URL, timeout=5)
     except httpx.HTTPError:
         return False
+    return True
 
 
 @pytest.fixture
 def provider(monkeypatch):
-    if not _minio_ready():
-        pytest.skip(f"MinIO is not reachable at {MINIO_URL}/minio/health/ready. Start the MinIO compose file.")
+    if not _store_reachable():
+        pytest.fail(f"The object store is not reachable at {STORE_URL}. Start it and set OBJECT_STORE_ENDPOINT_URL.")
     monkeypatch.setenv("STORAGE_BACKEND", "object-store")
-    monkeypatch.setenv("OBJECT_STORE_ENDPOINT_URL", MINIO_URL)
-    monkeypatch.setenv("OBJECT_STORE_ACCESS_KEY_ID", "test-access-key")
-    monkeypatch.setenv("OBJECT_STORE_SECRET_ACCESS_KEY", "test-secret-key")
+    monkeypatch.setenv("OBJECT_STORE_ENDPOINT_URL", STORE_URL)
+    monkeypatch.setenv("OBJECT_STORE_ACCESS_KEY_ID", ACCESS_KEY)
+    monkeypatch.setenv("OBJECT_STORE_SECRET_ACCESS_KEY", SECRET_KEY)
     monkeypatch.setenv("OBJECT_STORE_REGION", "us-east-1")
 
     from app.providers.blob_storage import get_blob_storage_provider
@@ -60,13 +64,14 @@ async def _get(url: str) -> httpx.Response:
         return await client.get(url)
 
 
+@pytest.mark.object_store_contract
 class TestUploadDownload:
     async def test_upload_returns_url_and_download_returns_same_bytes(self, provider, blob) -> None:
         bucket, name = blob
         url = await provider.upload_file(bucket, name, b"hello-bytes", "audio/mpeg")
 
         assert _parse_blob_url(url) == (bucket, name)
-        assert url.startswith(f"{MINIO_URL}/{bucket}/")
+        assert url.startswith(f"{STORE_URL}/{bucket}/")
         assert await provider.download_file(bucket, name) == b"hello-bytes"
 
     async def test_upload_accepts_a_binary_stream(self, provider, blob) -> None:
@@ -91,7 +96,7 @@ class TestUploadDownload:
         assert response.headers["content-type"] == "audio/mpeg"
 
     async def test_download_missing_blob_raises(self, provider) -> None:
-        with pytest.raises(Exception):  # noqa: B017 - provider-specific not-found error
+        with pytest.raises(BlobNotFoundError):
             await provider.download_file("output-container", f"contract-tests/missing-{uuid.uuid4().hex}")
 
     async def test_download_from_url_uses_url_returned_by_upload(self, provider, blob) -> None:
@@ -107,6 +112,7 @@ class TestUploadDownload:
         assert provider.blob_url(bucket, name) == url
 
 
+@pytest.mark.object_store_contract
 class TestExistsAndDelete:
     async def test_exists_follows_upload_and_delete(self, provider, blob) -> None:
         bucket, name = blob
@@ -125,6 +131,7 @@ class TestExistsAndDelete:
         assert await provider.exists(f"no-such-bucket-{uuid.uuid4().hex[:8]}", "a.mp3") is False
 
 
+@pytest.mark.object_store_contract
 class TestDownloadLink:
     async def test_link_serves_the_blob_to_a_plain_http_client(self, provider, blob) -> None:
         bucket, name = blob
@@ -179,6 +186,7 @@ class TestDownloadLink:
         assert response.content == b"sync-bytes"
 
 
+@pytest.mark.object_store_contract
 class TestAudioCaptureUpload:
     async def test_captured_wav_is_uploaded_to_the_bucket(self, provider, tmp_path) -> None:
         from app.services.audio.audio_capture import AudioCaptureService
@@ -207,13 +215,13 @@ class TestUrlParsing:
     """Pure parsing checks. These do not need MinIO."""
 
     OLD_AZURE = "https://acct.blob.core.windows.net/output-container/content-1/1.0.mp3"
-    S3_PATH_STYLE = "http://localhost:9000/output-container/content-1/1.0.mp3"
+    PATH_STYLE = "http://localhost:9000/output-container/content-1/1.0.mp3"
 
-    @pytest.mark.parametrize("url", [OLD_AZURE, S3_PATH_STYLE])
+    @pytest.mark.parametrize("url", [OLD_AZURE, PATH_STYLE])
     def test_both_hosts_parse_to_the_same_container_and_blob(self, url) -> None:
         assert _parse_blob_url(url) == ("output-container", "content-1/1.0.mp3")
 
-    @pytest.mark.parametrize("url", [OLD_AZURE, S3_PATH_STYLE])
+    @pytest.mark.parametrize("url", [OLD_AZURE, PATH_STYLE])
     def test_extract_blob_path_without_extension(self, url) -> None:
         from app.providers.object_store_blob_storage import ObjectStoreBlobStorageProvider
 

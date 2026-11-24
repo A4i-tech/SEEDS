@@ -59,23 +59,26 @@ class Settings(BaseSettings):
     tts_subscription_key: str = Field(default="", repr=False)
     tts_region: str = ""
 
-    storage_backend: Literal["azure", "object-store"] = "object-store"
+    storage_backend: Literal["azure", "object-store"]
 
-    @field_validator("storage_backend", mode="before")
+    @model_validator(mode="before")
     @classmethod
-    def _storage_backend_supported(cls, value: object) -> object:
+    def _storage_backend_supported(cls, data: dict[str, object]) -> dict[str, object]:
         # Old env.example files set STORAGE_BACKEND=mongodb for an unused Cosmos option
+        value = data.get("storage_backend")
         if value not in ("azure", "object-store"):
+            shown = f'"{value}"' if value else "unset"
             raise ValueError(
-                f"STORAGE_BACKEND={value} is not supported for blob storage. "
-                "Set STORAGE_BACKEND to object-store or azure."
+                f"STORAGE_BACKEND is {shown}. Set STORAGE_BACKEND to object-store or azure."
             )
-        return value
+        return data
 
     object_store_endpoint_url: str = ""
+    object_store_public_endpoint_url: str = ""
     object_store_access_key_id: str = ""
     object_store_secret_access_key: str = Field(default="", repr=False)
     object_store_region: str = "us-east-1"
+    object_store_bucket_name: str = ""
 
     azure_blob_sas_enabled: bool = True
     azure_storage_account_name: str = ""
@@ -211,6 +214,25 @@ class Settings(BaseSettings):
                 "is 'azure'. Set both, or set TRANSLATION_PROVIDER to 'openai'."
             )
         return self
+
+    @model_validator(mode="after")
+    def _check_object_store_settings(self) -> Settings:
+        if self.storage_backend != "object-store":
+            return self
+        if not self.object_store_endpoint_url:
+            raise ValueError(
+                "OBJECT_STORE_ENDPOINT_URL is not set. "
+                "Set it to the URL of your object store server, for example http://localhost:9000."
+            )
+        if not self.object_store_bucket_name:
+            raise ValueError("OBJECT_STORE_BUCKET_NAME is not set. Set it to the bucket for textbook remediation files.")
+        return self
+
+    @property
+    def blob_container(self) -> str:
+        if self.storage_backend == "azure":
+            return self.azure_storage_container
+        return self.object_store_bucket_name
 
     @property
     def call_webhook_queue_name(self) -> str:

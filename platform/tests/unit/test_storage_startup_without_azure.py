@@ -111,6 +111,39 @@ def test_azure_backend_without_azure_blob_says_how_to_fix_it() -> None:
     assert "poetry install -E azure" in result.stdout
 
 
-def test_unsupported_storage_backend_names_the_fix():
-    with pytest.raises(ValidationError, match="STORAGE_BACKEND=mongodb is not supported.*object-store or azure"):
-        Settings(_env_file=None, storage_backend="mongodb")
+@pytest.mark.parametrize(
+    ("backend", "shown"),
+    [(None, "unset"), ("", "unset"), ("mongodb", '"mongodb"')],
+)
+def test_unset_or_unsupported_storage_backend_names_the_fix(monkeypatch, backend, shown):
+    monkeypatch.delenv("STORAGE_BACKEND")
+    kwargs = {} if backend is None else {"storage_backend": backend}
+    with pytest.raises(ValidationError) as caught:
+        Settings(_env_file=None, **kwargs)
+    assert f"STORAGE_BACKEND is {shown}. Set STORAGE_BACKEND to object-store or azure." in str(caught.value)
+
+
+@pytest.mark.parametrize(
+    ("overrides", "message"),
+    [
+        ({"object_store_endpoint_url": ""}, "OBJECT_STORE_ENDPOINT_URL is not set"),
+        ({"object_store_bucket_name": ""}, "OBJECT_STORE_BUCKET_NAME is not set"),
+    ],
+)
+def test_object_store_backend_needs_endpoint_and_bucket_at_start_up(overrides, message):
+    kwargs = {"storage_backend": "object-store", "object_store_endpoint_url": "http://s:9000", "object_store_bucket_name": "b"}
+    with pytest.raises(ValidationError, match=message):
+        Settings(_env_file=None, **{**kwargs, **overrides})
+
+
+def test_blob_container_follows_the_backend():
+    azure = Settings(_env_file=None, storage_backend="azure", azure_storage_container="az-box")
+    store = Settings(
+        _env_file=None,
+        storage_backend="object-store",
+        object_store_endpoint_url="http://s:9000",
+        object_store_bucket_name="remediation",
+    )
+
+    assert azure.blob_container == "az-box"
+    assert store.blob_container == "remediation"

@@ -95,4 +95,11 @@ describe("objectStoreBlobService without an endpoint", () => {
 
     await expect(getBlobData("container", "file")).rejects.toThrow(/OBJECT_STORE_ENDPOINT_URL is not set/);
   });
+
+  it("names the setting when the endpoint is not a URL", async () => {
+    process.env.OBJECT_STORE_ENDPOINT_URL = "minio-host";
+    const { getBlobData } = require("../../src/services/objectStoreBlobService");
+
+    await expect(getBlobData("container", "file")).rejects.toThrow(/OBJECT_STORE_ENDPOINT_URL "minio-host" is not a URL/);
+  });
 });

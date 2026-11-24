@@ -5,6 +5,7 @@ fields (tenant_id, school_id) is handled here — callers never construct raw qu
 """
 from __future__ import annotations
 
+import re
 import urllib.parse
 from datetime import UTC, datetime
 from typing import Any
@@ -75,6 +76,15 @@ class ContentRepository(BaseRepository):
         school_id: str | None = None,
     ) -> dict | None:
         q = {**self._tenant_query(tenant_id, school_id), "_id": ObjectId(content_id)}
+        return await self._col.find_one(q)
+
+    async def find_by_blob_path(
+        self, tenant_id: str, school_id: str | None, container_url: str, blob_path: str
+    ) -> dict | None:
+        paths = {blob_path, urllib.parse.quote(blob_path)}
+        pattern = re.compile("^(" + "|".join(re.escape(f"{container_url}{p}") for p in paths) + r")(\?.*)?$")
+        fields = ("audio_content.audio_url", "title.audio_url", "theme.audio_url")
+        q = {**self._tenant_query(tenant_id, school_id), "$or": [{f: pattern} for f in fields]}
         return await self._col.find_one(q)
 
     # ------------------------------------------------------------------

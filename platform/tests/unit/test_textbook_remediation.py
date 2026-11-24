@@ -4,7 +4,6 @@ import json
 from types import SimpleNamespace
 
 import pytest
-from azure.core.exceptions import ResourceNotFoundError
 from bson import ObjectId
 
 from app.consumers.textbook_remediation_consumer import _resolve_models
@@ -22,6 +21,7 @@ from app.controllers.textbook_remediation_controller import (
 )
 from app.models.remediation_job import STAGES, JobStage, JobStatus, RemediationJob
 from app.platform.error_handling import AppError, ForbiddenError, NotFoundError, ValidationError
+from app.providers.blob_storage import BlobNotFoundError
 from app.repositories.textbook_remediation_repository import TextbookRemediationRepository
 from app.services.textbook_remediation import artifact_bytes as _artifact_bytes
 from app.services.textbook_remediation import serialize_job, subscribe
@@ -182,12 +182,12 @@ class _StubBlob:
 
     async def download_file(self, container, blob_path):
         if blob_path not in self._downloads:
-            raise ResourceNotFoundError(blob_path)
+            raise BlobNotFoundError(blob_path)
         return self._downloads[blob_path]
 
     async def download_chunks(self, container, blob_path):
         if blob_path not in self._downloads:
-            raise ResourceNotFoundError(blob_path)
+            raise BlobNotFoundError(blob_path)
         return _chunked(self._downloads[blob_path])
 
     async def download_chunks_from_url(self, url):
@@ -195,7 +195,7 @@ class _StubBlob:
 
     async def blob_size(self, container, blob_path):
         if blob_path not in self._downloads:
-            raise ResourceNotFoundError(blob_path)
+            raise BlobNotFoundError(blob_path)
         return len(self._downloads[blob_path])
 
 
@@ -335,6 +335,17 @@ async def test_get_remediation_page_serves_the_owning_tenant(repo):
     body = b"".join([chunk async for chunk in response.body_iterator])
     assert body == b"jpg-bytes"
     assert response.media_type == "image/jpeg"
+
+
+@pytest.mark.asyncio
+async def test_get_remediation_page_404s_when_the_blob_is_missing(repo):
+    created = await _create(repo)
+    await repo.update_source_page_count(created.job_id, 2)
+    with pytest.raises(NotFoundError):
+        await get_remediation_page(
+            created.job_id, 1,
+            user={"tenant_id": "tenant-a"}, repo=repo, blob_provider=_StubBlob(),
+        )
 
 
 @pytest.mark.asyncio

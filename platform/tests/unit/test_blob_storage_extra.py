@@ -5,7 +5,7 @@ Azure provider. Azure-SDK tests skip when azure-storage-blob is not installed.
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -240,3 +240,25 @@ class TestBlobStorageProvider:
 
             result = await provider.generate_sas_url("mycontainer", "path/file.wav")
             assert "sas_token" in result
+
+
+class TestAzureNotFoundMapping:
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("operation", ["blob_size", "download_file", "download_chunks"])
+    async def test_missing_blob_raises_blob_not_found(self, operation) -> None:
+        pytest.importorskip("azure.storage.blob")
+        from azure.core.exceptions import ResourceNotFoundError
+
+        from app.providers.azure_blob_storage import AzureBlobStorageProvider
+        from app.providers.blob_storage import BlobNotFoundError
+
+        blob_client = MagicMock()
+        blob_client.blob_name = "k"
+        blob_client.download_blob = AsyncMock(side_effect=ResourceNotFoundError("gone"))
+        blob_client.get_blob_properties = AsyncMock(side_effect=ResourceNotFoundError("gone"))
+        provider = AzureBlobStorageProvider.__new__(AzureBlobStorageProvider)
+        provider._client = MagicMock()
+        provider._client.get_container_client.return_value.get_blob_client.return_value = blob_client
+
+        with pytest.raises(BlobNotFoundError):
+            await getattr(provider, operation)("c", "k")

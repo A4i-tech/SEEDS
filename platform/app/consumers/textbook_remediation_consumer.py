@@ -91,7 +91,7 @@ REQUIRED_ARTIFACTS: tuple[ArtifactName, ...] = (
 async def _upload(
     blob_provider: BlobStorageProvider, job_id: str, out: Path, *names: ArtifactName
 ) -> dict[ArtifactName, str]:
-    container = get_settings().azure_storage_container
+    container = get_settings().blob_container
     urls: dict[ArtifactName, str] = {}
     for name in names:
         filename, content_type = ARTIFACTS[name]
@@ -114,7 +114,7 @@ def _render_page_jpeg(doc: pymupdf.Document, page_index: int) -> bytes:
 
 
 async def _upload_source_pages(blob_provider: BlobStorageProvider, job_id: str, pdf: Path) -> int:
-    container = get_settings().azure_storage_container
+    container = get_settings().blob_container
     doc = pymupdf.open(pdf)
     try:
         page_count = doc.page_count
@@ -132,7 +132,7 @@ async def _upload_source_pages(blob_provider: BlobStorageProvider, job_id: str, 
 
 
 async def _upload_images(blob_provider: BlobStorageProvider, job_id: str, search_dir: Path, out: Path) -> int:
-    container = get_settings().azure_storage_container
+    container = get_settings().blob_container
     count = 0
     for extension, content_type in IMAGE_CONTENT_TYPES.items():
         for img_path in search_dir.rglob(f"*{extension}"):

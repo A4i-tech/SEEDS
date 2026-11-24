@@ -1,0 +1,150 @@
+name: Object store contract
+
+on:
+  pull_request:
+    paths:
+      - "platform/app/providers/**"
+      - "platform/tests/integration/test_blob_storage_object_store_contract.py"
+      - ".github/workflows/object-store-contract.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: object-store-contract-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CUBEFS_HELM_REF: 164b8284050c12c33d03212000a39710bb8fbc18
+  OBJECT_STORE_ACCESS_KEY_ID: ciobjectstorekey
+  OBJECT_STORE_SECRET_ACCESS_KEY: ciobjectstoresecretciobjectstore
+  OBJECT_STORE_ENDPOINT_URL: http://127.0.0.1:1601
+
+jobs:
+  contract:
+    name: CubeFS contract tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Write the kind and CubeFS configuration
+        run: |
+          cat > "$RUNNER_TEMP/kind.yaml" <<'YAML'
+          kind: Cluster
+          apiVersion: kind.x-k8s.io/v1alpha4
+          nodes: [{role: control-plane}, {role: worker}, {role: worker}]
+          YAML
+          cat > "$RUNNER_TEMP/cubefs-values.yaml" <<'YAML'
+          component: {master: true, datanode: true, metanode: true, objectnode: true, client: false, csi: false, monitor: false, ingress: false}
+          master: {replicas: 3, resources: {enabled: false}}
+          metanode:
+            total_mem: "1073741824"
+            resources: {enabled: false}
+          datanode:
+            disks: ["/data0:5368709120"]
+            resources: {enabled: false}
+          objectnode: {replicas: 1, resources: {enabled: false}}
+          YAML
+
+      - name: Create a 3-node kind cluster
+        uses: helm/kind-action@v1
+        with:
+          config: ${{ runner.temp }}/kind.yaml
+
+      - name: Prepare the kind nodes
+        run: |
+          kubectl taint nodes -l node-role.kubernetes.io/control-plane node-role.kubernetes.io/control-plane-
+          kubectl label nodes --all component.cubefs.io/master=enabled component.cubefs.io/metanode=enabled             component.cubefs.io/datanode=enabled component.cubefs.io/objectnode=enabled --overwrite
+          for node in $(kind get nodes); do
+            docker exec "$node" mkdir -p /data0
+          done
+
+      - name: Install CubeFS with the objectnode enabled
+        run: |
+          git clone https://github.com/cubefs/cubefs-helm "$RUNNER_TEMP/cubefs-helm"
+          git -C "$RUNNER_TEMP/cubefs-helm" checkout "$CUBEFS_HELM_REF"
+          grep -q '\.Value\.master' "$RUNNER_TEMP/cubefs-helm/cubefs/templates/statefulset-master.yaml"
+          sed -i 's/\.Value\.master/.Values.master/g' "$RUNNER_TEMP/cubefs-helm/cubefs/templates/statefulset-master.yaml"
+          helm install cubefs "$RUNNER_TEMP/cubefs-helm/cubefs" -n cubefs --create-namespace \
+            -f "$RUNNER_TEMP/cubefs-values.yaml" --wait --timeout 15m
+          kubectl -n cubefs get pods
+
+      - name: Create the object store user
+        run: |
+          kubectl -n cubefs exec master-0 -- sh -c '
+            echo "{\"masterAddr\":[\"127.0.0.1:17010\"]}" > /tmp/cli.json
+            /cfs/bin/cfs-cli -c /tmp/cli.json user create seeds \
+              --access-key "$0" --secret-key "$1" --yes' "$OBJECT_STORE_ACCESS_KEY_ID" "$OBJECT_STORE_SECRET_ACCESS_KEY"
+
+      - name: Forward the objectnode port
+        run: |
+          kubectl -n cubefs port-forward svc/objectnode-service 1601:1601 > "$RUNNER_TEMP/port-forward.log" 2>&1 &
+          for _ in $(seq 1 30); do
+            curl -s -o /dev/null "$OBJECT_STORE_ENDPOINT_URL" && exit 0
+            sleep 2
+          done
+          cat "$RUNNER_TEMP/port-forward.log"
+          exit 1
+
+      - name: Set up (Poetry)
+        uses: ./.github/actions/setup-poetry
+        with:
+          python-version: "3.12"
+          directory: platform
+
+      - name: Create the buckets
+        working-directory: platform
+        run: |
+          poetry run python - <<'PY'
+          import os
+          import time
+
+          import boto3
+          from botocore.config import Config
+          from botocore.exceptions import ClientError
+
+          BUCKETS = [
+              "output-container", "input-container", "experience-titles", "theme-titles",
+              "conference", "pull-model-menus", "subodha", "audio-recording", "textbook-remediation",
+          ]
+          client = boto3.client(
+              "s3",
+              endpoint_url=os.environ["OBJECT_STORE_ENDPOINT_URL"],
+              aws_access_key_id=os.environ["OBJECT_STORE_ACCESS_KEY_ID"],
+              aws_secret_access_key=os.environ["OBJECT_STORE_SECRET_ACCESS_KEY"],
+              region_name="us-east-1",
+              config=Config(
+                  signature_version="s3v4",
+                  s3={"addressing_style": "path"},
+                  request_checksum_calculation="when_required",
+                  response_checksum_validation="when_required",
+              ),
+          )
+          for bucket in BUCKETS:
+              try:
+                  client.head_bucket(Bucket=bucket)
+              except ClientError as exc:
+                  if exc.response["Error"]["Code"] != "404":
+                      raise
+                  client.create_bucket(Bucket=bucket)
+                  deadline = time.monotonic() + 120
+                  while True:
+                      try:
+                          client.head_bucket(Bucket=bucket)
+                          break
+                      except ClientError:
+                          if time.monotonic() > deadline:
+                              raise
+                          time.sleep(2)
+          PY
+
+      - name: Run the object store contract tests
+        working-directory: platform
+        run: |
+          poetry run pytest tests/integration/test_blob_storage_object_store_contract.py \
+            -m object_store_contract -p no:cacheprovider --junitxml="$RUNNER_TEMP/contract.xml"
+          grep -q 'skipped="0"' "$RUNNER_TEMP/contract.xml"
+
+      - name: Show CubeFS logs on failure
+        if: failure()
+        run: kubectl -n cubefs logs -l app=objectnode --tail=200 || true

@@ -69,12 +69,31 @@ cp env.example .env
 | `VONAGE_IVR_APPLICATION_ID` | for calls | Vonage application ID for the IVR application |
 | `VONAGE_IVR_APPLICATION_PRIVATE_KEY64` | for calls | Base64-encoded private key for the IVR application |
 | `AZURE_SERVICE_BUS_CONNECTION_STRING` | for consumers | Azure Service Bus connection string |
-| `STORAGE_BACKEND` | no | `object-store` (default) or `azure`. `azure` needs `poetry install -E azure` |
-| `OBJECT_STORE_ENDPOINT_URL` | for `object-store` | S3-compatible endpoint, for example http://localhost:9000, plus `OBJECT_STORE_ACCESS_KEY_ID`, `OBJECT_STORE_SECRET_ACCESS_KEY`, `OBJECT_STORE_REGION` |
+| `STORAGE_BACKEND` | yes | `object-store` or `azure`. No default. Start-up fails when unset. `azure` needs `poetry install -E azure` |
+| `OBJECT_STORE_ENDPOINT_URL` | for `object-store` | Internal URL of the object store, for example http://localhost:9000 |
+| `OBJECT_STORE_PUBLIC_ENDPOINT_URL` | no | Browser-facing URL used to sign presigned links. Falls back to `OBJECT_STORE_ENDPOINT_URL` |
+| `OBJECT_STORE_ACCESS_KEY_ID`, `OBJECT_STORE_SECRET_ACCESS_KEY`, `OBJECT_STORE_REGION` | for `object-store` | Credentials and region (default region `us-east-1`) |
+| `OBJECT_STORE_BUCKET_NAME` | for `object-store` | Bucket for textbook remediation files |
 | `AZURE_STORAGE_CONNECTION_STRING` | for `azure` | Azure Blob Storage connection string |
 | `APPLICATIONINSIGHTS_CONNECTION_STRING` | no | App Insights (telemetry disabled if absent) |
 | `WS_CONTROL_SECRET` | for prod | Shared secret for websocket-service control channel |
 | `CORS_ALLOWED_ORIGINS` | for staging/prod | Comma-separated allowed origins (ignored in development; if unset, staging/prod reject all cross-origin requests) |
+
+### Object store buckets
+
+The platform does not create buckets. Create these buckets before you start it with `STORAGE_BACKEND=object-store`:
+
+- `output-container`
+- `input-container`
+- `experience-titles`
+- `theme-titles`
+- `conference`
+- `pull-model-menus`
+- `subodha` (the value of `SUBODHA_ASSET_CONTAINER`)
+- the value of `OBJECT_STORE_BUCKET_NAME`
+- the value of `AUDIO_CAPTURE_CONTAINER`, only when `AUDIO_CAPTURE_UPLOAD_TO_STORAGE=true`
+
+To test a store against the provider, run `poetry run pytest -m object_store_contract`. These tests fail when the store is not reachable. The CI job `.github/workflows/object-store-contract.yml` runs them against CubeFS.
 
 ## Run
 

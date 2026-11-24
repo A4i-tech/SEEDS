@@ -60,12 +60,14 @@ describe("blobStorage", () => {
     expect(loads.objectStore).toBe(1);
   });
 
-  it("rejects an unsupported STORAGE_BACKEND with the values to use", async () => {
-    process.env.STORAGE_BACKEND = "gcs";
-    const blobStorage = require("../../src/services/blobStorage");
+  it.each([
+    [undefined, 'STORAGE_BACKEND is unset. Set STORAGE_BACKEND to object-store or azure.'],
+    ["gcs", 'STORAGE_BACKEND is "gcs". Set STORAGE_BACKEND to object-store or azure.'],
+    ["constructor", 'STORAGE_BACKEND is "constructor". Set STORAGE_BACKEND to object-store or azure.'],
+    ["toString", 'STORAGE_BACKEND is "toString". Set STORAGE_BACKEND to object-store or azure.'],
+  ])("fails at load when STORAGE_BACKEND is %s", (value, message) => {
+    if (value) process.env.STORAGE_BACKEND = value;
 
-    await expect(blobStorage.getBlobData("bucket", "a.wav")).rejects.toThrow(
-      "STORAGE_BACKEND=gcs is not supported. Set STORAGE_BACKEND to object-store or azure."
-    );
+    expect(() => require("../../src/services/blobStorage")).toThrow(message);
   });
 });

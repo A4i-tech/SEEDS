@@ -19,7 +19,7 @@ from app.models.requests.content_requests import (
 from app.models.responses.content import AudioContent, QuizContent, WebsiteExtractResponse
 from app.platform.auth.dependencies import get_db
 from app.platform.error_handling import AppError, NotFoundError
-from app.providers.blob_storage import get_blob_storage_provider
+from app.providers.blob_storage import _parse_blob_url, get_blob_storage_provider
 from app.repositories.content_job_repository import ContentJobRepository
 from app.repositories.content_repository import ContentRepository
 from app.repositories.quiz_repository import QuizRepository
@@ -264,6 +264,16 @@ class ContentService:
         except Exception as exc:
             logger.error("get_sas_url failed", extra={"err": str(exc)})
             raise AppError("SAS_URL_FAILED", "Could not generate the download link. Try again.", 500) from exc
+
+    async def get_tenant_sas_url(self, url: str, tenant_id: str, school_id: str | None) -> str:
+        try:
+            container, blob_path = _parse_blob_url(url)
+        except ValueError as exc:
+            raise NotFoundError("Blob") from exc
+        container_url = get_blob_storage_provider().container_url(container)
+        if not await self._content_repo.find_by_blob_path(tenant_id, school_id, container_url, blob_path):
+            raise NotFoundError("Blob")
+        return await self.get_sas_url(url)
 
     async def primary_audio_sas_url(self, content: AudioContent) -> str | None:
         track = content.audio_content[0].audio_url if content.audio_content else None

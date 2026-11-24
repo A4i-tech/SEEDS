@@ -170,7 +170,7 @@ async def get_sas_url(
 ) -> SasUrlResponse:
     if not url:
         raise HTTPException(status_code=400, detail="URL parameter is required.")
-    return SasUrlResponse(url=await service.get_sas_url(url))
+    return SasUrlResponse(url=await service.get_tenant_sas_url(url, user.get("tenant_id", ""), _read_school_id(user)))
 
 
 # ---------------------------------------------------------------------------

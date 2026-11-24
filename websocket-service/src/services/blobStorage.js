@@ -1,19 +1,22 @@
 // src/services/blobStorage.js
 
-let provider = null;
+const BACKENDS = {
+  "object-store": () => require("./objectStoreBlobService"),
+  azure: () => require("./azureBlobService"),
+};
 
-function loadProvider() {
-  const backend = process.env.STORAGE_BACKEND;
-  // Required on first use so a provider's SDK is only needed when that provider is selected.
-  if (backend === "object-store") return require("./objectStoreBlobService");
-  if (backend === "azure") return require("./azureBlobService");
+const backend = process.env.STORAGE_BACKEND;
+if (!Object.hasOwn(BACKENDS, backend)) {
   throw new Error(
-    `STORAGE_BACKEND=${backend} is not supported. Set STORAGE_BACKEND to object-store or azure.`
+    `STORAGE_BACKEND is ${backend ? `"${backend}"` : "unset"}. Set STORAGE_BACKEND to object-store or azure.`
   );
 }
 
+let provider = null;
+
 async function getBlobData(containerName, blobName) {
-  provider = provider || loadProvider();
+  // Required on first use so a provider's SDK is only needed when that provider is selected.
+  provider = provider || BACKENDS[backend]();
   return provider.getBlobData(containerName, blobName);
 }
 

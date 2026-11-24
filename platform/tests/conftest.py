@@ -16,6 +16,8 @@ os.environ.setdefault("DB_CONNECTION", "")
 os.environ.setdefault("AUTH_TYPE", "jwt")
 os.environ.setdefault("AZURE_SERVICE_BUS_CONNECTION_STRING", "Endpoint=sb://test/;SharedAccessKeyName=k;SharedAccessKey=v")
 os.environ.setdefault("TRANSLATION_MODEL", "test-model")
+os.environ.setdefault("STORAGE_BACKEND", "object-store")
+os.environ.setdefault("OBJECT_STORE_BUCKET_NAME", "test-bucket")
 os.environ.setdefault("OBJECT_STORE_ENDPOINT_URL", "http://minio.test:9000")
 os.environ.setdefault(
     "APPLICATIONINSIGHTS_CONNECTION_STRING",

@@ -1,7 +1,7 @@
 """
-S3-compatible blob storage provider (STORAGE_BACKEND=object-store).
+Object store blob storage provider (STORAGE_BACKEND=object-store).
 
-Works with S3-compatible servers (for example MinIO). A container name maps
+Works with any server that speaks the object store API (for example MinIO or CubeFS). A container name maps
 one to one to a bucket name. Addressing is always path-style.
 
 boto3 is synchronous, so every network call runs in a worker thread and never
@@ -17,40 +17,48 @@ from __future__ import annotations
 import asyncio
 import io
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from typing import IO
 from urllib.parse import quote
 
 import boto3
+from botocore.client import BaseClient
 from botocore.config import Config
 from botocore.exceptions import ClientError
+from botocore.response import StreamingBody
 
 from app.platform.settings import get_settings
-from app.providers.blob_storage import BlobStorageProvider
+from app.providers.blob_storage import BlobNotFoundError, BlobStorageProvider
 
 logger = logging.getLogger(__name__)
 
 _NOT_FOUND_CODES = {"404", "NoSuchKey", "NotFound"}
 
 
+def _is_not_found(exc: ClientError) -> bool:
+    return exc.response["Error"]["Code"] in _NOT_FOUND_CODES
+
+
 class ObjectStoreBlobStorageProvider(BlobStorageProvider):
     def __init__(self) -> None:
         settings = get_settings()
-        if not settings.object_store_endpoint_url:
-            raise ValueError(
-                "OBJECT_STORE_ENDPOINT_URL is not set. "
-                "Set it to the URL of your S3-compatible server, for example http://localhost:9000."
-            )
-        self._client = boto3.client(
+        self._client = self._build_client(settings.object_store_endpoint_url)
+        public_url = settings.object_store_public_endpoint_url
+        self._signer = self._build_client(public_url) if public_url else self._client
+
+    @staticmethod
+    def _build_client(endpoint_url: str) -> BaseClient:
+        settings = get_settings()
+        return boto3.client(
             "s3",
-            endpoint_url=settings.object_store_endpoint_url,
+            endpoint_url=endpoint_url,
             aws_access_key_id=settings.object_store_access_key_id,
             aws_secret_access_key=settings.object_store_secret_access_key,
             region_name=settings.object_store_region,
             config=Config(
                 signature_version="s3v4",
                 s3={"addressing_style": "path"},
-                # Newer boto3 adds checksum headers that many S3-compatible servers reject
+                # Newer boto3 adds checksum headers that many object store servers reject
                 request_checksum_calculation="when_required",
                 response_checksum_validation="when_required",
             ),
@@ -60,7 +68,7 @@ class ObjectStoreBlobStorageProvider(BlobStorageProvider):
         return f"{self.container_url(container)}{quote(blob_name)}"
 
     def container_url(self, container: str) -> str:
-        return f"{self._client.meta.endpoint_url.rstrip('/')}/{container}/"
+        return f"{self._signer.meta.endpoint_url.rstrip('/')}/{container}/"
 
     async def upload_file(
         self,
@@ -81,19 +89,26 @@ class ObjectStoreBlobStorageProvider(BlobStorageProvider):
         return self.blob_url(container, blob_name)
 
     async def download_file(self, container: str, blob_name: str) -> bytes:
-        def _get() -> bytes:
-            return self._client.get_object(Bucket=container, Key=blob_name)["Body"].read()
-
-        data = await asyncio.to_thread(_get)
+        response = await self._call(self._client.get_object, container, blob_name)
+        data = await asyncio.to_thread(response["Body"].read)
         logger.debug("blob_storage: downloaded blob container=%s name=%s size=%d", container, blob_name, len(data))
         return data
 
     async def download_chunks(self, container: str, blob_name: str) -> AsyncIterator[bytes]:
-        response = await asyncio.to_thread(self._client.get_object, Bucket=container, Key=blob_name)
+        response = await self._call(self._client.get_object, container, blob_name)
         return self._iter_body(response["Body"])
 
     @staticmethod
-    async def _iter_body(body) -> AsyncIterator[bytes]:  # noqa: ANN001
+    async def _call(method: Callable[..., dict], container: str, blob_name: str) -> dict:
+        try:
+            return await asyncio.to_thread(method, Bucket=container, Key=blob_name)
+        except ClientError as exc:
+            if _is_not_found(exc):
+                raise BlobNotFoundError(blob_name) from exc
+            raise
+
+    @staticmethod
+    async def _iter_body(body: StreamingBody) -> AsyncIterator[bytes]:
         chunks = body.iter_chunks(1024 * 1024)
         try:
             while (chunk := await asyncio.to_thread(next, chunks, None)) is not None:
@@ -102,20 +117,18 @@ class ObjectStoreBlobStorageProvider(BlobStorageProvider):
             body.close()
 
     async def blob_size(self, container: str, blob_name: str) -> int:
-        head = await asyncio.to_thread(self._client.head_object, Bucket=container, Key=blob_name)
+        head = await self._call(self._client.head_object, container, blob_name)
         return head["ContentLength"]
 
     async def exists(self, container: str, blob_name: str) -> bool:
         try:
-            await asyncio.to_thread(self._client.head_object, Bucket=container, Key=blob_name)
-        except ClientError as exc:
-            if exc.response["Error"]["Code"] in _NOT_FOUND_CODES:
-                return False
-            raise
+            await self._call(self._client.head_object, container, blob_name)
+        except BlobNotFoundError:
+            return False
         return True
 
     async def delete_blob(self, container: str, blob_name: str) -> bool:
-        # S3 delete succeeds for a missing key, so check first to return False like Azure
+        # Object store delete succeeds for a missing key, so check first to return False like Azure
         if not await self.exists(container, blob_name):
             return False
         await asyncio.to_thread(self._client.delete_object, Bucket=container, Key=blob_name)
@@ -123,7 +136,7 @@ class ObjectStoreBlobStorageProvider(BlobStorageProvider):
         return True
 
     def _presign(self, container: str, blob_name: str, expiry_hours: int, write: bool) -> str:
-        return self._client.generate_presigned_url(
+        return self._signer.generate_presigned_url(
             "put_object" if write else "get_object",
             Params={"Bucket": container, "Key": blob_name},
             ExpiresIn=expiry_hours * 3600,
@@ -137,7 +150,7 @@ class ObjectStoreBlobStorageProvider(BlobStorageProvider):
         read: bool = True,
         write: bool = False,
     ) -> str:
-        # A presigned S3 link allows one HTTP method: write gives PUT, otherwise GET
+        # A presigned link allows one HTTP method: write gives PUT, otherwise GET
         url = self._presign(container, blob_name, expiry_hours, write)
         logger.info("blob_storage: generated presigned url container=%s name=%s expiry_hours=%d", container, blob_name, expiry_hours)
         return url

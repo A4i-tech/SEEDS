@@ -325,6 +325,37 @@ class TestAudioUrlEndpoint:
         assert resp.status_code == 422
 
 
+class TestSasUrlTenantScope:
+    @pytest.mark.asyncio
+    async def test_sas_url_signs_only_blobs_of_the_callers_tenant(self, client, mock_db):
+        tenant = await _seed_tenant(mock_db)
+        other = await _seed_tenant(mock_db, email="other@cdep.com")
+        url = "http://store/experience-titles/c1/1.0.mp3"
+        await mock_db["contentsV3"].insert_one(
+            {"tenant_id": ObjectId(other["_id"]), "is_deleted": False, "title": {"audio_url": url}}
+        )
+        await mock_db["contentsV3"].insert_one(
+            {"tenant_id": ObjectId(tenant["_id"]), "is_deleted": False, "title": {"audio_url": "http://store/experience-titles/c2/1.0.mp3"}}
+        )
+        await mock_db["contentsV3"].insert_one(
+            {"tenant_id": ObjectId(tenant["_id"]), "is_deleted": False, "title": {"audio_url": "http://evil-host/experience-titles/c3/1.0.mp3"}}
+        )
+        provider = MagicMock()
+        provider.container_url = lambda container: f"http://store/{container}/"
+        provider.get_sas_url_from_blob_url = AsyncMock(side_effect=lambda u, expiry_hours: f"{u}?sig=x")
+        headers = {"Authorization": f"Bearer {_tenant_token(tenant['_id'])}"}
+        with patch("app.services.content_service.get_blob_storage_provider", return_value=provider):
+            denied = await client.get("/content/sasUrl", params={"url": url}, headers=headers)
+            own = "http://store/experience-titles/c2/1.0.mp3"
+            allowed = await client.get("/content/sasUrl", params={"url": own}, headers=headers)
+            spoofed = await client.get(
+                "/content/sasUrl", params={"url": "http://store/experience-titles/c3/1.0.mp3"}, headers=headers
+            )
+        assert denied.status_code == 404
+        assert allowed.json() == {"url": f"{own}?sig=x"}
+        assert spoofed.status_code == 404
+
+
 class TestGetContentPrimaryAudio:
     @pytest.mark.asyncio
     @pytest.mark.parametrize(

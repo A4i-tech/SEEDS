@@ -2,8 +2,8 @@
 Blob storage provider interface and backend selection.
 
 Backends live in separate modules and are imported only when selected by
-STORAGE_BACKEND, so the Azure SDK is never needed for the default object-store backend:
-  - app.providers.object_store_blob_storage     (S3-compatible, boto3)
+STORAGE_BACKEND, so the Azure SDK is never needed for the object-store backend:
+  - app.providers.object_store_blob_storage     (object store, boto3)
   - app.providers.azure_blob_storage  (Azure Blob, needs the ``azure`` extra)
 
 SECURITY:
@@ -24,6 +24,10 @@ from urllib.parse import unquote, urlparse
 from app.platform.settings import get_settings
 
 logger = logging.getLogger(__name__)
+
+
+class BlobNotFoundError(Exception):
+    pass
 
 
 class BlobStorageProvider(ABC):
@@ -163,7 +167,7 @@ def _build_provider() -> BlobStorageProvider:
 def _parse_blob_url(blob_url: str) -> tuple[str, str]:
     """Parse a blob URL into (container_name, blob_path), ignoring the host.
 
-    Works for Azure (``host/container/blob``) and path-style S3 (``host/bucket/key``).
+    Works for Azure (``host/container/blob``) and path-style object store (``host/bucket/key``).
     Raises ValueError on invalid URL format.
     """
 

@@ -21,21 +21,29 @@ NCCO-building code path (``SASGenerator``).
 from __future__ import annotations
 
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable
 from datetime import UTC, datetime, timedelta
-from typing import IO
+from typing import IO, TypeVar
 
+from azure.core.exceptions import ResourceNotFoundError
 from azure.storage.blob import (
     BlobSasPermissions,
     ContentSettings,
     generate_blob_sas,
 )
-from azure.storage.blob.aio import BlobServiceClient, ContainerClient, StorageStreamDownloader
+from azure.storage.blob.aio import (
+    BlobClient,
+    BlobServiceClient,
+    ContainerClient,
+    StorageStreamDownloader,
+)
 
 from app.platform.settings import get_settings
-from app.providers.blob_storage import BlobStorageProvider
+from app.providers.blob_storage import BlobNotFoundError, BlobStorageProvider
 
 logger = logging.getLogger(__name__)
+
+T = TypeVar("T")
 
 
 class AzureBlobStorageProvider(BlobStorageProvider):
@@ -97,15 +105,26 @@ class AzureBlobStorageProvider(BlobStorageProvider):
         """Download blob *blob_name* from *container* and return raw bytes."""
         container_client = self._client.get_container_client(container)
         blob_client = container_client.get_blob_client(blob_name)
-        stream = await blob_client.download_blob()
+        stream = await self._open_download(blob_client)
         data: bytes = await stream.readall()
         logger.debug("blob_storage: downloaded blob container=%s name=%s size=%d", container, blob_name, len(data))
         return data
 
     async def download_chunks(self, container: str, blob_name: str) -> AsyncIterator[bytes]:
         blob_client = self._client.get_container_client(container).get_blob_client(blob_name)
-        stream = await blob_client.download_blob()
+        stream = await self._open_download(blob_client)
         return self._release_after(stream)
+
+    @staticmethod
+    async def _or_not_found(call: Awaitable[T], blob_name: str) -> T:
+        try:
+            return await call
+        except ResourceNotFoundError as exc:
+            raise BlobNotFoundError(blob_name) from exc
+
+    @classmethod
+    async def _open_download(cls, blob_client: BlobClient) -> StorageStreamDownloader:
+        return await cls._or_not_found(blob_client.download_blob(), blob_client.blob_name)
 
     @staticmethod
     async def _release_after(stream: StorageStreamDownloader) -> AsyncIterator[bytes]:
@@ -120,7 +139,7 @@ class AzureBlobStorageProvider(BlobStorageProvider):
 
     async def blob_size(self, container: str, blob_name: str) -> int:
         blob_client = self._client.get_container_client(container).get_blob_client(blob_name)
-        return (await blob_client.get_blob_properties()).size
+        return (await self._or_not_found(blob_client.get_blob_properties(), blob_name)).size
 
     async def exists(self, container: str, blob_name: str) -> bool:
         """Return True if *blob_name* already exists in *container*."""

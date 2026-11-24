@@ -14,6 +14,7 @@ global.console = {
 // Mock environment variables
 process.env.NODE_ENV = 'test';
 process.env.PORT = '3001';
+process.env.STORAGE_BACKEND = 'object-store';
 process.env.AZURE_STORAGE_ACCOUNT_NAME = 'teststorageaccount';
 
 // Mock timers for more predictable tests

@@ -5,7 +5,6 @@ import logging
 from collections.abc import AsyncIterator
 from pathlib import Path
 
-from azure.core.exceptions import ResourceNotFoundError
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -28,7 +27,11 @@ from app.models.user import UserRole
 from app.platform.auth.dependencies import require_role
 from app.platform.error_handling import AppError, NotFoundError, ValidationError
 from app.platform.settings import get_settings
-from app.providers.blob_storage import BlobStorageProvider, get_blob_storage_provider
+from app.providers.blob_storage import (
+    BlobNotFoundError,
+    BlobStorageProvider,
+    get_blob_storage_provider,
+)
 from app.repositories.textbook_remediation_repository import (
     TextbookRemediationRepository,
     get_textbook_remediation_repo,
@@ -91,11 +94,11 @@ async def _closing(chunks: AsyncIterator[bytes]) -> AsyncIterator[bytes]:
 async def _stream_blob(
     blob_provider: BlobStorageProvider, blob_path: str, media_type: str, not_found_kind: str, not_found_id: str
 ) -> StreamingResponse:
-    container = get_settings().azure_storage_container
+    container = get_settings().blob_container
     try:
         size = await blob_provider.blob_size(container, blob_path)
         chunks = await blob_provider.download_chunks(container, blob_path)
-    except ResourceNotFoundError as exc:
+    except BlobNotFoundError as exc:
         raise NotFoundError(not_found_kind, not_found_id) from exc
     return StreamingResponse(
         _closing(chunks),

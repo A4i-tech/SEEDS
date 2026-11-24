@@ -95,7 +95,7 @@ async def run_translation(
 
         await asyncio.to_thread(_compile)
 
-        container = get_settings().azure_storage_container
+        container = get_settings().blob_container
         urls: dict[str, str] = {}
         for name, path in (
             ("translated_md", out_md),

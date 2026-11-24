@@ -10,10 +10,18 @@ function getClient() {
   const { OBJECT_STORE_ENDPOINT_URL, OBJECT_STORE_ACCESS_KEY_ID, OBJECT_STORE_SECRET_ACCESS_KEY, OBJECT_STORE_REGION } = process.env;
   if (!OBJECT_STORE_ENDPOINT_URL) {
     throw new Error(
-      "OBJECT_STORE_ENDPOINT_URL is not set. Set it to the URL of your S3-compatible server, for example http://localhost:9000."
+      "OBJECT_STORE_ENDPOINT_URL is not set. Set it to the URL of your object store server, for example http://localhost:9000."
     );
   }
-  const url = new URL(OBJECT_STORE_ENDPOINT_URL);
+  let url;
+  try {
+    url = new URL(OBJECT_STORE_ENDPOINT_URL);
+  } catch (error) {
+    throw new Error(
+      `OBJECT_STORE_ENDPOINT_URL "${OBJECT_STORE_ENDPOINT_URL}" is not a URL. Set OBJECT_STORE_ENDPOINT_URL to a full URL such as http://localhost:9000.`,
+      { cause: error }
+    );
+  }
 
   client = new Minio.Client({
     endPoint: url.hostname,

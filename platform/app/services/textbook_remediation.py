@@ -100,7 +100,7 @@ async def create_job(
 ) -> RemediationJob:
     job_id = ObjectId()
     url = await blob_provider.upload_file(
-        get_settings().azure_storage_container, f"textbook-remediation/{job_id}/source.pdf", data, "application/pdf"
+        get_settings().blob_container, f"textbook-remediation/{job_id}/source.pdf", data, "application/pdf"
     )
     return await repo.create(
         job_id=job_id,
@@ -180,7 +180,7 @@ async def save_draft(
     draft_md: str,
 ) -> RemediationJob:
     url = await blob_provider.upload_file(
-        get_settings().azure_storage_container,
+        get_settings().blob_container,
         f"textbook-remediation/{job.job_id}/{artifact_filename(ArtifactName.DRAFT)}",
         draft_md.encode("utf-8"),
         "text/markdown",
@@ -222,7 +222,7 @@ async def verify_job(
                 logger.error("Could not compile verified artifacts for job %s: %s", job.job_id, exc)
                 raise ValidationError(f"Could not build the verified document: {exc}") from exc
 
-            container = get_settings().azure_storage_container
+            container = get_settings().blob_container
             verified: dict[str, str] = {}
             for name, out_path in (
                 (ArtifactName.DOCX, out_docx),

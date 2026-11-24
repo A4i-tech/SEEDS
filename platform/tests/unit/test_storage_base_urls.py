@@ -38,3 +38,32 @@ def test_builders_derive_urls_from_the_selected_backend(storage) -> None:
         SystemAudioMessages.WELCOME_TEACHER.url
         == f"{storage}/conference/conferenceMessagesWav/english/teacher_welcome_message.wav"
     )
+
+
+async def test_presigned_link_uses_public_endpoint_when_set(monkeypatch):
+    from app.platform.settings import get_settings
+    from app.providers.object_store_blob_storage import ObjectStoreBlobStorageProvider
+
+    monkeypatch.setenv("OBJECT_STORE_ENDPOINT_URL", "http://internal-store:9000")
+    monkeypatch.setenv("OBJECT_STORE_PUBLIC_ENDPOINT_URL", "https://files.example.com")
+    get_settings.cache_clear()
+    url = await ObjectStoreBlobStorageProvider().generate_sas_url("bucket", "a.mp3")
+    assert url.startswith("https://files.example.com/bucket/a.mp3?")
+
+    monkeypatch.delenv("OBJECT_STORE_PUBLIC_ENDPOINT_URL")
+    get_settings.cache_clear()
+    url = await ObjectStoreBlobStorageProvider().generate_sas_url("bucket", "a.mp3")
+    assert url.startswith("http://internal-store:9000/bucket/a.mp3?")
+
+
+def test_blob_and_container_urls_use_public_endpoint_when_set(monkeypatch):
+    from app.platform.settings import get_settings
+    from app.providers.object_store_blob_storage import ObjectStoreBlobStorageProvider
+
+    monkeypatch.setenv("OBJECT_STORE_ENDPOINT_URL", "http://internal-store:9000")
+    monkeypatch.setenv("OBJECT_STORE_PUBLIC_ENDPOINT_URL", "https://files.example.com")
+    get_settings.cache_clear()
+    provider = ObjectStoreBlobStorageProvider()
+
+    assert provider.container_url("bucket") == "https://files.example.com/bucket/"
+    assert provider.blob_url("bucket", "a b.mp3") == "https://files.example.com/bucket/a%20b.mp3"
