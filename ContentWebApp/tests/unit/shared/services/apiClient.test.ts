@@ -152,7 +152,11 @@ describe('apiClient', () => {
             }),
         }),
     );
-    const pending = expect(apiClient.get('/x', { timeoutMs: 1000 })).rejects.toMatchObject({ name: 'AbortError' });
+    const pending = expect(apiClient.get('/x', { timeoutMs: 1000 })).rejects.toMatchObject({
+      name: 'ApiError',
+      status: 0,
+      message: 'Request timed out',
+    });
     await vi.advanceTimersByTimeAsync(1000);
     await pending;
   });
@@ -179,9 +183,33 @@ describe('apiClient', () => {
           signal.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })));
         }),
     );
-    const pending = expect(apiClient.get('/x', { timeoutMs: 1000 })).rejects.toMatchObject({ name: 'AbortError' });
+    const pending = expect(apiClient.get('/x', { timeoutMs: 1000 })).rejects.toMatchObject({
+      name: 'ApiError',
+      status: 0,
+      message: 'Request timed out',
+    });
     vi.advanceTimersByTime(1000);
     await pending;
+  });
+
+  it('reports a default-timeout expiry as a timed-out ApiError', async () => {
+    vi.useFakeTimers();
+    fetchMock.mockImplementation(
+      (_url: string, { signal }: { signal: AbortSignal }) =>
+        new Promise((_, reject) => {
+          signal.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })));
+        }),
+    );
+    const pending = expect(apiClient.get('/x')).rejects.toBeInstanceOf(ApiError);
+    await vi.advanceTimersByTimeAsync(60000);
+    await pending;
+  });
+
+  it('passes through an abort that was not caused by its own timeout', async () => {
+    vi.useFakeTimers();
+    const abort = Object.assign(new Error('aborted'), { name: 'AbortError' });
+    fetchMock.mockRejectedValue(abort);
+    await expect(apiClient.get('/x', { timeoutMs: 1000 })).rejects.toBe(abort);
   });
 
   it('applies a 60s default timeout when timeoutMs is not set', async () => {
