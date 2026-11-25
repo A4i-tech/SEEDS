@@ -46,6 +46,21 @@ steps:
       update: [items]
       value: "."
 
+  - agent: transform
+    description: "Remove print-artifact lines from OCR text"
+    config:
+      update: [items]
+      value: |
+        .items |= map(
+          if (.text | type) == "string" then
+            .text |= (
+              split("\n")
+              | map(select(((test("\\b\\d{4}CH\\d{2}\\b") and length <= 40) or test("^\\s*Reprint\\s+\\d{4}-\\d{2}\\s*$") or (test("\\.indd") and length <= 80)) | not))
+              | join("\n")
+            )
+          else . end
+        )
+
   - agent: safe_extract
     description: "Verify OCR text against the page image"
     config:
@@ -82,6 +97,9 @@ steps:
         Numbers, quantities, and units:
         - Digits confused with visually similar letters (e.g., numeral 0 vs letter O).
         - Fractions or exponents flattened, distorted, or erroneously converted into native numerals.
+        - Digits written in a different digit script than the image prints. Copy each digit in
+          the script the image shows. A Bengali page that prints "অধ্যায় 1" keeps the Western
+          digit 1.
         - Corrupted physical units or invalid word spacing between numbers and units (e.g., unintended merging that alters the physical quantity).
         - Non-standard numeral grouping or misplaced delimiters within numbers.
 
@@ -136,6 +154,24 @@ steps:
         - expr: '[.corrections[] | select(.found == .corrected)] | length == 0'
           feedback: "A correction has found equal to corrected. Remove it, it is not a change."
 
+  - agent: transform
+    description: "Restore Western digits the OCR verification turned into Bengali digits"
+    config:
+      update: [items]
+      value: |
+        .items |= map(
+          if .metadata.kind != "image"
+            and (.text | type) == "string"
+            and (.metadata.verified.markdown | type) == "string"
+            # OCR read Western digits and has no Bengali digit, so Bengali digits in the model text are a misread.
+            and (.text | test("[0-9]"))
+            and (.text | test("[\u09e6-\u09ef]") | not)
+            and (.metadata.verified.markdown | test("[\u09e6-\u09ef]"))
+          then
+            .metadata.verified.markdown |= (explode | map(if . >= 2534 and . <= 2543 then . - 2486 else . end) | implode)
+          else . end
+        )
+
   - agent: extract
     description: "Confirm grade, subject, language, and board from the book itself"
     config:
@@ -180,10 +216,21 @@ steps:
            description, because a blind student will trust it as fact.
         2. Report the observable result, not only the apparatus. Name every colour change, flame, precipitate, bubble, deposit, glow, and relative volume.
         3. Keep every scientific qualifier exact. Dilute is not concentrated. A solid is not a solution.
-        4. Mark a figure decorative only when it carries no teaching content, such as a border, rule, QR code, barcode, government seal, state emblem, publisher logo, or a small pictogram beside a heading (a notebook, pencil, or bulb icon). Set kind to decorative with empty alt_text.
+        4. Mark a figure decorative only when it carries no teaching content, such as a border, rule, QR code, barcode, or a small pictogram beside a heading (a notebook, pencil, or bulb icon). Set kind to decorative with empty alt_text.
         5. When the crop holds only printed caption text and no drawing, set kind to decorative
            with empty alt_text and set review_needed, with review_reason "caption-only crop".
         6. Describe only this one image. Never describe what is not visible in it.
+        7. A government seal, state emblem, publisher logo, or motto is not decorative. Set kind to
+           logo. Write the organization name, then the words printed in the image, copied exactly.
+           Never write a placeholder such as "[LOGO]".
+           When the print is too faint to read, write only the organization name and set review_needed.
+
+        8. Never identify a series, region, or part by colour alone. Pair every colour with its
+           label, pattern, or place, for example "red bars: sales in 2020". Copy the figure's own
+           key into long_description. For a chart or graph, write every value, axis label, and
+           unit that the figure shows into long_description, so the data does not depend on the
+           colours. Keep a colour that is itself the observed result.
+        9. Copy any words printed inside the figure exactly into long_description.
 
         Write alt_text and long_description in the book language given with this request. When it is
         unknown, use the language of the text printed in the figure.
@@ -252,7 +299,14 @@ steps:
 
         Remove, and record in removed_artifacts:
         - printed page numbers, including Roman numeral page numbers
+          (never read a Roman numeral such as "ii" as the digits "11")
+        - a page number joined to a book or subject name, such as "2 विज्ञान"
+          or "4 गणित मंजरी | कक्षा 9 | भाग 1"
         - running headers and running footers
+        - chapter codes such as "0920CH01" or "1065CH01", print-run lines such as
+          "Reprint 2026-27", and print-file markers that end in ".indd" with a page
+          number and a print timestamp, even when OCR corrupted them
+        - file slugs such as "Vigyan X/1"
         - QR codes, QR captions, and short-link text
         - hyperlinks and bare URLs, keeping the visible words
         - print registration marks and stray single characters
@@ -262,6 +316,14 @@ steps:
         - a bilingual heading exactly as printed, in one heading block, with both
           scripts in the order the book prints them
         - paragraph and list boundaries
+        - each list entry the page prints on its own line, as its own entry
+        - the full printed words of every list entry and every question, word for word.
+          Never summarise, shorten, or describe an entry. "Statement about X" is wrong.
+        - a question stem that comes before answer options. Write the stem in the list
+          block's text field and each option in items. A list block's text field holds
+          only printed words. Never write a title, label, or description of the list
+          there. Leave text empty when no printed lead-in line exists.
+        - a footnote, as a note block
         - a printed figure reference, as a figure_ref block
 
         Fix these OCR faults:
@@ -317,6 +379,31 @@ steps:
           not mix English operator words into a Hindi or Tamil reading.
           Wrong: "जिंक plus सल्फ्यूरिक अम्ल yields जिंक सल्फेट"
           Right: "जिंक धन सल्फ्यूरिक अम्ल से बनता है जिंक सल्फेट"
+
+        Write for a student who cannot see the page. The print uses colour,
+        position, and pointing words that a blind reader cannot follow. Keep every
+        fact, and add what the eye would have told the reader:
+        - A colour that only points at something, such as "the red line", "the
+          green region", or "shaded in blue", gets the thing it points at, taken
+          from the image or from the page's own key. Keep the colour word in
+          brackets. Right: "the curve labelled B (drawn in red)". Wrong: "the red curve".
+        - A colour that is itself the fact stays as written, for example blue
+          litmus turns red, a flag colour, or red blood cells. Never delete a
+          colour word.
+        - A colour key or legend stays as text, with each colour next to its
+          meaning in the same entry.
+        - A position word that points at a picture, such as "above", "below", "on
+          the right", "alongside", or "here", becomes the printed figure, table,
+          or step name, for example "Figure 10.2". When the page prints no such name,
+          keep the position word and set review_needed with review_reason "colour or
+          position reference".
+        - A fill-in-the-blank line, a run of underscores or dots where the student
+          writes an answer, is read as nothing or as "underscore". Write the word for
+          "blank" in the book's language in its place, once for each blank, for
+          example "3 + 4 = blank". Never leave a raw underscore.
+        - Never invent what a colour or position stands for. When the image and the
+          page text do not settle it, keep the printed words and set review_needed
+          with review_reason "colour or position reference".
 
         Convert every table into a table block with a header row and body rows.
         A table whose cells came back empty is data loss. Set review_needed on
@@ -386,6 +473,29 @@ steps:
           feedback: "A figure block lost its image id. Copy the id from the <image id=\"...\"/> marker."
         - expr: '[.blocks[].text] | join("") | test("[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]") | not'
           feedback: "A text field holds control characters, not readable symbols. Remove them, and write any inline math as plain Unicode, such as △ABC or 180°, never as control bytes."
+
+  - agent: transform
+    description: "Fix known markdown faults in the rebuilt block tree"
+    config:
+      update: [items]
+      value: |
+        def digits_to_sub: explode | map(if . >= 48 and . <= 57 then . + 8272 elif . == 43 then 8330 elif . == 45 then 8331 else . end) | implode;
+        def clean: gsub("(?<m>^[ \\t]*(?:[0-9\u09e6-\u09ef]+[.)]|[-*]))[ \\t]*\u2022[ \\t]*"; "\(.m) ") | gsub("_\\{(?<d>[0-9+-]+)\\}"; .d | digits_to_sub);
+        # Drop a leading list number when a second one follows, so "1. 6." becomes "6.".
+        def dedupe: sub("\\A[0-9০-৯]{1,3}[.)][ \\t]+(?<n>[0-9০-৯]{1,3}[.)])(?<r>[ \\t]|$)"; "\(.n)\(.r)");
+        def fix_block:
+          .text |= clean
+          | (if (.items | type) == "array" then .items |= map(clean | dedupe) else . end)
+          | (if .type == "paragraph" or .type == "activity" then .text |= dedupe else . end);
+        .items |= map(
+          if (.metadata.remediation.blocks | type) == "array" then
+            .metadata.remediation.blocks |= (
+              map(select(((.type == "paragraph") and (.text | test("^\\s*([0-9\u09e6-\u09ef]|\\?)\\s*$"))) | not))
+              | map(select(((.type == "list") and all((.items // [])[]; . == "")) | not))
+              | map(fix_block)
+            )
+          else . end
+        )
 
   - agent: transform
     description: "Build the VE review report"

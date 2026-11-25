@@ -12,6 +12,7 @@ on:
 
 jobs:
   test:
+    name: test (${{ matrix.service.name }}, ${{ matrix.service.context }}, ${{ matrix.service.lang }})
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -23,14 +24,17 @@ jobs:
           - name: content-webapp
             context: ContentWebApp
             lang: node
+            node_version: "22"
 
           - name: teacher-webapp
             context: teacher-webapp
             lang: node
+            node_version: "20"
 
           - name: websocket-service
             context: websocket-service
             lang: node
+            node_version: "20"
 
     steps:
       - name: Checkout repository
@@ -47,7 +51,7 @@ jobs:
         if: matrix.service.lang == 'node'
         uses: ./.github/actions/setup-node
         with:
-          node-version: "20"
+          node-version: ${{ matrix.service.node_version }}
           directory: ${{ matrix.service.context }}
 
       - name: Lint (Python)
@@ -89,3 +93,29 @@ jobs:
           coverage_gist_token: ${{ secrets.COVERAGE_GIST_TOKEN }}
           coverage_gist_id: ${{ vars.COVERAGE_GIST_ID }}
           directory: ${{ matrix.service.context }}
+
+  image-config:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        context: [ContentWebApp, teacher-webapp]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t app ${{ matrix.context }}
+
+      - name: Container exits at start when config is missing
+        run: |
+          if docker run --rm app; then echo "container started without config"; exit 1; fi
+
+      - name: Container serves env.js from env vars
+        run: |
+          set -euo pipefail
+          envs="-e REACT_APP_API_BASE_URL=ci-marker -e REACT_APP_STORAGE_ACCOUNT_NAME=ci-marker -e REACT_APP_GOOGLE_SITE_VERIFICATION=ci-marker"
+          CID=$(docker run -d -p 8080:8080 $envs app)
+          curl -fsS --retry 10 --retry-delay 1 --retry-all-errors localhost:8080/env.js | grep -q "REACT_APP_API_BASE_URL:'ci-marker'" || { docker logs "$CID"; exit 1; }
+          curl -sI localhost:8080/env.js | grep -qi "^cache-control: no-store"
+          ! docker exec "$CID" grep -rq ci-marker /usr/share/nginx/html

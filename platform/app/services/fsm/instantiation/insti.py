@@ -5,6 +5,7 @@ Ported from IVRv2/app/fsm/insti.py — import paths updated, logic unchanged.
 
 from __future__ import annotations
 
+import asyncio
 import re
 import uuid
 from urllib.parse import quote
@@ -503,7 +504,7 @@ async def instantiate_from_latest_content(
             actions=[TalkAction(text="You didn't choose a valid option. Bye bye.", bargeIn=False)],
         )
     )
-    generate_states(fsm, content, content_attributes, 0, parent_selections={})
+    await asyncio.to_thread(generate_states, fsm, content, content_attributes, 0, parent_selections={})
     return fsm
 
 

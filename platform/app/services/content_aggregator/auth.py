@@ -50,7 +50,7 @@ class ContentAggregatorAuth:
         client_secret: str,
     ) -> AggregatorTokenResponse:
         client = await self._clients.find_by_client_id(client_id)
-        if not verify_password(client_secret, client.client_secret_hash):
+        if not await verify_password(client_secret, client.client_secret_hash):
             logger.warning(
                 "content_aggregator auth: invalid credentials for client_id=%s", client_id
             )
@@ -88,7 +88,7 @@ class ContentAggregatorAuth:
         await self._clients.create(
             IntegrationClient(
                 client_id=client_id,
-                client_secret_hash=hash_password(client_secret),
+                client_secret_hash=await hash_password(client_secret),
                 name=name,
                 tenant_ids=tenant_ids,
                 allowed_scopes=scopes,

@@ -112,23 +112,23 @@ class TestTelemetry:
 
 
 class TestPasswordHashing:
-    def test_hash_and_verify_password(self) -> None:
+    async def test_hash_and_verify_password(self) -> None:
         """hash_password produces a hash; verify_password confirms correct plaintext."""
         plain = "secret"
-        hashed = hash_password(plain)
+        hashed = await hash_password(plain)
 
         assert hashed != plain
-        assert verify_password(plain, hashed) is True
+        assert await verify_password(plain, hashed) is True
 
-    def test_wrong_password_fails_verification(self) -> None:
+    async def test_wrong_password_fails_verification(self) -> None:
         """verify_password returns False for incorrect plaintext."""
-        hashed = hash_password("secret")
-        assert verify_password("wrong", hashed) is False
+        hashed = await hash_password("secret")
+        assert await verify_password("wrong", hashed) is False
 
-    def test_different_hashes_for_same_password(self) -> None:
+    async def test_different_hashes_for_same_password(self) -> None:
         """bcrypt generates distinct hashes for the same password (salted)."""
-        h1 = hash_password("same")
-        h2 = hash_password("same")
+        h1 = await hash_password("same")
+        h2 = await hash_password("same")
         assert h1 != h2
 
 
