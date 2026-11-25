@@ -150,7 +150,7 @@ poetry run pytest tests/ --cov=app --cov-report=term-missing
 poetry run bandit -r app/ -ll
 ```
 
-Expected: **1012 tests, 0 failures, 70% coverage, 0 bandit HIGH findings**.
+Expected: **1012 tests, 0 failures, 80%+ coverage, 0 bandit HIGH findings**.
 
 ## Consumers
 

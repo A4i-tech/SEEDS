@@ -9,9 +9,11 @@ from app.models.action_history import ActionHistory, ActionType
 from app.models.participant import CallStatus, Role
 from app.services.confevents.base_event import ConferenceEvent
 
+logger = logging.getLogger(__name__)
+
 if TYPE_CHECKING:
     from app.services.conference_service import ConferenceCall
-logger = logging.getLogger(__name__)
+
 
 class RemoveParticipantEvent(ConferenceEvent):
     def __init__(self, phone_number: str, conf_call: ConferenceCall) -> None:

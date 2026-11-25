@@ -17,6 +17,7 @@ def reset_firebase_module_state(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(mod, "_firebase_app", None)
     monkeypatch.setattr(mod, "_initialized", False)
     yield
+    get_settings.cache_clear()
 
 
 def set_auth_type(monkeypatch: pytest.MonkeyPatch, auth_type: str) -> None:

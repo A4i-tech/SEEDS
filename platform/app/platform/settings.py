@@ -2,9 +2,9 @@
 from __future__ import annotations
 
 from functools import lru_cache
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import BeforeValidator, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -130,13 +130,13 @@ class Settings(BaseSettings):
     audio_analysis_db_logging_enabled: bool = False
     audio_silence_threshold: int = 300
     audio_webrtc_vad_aggressiveness: int = Field(default=2, ge=0, le=3)
-    audio_vad_frame_ms: Literal[10, 20, 30] = 20
+    audio_vad_frame_ms: Annotated[Literal[10, 20, 30], BeforeValidator(int)] = 20
     audio_vad_start_speech_frames: int = Field(default=2, ge=1)
     audio_vad_pre_speech_ms: int = 120
     audio_vad_min_speech_ms: int = 200
     audio_vad_silence_flush_ms: int = 400
     audio_vad_overlap_ms: int = 120
-    audio_vad_max_segment_sec: float = 12.0
+    audio_vad_max_segment_sec: float = Field(default=12.0, gt=0)
     audio_vad_metrics_log_every_segments: int = Field(default=20, ge=1)
     audio_hold_similarity_threshold: float = 0.82
     audio_hold_min_text_chars: int = 6

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import builtins
-import importlib
+import importlib.util
 import logging
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -398,45 +398,39 @@ class TestTranscribeSegment:
         assert "redacted" not in caplog.text
 
 
+def _load_isolated_transcriber(monkeypatch: pytest.MonkeyPatch, error: Exception):
+    real_import = builtins.__import__
+
+    def fake_import(name, *args, **kwargs):
+        if name == "webrtcvad":
+            raise error
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+    spec = importlib.util.spec_from_file_location(
+        f"{transcriber_module.__name__}._isolated", transcriber_module.__file__,
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
 class TestWebrtcvadModuleImport:
     def test_import_error_falls_back_to_degraded_mode_with_log(
         self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture,
     ) -> None:
-        real_import = builtins.__import__
-
-        def fake_import(name, *args, **kwargs):
-            if name == "webrtcvad":
-                raise ImportError("no module named webrtcvad")
-            return real_import(name, *args, **kwargs)
-
-        monkeypatch.setattr(builtins, "__import__", fake_import)
-        try:
-            with caplog.at_level(logging.WARNING, logger="app.services.audio.transcriber"):
-                importlib.reload(transcriber_module)
-            assert transcriber_module.webrtcvad is None
-            assert "webrtcvad not available" in caplog.text
-        finally:
-            monkeypatch.undo()
-            importlib.reload(transcriber_module)
+        with caplog.at_level(logging.WARNING, logger="app.services.audio.transcriber"):
+            module = _load_isolated_transcriber(monkeypatch, ImportError("no module named webrtcvad"))
+        assert module.webrtcvad is None
+        assert "webrtcvad not available" in caplog.text
+        assert transcriber_module.AudioTranscriber is AudioTranscriber
 
     @pytest.mark.parametrize("error_cls", [RuntimeError, OSError])
     def test_non_import_error_propagates(
         self, monkeypatch: pytest.MonkeyPatch, error_cls: type[Exception],
     ) -> None:
-        real_import = builtins.__import__
-
-        def fake_import(name, *args, **kwargs):
-            if name == "webrtcvad":
-                raise error_cls("webrtcvad load failed")
-            return real_import(name, *args, **kwargs)
-
-        monkeypatch.setattr(builtins, "__import__", fake_import)
-        try:
-            with pytest.raises(error_cls):
-                importlib.reload(transcriber_module)
-        finally:
-            monkeypatch.undo()
-            importlib.reload(transcriber_module)
+        with pytest.raises(error_cls):
+            _load_isolated_transcriber(monkeypatch, error_cls("webrtcvad load failed"))
 
 
 class TestSettingsVadValidation:
@@ -448,8 +442,13 @@ class TestSettingsVadValidation:
             {"audio_webrtc_vad_aggressiveness": -1},
             {"audio_vad_start_speech_frames": 0},
             {"audio_vad_metrics_log_every_segments": 0},
+            {"audio_vad_max_segment_sec": 0},
         ],
     )
     def test_invalid_vad_settings_raise(self, overrides: dict[str, object]) -> None:
         with pytest.raises(ValidationError):
             Settings(**overrides)
+
+    def test_vad_frame_ms_parses_from_env(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.setenv("AUDIO_VAD_FRAME_MS", "20")
+        assert Settings().audio_vad_frame_ms == 20

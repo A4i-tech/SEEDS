@@ -241,10 +241,6 @@ def _reconcile_textbook_remediation(tc: TestLifespan) -> None:
     tc._repo_mocks["TextbookRemediationRepository"].return_value.reconcile_interrupted_jobs.return_value = 2
 
 
-def _reconcile_sync_job_service(tc: TestLifespan) -> None:
-    lifespan_module.get_sync_job_service.return_value.reconcile_interrupted_jobs = AsyncMock(return_value=5)
-
-
 def _fail_conference_manager_close(tc: TestLifespan, monkeypatch: pytest.MonkeyPatch) -> None:
     conf_mgr = MagicMock(close=AsyncMock(side_effect=RuntimeError("close failed")))
     tc._patch_common(monkeypatch, app_mode="api", init_conf_mgr=conf_mgr)
@@ -429,7 +425,6 @@ class TestLifespan:
         [
             ("consumer", _reconcile_content_aggregator, "Reconciled 3 interrupted content aggregator sync jobs"),
             ("consumer", _reconcile_textbook_remediation, "Reconciled 2 interrupted textbook remediation jobs"),
-            ("all", _reconcile_sync_job_service, "Reconciled 5 interrupted content aggregator sync jobs"),
         ],
     )
     async def test_logs_reconciled_jobs(

@@ -40,7 +40,7 @@ The SEEDS platform consists of the following major components:
 
 ### Quality Gates
 
-- **Unit Tests**: 85%+ code coverage across all components
+- **Unit Tests**: 80%+ line coverage (CI gate in `.github/workflows/ci.yml`)
 - **Integration Tests**: 80%+ critical path coverage
 - **E2E Tests**: 100% major user workflows
 - **Performance**: Response times under defined thresholds
@@ -419,6 +419,8 @@ ws: "^8.13.0"                   # WebSocket testing
 
 ## 📊 Quality Metrics and Coverage Targets
 
+Coverage gate: 80% line coverage, enforced in `.github/workflows/ci.yml`.
+
 ### Performance Benchmarks
 
 | Component         | Metric               | Target           | Current  |
@@ -504,7 +506,7 @@ ws: "^8.13.0"                   # WebSocket testing
 
 ### Quantitative Metrics
 
-- **Overall Platform Coverage**: 85%+ across all components
+- **Overall Platform Coverage**: 80%+ (CI gate)
 - **Test Execution Speed**: Full unit test suite < 5 minutes
 - **Integration Test Coverage**: 80%+ of critical user paths
 - **Zero Production Bugs**: From untested code paths

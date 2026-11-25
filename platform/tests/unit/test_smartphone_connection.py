@@ -108,13 +108,11 @@ class TestSendMessageToClient:
 
         assert chunk == f'data: {json.dumps({"k": "v"})}\n\n'
 
-    async def test_send_message_queue_full_is_swallowed(
-        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture,
-    ) -> None:
-        real_queue_cls = asyncio.Queue
-        monkeypatch.setattr(smartphone_connection_module.asyncio, "Queue", lambda: real_queue_cls(maxsize=1))
+    async def test_send_message_queue_full_is_swallowed(self, caplog: pytest.LogCaptureFixture) -> None:
         mgr = SmartphoneConnectionManager("conf-1")
-        await mgr.send_message_to_client(client=None, message={"k": "v"})
+        mgr._queue = asyncio.Queue(maxsize=50)
+        for _ in range(50):
+            await mgr.send_message_to_client(client=None, message={"k": "v"})
 
         with caplog.at_level(logging.WARNING, logger="app.providers.smartphone_connection"):
             await mgr.send_message_to_client(client=None, message={"k": "v"})

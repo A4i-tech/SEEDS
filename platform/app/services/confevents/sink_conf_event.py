@@ -34,5 +34,4 @@ class SinkConferenceEvent(ConferenceEvent):
         self.conf_call.end_processing_conf_events_from_queue()
         if self.conf_call.connection_manager:
             await self.conf_call.connection_manager.disconnect(self.conf_call.state.get_teacher())
-        if self.on_sink_callback:
-            self.on_sink_callback()
+        self.on_sink_callback()

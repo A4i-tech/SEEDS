@@ -31,7 +31,7 @@ def _make_conf(connection_manager=None, teacher_phone="+111"):
 class TestSinkConferenceEvent:
     async def test_marks_conference_not_running(self) -> None:
         conf = _make_conf()
-        event = SinkConferenceEvent(conf, on_sink_callback=None)
+        event = SinkConferenceEvent(conf, on_sink_callback=MagicMock())
 
         await event.execute_event()
 
@@ -39,7 +39,7 @@ class TestSinkConferenceEvent:
 
     async def test_appends_action_history(self) -> None:
         conf = _make_conf(teacher_phone="+999")
-        event = SinkConferenceEvent(conf, on_sink_callback=None)
+        event = SinkConferenceEvent(conf, on_sink_callback=MagicMock())
 
         await event.execute_event()
 
@@ -69,7 +69,7 @@ class TestSinkConferenceEvent:
 
     async def test_calls_update_state(self) -> None:
         conf = _make_conf()
-        event = SinkConferenceEvent(conf, on_sink_callback=None)
+        event = SinkConferenceEvent(conf, on_sink_callback=MagicMock())
 
         await event.execute_event()
 
@@ -77,7 +77,7 @@ class TestSinkConferenceEvent:
 
     async def test_stops_remote_audio_relay_and_finalizes_capture(self) -> None:
         conf = _make_conf()
-        event = SinkConferenceEvent(conf, on_sink_callback=None)
+        event = SinkConferenceEvent(conf, on_sink_callback=MagicMock())
 
         await event.execute_event()
 
@@ -90,7 +90,7 @@ class TestSinkConferenceEvent:
         conn_mgr.disconnect = AsyncMock()
         conf = _make_conf(connection_manager=conn_mgr)
         teacher = conf.state.get_teacher()
-        event = SinkConferenceEvent(conf, on_sink_callback=None)
+        event = SinkConferenceEvent(conf, on_sink_callback=MagicMock())
 
         await event.execute_event()
 
@@ -100,7 +100,7 @@ class TestSinkConferenceEvent:
         conf = _make_conf(connection_manager=None)
         spy = MagicMock(side_effect=conf.state.get_teacher)
         object.__setattr__(conf.state, "get_teacher", spy)
-        event = SinkConferenceEvent(conf, on_sink_callback=None)
+        event = SinkConferenceEvent(conf, on_sink_callback=MagicMock())
 
         await event.execute_event()
 
@@ -117,7 +117,7 @@ class TestSinkConferenceEvent:
 
     async def test_skips_callback_when_none(self) -> None:
         conf = _make_conf()
-        event = SinkConferenceEvent(conf, on_sink_callback=None)
+        event = SinkConferenceEvent(conf, on_sink_callback=MagicMock())
 
         await event.execute_event()
 
