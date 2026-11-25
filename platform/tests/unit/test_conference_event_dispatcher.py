@@ -98,6 +98,10 @@ class TestDispatchConferenceEvent:
             await dispatch_conference_event({"unrelated": "field"}, "conf-1", manager, caller_state_manager)
 
         conf.queue_event.assert_not_called()
-        assert [(r.levelno, r.getMessage().split(" — ")[0]) for r in caplog.records] == [
+        assert [
+            (r.levelno, r.getMessage().split(" — ")[0])
+            for r in caplog.records
+            if r.name == "app.services.conference_event_dispatcher"
+        ] == [
             (logging.ERROR, "dispatcher: transfer event error conf_id=conf-1"),
         ]
