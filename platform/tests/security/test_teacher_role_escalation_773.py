@@ -69,7 +69,7 @@ async def _seed(mock_db, role: UserRole, phone: str, **extra) -> str:
         UserCreate(
             role=role,
             name=role.value,
-            hashed_password=hash_password(PASSWORD),
+            hashed_password=await hash_password(PASSWORD),
             phone=phone,
             **extra,
         )
