@@ -419,7 +419,7 @@ class TestWebrtcvadModuleImport:
     def test_import_error_falls_back_to_degraded_mode_with_log(
         self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture,
     ) -> None:
-        with caplog.at_level(logging.WARNING, logger="app.services.audio.transcriber"):
+        with caplog.at_level(logging.INFO, logger="app.services.audio.transcriber"):
             module = _load_isolated_transcriber(monkeypatch, ImportError("no module named webrtcvad"))
         assert module.webrtcvad is None
         assert "webrtcvad not available" in caplog.text
@@ -443,6 +443,7 @@ class TestSettingsVadValidation:
             {"audio_vad_start_speech_frames": 0},
             {"audio_vad_metrics_log_every_segments": 0},
             {"audio_vad_max_segment_sec": 0},
+            {"audio_vad_max_segment_sec": 0.5},
         ],
     )
     def test_invalid_vad_settings_raise(self, overrides: dict[str, object]) -> None:

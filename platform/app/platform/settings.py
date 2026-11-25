@@ -141,7 +141,7 @@ class Settings(BaseSettings):
     audio_vad_min_speech_ms: int = 200
     audio_vad_silence_flush_ms: int = 400
     audio_vad_overlap_ms: int = 120
-    audio_vad_max_segment_sec: float = Field(default=12.0, gt=0)
+    audio_vad_max_segment_sec: float = Field(default=12.0, ge=1)
     audio_vad_metrics_log_every_segments: int = Field(default=20, ge=1)
     audio_hold_similarity_threshold: float = 0.82
     audio_hold_min_text_chars: int = 6

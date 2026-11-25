@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 try:
     import webrtcvad  # type: ignore[import-untyped]
 except ImportError:
-    logger.warning("webrtcvad not available, falling back to RMS-based voice activity detection")
+    logger.info("webrtcvad not available, falling back to RMS-based voice activity detection")
     webrtcvad = None  # type: ignore[assignment]
 
 
