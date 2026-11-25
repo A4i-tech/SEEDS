@@ -23,6 +23,8 @@ from app.models.remediation_job import (
 )
 from app.platform.auth.dependencies import get_db
 from app.platform.error_handling import NotFoundError
+from app.remediation.accuracy import Accuracy
+from app.remediation.edit_diff import EditPair
 
 logger = logging.getLogger(__name__)
 
@@ -42,10 +44,13 @@ class TextbookRemediationRepository:
         self._col = db[self.COLLECTION_NAME]
         self._edits = db[self.EDITS_COLLECTION_NAME]
 
-    async def record_edit(self, job_id: str, previous_md: str, new_md: str, edited_by: str) -> None:
+    async def record_edit(
+        self, job_id: str, previous_md: str, new_md: str, edited_by: str, changes: list[EditPair],
+        accuracy: Accuracy,
+    ) -> None:
         await self._edits.insert_one({
             "job_id": job_id, "timestamp": datetime.now(UTC).isoformat(), "edited_by": edited_by,
-            "previous": previous_md, "new": new_md,
+            "previous": previous_md, "new": new_md, "changes": changes, "accuracy": accuracy,
         })
 
     async def list_edits(self, job_id: str) -> list[dict[str, object]]:
@@ -58,14 +63,18 @@ class TextbookRemediationRepository:
 
     async def create(
         self, *, job_id: ObjectId, tenant_id: str, source_name: str, source_url: str, language: str,
-        target_language: str | None = None,
+        target_language: str | None = None, book_id: str | None = None,
     ) -> RemediationJob:
         initial_lang = "detecting" if language in AUTO_LANGUAGES else language
         doc: dict[str, object] = {
             "_id": job_id, "tenant_id": tenant_id, "source_name": source_name, "source_url": source_url,
             "language": initial_lang, "status": JobStatus.PENDING.value, "stage": None,
-            "created_at": datetime.now(UTC).isoformat(), "target_language": target_language,
+            "created_at": datetime.now(UTC).isoformat(),
         }
+        if target_language:
+            doc["target_language"] = target_language
+        if book_id:
+            doc["book_id"] = book_id
         await self._col.insert_one(doc)
         return RemediationJob.from_doc(doc)
 
@@ -81,6 +90,10 @@ class TextbookRemediationRepository:
         if assigned_to:
             query["assigned_to"] = assigned_to
         docs = await self._col.find(query, {"draft_remediated_md": 0}).sort("created_at", -1).to_list(length=limit)
+        return self._parse(docs)
+
+    @staticmethod
+    def _parse(docs: list[dict[str, object]]) -> list[RemediationJob]:
         jobs = []
         for d in docs:
             try:
@@ -88,6 +101,15 @@ class TextbookRemediationRepository:
             except ValidationError as exc:
                 logger.error("remediation: skipping malformed job doc _id=%s: %s", d.get("_id"), exc)
         return jobs
+
+    async def list_by_book(
+        self, tenant_id: str, book_ids: list[str], *, include_draft: bool = False
+    ) -> list[RemediationJob]:
+        docs = await self._col.find(
+            {"tenant_id": tenant_id, "deleted_at": None, "book_id": {"$in": book_ids}},
+            None if include_draft else {"draft_remediated_md": 0},
+        ).to_list(length=None)
+        return self._parse(docs)
 
     async def _update(self, job_id: str, fields: dict[str, object]) -> RemediationJob | None:
         doc = await self._col.find_one_and_update(
@@ -141,7 +163,11 @@ class TextbookRemediationRepository:
         return await self._update(job_id, {"source_page_count": page_count})
 
     async def update_draft(self, job_id: str, draft_md: str, draft_url: str | None = None) -> RemediationJob | None:
-        update: dict[str, object] = {"draft_remediated_md": draft_md, "status": JobStatus.IN_REVIEW}
+        # The job is open again, so its old score no longer applies.
+        update: dict[str, object] = {
+            "draft_remediated_md": draft_md, "status": JobStatus.IN_REVIEW,
+            "edit_accuracy": 0.0, "edit_chars_changed": 0, "edit_chars_total": 0,
+        }
         if draft_url:
             update[f"artifacts.{ArtifactName.DRAFT}"] = draft_url
         return await self._update(job_id, update)
@@ -151,12 +177,16 @@ class TextbookRemediationRepository:
         job_id: str,
         *,
         verified_by: str,
-        title: str | None = None,
+        title: str = "",
+        accuracy: Accuracy,
     ) -> RemediationJob | None:
         update: dict[str, object] = {
             "status": JobStatus.VERIFIED,
             "verified_by": verified_by,
             "verified_at": datetime.now(UTC).isoformat(),
+            "edit_accuracy": accuracy["percent"],
+            "edit_chars_changed": accuracy["distance"],
+            "edit_chars_total": accuracy["length"],
         }
         if title:
             update["title"] = title
