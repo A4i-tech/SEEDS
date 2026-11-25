@@ -58,7 +58,7 @@ async def _seed_tenant(mock_db, email="t@gap.com", password="gappass"):
         "name": "Gap Tenant",
         "email": email,
         "tenant_name": "Gap Org",
-        "hashed_password": hash_password(password),
+        "hashed_password": await hash_password(password),
         "is_active": True,
     }
     result = await mock_db["users"].insert_one(doc)
