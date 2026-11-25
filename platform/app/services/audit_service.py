@@ -19,10 +19,12 @@ class AuditService:
     async def create_log_entries(self, entries: list[AuditLog], tenant_id: str) -> None:
         for entry in entries:
             entry.tenant_id = tenant_id
-            await self._repo.create_log(entry)
+        await self._repo.create_log_entries(entries)
 
-    async def find_logs_by_user(self, user_id: str, tenant_id: str) -> list[AuditLog]:
-        return await self._repo.find_logs_by_user_and_tenant(user_id, tenant_id)
+    async def find_logs_by_user(
+        self, user_id: str, tenant_id: str, limit: int = 100, cursor: str = ""
+    ) -> list[AuditLog]:
+        return await self._repo.find_logs_by_user_and_tenant(user_id, tenant_id, limit, cursor)
 
 
 def get_audit_service(db: AsyncDatabase[Any] = Depends(get_db)) -> AuditService:

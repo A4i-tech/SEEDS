@@ -456,3 +456,25 @@ def test_repair_image_markup_fails_when_a_figure_path_is_not_in_the_source():
 
     with pytest.raises(RuntimeError, match="not in the source"):
         _repair_image_markup("![a](images/a.jpg)", "![a](images/z.jpg)")
+
+
+def test_render_remediation_keeps_a_question_stem_above_its_options(tmp_path):
+    blocks = [
+        {"type": "list", "text": "The SI unit of temperature is", "items": ["Kelvin", "Joule"]},
+        {"type": "list", "text": "- Heat\n- Cold", "items": ["Heat", "Cold"]},
+        {"type": "list", "text": "Which of 2 and 3 is prime?", "items": ["2", "3"]},
+    ]
+    ctx = {
+        "items": [
+            {
+                "id": "page-1",
+                "content": "text",
+                "metadata": {"kind": "page", "page": 1, "remediation": {"blocks": blocks, "removed_artifacts": []}},
+            },
+        ],
+    }
+    render_remediation(ctx, tmp_path / "artifacts")
+    md = (tmp_path / "artifacts" / "raw.corrected.remediated.md").read_text(encoding="utf-8")
+    assert "The SI unit of temperature is\n\n- Kelvin\n- Joule" in md
+    assert md.count("Heat") == 1
+    assert "Which of 2 and 3 is prime?\n\n- 2\n- 3" in md
