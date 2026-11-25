@@ -269,3 +269,47 @@ def test_page_without_ocr_text_drops_invented_text_blocks():
 
     assert "Physical Quantities" not in body
     assert corpus.unresolved_records[0]["type"] == "invented_text"
+
+
+def test_page_markers_and_spoken_notes_do_not_reach_the_document(tmp_path):
+    out = tmp_path / "out.txt"
+    render.markdown_to_format("<!-- page 1 -->\n\nHello\n\n<!-- spoken: x\nplus y -->\n\nBye", "plain", out)
+    text = out.read_text(encoding="utf-8")
+    assert "<!" not in text
+    assert "page 1" not in text
+    assert "Hello" in text
+    assert "Bye" in text
+
+
+def test_mathml_becomes_tex_math_not_visible_tags(tmp_path):
+    out = tmp_path / "out.tex"
+    mathml = '<math display="block"><mrow><mn>3</mn><mi>x</mi><mo>=</mo><mn>12</mn></mrow></math>'
+    render.markdown_to_format(f"Solve:\n\n{mathml}", "latex", out)
+    text = out.read_text(encoding="utf-8")
+    assert "<mo>" not in text
+    assert "3x = 12" in text
+
+
+# An mfrac with three children is invalid MathML. Pandoc cannot read it.
+_BROKEN_MFRAC = (
+    '<math xmlns="http://www.w3.org/1998/Math/MathML"><mi>Speed</mi><mo>=</mo><mfrac><mrow><mi>Total</mi>'
+    "<mi>distance</mi></mrow><mi>Time</mi><mo> </mo><mi>required</mi></mfrac></math>"
+)
+
+
+def test_unreadable_mathml_falls_back_to_the_spoken_note(tmp_path):
+    out = tmp_path / "out.txt"
+    note = "<!-- spoken: Speed equals total distance divided by time required -->"
+    render.markdown_to_format(f"<!-- page 12 -->\n\nMaths\n\n{_BROKEN_MFRAC}\n{note}\n", "plain", out)
+    text = out.read_text(encoding="utf-8")
+    assert "Speed equals total distance divided by time required" in text
+    assert "<" not in text
+    assert "page 12" not in text
+
+
+def test_unreadable_mathml_with_no_spoken_note_keeps_its_words(tmp_path):
+    out = tmp_path / "out.txt"
+    render.markdown_to_format(_BROKEN_MFRAC, "plain", out)
+    text = out.read_text(encoding="utf-8")
+    assert "<" not in text
+    assert "Speed = Total distance Time required" in text

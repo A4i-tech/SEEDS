@@ -455,7 +455,7 @@ class TestEnrichBlocksWithContent:
 
 
 class TestFetchAsset:
-    async def test_fetch_asset_returns_bytes(self) -> None:
+    async def test_fetch_asset_returns_content(self) -> None:
         def handler(request: httpx.Request) -> httpx.Response:
             assert str(request.url) == "https://lms.example.com/assets/file.png"
             assert request.headers["cookie"] == "session=abc"
@@ -463,9 +463,8 @@ class TestFetchAsset:
 
         client = _make_client(transport=_transport(handler))
 
-        result = await client.fetch_asset("/assets/file.png", "session=abc")
-
-        assert result == b"binary-data"
+        with await client.fetch_asset("/assets/file.png", "session=abc") as handle:
+            assert handle.read() == b"binary-data"
 
     async def test_fetch_asset_raises_on_http_error(self) -> None:
         def handler(request: httpx.Request) -> httpx.Response:

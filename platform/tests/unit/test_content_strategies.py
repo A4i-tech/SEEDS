@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import html as html_lib
+import threading
 
 import pytest
 
@@ -29,6 +30,22 @@ async def test_text_strategy_uploads_markdown_only():
     assert content.conversion_failed is False
     assert b"**Hi**" in blob.uploaded["courses/c1/items/b1.md"]
     assert "courses/c1/items/b1.html" not in blob.uploaded
+
+
+@pytest.mark.asyncio
+async def test_text_strategy_converts_off_loop_thread(monkeypatch):
+    seen = []
+
+    def record(html):
+        seen.append(threading.get_ident())
+        return "md"
+
+    monkeypatch.setattr("app.aggregators.content_strategies.html_to_markdown", record)
+    ctx = BlobContext(container="subodha", blob_prefix="courses/c1/items/b3")
+
+    await TextStrategy().process("<p>x</p>", ctx, FakeBlob())
+
+    assert seen and seen[0] != threading.get_ident()
 
 
 @pytest.mark.asyncio

@@ -6,6 +6,7 @@ and content job consumer utilities.
 from __future__ import annotations
 
 import contextlib
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -431,6 +432,73 @@ class TestAuditRepositoryExtra:
         repo = AuditRepository(db)
         logs = await repo.find_logs_by_user_and_tenant("nonexistent_user", "t1")
         assert logs == []
+
+    @pytest.mark.asyncio
+    async def test_find_logs_paging_covers_full_history(self, db) -> None:
+        from app.models.audit_log import AuditLog
+        from app.repositories.audit_repository import AuditRepository
+
+        repo = AuditRepository(db)
+        for i in range(5):
+            await repo.create_log(
+                AuditLog(user="u1", log_text=f"action{i}", time="10:00", priority=1, tenant_id="t1")
+            )
+
+        page1 = await repo.find_logs_by_user_and_tenant("u1", "t1", limit=2)
+        assert len(page1) == 2
+        page2 = await repo.find_logs_by_user_and_tenant("u1", "t1", limit=2, cursor=page1[-1].id or "")
+        assert len(page2) == 2
+        page3 = await repo.find_logs_by_user_and_tenant("u1", "t1", limit=2, cursor=page2[-1].id or "")
+        assert len(page3) == 1
+        texts = [log.log_text for log in page1 + page2 + page3]
+        assert sorted(texts) == [f"action{i}" for i in range(5)]
+
+    @pytest.mark.asyncio
+    async def test_find_logs_limit_clamped_by_query(self, db) -> None:
+        from app.models.audit_log import AuditLog
+        from app.repositories.audit_repository import AuditRepository
+
+        repo = AuditRepository(db)
+        for i in range(3):
+            await repo.create_log(
+                AuditLog(user="u1", log_text=f"action{i}", time="10:00", priority=1, tenant_id="t1")
+            )
+
+        logs = await repo.find_logs_by_user_and_tenant("u1", "t1", limit=2)
+        assert len(logs) == 2
+
+    @pytest.mark.asyncio
+    async def test_find_logs_invalid_cursor_rejected(self, db) -> None:
+        from app.platform.error_handling import ValidationError
+        from app.repositories.audit_repository import AuditRepository
+
+        repo = AuditRepository(db)
+        with pytest.raises(ValidationError):
+            await repo.find_logs_by_user_and_tenant("u1", "t1", cursor="not-an-objectid")
+
+    @pytest.mark.asyncio
+    async def test_create_log_entries_bulk_insert(self, db, monkeypatch) -> None:
+        from tests.support import mongomock_async
+
+        async def _boom(*args: Any, **kwargs: Any) -> Any:
+            raise AssertionError("per-entry insert_one must not be used")
+
+        monkeypatch.setattr(
+            mongomock_async._AsyncMongoMockCollection, "insert_one", _boom, raising=False
+        )
+
+        from app.models.audit_log import AuditLog
+        from app.services.audit_service import AuditService
+
+        service = AuditService(db)
+        entries = [
+            AuditLog(user="u1", log_text=f"action{i}", time="10:00", priority=1) for i in range(3)
+        ]
+        await service.create_log_entries(entries, "t1")
+
+        stored = await db["logs"].find({}).to_list(length=10)
+        assert len(stored) == 3
+        assert all(doc["tenant_id"] == "t1" for doc in stored)
 
 
 # ---------------------------------------------------------------------------

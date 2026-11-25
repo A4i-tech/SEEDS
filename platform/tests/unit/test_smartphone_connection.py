@@ -108,13 +108,16 @@ class TestSendMessageToClient:
 
         assert chunk == f'data: {json.dumps({"k": "v"})}\n\n'
 
-    async def test_send_message_queue_full_is_swallowed(self, caplog: pytest.LogCaptureFixture) -> None:
+    async def test_send_message_queue_full_drops_oldest(self, caplog: pytest.LogCaptureFixture) -> None:
         mgr = SmartphoneConnectionManager("conf-1")
-        mgr._queue = asyncio.Queue(maxsize=50)
-        for _ in range(50):
-            await mgr.send_message_to_client(client=None, message={"k": "v"})
+        for n in range(smartphone_connection_module._MAX_QUEUE):
+            await mgr.send_message_to_client(client=None, message={"n": n})
 
         with caplog.at_level(logging.WARNING, logger="app.providers.smartphone_connection"):
-            await mgr.send_message_to_client(client=None, message={"k": "v"})
+            await mgr.send_message_to_client(client=None, message={"n": "new"})
 
-        assert "smartphone_connection: queue full for conf_id=conf-1, dropping message" in caplog.text
+        queued = [mgr._queue.get_nowait() for _ in range(mgr._queue.qsize())]
+        assert len(queued) == smartphone_connection_module._MAX_QUEUE
+        assert queued[0] == json.dumps({"n": 1})
+        assert queued[-1] == json.dumps({"n": "new"})
+        assert "smartphone_connection: queue full for conf_id=conf-1, dropped oldest" in caplog.text
