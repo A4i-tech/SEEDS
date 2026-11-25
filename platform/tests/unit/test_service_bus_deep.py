@@ -66,9 +66,17 @@ class TestServiceBusProviderNullHandles:
     async def test_receive_messages_null_handle_returns_empty(self) -> None:
         p = self._make_provider()
         with patch("app.providers.service_bus.asyncio.sleep", new=AsyncMock()) as sleep:
-            result = await p.receive_messages("call_webhook")
+            result = await p.receive_messages("call_webhook", wait_seconds=2)
         assert result == []
-        sleep.assert_awaited_once_with(5)
+        sleep.assert_awaited_once_with(2)
+
+    @pytest.mark.asyncio
+    async def test_receive_messages_null_handle_yields(self) -> None:
+        p = self._make_provider()
+        loop = asyncio.get_running_loop()
+        start = loop.time()
+        assert await p.receive_messages("call_webhook", wait_seconds=0.1) == []
+        assert loop.time() - start >= 0.05
 
     @pytest.mark.asyncio
     async def test_complete_message_null_handle_returns_false(self) -> None:
