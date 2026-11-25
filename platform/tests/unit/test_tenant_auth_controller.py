@@ -39,7 +39,7 @@ async def test_tenant_logout_revokes_other_active_sessions(mock_db):
             role=UserRole.TENANT,
             name="Tenant One",
             email="tenant@example.com",
-            hashed_password=hash_password("correct-horse"),
+            hashed_password=await hash_password("correct-horse"),
         )
     )
     owner_id = str(user.id)

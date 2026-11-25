@@ -49,7 +49,7 @@ async def _seed_teacher(db, email="t@call2.com", password="pass1234", tenant_id=
         "role": UserRole.TEACHER.value,
         "name": "Call Teacher",
         "email": email,
-        "hashed_password": hash_password(password),
+        "hashed_password": await hash_password(password),
         "tenant_id": tenant_id,
         "school_id": "s1",
         "is_active": True,
@@ -69,7 +69,7 @@ async def _seed_tenant(db, email="tenant@call2.com", password="tenantpass"):
         "name": "Call Tenant",
         "email": email,
         "tenant_name": "CallOrg2",
-        "hashed_password": hash_password(password),
+        "hashed_password": await hash_password(password),
         "is_active": True,
     }
     result = await db["users"].insert_one(doc)
