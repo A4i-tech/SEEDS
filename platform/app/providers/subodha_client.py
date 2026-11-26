@@ -83,7 +83,8 @@ def _extract_video_data(raw: str) -> dict[str, object] | None:
         return None
     try:
         meta = json.loads(metadata)
-    except (ValueError, TypeError):
+    except (ValueError, TypeError) as exc:
+        logger.warning("Subodha video metadata is malformed, skipping: %s", exc)
         return None
     return {
         "sources": meta.get("sources") or [],

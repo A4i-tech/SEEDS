@@ -21,6 +21,10 @@ class UnmuteParticipantEvent(ConferenceEvent):
 
     async def execute_event(self) -> None:
         if self.phone_number not in self.conf_call.state.participants:
+            logger.info(
+                "UnmuteParticipantEvent: unknown participant phone_number=<redacted>, no-op conf_id=%s",
+                self.conf_call.conf_id,
+            )
             return
         participant = self.conf_call.state.participants[self.phone_number]
         await self.conf_call.communication_api.unmute_participant(self.phone_number)
