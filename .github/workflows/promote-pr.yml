@@ -31,38 +31,23 @@ jobs:
       - name: Open or refresh the staging -> main promotion PR
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
           WEBHOOK_URL: ${{ secrets.RELEASE_WEBHOOK_URL }}
         run: |
           git fetch origin a4i/main
           number=$(gh pr list --base a4i/main --head a4i/staging --state open --json number,isCrossRepository --jq '[.[] | select(.isCrossRepository | not)][0].number')
-          pr_numbers=$(git log --format=%s origin/a4i/main..origin/a4i/staging | sed -nE 's/^Merge pull request #([0-9]+) from .*|.*\(#([0-9]+)\)$/\1\2/p')
-          issues=$(
-            for pr in $pr_numbers; do
-              gh api graphql -F number="$pr" -f query='
-                query($number: Int!) {
-                  repository(owner: "${{ github.repository_owner }}", name: "${{ github.event.repository.name }}") {
-                    pullRequest(number: $number) {
-                      closingIssuesReferences(first: 10) { nodes { url } }
-                    }
-                  }
-                }' --jq '.data.repository.pullRequest.closingIssuesReferences.nodes[].url'
-            done | sort -u
-          )
-          version="$(date +%Y.%m.%d)"
-          if [ -z "$issues" ]; then
-            body="## Release $version"$'\n\n'"No linked issues in this release."
-          else
-            body="## Release $version"$'\n\n'"$(printf '%s\n' "$issues" | sed 's/^/- /')"
-          fi
+          git fetch --tags origin
+          version=$(.github/scripts/release-notes.sh version)
+          body=$(.github/scripts/release-notes.sh notes origin/a4i/main..origin/a4i/staging "$version")
           created=false
           if [ -z "$number" ]; then
             created=true
             url=$(gh pr create --base a4i/main --head a4i/staging \
-              --title "Release: a4i/staging -> a4i/main" \
+              --title "Release $version" \
               --body "$body" --label release)
             number=$(gh pr view "$url" --json number --jq .number)
           else
-            gh pr edit "$number" --body "$body"
+            gh api -X PATCH "repos/${{ github.repository }}/pulls/$number" -f title="Release $version" -f body="$body" --silent
           fi
           if [ -z "$number" ]; then
             echo "Could not determine promotion PR number." >&2

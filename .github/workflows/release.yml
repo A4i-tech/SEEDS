@@ -30,7 +30,9 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - id: tag
-        name: Compute CalVer tag, suffixed with short SHA on same-day repeat release
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        name: Compute CalVer tag, YYYY.MM.NN
         run: |
           git fetch --tags origin
           existing=$(git tag --points-at HEAD | head -1)
@@ -38,41 +40,23 @@ jobs:
             echo "tag=$existing" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          tag="v$(date +%Y.%m.%d)"
-          if git rev-parse "$tag" >/dev/null 2>&1; then
-            tag="${tag}-$(git rev-parse --short HEAD)"
-          fi
+          tag="v$(.github/scripts/release-notes.sh version)"
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
       - name: Create release (also creates the tag, so no orphaned tag on failure)
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
         run: |
           tag="${{ steps.tag.outputs.tag }}"
           if gh release view "$tag" >/dev/null 2>&1; then
             exit 0
           fi
           if git rev-parse -q --verify HEAD^2 >/dev/null; then
-            pr_numbers=$(git log --format=%s HEAD^1..HEAD^2 | sed -nE 's/^Merge pull request #([0-9]+) from .*|.*\(#([0-9]+)\)$/\1\2/p')
+            range=HEAD^1..HEAD^2
           else
-            pr_numbers=""
+            range=HEAD~1..HEAD
           fi
-          issues=$(
-            for pr in $pr_numbers; do
-              gh api graphql -F number="$pr" -f query='
-                query($number: Int!) {
-                  repository(owner: "${{ github.repository_owner }}", name: "${{ github.event.repository.name }}") {
-                    pullRequest(number: $number) {
-                      closingIssuesReferences(first: 10) { nodes { url } }
-                    }
-                  }
-                }' --jq '.data.repository.pullRequest.closingIssuesReferences.nodes[].url'
-            done | sort -u
-          )
-          if [ -z "$issues" ]; then
-            notes="## $tag"$'\n\n'"No linked issues in this release."
-          else
-            notes="## $tag"$'\n\n'"$(printf '%s\n' "$issues" | sed 's/^/- /')"
-          fi
+          notes=$(.github/scripts/release-notes.sh notes "$range" "${tag#v}")
           gh release create "$tag" --target "${{ github.sha }}" --notes "$notes"
 
   back-sync:
