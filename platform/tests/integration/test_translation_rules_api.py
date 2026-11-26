@@ -1,6 +1,8 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 
@@ -325,3 +327,28 @@ async def test_blank_text_is_rejected_on_edit_and_on_approve(client, mock_db):
 
     assert edit.status_code == 422
     assert approve.status_code == 422
+
+
+async def test_pages_lists_each_route_once_most_recently_updated_first(client, mock_db):
+    await _rules_site(mock_db)
+    repo = TranslationRepository(mock_db)
+    await repo.upsert_source("site1", "/a", "k1", "en", "One")
+    await repo.upsert_source("site1", "/b", "k1", "en", "Two")
+    await repo.upsert_source("site1", "/b", "k2", "en", "Three")
+    await repo.upsert_source("other", "/c", "k1", "en", "Four")
+    await mock_db["translations"].update_one(
+        {"site_id": "site1", "route": "/b", "key": "k2"}, {"$set": {"updated_at": datetime(2100, 1, 1, tzinfo=UTC)}}
+    )
+
+    resp = await client.get("/translations/pages?site_id=site1", headers=_auth())
+
+    assert resp.status_code == 200
+    assert resp.json() == ["/b", "/a"]
+
+
+async def test_pages_are_hidden_from_another_tenant(client, mock_db):
+    await _rules_site(mock_db)
+
+    resp = await client.get("/translations/pages?site_id=site1", headers=_auth(user_id="t2"))
+
+    assert resp.status_code == 404

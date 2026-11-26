@@ -119,6 +119,15 @@ async def list_translations(
     return [TranslationResponse.from_doc(doc) for doc in docs]
 
 
+@router.get("/pages", summary="List the routes a site has translations for, most recently updated first")
+async def list_pages(
+    site_id: str,
+    service: TranslationService = Depends(get_translation_service),
+    user: dict[str, Any] = Depends(require_translation_reviewer),
+) -> list[str]:
+    return await service.list_routes(site_id, _tenant_id(user))
+
+
 @router.post(
     "/bulk-approve",
     summary="Approve all pending translations for a site (optionally scoped to route/lang)",

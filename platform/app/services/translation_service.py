@@ -331,6 +331,10 @@ class TranslationService:
 
         return result
 
+    async def list_routes(self, site_id: str, tenant_id: str) -> list[str]:
+        await self._ensure_site_owned_by_tenant(site_id, tenant_id)
+        return await self._repo.list_routes(site_id)
+
     async def list_translations(
         self,
         site_id: str,

@@ -8,6 +8,7 @@ import { listSites } from '@features/localize/api/sites'
 import {
   approveTranslation,
   bulkApproveTranslations,
+  listPages,
   listTranslations,
   updateTranslation,
 } from '@features/localize/api/review'
@@ -40,6 +41,7 @@ vi.mock('@features/localize/api/sites', () => ({
 }))
 vi.mock('@shared/services/languages', () => ({ getLanguages: vi.fn() }))
 vi.mock('@features/localize/api/review', () => ({
+  listPages: vi.fn(),
   listTranslations: vi.fn(),
   updateTranslation: vi.fn(),
   approveTranslation: vi.fn(),
@@ -116,6 +118,7 @@ describe('LocalizeReviewScreen', () => {
       makeItem('k2', 'Good Morning', 'ಶುಭೋದಯ'),
     ]
     vi.mocked(listTranslations).mockImplementation(async () => items)
+    vi.mocked(listPages).mockImplementation(async () => [...new Set(items.map((item) => item.route))])
     vi.mocked(generateForReview).mockResolvedValue(undefined)
     vi.mocked(listRules).mockResolvedValue([])
     vi.mocked(approveTranslation).mockResolvedValue(makeItem('k1', 'Hello World', 'ಹಲೋ ವರ್ಲ್ಡ್', 'approved'))
@@ -285,7 +288,7 @@ describe('LocalizeReviewScreen', () => {
     items = [makeItem('k1', 'Hello', 'ಹಲೋ'), { ...makeItem('k2', 'Price', 'ಬೆಲೆ'), route: '/pricing' }]
     await openReview()
 
-    expect(listTranslations).toHaveBeenCalledWith('site-1')
+    expect(listPages).toHaveBeenCalledWith('site-1')
     expect(listTranslations).toHaveBeenCalledWith('site-1', '/about')
     await selectOption('Pick a page', '/pricing')
     await waitFor(() => expect(listTranslations).toHaveBeenCalledWith('site-1', '/pricing'))
@@ -336,6 +339,7 @@ describe('LocalizeReviewScreen', () => {
     renderWithProviders(<LocalizeReviewScreen />)
 
     expect(await screen.findByText('Pick a site above to start reviewing its translations.')).toBeInTheDocument()
+    expect(listPages).not.toHaveBeenCalled()
     expect(listTranslations).not.toHaveBeenCalled()
   })
 
@@ -396,16 +400,17 @@ describe('LocalizeReviewScreen', () => {
     renderWithProviders(<LocalizeReviewScreen />)
     await selectOption('Select site', 'A')
 
-    await waitFor(() => expect(listTranslations).toHaveBeenCalledWith('site-1'))
+    await waitFor(() => expect(listPages).toHaveBeenCalledWith('site-1'))
     expect(screen.getByPlaceholderText('Pick a page')).toHaveValue('')
     expect(listTranslations).not.toHaveBeenCalledWith('site-1', expect.anything())
   })
 
-  it('opens the most recently updated page first', async () => {
+  it('opens the first page the server lists', async () => {
     items = [
-      { ...makeItem('k1', 'Hello', 'ಹಲೋ'), route: '/old', updated_at: '2026-01-01T00:00:00' },
-      { ...makeItem('k2', 'Price', 'ಬೆಲೆ'), route: '/new', updated_at: '2026-06-01T00:00:00' },
+      { ...makeItem('k1', 'Hello', 'ಹಲೋ'), route: '/old' },
+      { ...makeItem('k2', 'Price', 'ಬೆಲೆ'), route: '/new' },
     ]
+    vi.mocked(listPages).mockResolvedValue(['/new', '/old'])
     renderWithProviders(<LocalizeReviewScreen />)
     await selectOption('Select site', 'A')
 
