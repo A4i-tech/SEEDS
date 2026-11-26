@@ -290,6 +290,17 @@ async def test_approve_and_edit_on_an_excluded_row_return_422(client, mock_db):
     assert await mock_db["translationAudit"].count_documents({"action": {"$in": ["edited", "approved", "rejected"]}}) == 0
 
 
+async def test_approving_a_language_the_page_has_no_row_for_returns_422(client, mock_db):
+    await _rules_site(mock_db)
+    repo = await _seed(mock_db)
+    translation_id = str((await repo.find_by_route("site1", "/h"))[0]["_id"])
+
+    resp = await client.post(f"/translations/{translation_id}/approve", json={"lang": "mr"}, headers=_auth())
+
+    assert resp.status_code == 422
+    assert "no 'mr' translation" in resp.text
+
+
 async def test_editing_a_shared_row_saves_and_approves_it_for_that_page_only(client, mock_db):
     await _rules_site(mock_db)
     repo = await _seed(mock_db, route="/a")
@@ -369,3 +380,39 @@ async def test_pages_are_hidden_from_another_tenant(client, mock_db):
     resp = await client.get("/translations/pages?site_id=site1", headers=_auth(user_id="t2"))
 
     assert resp.status_code == 404
+
+
+async def _translate_website(client, content):
+    return await client.post(
+        "/content/translate-website",
+        json={
+            "content": content,
+            "target_language": "Hindi",
+            "target_language_code": "hi",
+            "site_id": "site1",
+            "route": "/h",
+        },
+        headers=_auth(),
+    )
+
+
+async def test_translate_website_serves_an_override_instead_of_the_stored_row(client, mock_db):
+    await _rules_site(mock_db)
+    await _seed(mock_db)
+    await _add(client, {"kind": "override", "text": "Hello", "lang": "hi", "translation": "namaste"})
+
+    resp = await _translate_website(client, "Hello")
+
+    assert resp.status_code == 200
+    assert resp.json()["translatedContent"] == "namaste"
+
+
+async def test_translate_website_keeps_an_excluded_line_in_the_source_language(client, mock_db):
+    await _rules_site(mock_db)
+    await _seed(mock_db)
+    await _add(client, {"kind": "exclusion", "text": "Hello"})
+
+    resp = await _translate_website(client, "Hello")
+
+    assert resp.status_code == 200
+    assert resp.json()["translatedContent"] == "Hello"

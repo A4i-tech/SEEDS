@@ -525,6 +525,8 @@ class TranslationService:
         self, translation_id: str, tenant_id: str, lang: str, approved_by: str
     ) -> dict[str, Any]:
         doc, _ = await self._get_editable_translation(translation_id, tenant_id)
+        if lang not in doc["translations"]:
+            raise ValidationError(f"This page has no '{lang}' translation to approve.")
         if not doc["translations"][lang]["text"].strip():
             raise ValidationError("Cannot approve a blank translation.")
         return await self._approve(doc, translation_id, tenant_id, lang, approved_by)
