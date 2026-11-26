@@ -1,5 +1,4 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { useTranslation } from 'react-i18next';
 import { useLanguages } from '@shared/hooks/useLanguages';
 import { createSite, deleteSite, listSites, updateSite } from '../api/sites';
 import { localizeKeys, type WebsiteFields } from '../types/localize.types';
@@ -7,7 +6,6 @@ import { toApiState } from '@shared/utils/apiState';
 import { useMutationDone } from './useMutationDone';
 
 export function useLocalizeSites() {
-  const { t } = useTranslation();
 
   const sites = useQuery({ queryKey: localizeKeys.sites, queryFn: listSites });
   const { state: languagesState, languages } = useLanguages();
