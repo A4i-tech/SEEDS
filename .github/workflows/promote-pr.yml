@@ -11,5 +11,5 @@ concurrency:
 
 jobs:
   promote:
-    uses: A4i-tech/infra-ops/.github/workflows/release-pr.yml@release-pr
+    uses: A4i-tech/infra-ops/.github/workflows/release-pr.yml@9c011b725c6317c7f990e08500da83454a45587d
     secrets: inherit
