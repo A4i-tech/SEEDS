@@ -314,6 +314,18 @@ def test_configure_logging_sets_json_handler() -> None:
     assert root.level == logging.DEBUG
 
 
+def test_configure_logging_quiets_azure_exporter_and_http_policy() -> None:
+    """configure_logging() must keep the exporter and Azure HTTP policy loggers at WARNING."""
+    from app.platform.logging import configure_logging
+
+    configure_logging(log_level="INFO")
+    for name in (
+        "azure.monitor.opentelemetry.exporter",
+        "azure.core.pipeline.policies.http_logging_policy",
+    ):
+        assert logging.getLogger(name).level == logging.WARNING
+
+
 def test_app_insights_event_handler_calls_track_event(monkeypatch) -> None:
     """AppInsightsEventHandler.emit() must forward records to track_event as customEvents."""
     calls = []
