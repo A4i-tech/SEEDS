@@ -13,6 +13,7 @@ from app.platform.settings import get_settings
 # the environment when it is first imported, so set them before the imports below.
 _REMEDIATION_SETTINGS_KEYS = (
     "openai_api_key",
+    "openai_base_url",
     "mistral_ocr_api_key",
     "mistral_ocr_endpoint",
     "mistral_ocr_model",

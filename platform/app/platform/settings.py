@@ -95,6 +95,16 @@ class Settings(BaseSettings):
 
     openai_api_key: str = Field(default="", repr=False)
     openai_org_id: str = ""
+    openai_base_url: str | None = None
+    transcription_base_url: str | None = None
+    embedding_base_url: str | None = None
+    transcription_model: str = "whisper-1"
+    embedding_model: str = "text-embedding-3-small"
+
+    @field_validator("openai_base_url", "transcription_base_url", "embedding_base_url", mode="before")
+    @classmethod
+    def _empty_urls_to_none(cls, v: object) -> object:
+        return None if isinstance(v, str) and not v.strip() else v
 
     mistral_ocr_api_key: str = Field(default="", repr=False)
     mistral_ocr_endpoint: str = ""
@@ -111,7 +121,6 @@ class Settings(BaseSettings):
     translation_base_url: str = ""
     translation_api_key: str = Field(default="", repr=False)
     translation_model: str = ""
-    openai_base_url: str = ""
 
     low_confidence_threshold: float = 0.7
     enable_dev_localhost_origin_alias: bool = False
