@@ -34,7 +34,7 @@ def _tenant_id(user: dict[str, Any]) -> str:
 
 class ExtractItem(BaseModel):
     key: str
-    text: str = Field(max_length=5000)
+    text: str
     route: str = Field(max_length=2048)
     source_lang: str = "en"
 
