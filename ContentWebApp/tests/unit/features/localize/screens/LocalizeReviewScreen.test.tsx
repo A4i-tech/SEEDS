@@ -498,7 +498,7 @@ describe('LocalizeReviewScreen', () => {
   })
 
   it('a shared row sits on the Overridden tab with the override text and no actions', async () => {
-    items = [{ ...makeItem('k1', 'Dates', ''), shared: { kn: { rule_id: 'r1', translation: 'ತಾರೀಖು' } } }]
+    items = [{ ...makeItem('k1', 'Dates', ''), shared: { kn: { translation: 'ತಾರೀಖು' } } }]
     await openReview()
     fireEvent.click(await screen.findByRole('tab', { name: 'Overridden (1)' }))
 
@@ -507,7 +507,7 @@ describe('LocalizeReviewScreen', () => {
   })
 
   it('the Rules modal lists, adds, edits and deletes rules', async () => {
-    const rule = { id: 'r1', kind: 'exclusion' as const, text: 'x = *', lang: '', translation: '', updated_at: '', updated_by: '' }
+    const rule = { id: 'r1', kind: 'exclusion' as const, text: 'x = *', lang: '', translation: '' }
     vi.mocked(listRules).mockResolvedValue([rule])
     vi.mocked(createRule).mockResolvedValue(rule)
     vi.mocked(updateRule).mockResolvedValue(rule)
@@ -533,9 +533,10 @@ describe('LocalizeReviewScreen', () => {
     )
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Delete rule' }))
-    const confirm = (await screen.findByText('Delete this rule?')).closest('section') as HTMLElement
+    const confirm = await screen.findByRole('dialog', { name: 'Delete this rule?' })
     fireEvent.click(within(confirm).getByRole('button', { name: 'Delete rule' }))
-    await waitFor(() => expect(deleteRule).toHaveBeenCalledWith('r1', expect.anything()))
+    await waitFor(() => expect(deleteRule).toHaveBeenCalled())
+    expect(vi.mocked(deleteRule).mock.calls[0][0]).toBe('r1')
   })
 
   it('an override rule needs a language and a translation before it can be saved', async () => {
@@ -548,6 +549,41 @@ describe('LocalizeReviewScreen', () => {
     fireEvent.change(within(dialog).getByLabelText('Source text'), { target: { value: 'Dates' } })
 
     expect(within(dialog).getByRole('button', { name: 'Save rule' })).toBeDisabled()
+
+    fireEvent.mouseDown(within(dialog).getByPlaceholderText('Select language'))
+    fireEvent.click((await screen.findAllByRole('option', { name: 'Kannada', hidden: true })).at(-1) as HTMLElement)
+    fireEvent.change(within(dialog).getByLabelText('Translation'), { target: { value: '   ' } })
+    expect(within(dialog).getByRole('button', { name: 'Save rule' })).toBeDisabled()
+
+    fireEvent.change(within(dialog).getByLabelText('Translation'), { target: { value: 'ತಾರೀಖು' } })
+    expect(within(dialog).getByRole('button', { name: 'Save rule' })).toBeEnabled()
+  })
+
+  it('an excluded row that also matches an override stays on the Excluded tab', async () => {
+    items = [
+      {
+        ...makeItem('k1', 'Dates', ''),
+        exclusion_rule_id: 'r1',
+        exclusion_pattern: 'Dates',
+        shared: { kn: { translation: 'ತಾರೀಖು' } },
+      },
+    ]
+    await openReview()
+
+    expect(await screen.findByRole('tab', { name: 'Excluded (1)' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Overridden (0)' })).toBeInTheDocument()
+  })
+
+  it('the Rules dialog shows an error when the rules cannot be loaded', async () => {
+    vi.mocked(listRules).mockRejectedValue(new Error('Rules unavailable'))
+    await openReview()
+    await screen.findByText('Hello World')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rules' }))
+    const dialog = await screen.findByRole('dialog')
+
+    expect(await within(dialog).findByText('Rules unavailable')).toBeInTheDocument()
+    expect(within(dialog).queryByText('No rules yet.')).not.toBeInTheDocument()
   })
 })
 

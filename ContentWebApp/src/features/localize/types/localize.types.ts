@@ -26,7 +26,7 @@ export type WebsiteFields = Pick<Website, 'domain' | 'name' | 'status' | 'langua
 
 const translationEntrySchema = z.object({ text, status: text });
 
-const sharedMatchSchema = z.object({ rule_id: z.string(), translation: z.string() });
+const sharedMatchSchema = z.object({ translation: z.string() });
 
 export const translationItemSchema = z.object({
   id: z.string(),
@@ -64,8 +64,6 @@ export const ruleSchema = z.object({
   text: z.string(),
   lang: z.string(),
   translation: z.string(),
-  updated_at: z.string(),
-  updated_by: z.string(),
 });
 
 export type Rule = z.infer<typeof ruleSchema>;

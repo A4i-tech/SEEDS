@@ -120,23 +120,31 @@ async def test_rules_are_hidden_from_another_tenant(client, mock_db):
 
 
 @pytest.mark.parametrize(
-    "body",
+    "body, message",
     [
-        {"kind": "override", "text": "Dates"},
-        {"kind": "exclusion", "text": "x", "translation": "y"},
-        {"kind": "exclusion", "text": "**"},
-        {"kind": "exclusion", "text": "   "},
-        {"kind": "override", "text": "Foo", "lang": "hi", "translation": "   "},
-        {"kind": "exclusion", "text": "a" * 5001},
-        {"kind": "other", "text": "x"},
+        ({"kind": "override", "text": "Dates"}, "An override rule needs a language and a translation."),
+        (
+            {"kind": "exclusion", "text": "x", "translation": "y"},
+            "An exclusion rule cannot have a language or a translation.",
+        ),
+        ({"kind": "exclusion", "text": "**"}, "Rule text needs plain text besides * and ?."),
+        ({"kind": "exclusion", "text": "   "}, "Rule text needs plain text besides * and ?."),
+        (
+            {"kind": "override", "text": "Foo", "lang": "hi", "translation": "   "},
+            "An override rule needs a language and a translation.",
+        ),
+        ({"kind": "exclusion", "text": "a" * 5001}, "String should have at most 5000 characters"),
+        ({"kind": "other", "text": "x"}, "Input should be 'exclusion' or 'override'"),
     ],
 )
-async def test_rules_reject_invalid_bodies(client, mock_db, body):
+async def test_rules_reject_invalid_bodies(client, mock_db, body, message):
     await _rules_site(mock_db)
 
     resp = await client.post("/translations/rules?site_id=site1", json=body, headers=_auth())
 
     assert resp.status_code == 422
+    assert message in resp.text
+    assert (await client.get("/translations/rules?site_id=site1", headers=_auth())).json() == []
 
 
 async def test_override_language_must_be_enabled_for_the_site(client, mock_db):
@@ -147,6 +155,8 @@ async def test_override_language_must_be_enabled_for_the_site(client, mock_db):
     )
 
     assert resp.status_code == 422
+    assert "mr" in resp.text
+    assert (await client.get("/translations/rules?site_id=site1", headers=_auth())).json() == []
 
 
 async def test_duplicate_rule_returns_conflict_and_update_into_a_duplicate_too(client, mock_db):
@@ -272,6 +282,12 @@ async def test_approve_and_edit_on_an_excluded_row_return_422(client, mock_db):
 
     assert approve.status_code == 422
     assert edit.status_code == 422
+    assert "exclusion rule" in approve.text
+    assert "exclusion rule" in edit.text
+    stored = (await repo.find_by_route("site1", "/h"))[0]["translations"]["hi"]
+    assert stored["text"] == "[hi] Hello"
+    assert stored["status"] != "approved"
+    assert await mock_db["translationAudit"].count_documents({"action": {"$in": ["edited", "approved", "rejected"]}}) == 0
 
 
 async def test_editing_a_shared_row_saves_and_approves_it_for_that_page_only(client, mock_db):
@@ -312,7 +328,8 @@ async def test_reject_on_an_excluded_row_returns_422_and_writes_no_audit(client,
     )
 
     assert reject.status_code == 422
-    assert await mock_db["translationAudit"].count_documents({"action": "rejected"}) == 0
+    assert "exclusion rule" in reject.text
+    assert await mock_db["translationAudit"].count_documents({"action": {"$in": ["edited", "approved", "rejected"]}}) == 0
 
 
 async def test_blank_text_is_rejected_on_edit_and_on_approve(client, mock_db):

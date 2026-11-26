@@ -35,13 +35,13 @@ class RuleRequest(BaseModel):
     def _text_has_literal(cls, value: str) -> str:
         value = value.strip()
         if not value.strip("*?"):
-            raise ValueError("text must contain at least one character that is not * or ?")
+            raise ValueError("Rule text needs plain text besides * and ?. Example: Dates or Grade ?.")
         return value
 
     @model_validator(mode="after")
     def _fields_match_kind(self) -> Self:
         if self.kind == "override" and not (self.lang and self.translation):
-            raise ValueError("an override needs lang and translation")
+            raise ValueError("An override rule needs a language and a translation.")
         if self.kind == "exclusion" and (self.lang or self.translation):
-            raise ValueError("an exclusion must not have lang or translation")
+            raise ValueError("An exclusion rule cannot have a language or a translation. Clear both, or change the type to Override.")
         return self

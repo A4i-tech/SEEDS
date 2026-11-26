@@ -94,7 +94,9 @@ class TranslationService:
         doc = await self._get_translation_owned_by_tenant(translation_id, tenant_id)
         rules = await self._rules(doc["site_id"])
         if find_exclusion(rules, doc["source_text"]):
-            raise ValidationError("excluded text cannot be edited or approved")
+            raise ValidationError(
+                "This text matches an exclusion rule, so it stays in the source language. Delete the rule to edit it."
+            )
         return doc, rules
 
     async def _ensure_lang_enabled(self, site_id: str, lang: str) -> None:
@@ -515,7 +517,8 @@ class TranslationService:
             detail=f"lang={lang}",
         )
         if find_override(rules, doc["source_text"], lang):
-            return await self.approve_translation(translation_id, tenant_id, lang, editor)
+            doc["translations"].setdefault(lang, {})["text"] = text
+            return await self._approve(doc, translation_id, tenant_id, lang, editor)
         return await self._get_translation_owned_by_tenant(translation_id, tenant_id)
 
     async def approve_translation(
@@ -524,6 +527,11 @@ class TranslationService:
         doc, _ = await self._get_editable_translation(translation_id, tenant_id)
         if not doc["translations"][lang]["text"].strip():
             raise ValidationError("Cannot approve a blank translation.")
+        return await self._approve(doc, translation_id, tenant_id, lang, approved_by)
+
+    async def _approve(
+        self, doc: dict[str, Any], translation_id: str, tenant_id: str, lang: str, approved_by: str
+    ) -> dict[str, Any]:
         next_version = doc.get("version", 0) + 1
         approved_at = datetime.now(UTC)
 
@@ -584,7 +592,7 @@ class TranslationService:
     async def _get_rule_owned_by_tenant(self, rule_id: str, tenant_id: str) -> dict[str, Any]:
         rule = await self._rule_repo.find_by_id(rule_id)
         if rule is None:
-            raise NotFoundError("Rule", rule_id)
+            raise NotFoundError("Rule")
         await self._ensure_site_owned_by_tenant(rule["site_id"], tenant_id)
         return rule
 

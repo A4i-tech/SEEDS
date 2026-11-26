@@ -65,12 +65,12 @@ describe('toSegment', () => {
   });
 
   it('a shared row is overridden and shows the override text', () => {
-    const doc = item({ shared: { hi: { rule_id: 'r1', translation: 'tarikh' } } });
+    const doc = item({ shared: { hi: { translation: 'tarikh' } } });
     expect(toSegment(doc, 'hi')).toMatchObject({ stage: 'overridden', translation: 'tarikh' });
   });
 
   it('a shared language does not change the stage of another language', () => {
-    const doc = item({ shared: { mr: { rule_id: 'r1', translation: 'tarikh' } } });
+    const doc = item({ shared: { mr: { translation: 'tarikh' } } });
     expect(toSegment(doc, 'hi')).toMatchObject({ stage: 'pending', translation: '' });
   });
 });
