@@ -67,7 +67,14 @@ cp env.example .env
 | `VONAGE_CONFERENCE_APPLICATION_PRIVATE_KEY64` | for calls | Base64-encoded private key for the Conference application |
 | `VONAGE_IVR_APPLICATION_ID` | for calls | Vonage application ID for the IVR application |
 | `VONAGE_IVR_APPLICATION_PRIVATE_KEY64` | for calls | Base64-encoded private key for the IVR application |
-| `AZURE_SERVICE_BUS_CONNECTION_STRING` | for consumers | Azure Service Bus connection string |
+| `QUEUE_PROVIDER` | no | `nats` \| `azure_service_bus` (default: `nats`) |
+| `NATS_URL` | for `nats` | NATS server URL with JetStream (default: `nats://localhost:4222`) |
+| `NATS_STREAM` | no | JetStream stream that holds all four queues (default: `SEEDS`) |
+| `NATS_ACK_WAIT_SECONDS` | no | Seconds before an unacknowledged message is redelivered (default: `60`) |
+| `NATS_CREDS_FILE` | no | Path to a NATS credentials file |
+| `AZURE_SERVICE_BUS_QUEUE_NAME` | no | Queue-name suffix for both providers |
+| `AZURE_SERVICE_BUS_MAX_RETRIES` | no | Max handles per message on `nats` before dead-letter (default: `3`). Azure uses the queue's own max delivery count |
+| `AZURE_SERVICE_BUS_CONNECTION_STRING` | for `azure_service_bus` | Azure Service Bus connection string |
 | `AZURE_STORAGE_CONNECTION_STRING` | for content/audio | Azure Blob Storage connection string |
 | `APPLICATIONINSIGHTS_CONNECTION_STRING` | no | App Insights (telemetry disabled if absent) |
 | `WS_CONTROL_SECRET` | for prod | Shared secret for websocket-service control channel |

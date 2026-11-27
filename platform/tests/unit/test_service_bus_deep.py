@@ -155,16 +155,17 @@ class TestServiceBusProviderNullHandles:
         from app.providers.service_bus import ServiceBusProvider
 
         mock_settings = MagicMock()
+        mock_settings.queue_provider = "azure_service_bus"
         mock_settings.azure_service_bus_connection_string = "Endpoint=sb://x"
         p = ServiceBusProvider()
 
         with (
             patch("app.platform.settings.get_settings", return_value=mock_settings),
             patch(
-                "app.providers.service_bus._AzureQueueHandle.initialize",
+                "app.providers.azure_service_bus_queue._AzureQueueHandle.initialize",
                 new=AsyncMock(side_effect=RuntimeError("boom")),
             ),
-            patch("app.providers.service_bus._AzureQueueHandle.close", new=AsyncMock()) as close,
+            patch("app.providers.azure_service_bus_queue._AzureQueueHandle.close", new=AsyncMock()) as close,
             pytest.raises(RuntimeError, match="boom"),
         ):
             await p.initialize()
@@ -181,7 +182,7 @@ class TestServiceBusProviderNullHandles:
 
 class TestAzureQueueHandle:
     def _make_handle(self, queue_name="test_queue"):
-        from app.providers.service_bus import _AzureQueueHandle
+        from app.providers.azure_service_bus_queue import _AzureQueueHandle
 
         handle = _AzureQueueHandle.__new__(_AzureQueueHandle)
         handle.connection_string = "test-conn-str"
@@ -264,6 +265,7 @@ class TestAzureQueueHandle:
 
     @pytest.mark.asyncio
     async def test_receive_reconnects_after_fatal_error(self) -> None:
+        pytest.importorskip("azure.servicebus.aio")
         handle = self._make_handle()
         handle._message_map["stale-id"] = MagicMock()
         old_receiver = handle._receiver
