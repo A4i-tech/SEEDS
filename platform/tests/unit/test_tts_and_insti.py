@@ -19,7 +19,7 @@ from tests.support import mongomock_async
 
 class TestTTSServiceHelpers:
     def test_get_tts_attributes_english(self) -> None:
-        from app.services.tts_service import _get_tts_attributes
+        from app.providers.tts_provider import _get_tts_attributes
 
         result = _get_tts_attributes("en")
         assert result is not None
@@ -28,7 +28,7 @@ class TestTTSServiceHelpers:
         assert "Neerja" in voice or "Neural" in voice
 
     def test_get_tts_attributes_kannada(self) -> None:
-        from app.services.tts_service import _get_tts_attributes
+        from app.providers.tts_provider import _get_tts_attributes
 
         result = _get_tts_attributes("kn")
         assert result is not None
@@ -37,7 +37,7 @@ class TestTTSServiceHelpers:
         assert "Sapna" in voice or "Neural" in voice
 
     def test_get_tts_attributes_hindi(self) -> None:
-        from app.services.tts_service import _get_tts_attributes
+        from app.providers.tts_provider import _get_tts_attributes
 
         result = _get_tts_attributes("hi")
         assert result is not None
@@ -45,7 +45,7 @@ class TestTTSServiceHelpers:
         assert lang_code == "hi-IN"
 
     def test_get_tts_attributes_marathi(self) -> None:
-        from app.services.tts_service import _get_tts_attributes
+        from app.providers.tts_provider import _get_tts_attributes
 
         result = _get_tts_attributes("mr")
         assert result is not None
@@ -53,7 +53,7 @@ class TestTTSServiceHelpers:
         assert lang_code == "mr-IN"
 
     def test_get_tts_attributes_tamil(self) -> None:
-        from app.services.tts_service import _get_tts_attributes
+        from app.providers.tts_provider import _get_tts_attributes
 
         result = _get_tts_attributes("ta")
         assert result is not None
@@ -61,7 +61,7 @@ class TestTTSServiceHelpers:
         assert lang_code == "ta-IN"
 
     def test_get_tts_attributes_bengali(self) -> None:
-        from app.services.tts_service import _get_tts_attributes
+        from app.providers.tts_provider import _get_tts_attributes
 
         result = _get_tts_attributes("bn")
         assert result is not None
@@ -69,7 +69,7 @@ class TestTTSServiceHelpers:
         assert lang_code == "bn-IN"
 
     def test_get_tts_attributes_odia(self) -> None:
-        from app.services.tts_service import _get_tts_attributes
+        from app.providers.tts_provider import _get_tts_attributes
 
         result = _get_tts_attributes("or")
         assert result is not None
@@ -77,19 +77,19 @@ class TestTTSServiceHelpers:
         assert lang_code == "or-IN"
 
     def test_get_tts_attributes_unsupported_raises(self) -> None:
-        from app.services.tts_service import _get_tts_attributes
+        from app.providers.tts_provider import _get_tts_attributes
 
         with pytest.raises(ValueError, match="unsupported language"):
             _get_tts_attributes("klingon")
 
     def test_get_tts_attributes_case_insensitive(self) -> None:
-        from app.services.tts_service import _get_tts_attributes
+        from app.providers.tts_provider import _get_tts_attributes
 
         result = _get_tts_attributes("EN")
         assert result is not None
 
     def test_build_ssml_contains_voice(self) -> None:
-        from app.services.tts_service import _build_ssml
+        from app.providers.tts_provider import _build_ssml
 
         ssml = _build_ssml("Hello world", "en-IN", "en-IN-NeerjaNeural")
         assert "en-IN-NeerjaNeural" in ssml
@@ -99,13 +99,13 @@ class TestTTSServiceHelpers:
         assert "<prosody" in ssml
 
     def test_build_ssml_custom_rate(self) -> None:
-        from app.services.tts_service import _build_ssml
+        from app.providers.tts_provider import _build_ssml
 
         ssml = _build_ssml("Test", "hi-IN", "hi-IN-SwaraNeural", rate="slow")
         assert 'rate="slow"' in ssml
 
     def test_build_ssml_default_rate(self) -> None:
-        from app.services.tts_service import _build_ssml
+        from app.providers.tts_provider import _build_ssml
 
         ssml = _build_ssml("Test", "en-IN", "en-IN-NeerjaNeural")
         assert 'rate="1.0"' in ssml
@@ -172,13 +172,6 @@ class TestTTSServiceHelpers:
                     await synthesize("Hello world", "en")
 
 
-def _sdk_settings() -> MagicMock:
-    settings = MagicMock()
-    settings.azure_speech_key = "key"
-    settings.azure_speech_region = "region"
-    return settings
-
-
 def _fake_sdk(speak) -> MagicMock:
     sdk = MagicMock()
     sdk.ResultReason.SynthesizingAudioCompleted = "ok"
@@ -207,7 +200,7 @@ class TestTTSOffLoop:
     async def test_synthesize_runs_sdk_call_off_loop_thread(self) -> None:
         import threading
 
-        from app.services.tts_service import synthesize
+        from app.providers.tts_provider import AzureTtsProvider
 
         seen: list[int] = []
 
@@ -216,8 +209,8 @@ class TestTTSOffLoop:
             return MagicMock(get=lambda: result)
 
         sdk = _fake_sdk(speak)
-        with _patched_speech_sdk(sdk), patch("app.platform.settings.get_settings", return_value=_sdk_settings()):
-            assert await synthesize("Hi", "en") == b"mp3"
+        with _patched_speech_sdk(sdk):
+            assert await AzureTtsProvider("key", "region").synthesize("Hi", "en") == b"mp3"
         assert seen and seen[0] != threading.get_ident()
 
     @pytest.mark.asyncio
@@ -225,7 +218,8 @@ class TestTTSOffLoop:
         import asyncio
         import threading
 
-        from app.services import tts_service
+        from app.providers import tts_provider
+        from app.providers.tts_provider import AzureTtsProvider
 
         active = 0
         peak = 0
@@ -249,25 +243,22 @@ class TestTTSOffLoop:
         sdk = _fake_sdk(speak)
         with (
             _patched_speech_sdk(sdk),
-            patch("app.platform.settings.get_settings", return_value=_sdk_settings()),
-            patch.object(tts_service, "_tts_semaphore", asyncio.Semaphore(2)),
+            patch.object(tts_provider, "_tts_semaphore", asyncio.Semaphore(2)),
         ):
-            await asyncio.gather(*(tts_service.synthesize("Hi", "en") for _ in range(6)))
+            provider = AzureTtsProvider("key", "region")
+            await asyncio.gather(*(provider.synthesize("Hi", "en") for _ in range(6)))
         assert peak == 2
 
     @pytest.mark.asyncio
     async def test_synthesize_rest_fallback_logs_warning(self, caplog) -> None:
-        from app.services import tts_service
+        from app.providers.tts_provider import AzureTtsProvider
 
-        settings = _sdk_settings()
-        settings.azure_speech_key = ""
         with (
             patch.dict("sys.modules", {"azure.cognitiveservices.speech": None}),
-            patch("app.platform.settings.get_settings", return_value=settings),
-            patch.object(tts_service, "_synthesize_via_rest", AsyncMock(return_value=b"rest")),
+            patch.object(AzureTtsProvider, "_synthesize_via_rest", AsyncMock(return_value=b"rest")),
             caplog.at_level("WARNING"),
         ):
-            assert await tts_service.synthesize("Hi", "en") == b"rest"
+            assert await AzureTtsProvider("key", "region").synthesize("Hi", "en") == b"rest"
         assert "SDK unavailable, using REST fallback" in caplog.text
 
 
