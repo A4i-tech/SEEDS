@@ -2,7 +2,7 @@ import logging
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.models.requests.translation_requests import (
     BulkApproveRequest,
@@ -34,9 +34,16 @@ def _tenant_id(user: dict[str, Any]) -> str:
 
 class ExtractItem(BaseModel):
     key: str
-    text: str
+    text: str = Field(max_length=5000)
     route: str = Field(max_length=2048)
     source_lang: str = "en"
+
+    @field_validator("key")
+    @classmethod
+    def _key_is_not_blank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("Key must not be blank.")
+        return value
 
 
 class ExtractRequest(BaseModel):
