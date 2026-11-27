@@ -2,10 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { login, logout, refresh } from '@features/auth/api/login';
 import { useAuthStore } from '@features/auth/store/useAuthStore';
 import { authHeaders } from '@shared/services/apiClient';
+import { identify, track } from '@shared/services/umami';
 import { makeToken } from '../../../test-utils/makeToken';
 
 vi.mock('@mantine/notifications', () => ({ notifications: { show: vi.fn() } }));
 vi.mock('@features/auth/api/login', () => ({ login: vi.fn(), logout: vi.fn(), refresh: vi.fn() }));
+vi.mock('@shared/services/umami', () => ({ identify: vi.fn(), track: vi.fn() }));
 
 const FUTURE = Math.floor(Date.now() / 1000) + 3600;
 
@@ -38,14 +40,31 @@ describe('useAuthStore', () => {
       expect(localStorage.length).toBe(0);
     });
 
+    it('identifies the restored user to analytics without a login event', async () => {
+      vi.mocked(refresh).mockResolvedValue(makeToken({ sub: 'u1', role: 'tenant', tenant_id: 'tn1', exp: FUTURE }));
+      await useAuthStore.getState().hydrate();
+      expect(identify).toHaveBeenCalledWith('u1', { role: 'tenant', schoolId: '', tenantId: 'tn1' });
+      expect(track).not.toHaveBeenCalled();
+    });
+
     it('stays logged out when refresh fails', async () => {
       vi.mocked(refresh).mockRejectedValue(new Error('Unauthorized'));
       await useAuthStore.getState().hydrate();
       expect(useAuthStore.getState()).toMatchObject({ status: 'unauthenticated', token: '' });
+      expect(identify).not.toHaveBeenCalled();
     });
   });
 
   describe('login / logout', () => {
+    it('sends only id, role, school and tenant to analytics, then the login event', async () => {
+      vi.mocked(login).mockResolvedValue(
+        makeToken({ sub: 'u1', role: 'school_admin', school_id: 's1', tenant_id: 'tn1', name: 'N', phone: '9', exp: FUTURE }),
+      );
+      await useAuthStore.getState().login('id', 'pw');
+      expect(identify).toHaveBeenCalledWith('u1', { role: 'school_admin', schoolId: 's1', tenantId: 'tn1' });
+      expect(track).toHaveBeenCalledWith('login');
+    });
+
     it('persists the token in memory and never in localStorage', async () => {
       const token = makeToken({ role: 'content_creator', exp: FUTURE });
       vi.mocked(login).mockResolvedValue(token);
