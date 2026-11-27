@@ -17,6 +17,7 @@ from fastapi import Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from pymongo.errors import DuplicateKeyError
 
 if TYPE_CHECKING:
     from fastapi import FastAPI
@@ -152,6 +153,15 @@ async def _invalid_id_handler(request: Request, exc: InvalidId) -> JSONResponse:
     )
 
 
+async def _duplicate_key_handler(request: Request, exc: DuplicateKeyError) -> JSONResponse:
+    request_id = _get_request_id()
+    logger.warning("DuplicateKeyError (request_id=%s): %s", request_id, exc)
+    return JSONResponse(
+        status_code=409,
+        content=_error_envelope("CONFLICT", "Resource already exists", request_id),
+    )
+
+
 async def _unhandled_exception_handler(
     request: Request, exc: Exception
 ) -> JSONResponse:
@@ -182,4 +192,5 @@ def register_error_handlers(app: FastAPI) -> None:
     app.add_exception_handler(AppError, _app_error_handler)
     app.add_exception_handler(RequestValidationError, _validation_error_handler)
     app.add_exception_handler(InvalidId, _invalid_id_handler)
+    app.add_exception_handler(DuplicateKeyError, _duplicate_key_handler)
     app.add_exception_handler(Exception, _unhandled_exception_handler)

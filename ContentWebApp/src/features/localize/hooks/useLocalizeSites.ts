@@ -1,15 +1,11 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { notifications } from '@mantine/notifications';
-import { useTranslation } from 'react-i18next';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { useLanguages } from '@shared/hooks/useLanguages';
 import { createSite, deleteSite, listSites, updateSite } from '../api/sites';
 import { localizeKeys, type WebsiteFields } from '../types/localize.types';
 import { toApiState } from '@shared/utils/apiState';
-import { notifyApiError } from '@shared/utils/notifyApiError';
+import { useMutationDone } from './useMutationDone';
 
 export function useLocalizeSites() {
-  const { t } = useTranslation();
-  const queryClient = useQueryClient();
 
   const sites = useQuery({ queryKey: localizeKeys.sites, queryFn: listSites });
   const { state: languagesState, languages } = useLanguages();
@@ -17,17 +13,7 @@ export function useLocalizeSites() {
   const state = toApiState(sites);
   const languageName = (code: string) => languages.find((l) => l.code === code)?.name ?? code;
 
-  const invalidate = () => {
-    void queryClient.invalidateQueries({ queryKey: localizeKeys.all });
-  };
-
-  const done = (key: string) => ({
-    onSuccess: () => {
-      notifications.show({ message: t(key) });
-      invalidate();
-    },
-    onError: notifyApiError,
-  });
+  const done = useMutationDone([localizeKeys.all]);
 
   const create = useMutation({
     mutationFn: createSite,

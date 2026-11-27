@@ -209,6 +209,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         TranslationAuditRepository,
     )
     from app.repositories.translation_repository import TranslationRepository  # noqa: PLC0415
+    from app.repositories.translation_rule_repository import (
+        TranslationRuleRepository,
+    )
     from app.repositories.translation_version_repository import (  # noqa: PLC0415
         TranslationVersionRepository,
     )
@@ -221,6 +224,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await TranslationRepository.ensure_indexes(get_database())
     await TranslationVersionRepository.ensure_indexes(get_database())
     await TranslationAuditRepository.ensure_indexes(get_database())
+    await TranslationRuleRepository.ensure_indexes(get_database())
     await ContentAggregatorSyncJobRepository.ensure_indexes(get_database())
     await ContentJobRepository.ensure_indexes(get_database())
     await TextbookRemediationRepository.ensure_indexes(get_database())

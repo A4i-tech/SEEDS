@@ -64,7 +64,7 @@ async def _seed_client(
     await mock_db["integrationClients"].insert_one(
         {
             "client_id": client_id,
-            "client_secret_hash": hash_password(secret),
+            "client_secret_hash": await hash_password(secret),
             "name": name,
             "tenant_ids": tenant_ids if tenant_ids is not None else ["tenant-a"],
             "allowed_scopes": allowed_scopes if allowed_scopes is not None else ["content:read"],

@@ -21,13 +21,25 @@ from app.providers.translation_provider import (
 from app.repositories.glossary_repository import GlossaryRepository
 from app.repositories.translation_audit_repository import TranslationAuditRepository
 from app.repositories.translation_repository import TranslationRepository
+from app.repositories.translation_rule_repository import TranslationRuleRepository
 from app.repositories.translation_version_repository import TranslationVersionRepository
 from app.repositories.website_repository import WebsiteRepository
 from app.services.glossary_normalizer import GlossaryNormalizer
 from app.services.placeholder_protector import mask, unmask
 from app.services.quality_scorer import is_low_confidence, score_translation
+from app.services.translation_rules import (
+    RuleSet,
+    find_exclusion,
+    find_override,
+    needs_generation,
+    served_text,
+)
 
 logger = logging.getLogger(__name__)
+
+
+def _describe(rule: dict[str, Any]) -> str:
+    return f"{rule['kind']} {rule['text']!r} lang={rule['lang']} translation={rule['translation']!r}"
 
 
 class TranslationService:
@@ -47,6 +59,7 @@ class TranslationService:
         self._glossary = GlossaryNormalizer()
         self._version_repo = TranslationVersionRepository(db)
         self._audit_repo = TranslationAuditRepository(db)
+        self._rule_repo = TranslationRuleRepository(db)
         self._website_repo = WebsiteRepository(db)
         self._enforce_lang_validation = enforce_lang_validation
 
@@ -74,6 +87,17 @@ class TranslationService:
             raise NotFoundError("Translation", translation_id)
         await self._ensure_site_owned_by_tenant(doc["site_id"], tenant_id)
         return doc
+
+    async def _get_editable_translation(
+        self, translation_id: str, tenant_id: str
+    ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+        doc = await self._get_translation_owned_by_tenant(translation_id, tenant_id)
+        rules = await self._rules(doc["site_id"])
+        if find_exclusion(rules, doc["source_text"]):
+            raise ValidationError(
+                "This text matches an exclusion rule, so it stays in the source language. Delete the rule to edit it."
+            )
+        return doc, rules
 
     async def _ensure_lang_enabled(self, site_id: str, lang: str) -> None:
         if not self._enforce_lang_validation:
@@ -134,17 +158,6 @@ class TranslationService:
                 text=item["text"],
             )
 
-    async def get_stored_translations(self, site_id: str, route: str, lang: str) -> dict[str, str]:
-        docs = await self._repo.find_by_route(site_id, route)
-        result: dict[str, str] = {}
-        for doc in docs:
-            existing = (doc.get("translations") or {}).get(lang)
-            if existing and existing.get("text") and existing.get("status") == "approved":
-                result[doc["key"]] = existing["text"]
-            else:
-                result[doc["key"]] = doc["source_text"]
-        return result
-
     async def _persist_translation(
         self, site_id: str, route: str, doc: dict[str, Any], lang: str,
         translated: str, provider_name: str, quality_score: float = 1.0,
@@ -185,19 +198,14 @@ class TranslationService:
         await self._ensure_lang_enabled(site_id, lang)
         first_party = self._is_first_party(site_id)
         docs = await self._repo.find_by_route(site_id, route)
+        rules = await self._rules(site_id)
         result: dict[str, str] = {}
         glossary_cache: dict[str, list[dict[str, Any]]] = {}
         pending: list[tuple[dict[str, Any], str, dict[str, str], str, str]] = []
 
         for doc in docs:
-            existing = (doc.get("translations") or {}).get(lang)
-            if existing and existing.get("text"):
-                serve_unapproved = first_party
-                result[doc["key"]] = (
-                    existing["text"]
-                    if (existing.get("status") == "approved" or serve_unapproved)
-                    else doc["source_text"]
-                )
+            if not needs_generation(rules, doc, lang):
+                result[doc["key"]] = served_text(rules, doc, lang, first_party)
                 continue
 
             source_lang = doc.get("source_lang", "en")
@@ -264,17 +272,13 @@ class TranslationService:
 
     async def get_or_translate(self, site_id: str, route: str, lang: str) -> dict[str, str]:
         docs = await self._repo.find_by_route(site_id, route)
+        rules = await self._rules(site_id)
         result: dict[str, str] = {}
         first_party = self._is_first_party(site_id)
 
         for doc in docs:
-            existing = (doc.get("translations") or {}).get(lang)
-            if existing and existing.get("text"):
-                result[doc["key"]] = (
-                    existing["text"]
-                    if (existing.get("status") == "approved" or first_party)
-                    else doc["source_text"]
-                )
+            if not needs_generation(rules, doc, lang):
+                result[doc["key"]] = served_text(rules, doc, lang, first_party)
                 continue
 
             source_lang = doc.get("source_lang", "en")
@@ -329,6 +333,10 @@ class TranslationService:
 
         return result
 
+    async def list_routes(self, site_id: str, tenant_id: str) -> list[str]:
+        await self._ensure_site_owned_by_tenant(site_id, tenant_id)
+        return await self._repo.list_routes(site_id)
+
     async def list_translations(
         self,
         site_id: str,
@@ -356,6 +364,18 @@ class TranslationService:
                     for t in (doc.get("translations") or {}).values()
                 )
             ]
+
+        rules = await self._rules(site_id)
+        for doc in docs:
+            exclusion = find_exclusion(rules, doc["source_text"])
+            doc["exclusion_rule_id"] = str(exclusion["_id"]) if exclusion else ""
+            doc["exclusion_pattern"] = exclusion["text"] if exclusion else ""
+            doc["shared"] = {}
+            for lang in () if exclusion else rules.override_langs:
+                own = (doc.get("translations") or {}).get(lang, {})
+                override = find_override(rules, doc["source_text"], lang)
+                if override and own.get("status") != "approved":
+                    doc["shared"][lang] = {"rule_id": str(override["_id"]), "translation": override["translation"]}
         return docs
 
     async def bulk_approve_pending(
@@ -368,6 +388,7 @@ class TranslationService:
     ) -> dict[str, int]:
         await self._ensure_site_owned_by_tenant(site_id, tenant_id)
         docs = await self.list_translations(site_id, route=route)
+        rules = await self._rules(site_id)
 
         now = datetime.now(UTC)
         ops: list[UpdateOne] = []
@@ -380,6 +401,7 @@ class TranslationService:
 
         for doc in docs:
             translation_id = str(doc["_id"])
+            excluded = find_exclusion(rules, doc["source_text"]) is not None
             translations_snapshot = dict(doc.get("translations") or {})
             version = doc.get("version", 0)
             set_fields: dict[str, Any] = {}
@@ -389,7 +411,11 @@ class TranslationService:
             for doc_lang, entry in (doc.get("translations") or {}).items():
                 if lang and doc_lang != lang:
                     continue
-                if entry.get("status") in ("approved", "rejected"):
+                if (
+                    entry.get("status") in ("approved", "rejected")
+                    or excluded
+                    or find_override(rules, doc["source_text"], doc_lang)
+                ):
                     skipped += 1
                     continue
 
@@ -478,7 +504,7 @@ class TranslationService:
     async def update_translation(
         self, translation_id: str, tenant_id: str, lang: str, text: str, editor: str = ""
     ) -> dict[str, Any]:
-        doc = await self._get_translation_owned_by_tenant(translation_id, tenant_id)
+        doc, rules = await self._get_editable_translation(translation_id, tenant_id)
         await self._repo.update_translation_text(translation_id, lang, text)
         await self._audit(
             translation_id=translation_id,
@@ -490,12 +516,24 @@ class TranslationService:
             lang=lang,
             detail=f"lang={lang}",
         )
+        if find_override(rules, doc["source_text"], lang):
+            doc["translations"].setdefault(lang, {})["text"] = text
+            return await self._approve(doc, translation_id, tenant_id, lang, editor)
         return await self._get_translation_owned_by_tenant(translation_id, tenant_id)
 
     async def approve_translation(
         self, translation_id: str, tenant_id: str, lang: str, approved_by: str
     ) -> dict[str, Any]:
-        doc = await self._get_translation_owned_by_tenant(translation_id, tenant_id)
+        doc, _ = await self._get_editable_translation(translation_id, tenant_id)
+        if lang not in doc["translations"]:
+            raise ValidationError(f"This page has no '{lang}' translation to approve.")
+        if not doc["translations"][lang]["text"].strip():
+            raise ValidationError("Cannot approve a blank translation.")
+        return await self._approve(doc, translation_id, tenant_id, lang, approved_by)
+
+    async def _approve(
+        self, doc: dict[str, Any], translation_id: str, tenant_id: str, lang: str, approved_by: str
+    ) -> dict[str, Any]:
         next_version = doc.get("version", 0) + 1
         approved_at = datetime.now(UTC)
 
@@ -522,7 +560,7 @@ class TranslationService:
     async def reject_translation(
         self, translation_id: str, tenant_id: str, lang: str, rejected_by: str, reason: str
     ) -> dict[str, Any]:
-        doc = await self._get_translation_owned_by_tenant(translation_id, tenant_id)
+        doc, _ = await self._get_editable_translation(translation_id, tenant_id)
         await self._repo.reject_translation(translation_id, lang, rejected_by, reason)
         await self._audit(
             translation_id=translation_id,
@@ -549,6 +587,54 @@ class TranslationService:
         if route and key:
             return await self._audit_repo.find_by_item(site_id, route, key)
         return await self._audit_repo.find_by_site(site_id, route=route, action=action, limit=limit)
+
+    async def _rules(self, site_id: str) -> RuleSet:
+        return RuleSet(await self._rule_repo.find_by_site(site_id))
+
+    async def _get_rule_owned_by_tenant(self, rule_id: str, tenant_id: str) -> dict[str, Any]:
+        rule = await self._rule_repo.find_by_id(rule_id)
+        if rule is None:
+            raise NotFoundError("Rule")
+        await self._ensure_site_owned_by_tenant(rule["site_id"], tenant_id)
+        return rule
+
+    async def _audit_rule(self, rule: dict[str, Any], action: str, editor: str, detail: str) -> None:
+        await self._audit_repo.record(
+            site_id=rule["site_id"],
+            route="",
+            key=rule["text"],
+            action=action,
+            actor=editor,
+            lang=rule["lang"] or None,
+            detail=detail,
+        )
+
+    async def list_rules(self, site_id: str, tenant_id: str) -> list[dict[str, Any]]:
+        await self._ensure_site_owned_by_tenant(site_id, tenant_id)
+        return await self._rule_repo.find_by_site(site_id)
+
+    async def add_rule(self, site_id: str, tenant_id: str, fields: dict[str, Any], editor: str) -> dict[str, Any]:
+        await self._ensure_site_owned_by_tenant(site_id, tenant_id)
+        if fields["kind"] == "override":
+            await self._ensure_lang_enabled(site_id, fields["lang"])
+        rule = await self._rule_repo.insert(site_id, fields, editor)
+        await self._audit_rule(rule, "rule_added", editor, _describe(rule))
+        return rule
+
+    async def update_rule(
+        self, rule_id: str, tenant_id: str, fields: dict[str, Any], editor: str
+    ) -> dict[str, Any]:
+        old = await self._get_rule_owned_by_tenant(rule_id, tenant_id)
+        if fields["kind"] == "override":
+            await self._ensure_lang_enabled(old["site_id"], fields["lang"])
+        rule = await self._rule_repo.update(rule_id, old["site_id"], fields, editor)
+        await self._audit_rule(rule, "rule_updated", editor, f"{_describe(old)} -> {_describe(rule)}")
+        return rule
+
+    async def delete_rule(self, rule_id: str, tenant_id: str, editor: str) -> None:
+        rule = await self._get_rule_owned_by_tenant(rule_id, tenant_id)
+        await self._rule_repo.delete(rule_id, rule["site_id"])
+        await self._audit_rule(rule, "rule_deleted", editor, _describe(rule))
 
     async def get_version_history(self, translation_id: str, tenant_id: str) -> list[dict[str, Any]]:
         await self._get_translation_owned_by_tenant(translation_id, tenant_id)

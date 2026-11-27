@@ -87,5 +87,3 @@ async def test_bulk_approve_denies_a_different_tenants_site(client, mock_db):
         headers={"Authorization": f"Bearer {_token('tenant', user_id='t2')}"},
     )
     assert resp.status_code == 404
-
-

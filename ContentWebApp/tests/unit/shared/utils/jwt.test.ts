@@ -1,10 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { decodeJwtRole, decodeJwtSchoolId } from '../../../../src/shared/utils/jwt';
-
-function makeToken(payload: unknown): string {
-  const b64 = Buffer.from(JSON.stringify(payload)).toString('base64');
-  return `header.${b64}.sig`;
-}
+import { makeToken } from '../../test-utils/makeToken';
 
 describe('decodeJwtRole', () => {
   it('returns the role claim from a valid token', () => {

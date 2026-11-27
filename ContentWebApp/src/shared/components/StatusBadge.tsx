@@ -1,9 +1,10 @@
 import { Badge } from '@mantine/core';
 
- type StatusTone = 'running' | 'needs-review' | 'needs-attention' | 'done' | 'failed';
+ type StatusTone = 'running' | 'neutral' | 'needs-review' | 'needs-attention' | 'done' | 'failed';
 
 const TONES: Record<StatusTone, { bg: string; c: string }> = {
   running: { bg: 'var(--seeds-badge-subject-bg)', c: 'var(--seeds-badge-subject-text)' },
+  neutral: { bg: 'var(--seeds-badge-neutral-bg)', c: 'var(--seeds-badge-neutral-text)' },
   'needs-review': { bg: 'var(--seeds-badge-warning-bg)', c: 'var(--seeds-badge-warning-text)' },
   'needs-attention': { bg: 'var(--seeds-badge-warning-bg)', c: 'var(--seeds-badge-warning-text)' },
   done: { bg: 'var(--seeds-badge-easy-bg)', c: 'var(--seeds-badge-easy-text)' },

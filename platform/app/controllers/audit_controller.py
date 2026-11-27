@@ -16,10 +16,11 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 
 from app.models.audit_log import AuditLog
 from app.platform.auth.dependencies import get_current_user
+from app.platform.settings import get_settings
 from app.services.audit_service import AuditService, get_audit_service
 
 logger = logging.getLogger(__name__)
@@ -40,6 +41,12 @@ async def create_log_entries(
     if not entries:
         return None
 
+    post_max = get_settings().audit_log_post_max
+    if len(entries) > post_max:
+        raise HTTPException(
+            status_code=413, detail=f"Too many log entries: max {post_max} per request"
+        )
+
     tenant_id: str = user.get("tenant_id", "")
     await service.create_log_entries(entries, tenant_id)
 
@@ -50,14 +57,21 @@ async def create_log_entries(
 @router.get("/{user_id}", summary="Get logs by user ID", response_model=list[AuditLog])
 async def get_logs_by_user(
     user_id: str,
+    limit: int = 100,
+    cursor: str = "",
     user: dict = Depends(get_current_user),
     service: AuditService = Depends(get_audit_service),
 ) -> list[AuditLog]:
-    """Return log entries for the given user, scoped to the authenticated tenant.
+    """Return one bounded page of log entries for the given user, scoped to the authenticated tenant.
 
     Mirrors: ``await Log.getLogsByUserId(req.params.userId)``
 
     SECURITY: tenant_id from JWT — callers cannot access other tenants' logs.
+
+    Paging: pass the last item's ``id`` as ``cursor`` for the next page; an
+    empty list means the end.
     """
+    settings = get_settings()
+    limit = min(max(limit, 1), settings.audit_log_page_max)
     tenant_id: str = user.get("tenant_id", "")
-    return await service.find_logs_by_user(user_id, tenant_id)
+    return await service.find_logs_by_user(user_id, tenant_id, limit, cursor)
