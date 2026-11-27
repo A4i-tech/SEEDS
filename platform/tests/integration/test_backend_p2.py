@@ -235,6 +235,8 @@ async def test_content_job_consumer_process_audio(mock_db):
     await mock_db["content_jobs"].insert_one({
         "_id": job_id,
         "content_id": content_id,
+        "tenant_id": ObjectId(_TENANT_A_ID),
+        "staged": False,
         "status": "pending",
         "created_at": datetime.now(UTC),
     })
@@ -266,9 +268,10 @@ async def test_content_job_consumer_process_audio(mock_db):
         from app.consumers.content_job_consumer import _process_audio_content_job
         from app.repositories.content_job_repository import ContentJobRepository
         from app.repositories.content_repository import ContentRepository
+        from app.repositories.content_request_repository import ContentRequestRepository
 
         job_doc = await mock_db["content_jobs"].find_one({"_id": job_id})
-        await _process_audio_content_job(job_doc, ContentJobRepository(mock_db), ContentRepository(mock_db), mock_blob)
+        await _process_audio_content_job(job_doc, ContentJobRepository(mock_db), ContentRepository(mock_db), ContentRequestRepository(mock_db), mock_blob)
 
     # Verify job marked complete
     updated_job = await mock_db["content_jobs"].find_one({"_id": job_id})
@@ -311,6 +314,8 @@ async def test_content_job_dead_letter_on_failure(mock_db):
     await mock_db["content_jobs"].insert_one({
         "_id": job_id,
         "content_id": content_id,
+        "tenant_id": ObjectId(_TENANT_A_ID),
+        "staged": False,
         "status": "pending",
         "created_at": datetime.now(UTC),
     })
@@ -322,11 +327,12 @@ async def test_content_job_dead_letter_on_failure(mock_db):
     from app.consumers.content_job_consumer import _process_audio_content_job
     from app.repositories.content_job_repository import ContentJobRepository
     from app.repositories.content_repository import ContentRepository
+    from app.repositories.content_request_repository import ContentRequestRepository
 
     job_doc = await mock_db["content_jobs"].find_one({"_id": job_id})
 
     with pytest.raises(RuntimeError):
-        await _process_audio_content_job(job_doc, ContentJobRepository(mock_db), ContentRepository(mock_db), mock_blob)
+        await _process_audio_content_job(job_doc, ContentJobRepository(mock_db), ContentRepository(mock_db), ContentRequestRepository(mock_db), mock_blob)
 
     # Verify job dead-lettered
     failed_job = await mock_db["content_jobs"].find_one({"_id": job_id})

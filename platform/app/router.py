@@ -20,6 +20,7 @@ from app.controllers import (
     content_aggregator_auth_controller,
     content_aggregator_controller,
     content_controller,
+    content_request_controller,
     glossary_controller,
     ivr_controller,
     # Other
@@ -74,6 +75,7 @@ api_router.include_router(class_controller.router)
 api_router.include_router(content_controller.router)
 api_router.include_router(audit_controller.router)
 api_router.include_router(content_aggregator_controller.router)
+api_router.include_router(content_request_controller.router)
 api_router.include_router(textbook_remediation_controller.router)
 api_router.include_router(textbook_book_controller.router)
 api_router.include_router(translation_controller.router)

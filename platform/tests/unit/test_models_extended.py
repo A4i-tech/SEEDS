@@ -674,15 +674,16 @@ class TestContentJobConsumerDeadLetter:
         from app.consumers.content_job_consumer import _process_audio_content_job
         from app.repositories.content_job_repository import ContentJobRepository
         from app.repositories.content_repository import ContentRepository
+        from app.repositories.content_request_repository import ContentRequestRepository
 
         job_id = ObjectId()
-        job_doc = {"_id": job_id, "content_id": str(ObjectId()), "status": "claimed"}
+        job_doc = {"_id": job_id, "content_id": str(ObjectId()), "tenant_id": ObjectId(), "staged": False, "status": "claimed"}
         await db["content_jobs"].insert_one(job_doc)
 
         # content_col returns None => RuntimeError (permanent)
         blob_mock = MagicMock()
         with pytest.raises(RuntimeError):
-            await _process_audio_content_job(job_doc, ContentJobRepository(db), ContentRepository(db), blob_mock)
+            await _process_audio_content_job(job_doc, ContentJobRepository(db), ContentRepository(db), ContentRequestRepository(db), blob_mock)
 
         updated = await db["content_jobs"].find_one({"_id": job_id})
         assert updated["status"] == "failed"

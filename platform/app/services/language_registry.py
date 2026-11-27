@@ -20,3 +20,5 @@ def _build_supported_languages() -> list[Language]:
 
 
 SUPPORTED_LANGUAGES: list[Language] = _build_supported_languages()
+
+SUPPORTED_LANGUAGE_CODES: frozenset[str] = frozenset(lang["code"] for lang in SUPPORTED_LANGUAGES)

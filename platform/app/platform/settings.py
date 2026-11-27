@@ -43,6 +43,8 @@ class Settings(BaseSettings):
 
     content_aggregator_access_token_expires_in: str = "15m"
     content_aggregator_refresh_token_expires_in: str = "30d"
+    content_aggregator_client_rate_limit: str = "60/minute"
+    content_aggregator_global_rate_limit: str = "600/minute"
 
     # Firebase (only used when auth_type == "firebase")
     firebase_api_key: str = Field(default="", repr=False)

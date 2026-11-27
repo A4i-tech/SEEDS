@@ -369,10 +369,12 @@ async def test_content_job_retry_on_transient():
     content_col = db["contentsV3"]
 
     content_id = str(ObjectId())
-    job_result = await jobs_col.insert_one({"status": "pending", "content_id": content_id})
+    tenant_id = ObjectId()
+    job_result = await jobs_col.insert_one({"status": "pending", "content_id": content_id, "tenant_id": tenant_id, "staged": False})
     job_id = job_result.inserted_id
     await content_col.insert_one({
         "_id": ObjectId(content_id),
+        "tenant_id": tenant_id,
         "audio_content": [{"audio_url": "https://blob/input.mp3"}],
         "is_pull_model": False,
     })
@@ -392,12 +394,13 @@ async def test_content_job_retry_on_transient():
     from app.consumers.content_job_consumer import _process_audio_content_job
     from app.repositories.content_job_repository import ContentJobRepository
     from app.repositories.content_repository import ContentRepository
+    from app.repositories.content_request_repository import ContentRequestRepository
 
     with (
         patch("app.consumers.content_job_consumer._process_audio_item", side_effect=_flaky_process),
         patch("app.consumers.content_job_consumer.asyncio.sleep", new=AsyncMock()),
     ):
-        await _process_audio_content_job(job_doc, ContentJobRepository(db), ContentRepository(db), blob_provider)
+        await _process_audio_content_job(job_doc, ContentJobRepository(db), ContentRepository(db), ContentRequestRepository(db), blob_provider)
 
     updated_job = await jobs_col.find_one({"_id": job_id})
     assert updated_job["status"] == "completed", (
@@ -419,10 +422,12 @@ async def test_content_job_dead_letter_on_permanent():
     content_col = db["contentsV3"]
 
     content_id = str(ObjectId())
-    job_result = await jobs_col.insert_one({"status": "pending", "content_id": content_id})
+    tenant_id = ObjectId()
+    job_result = await jobs_col.insert_one({"status": "pending", "content_id": content_id, "tenant_id": tenant_id, "staged": False})
     job_id = job_result.inserted_id
     await content_col.insert_one({
         "_id": ObjectId(content_id),
+        "tenant_id": tenant_id,
         "audio_content": [{"audio_url": "https://blob/corrupt.mp3"}],
         "is_pull_model": False,
     })
@@ -437,10 +442,11 @@ async def test_content_job_dead_letter_on_permanent():
     from app.consumers.content_job_consumer import _process_audio_content_job
     from app.repositories.content_job_repository import ContentJobRepository
     from app.repositories.content_repository import ContentRepository
+    from app.repositories.content_request_repository import ContentRequestRepository
 
     with patch("app.consumers.content_job_consumer._process_audio_item", side_effect=_always_permanent):
         with pytest.raises(ValueError, match="Corrupt file"):
-            await _process_audio_content_job(job_doc, ContentJobRepository(db), ContentRepository(db), blob_provider)
+            await _process_audio_content_job(job_doc, ContentJobRepository(db), ContentRepository(db), ContentRequestRepository(db), blob_provider)
 
     updated_job = await jobs_col.find_one({"_id": job_id})
     assert updated_job["status"] == "failed", (
