@@ -16,6 +16,11 @@ export async function listTranslations(siteId: string, route?: string): Promise<
   return z.array(translationItemSchema).parse(data);
 }
 
+export async function listPages(siteId: string): Promise<string[]> {
+  const { data } = await apiClient.get('/translations/pages', { params: { site_id: siteId } });
+  return z.array(z.string()).parse(data);
+}
+
 export async function updateTranslation(id: string, update: { lang: string; text: string }): Promise<TranslationItem> {
   const { data } = await apiClient.put(`/translations/${encodeURIComponent(id)}`, update);
   return translationItemSchema.parse(data);

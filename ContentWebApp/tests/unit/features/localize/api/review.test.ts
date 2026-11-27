@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { apiClient } from '@shared/services/apiClient';
-import { approveTranslation, bulkApproveTranslations, listTranslations, updateTranslation } from '../../../../../src/features/localize/api/review';
+import { approveTranslation, bulkApproveTranslations, listPages, listTranslations, updateTranslation } from '../../../../../src/features/localize/api/review';
 
 vi.mock('@shared/services/apiClient', () => ({
   apiClient: { get: vi.fn(), put: vi.fn(), post: vi.fn() },
@@ -11,11 +11,17 @@ const mockedGet = vi.mocked(apiClient.get);
 const mockedPut = vi.mocked(apiClient.put);
 const mockedPost = vi.mocked(apiClient.post);
 
-const item = (overrides = {}) => ({ id: 't1', ...overrides });
+const item = (overrides = {}) => ({ id: 't1', exclusion_rule_id: '', exclusion_pattern: '', shared: {}, ...overrides });
 
 describe('localize review api (translationService port)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it('listPages asks for the site pages and returns the routes', async () => {
+    mockedGet.mockResolvedValue({ data: ['/a', '/b'] });
+    expect(await listPages('s1')).toEqual(['/a', '/b']);
+    expect(mockedGet).toHaveBeenCalledWith('/translations/pages', { params: { site_id: 's1' } });
   });
 
   it('bulkApproveTranslations reuses the 5-minute generate timeout', async () => {

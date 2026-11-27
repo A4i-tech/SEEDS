@@ -102,6 +102,16 @@ class TranslationRepository(BaseRepository):
     async def find_by_id(self, translation_id: str) -> dict[str, Any] | None:
         return await self._col.find_one({"_id": self._to_id(translation_id)})
 
+    async def list_routes(self, site_id: str) -> list[str]:
+        cursor = await self._col.aggregate(
+            [
+                {"$match": {"site_id": site_id}},
+                {"$group": {"_id": "$route", "updated_at": {"$max": "$updated_at"}}},
+                {"$sort": {"updated_at": -1}},
+            ]
+        )
+        return [doc["_id"] for doc in await cursor.to_list(length=None)]
+
     async def update_translation_text(self, translation_id: str, lang: str, text: str) -> None:
         now = datetime.now(UTC)
         await self._col.update_one(

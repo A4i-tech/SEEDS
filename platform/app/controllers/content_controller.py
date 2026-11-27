@@ -442,14 +442,8 @@ async def _translate_and_persist(
         for line in lines
     ]
     await translation_service.extract_items(body.site_id, items)
-    await translation_service.get_or_translate(body.site_id, body.route, body.target_language_code)
-
-    docs = await translation_service.list_translations(body.site_id, route=body.route)
-    draft_by_key = {
-        doc["key"]: (doc.get("translations") or {}).get(body.target_language_code, {}).get("text")
-        for doc in docs
-    }
-    translated_lines = [draft_by_key.get(sdk_hash_text(line)) or line for line in lines]
+    served = await translation_service.get_or_translate(body.site_id, body.route, body.target_language_code)
+    translated_lines = [served[sdk_hash_text(line)] for line in lines]
 
     return WebsiteTranslationResponse(
         translatedContent="\n".join(translated_lines),
