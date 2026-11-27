@@ -58,6 +58,7 @@ const ConferenceAudioPlayer = ({
   const serverPosition = audioContentState?.position_seconds;
   const serverDuration = audioContentState?.duration_seconds;
   const serverSpeed = audioContentState?.speed || 1.0;
+  const actualSpeed = audioContentState?.actual_speed || 1.0;
   const refusal = audioContentState?.last_refusal;
 
   const totalDuration =
@@ -81,6 +82,8 @@ const ConferenceAudioPlayer = ({
   }, [serverSpeed, pendingSpeed]);
 
   const currentSpeed = pendingSpeed ?? serverSpeed;
+  const isSpeedFallback = pendingSpeed === null && actualSpeed !== serverSpeed;
+  const playbackRate = pendingSpeed ?? actualSpeed;
 
   // Sync position from server whenever it changes
   useEffect(() => {
@@ -104,7 +107,7 @@ const ConferenceAudioPlayer = ({
     if (status === "Playing" && !isSeeking) {
       timerRef.current = setInterval(() => {
         setEstimatedPosition((prev) => {
-          const next = prev + currentSpeed;
+          const next = prev + playbackRate;
           return totalDuration > 0 ? Math.min(next, totalDuration) : next;
         });
       }, 1000);
@@ -112,7 +115,7 @@ const ConferenceAudioPlayer = ({
       clearInterval(timerRef.current);
     }
     return () => clearInterval(timerRef.current);
-  }, [status, isSeeking, totalDuration, currentSpeed]);
+  }, [status, isSeeking, totalDuration, playbackRate]);
 
   const handlePlayPause = useCallback(async () => {
     if (!confId || actionLoading) return;
@@ -306,6 +309,11 @@ const ConferenceAudioPlayer = ({
           size="medium"
         />
       </Box>
+      {isSpeedFallback && (
+        <Typography variant="caption" color="warning.main" sx={{ display: "block", textAlign: "center" }}>
+          {serverSpeed}x audio unavailable for this track. Playing at {actualSpeed}x.
+        </Typography>
+      )}
     </Box>
   );
 };
