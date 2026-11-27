@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import io
 import json
 import logging
 import os
@@ -9,8 +10,9 @@ import tempfile
 from collections.abc import Awaitable, Callable
 from pathlib import Path
 
-import pymupdf
+import pypdfium2 as pdfium
 import yaml
+from omni_ingest.pdf import PDFIUM
 from pymongo.asynchronous.database import AsyncDatabase
 
 from app.consumers.base_consumer import BaseConsumer, PermanentError
@@ -107,20 +109,24 @@ async def _upload(
     return urls
 
 
-def _render_page_jpeg(doc: pymupdf.Document, page_index: int) -> bytes:
+def _render_page_jpeg(doc: pdfium.PdfDocument, page_index: int) -> bytes:
     page = doc[page_index]
-    scale = min(100 / 72, MAX_PAGE_PX / max(page.rect.width, page.rect.height))
-    return page.get_pixmap(matrix=pymupdf.Matrix(scale, scale)).tobytes("jpeg")
+    scale = min(100 / 72, MAX_PAGE_PX / max(page.get_size()))
+    out = io.BytesIO()
+    page.render(scale=scale).to_pil().convert("RGB").save(out, "JPEG")
+    return out.getvalue()
 
 
 async def _upload_source_pages(blob_provider: BlobStorageProvider, job_id: str, pdf: Path) -> int:
     container = get_settings().azure_storage_container
-    doc = pymupdf.open(pdf)
+    loop = asyncio.get_running_loop()
+    # pdfium is not thread-safe, so every call goes through omni-ingest's single pdfium thread
+    doc = await loop.run_in_executor(PDFIUM, pdfium.PdfDocument, pdf)
     try:
-        page_count = doc.page_count
+        page_count = len(doc)
         for page_index in range(page_count):
             try:
-                data = await asyncio.to_thread(_render_page_jpeg, doc, page_index)
+                data = await loop.run_in_executor(PDFIUM, _render_page_jpeg, doc, page_index)
                 await blob_provider.upload_file(
                     container, f"textbook-remediation/{job_id}/pages/{page_index + 1}.jpg", data, "image/jpeg"
                 )
@@ -128,7 +134,7 @@ async def _upload_source_pages(blob_provider: BlobStorageProvider, job_id: str, 
                 raise RuntimeError(f"Failed to render source page {page_index + 1}: {exc}") from exc
         return page_count
     finally:
-        doc.close()
+        await loop.run_in_executor(PDFIUM, doc.close)
 
 
 async def _upload_images(blob_provider: BlobStorageProvider, job_id: str, search_dir: Path, out: Path) -> int:

@@ -589,13 +589,13 @@ async def test_upload_images_marks_an_image_corrupted_after_three_failed_attempt
 
 @pytest.mark.asyncio
 async def test_upload_source_pages_renders_and_uploads_each_page(tmp_path):
-    import pymupdf
+    import pypdfium2 as pdfium
 
     from app.consumers.textbook_remediation_consumer import _upload_source_pages
 
-    doc = pymupdf.open()
-    doc.new_page()
-    doc.new_page()
+    doc = pdfium.PdfDocument.new()
+    doc.new_page(200, 300)
+    doc.new_page(200, 300)
     pdf_path = tmp_path / "book.pdf"
     doc.save(pdf_path)
     doc.close()
@@ -612,14 +612,17 @@ async def test_upload_source_pages_renders_and_uploads_each_page(tmp_path):
 
 
 def test_render_page_jpeg_caps_an_oversized_page():
-    import pymupdf
+    import io
+
+    import pypdfium2 as pdfium
+    from PIL import Image
 
     from app.consumers.textbook_remediation_consumer import MAX_PAGE_PX, _render_page_jpeg
 
-    doc = pymupdf.open()
-    doc.new_page(width=14000, height=10000)
-    pix = pymupdf.Pixmap(_render_page_jpeg(doc, 0))
-    assert max(pix.width, pix.height) <= MAX_PAGE_PX
+    doc = pdfium.PdfDocument.new()
+    doc.new_page(14000, 10000)
+    with Image.open(io.BytesIO(_render_page_jpeg(doc, 0))) as image:
+        assert max(image.size) <= MAX_PAGE_PX
 
 
 def test_resolve_language_returns_none_when_nothing_is_detectable(tmp_path):
