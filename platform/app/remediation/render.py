@@ -3,6 +3,7 @@ from __future__ import annotations
 import functools
 import hashlib
 import html
+import io
 import json
 import logging
 import re
@@ -13,9 +14,9 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
-import pymupdf
 import pypandoc
 import pypdf
+from PIL import Image
 
 from app.models.remediation_job import ArtifactName, artifact_filename
 
@@ -55,10 +56,10 @@ def _sniff_image_ext(raw: bytes) -> str | None:
 
 def as_jpeg(raw: bytes) -> tuple[bytes, str]:
     try:
-        pix = pymupdf.Pixmap(raw)
-        if pix.alpha:
-            pix = pymupdf.Pixmap(pix, 0)
-        return pix.tobytes("jpeg", jpg_quality=85), "jpg"
+        out = io.BytesIO()
+        with Image.open(io.BytesIO(raw)) as image:
+            image.convert("RGB").save(out, "JPEG", quality=85)
+        return out.getvalue(), "jpg"
     except Exception:
         ext = _sniff_image_ext(raw)
         if ext is None:

@@ -15,28 +15,20 @@ _PNG = base64.b64decode(
 
 
 def test_as_jpeg_returns_truthful_extension_for_real_images():
-    import pymupdf
-
     data, ext = render.as_jpeg(_PNG)
     assert ext == "jpg"
     assert data[:3] == b"\xff\xd8\xff"
 
-    pix = pymupdf.Pixmap(_PNG)
-    if pix.alpha:
-        pix = pymupdf.Pixmap(pix, 0)
-    jpeg = pix.tobytes("jpeg")
-    data, ext = render.as_jpeg(jpeg)
+    data, ext = render.as_jpeg(data)
     assert ext == "jpg"
     assert data[:3] == b"\xff\xd8\xff"
 
 
 def test_as_jpeg_sniffs_format_when_conversion_fails(monkeypatch):
-    import pymupdf
-
     def boom(*args, **kwargs):
         raise RuntimeError("cannot decode")
 
-    monkeypatch.setattr(pymupdf, "Pixmap", boom)
+    monkeypatch.setattr(render.Image, "open", boom)
 
     assert render.as_jpeg(b"\x89PNG\r\n\x1a\nrest")[1] == "png"
     assert render.as_jpeg(b"\xff\xd8\xff\xe0rest")[1] == "jpg"
@@ -45,12 +37,10 @@ def test_as_jpeg_sniffs_format_when_conversion_fails(monkeypatch):
 
 
 def test_as_jpeg_refuses_to_mislabel_unknown_bytes(monkeypatch):
-    import pymupdf
-
     def boom(*args, **kwargs):
         raise RuntimeError("cannot decode")
 
-    monkeypatch.setattr(pymupdf, "Pixmap", boom)
+    monkeypatch.setattr(render.Image, "open", boom)
 
     with pytest.raises(RuntimeError):
         render.as_jpeg(b"definitely-not-an-image")
