@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import StrEnum
-from typing import Any
+from typing import Any, Literal, get_args
 
 from bson import ObjectId
 from pydantic import BaseModel, ConfigDict, Field
@@ -49,6 +49,10 @@ class UserRole(StrEnum):
     SCHOOL_ADMIN = "school_admin"
     CONTENT_CREATOR = "content_creator"
     TEXTBOOK_REMEDIATION_VOLUNTEER = "textbook_remediation_volunteer"
+
+
+TeacherRole = Literal[UserRole.TEACHER, UserRole.CONTENT_CREATOR]
+TEACHER_ROLES: tuple[UserRole, ...] = get_args(TeacherRole)
 
 
 class User(BaseModel):

@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-from typing import Annotated, Literal
+from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field, StringConstraints
+
+from app.models.user import TeacherRole, UserRole
 
 
 class TeacherLoginRequest(BaseModel):
@@ -16,7 +18,7 @@ class TeacherRegisterRequest(BaseModel):
     phone_number: str
     password: str
     name: str
-    role: Literal["teacher", "content_creator"] = "teacher"
+    role: TeacherRole = UserRole.TEACHER
 
 
 class TenantRegisterRequest(BaseModel):

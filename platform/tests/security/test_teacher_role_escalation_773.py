@@ -18,6 +18,7 @@ from app.platform.error_handling import AppError, UnauthorizedError, ValidationE
 from app.platform.settings import get_settings
 from app.repositories.user_refresh_token_repository import UserRefreshTokenRepository
 from app.repositories.user_repository import UserRepository
+from app.services import auth_service
 from app.services.auth_service import AuthService, TeacherCreate
 from tests.support.mongomock_async import AsyncMongoMockClient
 
@@ -132,6 +133,21 @@ class TestTeacherPhoneLogin:
 
         assert await mock_db["userRefreshTokens"].count_documents({}) == 0
 
+    async def test_non_teacher_role_is_checked_after_password(self, mock_db, monkeypatch):
+        await _seed(mock_db, UserRole.TENANT, "+915550000009")
+        calls = []
+
+        async def spy(plain, hashed):
+            calls.append(plain)
+            return True
+
+        monkeypatch.setattr(auth_service, "verify_password", spy)
+
+        with pytest.raises(UnauthorizedError, match="Invalid phone or password"):
+            await AuthService(mock_db).login_by_phone("+915550000009", PASSWORD)
+
+        assert calls == [PASSWORD]
+
     async def test_escalated_tenant_gets_401_from_teacher_login(self, client, mock_db):
         await _seed_escalated_tenant(mock_db, "+915550000005")
 
@@ -174,8 +190,9 @@ class TestLegitimateTenant:
 class TestPreExistingEscalatedAccounts:
     """Accounts escalated before the fix still hold role=tenant in the database.
 
-    Blocking them needs production audit evidence (tenant_audit_773.js) and a
-    product decision on how to identify or remediate them; see AUDIT_773.md.
+    Blocking them needs production audit evidence and a product decision on how
+    to identify or remediate them; the audit script and runbook live on
+    A4i-tech/.github#773.
     """
 
     @pytest.mark.xfail(
