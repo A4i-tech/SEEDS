@@ -115,7 +115,11 @@ async function fetchResponse<T>(
   retried = false,
 ): Promise<T> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
   const hadToken = !!tokenGetter();
   try {
     const response = await fetch(buildUrl(path, params), { ...init, signal: controller.signal });
@@ -141,6 +145,11 @@ async function fetchResponse<T>(
       return await rejectResponse(response);
     }
     return await read(response);
+  } catch (error) {
+    if (timedOut && error instanceof Error && error.name === 'AbortError') {
+      throw new ApiError(0, 'Request timed out');
+    }
+    throw error;
   } finally {
     clearTimeout(timer);
   }

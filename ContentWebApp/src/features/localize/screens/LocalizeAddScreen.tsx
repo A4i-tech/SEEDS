@@ -9,6 +9,7 @@ import type { Website } from '../types/localize.types';
 import { PageTitle } from '@shared/components/PageTitle';
 import { AppBreadcrumbs } from '@shared/components/AppBreadcrumbs';
 import { commonFirst } from '../utils/languages';
+import { deriveNameFromDomain } from '../utils/siteName';
 
 const statusValues = ['Active', 'Inactive'];
 
@@ -38,11 +39,17 @@ function SiteForm({ site }: { site: SiteDraft }) {
   });
 
   const handleSave = form.onSubmit(({ name, domain, status, codes }) => {
+    const validCodes = codes.filter((code) => languages.some((lang) => lang.code === code));
+    if (validCodes.length === 0) {
+      form.setFieldError('codes', t('localize.languageRequired'));
+      return;
+    }
+    const cleanDomain = toDomain(domain);
     const fields = {
-      domain: toDomain(domain),
-      name: name.trim(),
+      domain: cleanDomain,
+      name: name.trim() || (edit ? '' : deriveNameFromDomain(cleanDomain)),
       status,
-      languages: codes.map((code) => ({ code, enabled: true })),
+      languages: validCodes.map((code) => ({ code, enabled: true })),
     };
     const onSuccess = () => void navigate({ to: '/localize' });
     if (edit) update({ id: site.id, fields }, { onSuccess });
@@ -69,7 +76,20 @@ function SiteForm({ site }: { site: SiteDraft }) {
           {...form.getInputProps('status')}
         />
         <Text variant="label">{t('localize.languages')}</Text>
-        {languagesState.status === 'error' && <Alert>{languagesState.error.message}</Alert>}
+        {languagesState.status === 'loading' && <Text c="dimmed">{t('localize.languagesLoading')}</Text>}
+        {languagesState.status === 'error' && (
+          <Alert color="red" title={t('localize.languagesLoadFailed')}>
+            {languagesState.error.message}
+          </Alert>
+        )}
+        {languagesState.status === 'done' && languages.length === 0 && (
+          <Alert>{t('localize.languagesEmpty')}</Alert>
+        )}
+        {form.errors.codes && (
+          <Text c="red" size="sm" role="alert">
+            {form.errors.codes}
+          </Text>
+        )}
         <TextInput
           aria-label={t('localize.searchLanguages')}
           placeholder={t('localize.searchLanguages')}
