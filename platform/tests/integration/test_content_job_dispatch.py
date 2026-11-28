@@ -70,7 +70,7 @@ async def _seed_job(db, content_id: str, **extra) -> dict:
     return job_doc
 
 
-async def _status(db, job_id: str) -> dict:
+async def _get_job(db, job_id: str) -> dict:
     return await db["content_jobs"].find_one({"_id": job_id})
 
 
@@ -80,7 +80,7 @@ async def test_create_content_enqueues_content_job(client, mock_db):
         "/content", json={"type": "story", "language": "english"}, headers=_auth_headers()
     )
     assert resp.status_code == 201, resp.text
-    job = await _status(mock_db, resp.json()["job_id"])
+    job = await _get_job(mock_db, resp.json()["job_id"])
     assert job["content_type"] == "content"
     assert job["status"] == "pending"
 
@@ -95,7 +95,7 @@ async def test_create_quiz_enqueues_quiz_job(client, mock_db):
     assert resp.status_code == 200, resp.text
     body = resp.json()
     assert body["message"] == "Processing New Content job scheduled!"
-    job = await _status(mock_db, body["job_id"])
+    job = await _get_job(mock_db, body["job_id"])
     assert job["content_type"] == "quiz"
     assert await mock_db["quizData"].find_one({"_id": ObjectId(job["content_id"])}) is not None
 
@@ -105,33 +105,30 @@ async def test_create_quiz_enqueues_quiz_job(client, mock_db):
     "extra", [{"content_type": "content"}, {}], ids=["content", "legacy_missing_type"]
 )
 async def test_content_and_legacy_jobs_use_audio_handler(mock_db, extra):
-    job_doc = await _seed_job(mock_db, str(ObjectId()), **extra)
-    with patch(
-        "app.consumers.content_job_consumer._process_audio_content_job", new=AsyncMock()
-    ) as audio_handler:
-        await _process_content_job(
-            job_doc, ContentJobRepository(mock_db), ContentRepository(mock_db), MagicMock()
-        )
-    audio_handler.assert_awaited_once()
-    assert audio_handler.await_args.args[0] is job_doc
+    content_id = ObjectId()
+    await mock_db["contentsV3"].insert_one(
+        {"_id": content_id, "audio_content": [], "is_pull_model": False, "is_processed": False}
+    )
+    job_doc = await _seed_job(mock_db, str(content_id), **extra)
+    await _process_content_job(
+        job_doc, ContentJobRepository(mock_db), ContentRepository(mock_db), MagicMock()
+    )
+    job = await _get_job(mock_db, job_doc["_id"])
+    assert job["status"] == "completed"
+    content = await mock_db["contentsV3"].find_one({"_id": content_id})
+    assert content["is_processed"] is True
 
 
 @pytest.mark.asyncio
 async def test_quiz_job_completes_without_content_lookup(mock_db):
     job_doc = await _seed_job(mock_db, str(ObjectId()), content_type="quiz")
     content_repo = ContentRepository(mock_db)
-    with (
-        patch.object(content_repo, "find_raw_by_id", new=AsyncMock()) as lookup,
-        patch(
-            "app.consumers.content_job_consumer._process_audio_content_job", new=AsyncMock()
-        ) as audio_handler,
-    ):
+    with patch.object(content_repo, "find_raw_by_id", new=AsyncMock()) as lookup:
         await _process_content_job(
             job_doc, ContentJobRepository(mock_db), content_repo, MagicMock()
         )
     lookup.assert_not_awaited()
-    audio_handler.assert_not_awaited()
-    job = await _status(mock_db, job_doc["_id"])
+    job = await _get_job(mock_db, job_doc["_id"])
     assert job["status"] == "completed"
     assert "reason" not in job
 
@@ -139,17 +136,16 @@ async def test_quiz_job_completes_without_content_lookup(mock_db):
 @pytest.mark.asyncio
 async def test_unsupported_content_type_is_dead_lettered(mock_db):
     job_doc = await _seed_job(mock_db, str(ObjectId()), content_type="video")
+    content_repo = ContentRepository(mock_db)
     with (
-        patch(
-            "app.consumers.content_job_consumer._process_audio_content_job", new=AsyncMock()
-        ) as audio_handler,
+        patch.object(content_repo, "find_raw_by_id", new=AsyncMock()) as lookup,
         pytest.raises(ValueError, match="Unsupported content_type"),
     ):
         await _process_content_job(
-            job_doc, ContentJobRepository(mock_db), ContentRepository(mock_db), MagicMock()
+            job_doc, ContentJobRepository(mock_db), content_repo, MagicMock()
         )
-    audio_handler.assert_not_awaited()
-    job = await _status(mock_db, job_doc["_id"])
+    lookup.assert_not_awaited()
+    job = await _get_job(mock_db, job_doc["_id"])
     assert job["status"] == "failed"
     assert job["reason"] == "Unsupported content_type: 'video'"
 
@@ -161,7 +157,7 @@ async def test_missing_content_document_still_dead_letters(mock_db):
         await _process_content_job(
             job_doc, ContentJobRepository(mock_db), ContentRepository(mock_db), MagicMock()
         )
-    job = await _status(mock_db, job_doc["_id"])
+    job = await _get_job(mock_db, job_doc["_id"])
     assert job["status"] == "failed"
 
 
@@ -180,6 +176,6 @@ async def test_transient_failure_retries_then_dead_letters(mock_db):
             job_doc, ContentJobRepository(mock_db), content_repo, MagicMock()
         )
     assert lookup.await_count == 3
-    job = await _status(mock_db, job_doc["_id"])
+    job = await _get_job(mock_db, job_doc["_id"])
     assert job["status"] == "failed"
     assert job["reason"] == "db down"

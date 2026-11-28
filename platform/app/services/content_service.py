@@ -46,8 +46,11 @@ class ContentService:
         self._job_repo = ContentJobRepository(db)
         self._website_extractor = WebsiteExtractor()
 
-    async def enqueue_content_job(self, content_id: str, content_type: ContentJobType) -> str:
-        return await self._job_repo.create(content_id, content_type)
+    async def enqueue_content_job(self, content_id: str) -> str:
+        return await self._job_repo.create(content_id, ContentJobType.CONTENT)
+
+    async def enqueue_quiz_job(self, quiz_id: str) -> str:
+        return await self._job_repo.create(quiz_id, ContentJobType.QUIZ)
 
     async def get_job(self, job_id: str) -> dict[str, Any] | None:
         return await self._job_repo.find_by_id(job_id)

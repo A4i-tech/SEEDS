@@ -10,7 +10,7 @@ Polls MongoDB for pending content processing jobs and processes them:
   - Dead-letter: Permanent errors (corrupt file, missing blob, parse failure)
                  → job status=failed, reason=str(e), failed_at=<utcnow>
 
-Ported from backend-server/src/jobs/processAudioContent.js and processQuizContent.js.
+Ported from backend-server/src/jobs/processAudioContent.js. Quiz jobs complete as a no-op.
 
 SECURITY:
   - subprocess always called with list form — never shell=True.
@@ -30,7 +30,10 @@ Stages:
               find_one_and_update.  Only one consumer instance will claim a
               given job, preventing duplicate processing.
 
-  2. RUN      The job is processed by _process_audio_content_job():
+  2. RUN      _process_content_job() dispatches on content_type. Quiz jobs are
+              marked "completed" as a no-op. Content jobs (and legacy jobs with
+              no content_type) go to _process_audio_content_job(); unknown types
+              are dead-lettered. The audio handler:
                 a. status set to "running"
                 b. Content document fetched from contentsV3
                 c. Each audioContent item downloaded, transcoded (FFmpeg),
@@ -438,15 +441,11 @@ async def _process_audio_content_job(
 
 
 async def _process_quiz_job(job_doc: dict, job_repo: ContentJobRepository) -> None:
-    """Complete a quiz job without processing.
-
-    Quizzes are stored in quizData and need no asynchronous processing today,
-    so the job is marked completed. Add quiz post-create work (e.g. TTS) here.
-    """
-    await job_repo.mark_completed(job_doc.get("_id"))
+    """Complete a quiz job; quizzes need no asynchronous processing."""
+    await job_repo.mark_completed(job_doc["_id"])
     logger.info(
         "content_job: completed quiz job_id=%s content_id=%s (no-op)",
-        job_doc.get("_id"), job_doc.get("content_id"),
+        job_doc["_id"], job_doc["content_id"],
     )
 
 
@@ -456,11 +455,7 @@ async def _process_content_job(
     content_repo: ContentRepository,
     blob_provider,
 ) -> None:
-    """Dispatch a job to its handler by content_type.
-
-    Jobs created before content_type existed default to ContentJobType.CONTENT.
-    Unknown content types are dead-lettered and raise ValueError.
-    """
+    """Dispatch by content_type; legacy jobs default to content, unknown types dead-letter."""
     content_type = job_doc.get("content_type", ContentJobType.CONTENT)
     if content_type == ContentJobType.CONTENT:
         await _process_audio_content_job(job_doc, job_repo, content_repo, blob_provider)
@@ -468,8 +463,8 @@ async def _process_content_job(
         await _process_quiz_job(job_doc, job_repo)
     else:
         reason = f"Unsupported content_type: {content_type!r}"
-        logger.error("content_job: dead-lettering job_id=%s reason=%r", job_doc.get("_id"), reason)
-        await job_repo.mark_failed(job_doc.get("_id"), reason)
+        logger.error("content_job: dead-lettering job_id=%s reason=%r", job_doc["_id"], reason)
+        await job_repo.mark_failed(job_doc["_id"], reason)
         raise ValueError(reason)
 
 
@@ -539,7 +534,7 @@ class ContentJobConsumer:
                         logger.error("content_job: timeout job_id=%s", job_id)
                         await job_repo.mark_failed(job_id, "Job exceeded timeout of 5 minutes")
                     except Exception as exc:  # noqa: BLE001
-                        # Already dead-lettered inside _process_audio_content_job
+                        # Already dead-lettered inside _process_content_job
                         logger.debug("content_job: job processing exception handled: %s", exc)
                 else:
                     # No pending jobs — wait before polling again
