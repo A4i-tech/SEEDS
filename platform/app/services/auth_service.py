@@ -26,13 +26,19 @@ from app.models.responses.dashboard import (
 )
 from app.models.responses.school_response import SchoolResponse
 from app.models.responses.user import TenantNameResponse, UserPublicResponse
-from app.models.user import User, UserCreate, UserRole
+from app.models.user import TEACHER_ROLES, User, UserCreate, UserRole
 from app.platform.auth import refresh_tokens
 from app.platform.auth.dependencies import get_db
 from app.platform.auth.hashing import hash_password, verify_password
 from app.platform.auth.jwt import create_access_token, parse_expires_delta
 from app.platform.auth.refresh_tokens import TokenPair
-from app.platform.error_handling import AppError, ConflictError, NotFoundError, UnauthorizedError
+from app.platform.error_handling import (
+    AppError,
+    ConflictError,
+    NotFoundError,
+    UnauthorizedError,
+    ValidationError,
+)
 from app.platform.settings import Settings, get_settings
 from app.platform.telemetry import get_counter
 from app.repositories.classroom_repository import ClassroomRepository
@@ -202,6 +208,7 @@ async def login_by_phone(
         user is None
         or not user.hashed_password
         or not await verify_password(password, user.hashed_password)
+        or user.role not in TEACHER_ROLES
     ):
         logger.warning("auth: teacher login failed — invalid credentials")
         auth_failures.add(1, {"reason": "invalid_credentials"})
@@ -229,12 +236,12 @@ async def register_teacher(
     Register a new teacher user.
 
     Raises ConflictError if email is already taken.
+    Raises ValidationError if role is not in TEACHER_ROLES.
     SECURITY: password is hashed before storage; plaintext is never retained.
     """
-    try:
-        role = UserRole(data.role)
-    except ValueError:
-        raise ConflictError(f"invalid role: {data.role}")
+    if data.role not in TEACHER_ROLES:
+        raise ValidationError(f"role must be one of {[r.value for r in TEACHER_ROLES]}")
+    role = UserRole(data.role)
 
     repo = UserRepository(db)
 
