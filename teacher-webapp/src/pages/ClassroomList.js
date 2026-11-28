@@ -179,6 +179,7 @@ const ClassroomList = () => {
           </Button>
           <IconButton
             onClick={handleLogout}
+            aria-label="Logout"
             sx={{
               color: "error.main",
               "&:hover": {
@@ -332,6 +333,7 @@ const ClassroomList = () => {
                     <IconButton
                       size="small"
                       onClick={() => handleEdit(classroom.id)}
+                      aria-label={`Edit ${classroom.name}`}
                       sx={{ color: "primary.main" }}
                     >
                       <EditIcon />
@@ -339,6 +341,7 @@ const ClassroomList = () => {
                     <IconButton
                       size="small"
                       onClick={() => handleDeleteClick(classroom)}
+                      aria-label={`Delete ${classroom.name}`}
                       sx={{ color: "error.main" }}
                     >
                       <DeleteIcon />

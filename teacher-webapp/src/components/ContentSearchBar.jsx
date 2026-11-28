@@ -47,7 +47,11 @@ const ContentSearchBar = ({
       </Box>
 
       {/* Filter tabs */}
-      <Box sx={{ px: 2, pb: 1.5, display: "flex", gap: 1, flexWrap: "wrap" }}>
+      <Box
+        role="group"
+        aria-label="Content type filters"
+        sx={{ px: 2, pb: 1.5, display: "flex", gap: 1, flexWrap: "wrap" }}
+      >
         {availableTabs.map((tab) => (
           <Chip
             key={tab}
