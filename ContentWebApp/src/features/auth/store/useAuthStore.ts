@@ -3,6 +3,7 @@ import i18n from '@shared/i18n';
 import { queryClient } from '@shared/services/queryClient';
 import { setRefreshHandler, setTokenGetter } from '@shared/services/apiClient';
 import { notifyApiError } from '@shared/utils/notifyApiError';
+import { identify, track } from '@shared/services/umami';
 import { decodeJwtPayload, decodeJwtRole, decodeJwtSchoolId, roleSchema, type Role } from '@shared/utils/jwt';
 import { login as loginRequest, logout as logoutRequest, refresh as refreshRequest } from '../api/login';
 
@@ -31,20 +32,30 @@ function signedIn(token: string) {
   } as const;
 }
 
+function identifyUser(token: string) {
+  const { sub, role, school_id, tenant_id } = decodeJwtPayload(token);
+  identify(sub, { role, schoolId: school_id, tenantId: tenant_id });
+}
+
 export const useAuthStore = create<AuthState>((set) => {
   const actions = {
     hydrate: async () => {
+      let token: string;
       try {
-        await useAuthStore.getState().refresh();
+        token = await useAuthStore.getState().refresh();
       } catch {
         set({ ...actions, token: '', status: 'unauthenticated' }, true);
+        return;
       }
+      identifyUser(token);
     },
 
     login: async (identifier: string, password: string) => {
       const token = await loginRequest(identifier, password);
       if (!roleSchema.safeParse(decodeJwtPayload(token).role).success) throw new Error(i18n.t('auth.roleNotAllowed'));
       set({ ...actions, ...signedIn(token) }, true);
+      identifyUser(token);
+      track('login');
     },
 
     logout: async (): Promise<boolean> => {

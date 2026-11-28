@@ -2,10 +2,11 @@ import logging
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query, Request
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.models.requests.translation_requests import (
     BulkApproveRequest,
+    RuleRequest,
     TranslationApproveRequest,
     TranslationRejectRequest,
     TranslationUpdateRequest,
@@ -13,6 +14,7 @@ from app.models.requests.translation_requests import (
 from app.models.responses.common import StatusResponse
 from app.models.responses.translation import (
     AuditEntryResponse,
+    RuleResponse,
     TranslationResponse,
     TranslationVersionResponse,
 )
@@ -36,6 +38,13 @@ class ExtractItem(BaseModel):
     route: str = Field(max_length=2048)
     source_lang: str = "en"
 
+    @field_validator("key")
+    @classmethod
+    def _key_is_not_blank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("Key must not be blank.")
+        return value
+
 
 class ExtractRequest(BaseModel):
     site_id: str
@@ -58,7 +67,7 @@ async def extract(
 
 @router.get(
     "",
-    summary="Get approved translations for a route + language (unapproved falls back to source text)",
+    summary="Get approved translations for a route + language (page-approved text wins, then override text, excluded text stays source, else source text)",
 )
 @limiter.limit("300/minute")
 async def get_translations(
@@ -117,6 +126,15 @@ async def list_translations(
     return [TranslationResponse.from_doc(doc) for doc in docs]
 
 
+@router.get("/pages", summary="List the routes a site has translations for, most recently updated first")
+async def list_pages(
+    site_id: str,
+    service: TranslationService = Depends(get_translation_service),
+    user: dict[str, Any] = Depends(require_translation_reviewer),
+) -> list[str]:
+    return await service.list_routes(site_id, _tenant_id(user))
+
+
 @router.post(
     "/bulk-approve",
     summary="Approve all pending translations for a site (optionally scoped to route/lang)",
@@ -153,6 +171,60 @@ async def get_audit_trail(
 
 
 @router.get(
+    "/rules",
+    summary="List a site's exclusion and override rules",
+    response_model=list[RuleResponse],
+)
+async def list_rules(
+    site_id: str,
+    service: TranslationService = Depends(get_translation_service),
+    user: dict[str, Any] = Depends(require_translation_reviewer),
+) -> list[RuleResponse]:
+    rules = await service.list_rules(site_id, _tenant_id(user))
+    return [RuleResponse.from_doc(rule) for rule in rules]
+
+
+@router.post(
+    "/rules",
+    summary="Add an exclusion or override rule to a site",
+    response_model=RuleResponse,
+    status_code=201,
+)
+async def add_rule(
+    site_id: str,
+    body: RuleRequest,
+    service: TranslationService = Depends(get_translation_service),
+    user: dict[str, Any] = Depends(require_translation_reviewer),
+) -> RuleResponse:
+    rule = await service.add_rule(site_id, _tenant_id(user), body.model_dump(), _reviewer_id(user))
+    return RuleResponse.from_doc(rule)
+
+
+@router.put(
+    "/rules/{rule_id}",
+    summary="Edit a rule",
+    response_model=RuleResponse,
+)
+async def update_rule(
+    rule_id: str,
+    body: RuleRequest,
+    service: TranslationService = Depends(get_translation_service),
+    user: dict[str, Any] = Depends(require_translation_reviewer),
+) -> RuleResponse:
+    rule = await service.update_rule(rule_id, _tenant_id(user), body.model_dump(), _reviewer_id(user))
+    return RuleResponse.from_doc(rule)
+
+
+@router.delete("/rules/{rule_id}", summary="Delete a rule", status_code=204)
+async def delete_rule(
+    rule_id: str,
+    service: TranslationService = Depends(get_translation_service),
+    user: dict[str, Any] = Depends(require_translation_reviewer),
+) -> None:
+    await service.delete_rule(rule_id, _tenant_id(user), _reviewer_id(user))
+
+
+@router.get(
     "/{translation_id}/versions",
     summary="Get the approved version history of a translation",
     response_model=list[TranslationVersionResponse],
@@ -182,7 +254,7 @@ async def get_translation(
 
 @router.put(
     "/{translation_id}",
-    summary="Update a translation's edited text",
+    summary="Update a translation's edited text (also approves it when an override applies)",
     response_model=TranslationResponse,
 )
 async def update_translation(
