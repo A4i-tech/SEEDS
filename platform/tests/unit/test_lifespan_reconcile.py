@@ -16,6 +16,7 @@ ENSURE_INDEXES_TARGETS = [
     "app.repositories.translation_repository.TranslationRepository",
     "app.repositories.translation_version_repository.TranslationVersionRepository",
     "app.repositories.translation_audit_repository.TranslationAuditRepository",
+    "app.repositories.translation_rule_repository.TranslationRuleRepository",
     "app.repositories.content_job_repository.ContentJobRepository",
     "app.repositories.textbook_remediation_repository.TextbookRemediationRepository",
     "app.repositories.integration_client_repository.IntegrationClientRepository",

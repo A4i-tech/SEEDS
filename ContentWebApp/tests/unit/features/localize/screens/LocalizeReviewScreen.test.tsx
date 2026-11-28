@@ -8,9 +8,11 @@ import { listSites } from '@features/localize/api/sites'
 import {
   approveTranslation,
   bulkApproveTranslations,
+  listPages,
   listTranslations,
   updateTranslation,
 } from '@features/localize/api/review'
+import { createRule, deleteRule, listRules, updateRule } from '@features/localize/api/rules'
 import { generateForReview } from '@features/localize/api/scripts'
 import { getLanguages } from '@shared/services/languages'
 import type { TranslationItem } from '@features/localize/types/localize.types'
@@ -39,12 +41,19 @@ vi.mock('@features/localize/api/sites', () => ({
 }))
 vi.mock('@shared/services/languages', () => ({ getLanguages: vi.fn() }))
 vi.mock('@features/localize/api/review', () => ({
+  listPages: vi.fn(),
   listTranslations: vi.fn(),
   updateTranslation: vi.fn(),
   approveTranslation: vi.fn(),
   bulkApproveTranslations: vi.fn(),
 }))
 vi.mock('@features/localize/api/scripts', () => ({ generateForReview: vi.fn() }))
+vi.mock('@features/localize/api/rules', () => ({
+  listRules: vi.fn(),
+  createRule: vi.fn(),
+  updateRule: vi.fn(),
+  deleteRule: vi.fn(),
+}))
 
 const site = {
   id: 's1',
@@ -64,6 +73,9 @@ function makeItem(key: string, sourceText: string, translated?: string, status =
     route: '/about',
     source_text: sourceText,
     low_confidence: false,
+    exclusion_rule_id: '',
+    exclusion_pattern: '',
+    shared: {},
     updated_at: '',
     translations: translated ? { kn: { text: translated, status } } : {},
   }
@@ -106,7 +118,9 @@ describe('LocalizeReviewScreen', () => {
       makeItem('k2', 'Good Morning', 'ಶುಭೋದಯ'),
     ]
     vi.mocked(listTranslations).mockImplementation(async () => items)
+    vi.mocked(listPages).mockImplementation(async () => [...new Set(items.map((item) => item.route))])
     vi.mocked(generateForReview).mockResolvedValue(undefined)
+    vi.mocked(listRules).mockResolvedValue([])
     vi.mocked(approveTranslation).mockResolvedValue(makeItem('k1', 'Hello World', 'ಹಲೋ ವರ್ಲ್ಡ್', 'approved'))
     vi.mocked(updateTranslation).mockResolvedValue(makeItem('k1', 'Hello World', 'Edited text'))
     vi.mocked(bulkApproveTranslations).mockResolvedValue({ approved: 2 })
@@ -274,7 +288,7 @@ describe('LocalizeReviewScreen', () => {
     items = [makeItem('k1', 'Hello', 'ಹಲೋ'), { ...makeItem('k2', 'Price', 'ಬೆಲೆ'), route: '/pricing' }]
     await openReview()
 
-    expect(listTranslations).toHaveBeenCalledWith('site-1')
+    expect(listPages).toHaveBeenCalledWith('site-1')
     expect(listTranslations).toHaveBeenCalledWith('site-1', '/about')
     await selectOption('Pick a page', '/pricing')
     await waitFor(() => expect(listTranslations).toHaveBeenCalledWith('site-1', '/pricing'))
@@ -325,6 +339,7 @@ describe('LocalizeReviewScreen', () => {
     renderWithProviders(<LocalizeReviewScreen />)
 
     expect(await screen.findByText('Pick a site above to start reviewing its translations.')).toBeInTheDocument()
+    expect(listPages).not.toHaveBeenCalled()
     expect(listTranslations).not.toHaveBeenCalled()
   })
 
@@ -385,16 +400,17 @@ describe('LocalizeReviewScreen', () => {
     renderWithProviders(<LocalizeReviewScreen />)
     await selectOption('Select site', 'A')
 
-    await waitFor(() => expect(listTranslations).toHaveBeenCalledWith('site-1'))
+    await waitFor(() => expect(listPages).toHaveBeenCalledWith('site-1'))
     expect(screen.getByPlaceholderText('Pick a page')).toHaveValue('')
     expect(listTranslations).not.toHaveBeenCalledWith('site-1', expect.anything())
   })
 
-  it('opens the most recently updated page first', async () => {
+  it('opens the first page the server lists', async () => {
     items = [
-      { ...makeItem('k1', 'Hello', 'ಹಲೋ'), route: '/old', updated_at: '2026-01-01T00:00:00' },
-      { ...makeItem('k2', 'Price', 'ಬೆಲೆ'), route: '/new', updated_at: '2026-06-01T00:00:00' },
+      { ...makeItem('k1', 'Hello', 'ಹಲೋ'), route: '/old' },
+      { ...makeItem('k2', 'Price', 'ಬೆಲೆ'), route: '/new' },
     ]
+    vi.mocked(listPages).mockResolvedValue(['/new', '/old'])
     renderWithProviders(<LocalizeReviewScreen />)
     await selectOption('Select site', 'A')
 
@@ -410,16 +426,19 @@ describe('LocalizeReviewScreen', () => {
     expect(await screen.findByText("Your account doesn't have access to Translate & Review.")).toBeInTheDocument()
   })
 
-  it('approving a row updates it in place without reloading the page', async () => {
+  it('approving a row reloads the list so shared and excluded state stay correct', async () => {
     items = [makeItem('k1', 'Hello World', 'ಹಲೋ')]
-    vi.mocked(approveTranslation).mockResolvedValue(makeItem('k1', 'Hello World', 'ಹಲೋ', 'approved'))
+    vi.mocked(approveTranslation).mockImplementation(async () => {
+      items = [makeItem('k1', 'Hello World', 'ಹಲೋ', 'approved')]
+      return items[0]
+    })
     await openReview()
     await screen.findByText('Hello World')
     const calls = vi.mocked(listTranslations).mock.calls.length
     fireEvent.click(screen.getByRole('button', { name: 'Approve' }))
 
     expect(await screen.findByRole('tab', { name: 'Approved (1)' })).toBeInTheDocument()
-    expect(listTranslations).toHaveBeenCalledTimes(calls)
+    expect(vi.mocked(listTranslations).mock.calls.length).toBeGreaterThan(calls)
   })
 
   it('a failed load surfaces the backend message', async () => {
@@ -428,6 +447,143 @@ describe('LocalizeReviewScreen', () => {
     await selectOption('Select site', 'A')
 
     expect(await screen.findByText('Network error')).toBeInTheDocument()
+  })
+  it('shows the pending, approved, all and excluded counts on the tabs', async () => {
+    items = [
+      makeItem('k1', 'Hello', 'ಹಲೋ', 'approved'),
+      makeItem('k2', 'Bye', 'ವಿದಾಯ'),
+      { ...makeItem('k3', 'x = 1', 'x = 1'), exclusion_rule_id: 'r1', exclusion_pattern: 'x = *' },
+    ]
+    await openReview()
+    await screen.findByText('Hello')
+
+    expect(screen.getByRole('tab', { name: 'Pending (1)' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Approved (1)' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'All (2)' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Excluded (1)' })).toBeInTheDocument()
+  })
+
+  it('excluded rows are only on the Excluded tab, with their pattern and no actions', async () => {
+    items = [
+      makeItem('k1', 'Hello', 'ಹಲೋ'),
+      { ...makeItem('k2', 'x = 1', 'old'), exclusion_rule_id: 'r1', exclusion_pattern: 'x = *' },
+    ]
+    await openReview()
+    await screen.findByText('Hello')
+    expect(screen.queryByText('x = 1')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('tab', { name: /^Excluded/ }))
+
+    expect(await screen.findByText('x = *')).toBeInTheDocument()
+    expect(screen.queryByText('Hello')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Translation')).toHaveValue('x = 1')
+    expect(screen.queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Apply to all pages' })).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Translation')).toBeDisabled()
+  })
+
+  it('approve all never sends excluded rows', async () => {
+    items = [
+      makeItem('k1', 'Hello', 'ಹಲೋ'),
+      { ...makeItem('k2', 'x = 1', 'old'), exclusion_rule_id: 'r1', exclusion_pattern: 'x = *' },
+    ]
+    await openReview()
+    await screen.findByText('Hello')
+    fireEvent.click(screen.getByRole('tab', { name: /^Pending/ }))
+    fireEvent.click(screen.getByRole('button', { name: 'Approve all' }))
+    await confirmApproveAll()
+
+    await waitFor(() => expect(approveTranslation).toHaveBeenCalledWith('k1', { lang: 'kn' }))
+    expect(approveTranslation).toHaveBeenCalledTimes(1)
+  })
+
+  it('a shared row sits on the Overridden tab with the override text and no actions', async () => {
+    items = [{ ...makeItem('k1', 'Dates', ''), shared: { kn: { translation: 'ತಾರೀಖು' } } }]
+    await openReview()
+    fireEvent.click(await screen.findByRole('tab', { name: 'Overridden (1)' }))
+
+    expect(await screen.findByDisplayValue('ತಾರೀಖು')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument()
+  })
+
+  it('the Rules modal lists, adds, edits and deletes rules', async () => {
+    const rule = { id: 'r1', kind: 'exclusion' as const, text: 'x = *', lang: '', translation: '' }
+    vi.mocked(listRules).mockResolvedValue([rule])
+    vi.mocked(createRule).mockResolvedValue(rule)
+    vi.mocked(updateRule).mockResolvedValue(rule)
+    vi.mocked(deleteRule).mockResolvedValue(undefined)
+    await openReview()
+    await screen.findByText('Hello World')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rules' }))
+    const dialog = await screen.findByRole('dialog')
+    expect(await within(dialog).findByText('x = *')).toBeInTheDocument()
+
+    fireEvent.change(within(dialog).getByLabelText('Text or pattern'), { target: { value: 'a?c' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save rule' }))
+    await waitFor(() =>
+      expect(createRule).toHaveBeenCalledWith('site-1', { kind: 'exclusion', text: 'a?c', lang: '', translation: '' }),
+    )
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Edit' }))
+    fireEvent.change(within(dialog).getByLabelText('Text or pattern'), { target: { value: 'x = ?' } })
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Save rule' }))
+    await waitFor(() =>
+      expect(updateRule).toHaveBeenCalledWith('r1', { kind: 'exclusion', text: 'x = ?', lang: '', translation: '' }),
+    )
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete rule' }))
+    const confirm = await screen.findByRole('dialog', { name: 'Delete this rule?' })
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Delete rule' }))
+    await waitFor(() => expect(deleteRule).toHaveBeenCalled())
+    expect(vi.mocked(deleteRule).mock.calls[0][0]).toBe('r1')
+  })
+
+  it('an override rule needs a language and a translation before it can be saved', async () => {
+    await openReview()
+    await screen.findByText('Hello World')
+    fireEvent.click(screen.getByRole('button', { name: 'Rules' }))
+    const dialog = await screen.findByRole('dialog')
+
+    fireEvent.click(within(dialog).getByRole('tab', { name: 'Overrides' }))
+    fireEvent.change(within(dialog).getByLabelText('Source text'), { target: { value: 'Dates' } })
+
+    expect(within(dialog).getByRole('button', { name: 'Save rule' })).toBeDisabled()
+
+    fireEvent.mouseDown(within(dialog).getByPlaceholderText('Select language'))
+    fireEvent.click((await screen.findAllByRole('option', { name: 'Kannada', hidden: true })).at(-1) as HTMLElement)
+    fireEvent.change(within(dialog).getByLabelText('Translation'), { target: { value: '   ' } })
+    expect(within(dialog).getByRole('button', { name: 'Save rule' })).toBeDisabled()
+
+    fireEvent.change(within(dialog).getByLabelText('Translation'), { target: { value: 'ತಾರೀಖು' } })
+    expect(within(dialog).getByRole('button', { name: 'Save rule' })).toBeEnabled()
+  })
+
+  it('an excluded row that also matches an override stays on the Excluded tab', async () => {
+    items = [
+      {
+        ...makeItem('k1', 'Dates', ''),
+        exclusion_rule_id: 'r1',
+        exclusion_pattern: 'Dates',
+        shared: { kn: { translation: 'ತಾರೀಖು' } },
+      },
+    ]
+    await openReview()
+
+    expect(await screen.findByRole('tab', { name: 'Excluded (1)' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Overridden (0)' })).toBeInTheDocument()
+  })
+
+  it('the Rules dialog shows an error when the rules cannot be loaded', async () => {
+    vi.mocked(listRules).mockRejectedValue(new Error('Rules unavailable'))
+    await openReview()
+    await screen.findByText('Hello World')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Rules' }))
+    const dialog = await screen.findByRole('dialog')
+
+    expect(await within(dialog).findByText('Rules unavailable')).toBeInTheDocument()
+    expect(within(dialog).queryByText('No rules yet.')).not.toBeInTheDocument()
   })
 })
 

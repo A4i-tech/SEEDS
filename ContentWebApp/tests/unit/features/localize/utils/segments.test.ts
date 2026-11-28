@@ -8,6 +8,9 @@ const item = (overrides: Partial<TranslationItem>): TranslationItem => ({
   route: '/a',
   source_text: 'Hello',
   low_confidence: false,
+  exclusion_rule_id: '',
+  exclusion_pattern: '',
+  shared: {},
   translations: {},
   ...overrides,
 });
@@ -23,6 +26,7 @@ describe('toSegment', () => {
       translation: 'namaste',
       stage: 'approved',
       lowConfidence: false,
+      pattern: '',
     });
   });
 
@@ -49,5 +53,24 @@ describe('toSegment', () => {
 
   it('falls back to the key when there is no source text', () => {
     expect(toSegment(item({ source_text: '' }), 'hi').sourceText).toBe('k');
+  });
+
+  it('an excluded row has the excluded stage and its pattern, even when approved', () => {
+    const doc = item({
+      exclusion_rule_id: 'r1',
+      exclusion_pattern: 'Hel*',
+      translations: { hi: { text: 'namaste', status: 'approved' } },
+    });
+    expect(toSegment(doc, 'hi')).toMatchObject({ stage: 'excluded', pattern: 'Hel*' });
+  });
+
+  it('a shared row is overridden and shows the override text', () => {
+    const doc = item({ shared: { hi: { translation: 'tarikh' } } });
+    expect(toSegment(doc, 'hi')).toMatchObject({ stage: 'overridden', translation: 'tarikh' });
+  });
+
+  it('a shared language does not change the stage of another language', () => {
+    const doc = item({ shared: { mr: { translation: 'tarikh' } } });
+    expect(toSegment(doc, 'hi')).toMatchObject({ stage: 'pending', translation: '' });
   });
 });

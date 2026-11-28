@@ -9,7 +9,10 @@ The image holds no environment values. Set these as container environment variab
 ```
 REACT_APP_API_BASE_URL=<value>
 REACT_APP_GOOGLE_SITE_VERIFICATION=<value>
+REACT_APP_UMAMI_URL=<value>
+REACT_APP_UMAMI_WEBSITE_ID=<value>
 ```
+Set the two Umami variables to empty strings to turn Umami off.
 
 nginx fills `default.conf.template` from these variables at start. It serves them to the app as `/env.js`. It also writes the Google site verification tag into every HTML page.
 
@@ -25,6 +28,8 @@ Set each value in every environment before the first deploy of this image. Take 
 |---|---|
 | `REACT_APP_API_BASE_URL` | CONTENT_WEBAPP_REACT_APP_API_BASE_URL (prod), CONTENT_WEBAPP_REACT_APP_API_BASE_URL_STAGING (staging) |
 | `REACT_APP_GOOGLE_SITE_VERIFICATION` | CONTENT_WEBAPP_REACT_APP_GOOGLE_SITE_VERIFICATION |
+| `REACT_APP_UMAMI_URL` | CONTENT_WEBAPP_UMAMI_URL |
+| `REACT_APP_UMAMI_WEBSITE_ID` | CONTENT_WEBAPP_UMAMI_WEBSITE_ID (prod), CONTENT_WEBAPP_UMAMI_WEBSITE_ID_STAGING (staging) |
 
 To change one, update the value where the container runs (the kube-dev secret or the Azure App Setting) and restart the container.
 

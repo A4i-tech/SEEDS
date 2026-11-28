@@ -1,11 +1,36 @@
 from __future__ import annotations
 
-from typing import Any
+from datetime import datetime
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.platform.settings import get_settings
 from app.services.quality_scorer import is_low_confidence
+
+
+class SharedMatch(BaseModel):
+    rule_id: str
+    translation: str
+
+
+class RuleResponse(BaseModel):
+    id: str = Field(validation_alias="_id")
+    kind: Literal["exclusion", "override"]
+    text: str
+    lang: str
+    translation: str
+    updated_at: datetime
+    updated_by: str
+
+    @field_validator("id", mode="before")
+    @classmethod
+    def _coerce_id(cls, v: Any) -> str:
+        return str(v)
+
+    @classmethod
+    def from_doc(cls, doc: dict) -> RuleResponse:
+        return cls.model_validate(doc)
 
 
 class TranslationResponse(BaseModel):
@@ -14,6 +39,9 @@ class TranslationResponse(BaseModel):
     id: str = Field(validation_alias="_id")
     translations: dict[str, Any] | None = None
     low_confidence: bool = False
+    exclusion_rule_id: str = ""
+    exclusion_pattern: str = ""
+    shared: dict[str, SharedMatch] = {}
 
     @field_validator("id", mode="before")
     @classmethod
