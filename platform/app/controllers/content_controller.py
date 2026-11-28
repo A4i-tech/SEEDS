@@ -406,7 +406,7 @@ async def create_quiz(
     school_id = _write_school_id(user)
 
     quiz_id = await service.create_quiz(body, tenant_id, user_id, school_id)
-    job_id = await service.enqueue_content_job(quiz_id)
+    job_id = await service.enqueue_quiz_job(quiz_id)
     return JobScheduledResponse(message="Processing New Content job scheduled!", job_id=job_id)
 
 
